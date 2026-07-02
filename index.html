@@ -572,339 +572,338 @@ function renderNode(n) {
 
   return `
   <div style="display:flex;flex-direction:column;align-items:center">
-    <div class="node node-$erticals —</div>`;
+    <div class="node node-${n.tier}" id="node-${n.id}" onclick="openEdit('${n.id}')">
+      <div class="node-role">${n.role}</div>
+      <div class="node-name">${nameHtml}</div>
+      <div class="node-badges">
+        <div class="node-status-wrap" onclick="event.stopPropagation();toggleStatusDrop('${n.id}',event)">
+          ${statusBadge(n.status)}
+          <div class="status-drop" id="sdrop-${n.id}">${buildStatusDrop(n.id,n.status)}</div>
+        </div>
+        ${regionBadge(n.region)}
+      </div>
+      ${n.dashed ? '<div style="font-size:9px;opacity:0.65;margin-top:2px">- - dashed line - -</div>' : ''}
+      ${has ? `<button class="toggle-btn" onclick="toggleNode(event,'${n.id}')">${n.expanded?'−':'+'}</button>` : ''}
+    </div>
+    ${has ? `
+    <div id="ch-${n.id}" ${n.expanded?'':'style="display:none"'}>
+      <div class="v-line" style="height:20px"></div>
+      <div style="display:flex;justify-content:center;align-items:flex-start">
+        ${n.children.map((c,i,arr) => {
+          const only = arr.length === 1;
+          const first = i === 0, last = i === arr.length-1;
+          return `
+          <div style="display:flex;flex-direction:column;align-items:center">
+            <div style="display:flex;align-items:flex-start;width:100%">
+              ${!only && !first ? '<div class="h-line" style="flex:1;align-self:flex-start;margin-top:0;height:2px"></div>' : (!only ? '<div style="flex:1"></div>' : '')}
+              <div style="display:flex;flex-direction:column;align-items:center">
+                <div class="v-line" style="height:16px"></div>
+                ${renderNode(c)}
+              </div>
+              ${!only && !last ? '<div class="h-line" style="flex:1;align-self:flex-start;margin-top:0;height:2px"></div>' : (!only ? '<div style="flex:1"></div>' : '')}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : ''}
+  </div>`;
+}
 
-    // T2 verticals row
-    html += `<div style="display:flex;gap:20px;justify-content:center;flex-wrap:wrap;align-items:flex-start">`;
-    verticals.forEach(v => {
-      if (v.type === 'cogroup') {
-        html += renderCoGroup(v);
-      } else {
-        html += `<div style="display:flex;flex-direction:column;align-items:center">`;
-        html += `<div class="v-line" style="height:20px"></div>`;
-        html += renderNode(v);
-        html += `</div>`;
-      }
-    });
-    html += `</div>`; // end verticals row
-    html += `</div>`; // end ch-root
+// ══════════════════════════════════════════════
+//  CO-LEAD GROUP RENDERER (Site Logistics)
+// ══════════════════════════════════════════════
+function renderCoGroup(v) {
+  const hasChildren = v.children && v.children.length > 0;
+  let h = `<div style="display:flex;flex-direction:column;align-items:center">`;
+  h += `<div class="v-line" style="height:20px"></div>`;
+  h += `<div style="font-size:9px;color:#2d6a9f;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:6px">${v.role} — Co-Leads</div>`;
+
+  // Two co-lead boxes joined by a horizontal connector
+  h += `<div style="display:flex;align-items:center">`;
+  (v.coLeads || []).forEach((cl, i) => {
+    if (i > 0) h += `<div class="h-line" style="width:22px"></div>`;
+    h += `
+    <div class="node node-t2" id="node-${cl.id}" onclick="openEdit('${cl.id}')" style="min-height:90px">
+      <div class="node-role">${cl.role}</div>
+      <div class="node-name">${cl.name}</div>
+      <div class="node-badges">
+        <div class="node-status-wrap" onclick="event.stopPropagation();toggleStatusDrop('${cl.id}',event)">
+          ${statusBadge(cl.status)}
+          <div class="status-drop" id="sdrop-${cl.id}">${buildStatusDrop(cl.id,cl.status)}</div>
+        </div>
+        ${regionBadge(cl.region)}
+      </div>
+      ${contactChips(cl)}
+    </div>`;
+  });
+  h += `</div>`; // co-leads row
+
+  // Expand/collapse + children
+  if (hasChildren) {
+    h += `
+    <button style="margin-top:6px;background:white;border:2px solid #2d6a9f;border-radius:50%;
+      width:20px;height:20px;font-size:12px;line-height:16px;cursor:pointer;text-align:center;
+      box-shadow:0 2px 4px rgba(0,0,0,0.15);color:#2d6a9f;font-weight:700;"
+      onclick="toggleNode(event,'${v.id}')">${v.expanded ? '−' : '+'}</button>
+    <div id="ch-${v.id}" ${v.expanded ? '' : 'style="display:none"'}>
+      <div class="v-line" style="height:14px"></div>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;align-items:flex-start">
+        ${(v.children || []).map(c => `
+        <div style="display:flex;flex-direction:column;align-items:center">
+          <div class="v-line" style="height:14px"></div>
+          <div class="node node-${c.tier}" id="node-${c.id}" onclick="openEdit('${c.id}')">
+            <div class="node-role">${c.role}</div>
+            <div class="node-name">${c.name}</div>
+            <div class="node-badges">
+              <div class="node-status-wrap" onclick="event.stopPropagation();toggleStatusDrop('${c.id}',event)">
+                ${statusBadge(c.status)}
+                <div class="status-drop" id="sdrop-${c.id}">${buildStatusDrop(c.id,c.status)}</div>
+              </div>
+              ${regionBadge(c.region)}
+            </div>
+            ${contactChips(c)}
+          </div>
+        </div>`).join('')}
+      </div>
+    </div>`;
   }
+
+  h += `</div>`;
+  return h;
+}
+
+window._renderAll = function() {
+  const root = window._orgData;
+  const support   = root.children.filter(c => c.tier === 'pmo' || c.tier === 'deputy');
+  const verticals = root.children.filter(c => c.tier !== 'pmo' && c.tier !== 'deputy');
+
+  let html = `<div style="display:flex;flex-direction:column;align-items:center;min-width:1200px;padding-bottom:40px">`;
+
+  // Root
+  html += `
+  <div style="display:flex;flex-direction:column;align-items:center">
+    <div class="node node-t1" id="node-${root.id}" onclick="openEdit('${root.id}')" style="position:relative">
+      <div class="node-role">${root.role}</div>
+      <div class="node-name" style="font-size:16px">${root.name}</div>
+      <div class="node-badges">
+        <div class="node-status-wrap" onclick="event.stopPropagation();toggleStatusDrop('${root.id}',event)">
+          ${statusBadge(root.status)}
+          <div class="status-drop" id="sdrop-${root.id}">${buildStatusDrop(root.id,root.status)}</div>
+        </div>
+        ${regionBadge(root.region)}
+      </div>
+      <button class="toggle-btn" onclick="toggleNode(event,'${root.id}')">${root.expanded?'−':'+'}</button>
+    </div>`;
+
+  if (root.expanded) {
+    html += `<div id="ch-${root.id}">`;
+    html += `<div class="v-line" style="height:20px"></div>`;
+
+    // Support row
+    html += `<div style="text-align:center;font-size:10px;color:#2d6a9f;font-weight:700;letter-spacing:1px;margin-bottom:4px;text-transform:uppercase">— Leadership Support —</div>`;
+    html += `<div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:4px">`;
+    support.forEach(c => {
+      html += `
+      <div style="display:flex;flex-direction:column;align-items:center">
+        <div class="v-line" style="height:16px;${c.dashed?'border-left:2px dashed #7ab3d9;width:0;background:transparent':''}"></div>
+        <div class="node node-${c.tier}" id="node-${c.id}" onclick="openEdit('${c.id}')">
+          <div class="node-role">${c.role}</div>
+          <div class="node-name">${c.name}</div>
+          <div class="node-badges">${statusBadge(c.status)} ${regionBadge(c.region)}</div>
+          ${c.dashed ? '<div style="font-size:9px;opacity:0.65;margin-top:2px">- - dashed line - -</div>' : ''}
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+
+    // Connector to T2
+    html += `<div class="v-line" style="height:16px"></div>`;
+    html += `<div style="text-align:center;font-size:10px;color:#1a3a5c;font-weight:700;letter-spacing:1px;margin-bottom:0;text-transform:uppercase">— Tier 2 Verticals —</div>`;
+    html += `<div class="h-line" style="width:100%;max-width:1100px"></div>`;
+    html += `<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;align-items:flex-start">`;
+
+    verticals.forEach(v => {
+      if (v.type === 'cogroup') { html += renderCoGroup(v); return; }
+      const hasV = v.children && v.children.length > 0;
+      const nameHtml = (v.name||'').includes('/') ? v.name.split('/').map(x=>x.trim()).join('<br>&amp; ') : (v.name||'');
+      html += `
+      <div style="display:flex;flex-direction:column;align-items:center">
+        <div class="v-line" style="height:20px"></div>
+        <div class="node node-${v.tier}" id="node-${v.id}" onclick="openEdit('${v.id}')" style="position:relative">
+          <div class="node-role">${v.role}</div>
+          <div class="node-name">${nameHtml}</div>
+          <div class="node-badges">${statusBadge(v.status)} ${regionBadge(v.region)}</div>
+          ${contactChips(v)}
+          ${hasV ? `<button class="toggle-btn" onclick="toggleNode(event,'${v.id}')">${v.expanded?'−':'+'}</button>` : ''}
+        </div>
+        ${hasV ? `
+        <div id="ch-${v.id}" ${v.expanded?'':'style="display:none"'}>
+          <div class="v-line" style="height:20px"></div>
+          <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+            ${v.children.map(c => `
+            <div style="display:flex;flex-direction:column;align-items:center">
+              <div class="v-line" style="height:14px"></div>
+              <div class="node node-${c.tier}" id="node-${c.id}" onclick="openEdit('${c.id}')">
+                <div class="node-role">${c.role}</div>
+                <div class="node-name">${c.name}</div>
+                <div class="node-badges">${statusBadge(c.status)} ${regionBadge(c.region)}</div>
+                ${contactChips(c)}
+              </div>
+            </div>`).join('')}
+          </div>
+        </div>` : ''}
+      </div>`;
+    });
+
+    html += `</div>`; // verticals row
+    html += `</div>`; // ch-root
+  }
+
+  html += `</div>`; // root col
 
   // Out of scope
   html += `
-  <div style="border-top:2px dashed #ccd6e0;margin-top:48px;padding-top:24px;width:100%">
-    <div style="text-align:center;font-size:10px;color:#8899aa;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">Out of Scope (Owned by NAIG Central / Other Teams)</div>
-    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
-      ${OUT_OF_SCOPE.map(label => `<div style="background:#f7fafc;border:1px dashed #aabbcc;padding:8px 16px;border-radius:6px;font-size:11px;color:#8899aa;font-style:italic">${label}</div>`).join('')}
+  <div style="margin-top:32px;padding:14px 20px;background:white;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.08);max-width:900px;width:100%">
+    <div style="font-size:10px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">⛔ Out of Scope — not managed by this team</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${OUT_OF_SCOPE.map(s=>`<div style="background:#f5f5f5;border:1px dashed #ccc;border-radius:6px;padding:5px 11px;font-size:12px;color:#aaa">${s}</div>`).join('')}
     </div>
   </div>`;
-  html += `</div>`;
 
-  document.getElementById('org-chart').innerHTML = html;
+  html += `</div>`;
+  document.getElementById('canvas').innerHTML = html;
 };
 
 // ══════════════════════════════════════════════
-//  EDIT MODAL
+//  INTERACTIONS
 // ══════════════════════════════════════════════
+function toggleNode(e, id) {
+  e.stopPropagation();
+  const node = findNode(id, window._orgData);
+  if (!node) return;
+  node.expanded = !node.expanded;
+  const ch = document.getElementById(`ch-${id}`);
+  const btn = e.currentTarget;
+  if (ch) ch.style.display = node.expanded ? '' : 'none';
+  if (btn) btn.textContent = node.expanded ? '−' : '+';
+}
+
+function expandAll()  { setAll(window._orgData, true);  window._renderAll(); }
+function collapseAll(){ setAll(window._orgData, false); window._renderAll(); }
+function setAll(n, v) { n.expanded = v; (n.children||[]).forEach(c=>setAll(c,v)); }
+
 function openEdit(id) {
-  editingId = id;
   const n = findNode(id, window._orgData);
   if (!n) return;
-  document.getElementById('edit-name').value    = n.name || '';
-  document.getElementById('edit-role').value    = n.role || '';
-  document.getElementById('edit-email').value   = n.email || '';
-  document.getElementById('edit-phone').value   = n.phone || '';
-  document.getElementById('edit-linkedin').value= n.linkedin || '';
-  document.getElementById('edit-notes').value   = n.notes || '';
-  document.getElementById('edit-status').value  = n.status || 'tbd';
-  document.getElementById('edit-region').value  = n.region || 'usa';
-  document.getElementById('modal-title').textContent = `Edit: ${n.role}`;
-  document.getElementById('edit-modal').style.display = 'flex';
+  editingId = id;
+  document.getElementById('editName').value   = n.name   || '';
+  document.getElementById('editRole').value   = n.role   || '';
+  document.getElementById('editStatus').value = n.status || 'tbd';
+  document.getElementById('editRegion').value = n.region || '';
+  document.getElementById('editEmail').value  = n.email  || '';
+  document.getElementById('editPhone').value  = n.phone  || '';
+  document.getElementById('editCity').value   = n.city   || '';
+  document.getElementById('editNotes').value  = n.notes  || '';
+  document.getElementById('overlay').classList.add('active');
+}
+
+function closeEdit() {
+  editingId = null;
+  document.getElementById('overlay').classList.remove('active');
+}
+
+function saveEdit() {
+  if (!editingId) return;
+  const n = findNode(editingId, window._orgData);
+  if (!n) return;
+  const oldName = n.name;
+  n.name   = document.getElementById('editName').value.trim() || n.name;
+  n.role   = document.getElementById('editRole').value.trim() || n.role;
+  n.status = document.getElementById('editStatus').value;
+  n.region = document.getElementById('editRegion').value;
+  n.email  = document.getElementById('editEmail').value.trim();
+  n.phone  = document.getElementById('editPhone').value.trim();
+  n.city   = document.getElementById('editCity').value.trim();
+  n.notes  = document.getElementById('editNotes').value.trim();
+
+  // Log the change
+  const now = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  const entry = `${now}: "${oldName}" → "${n.name}" (${n.role})`;
+  historyLog.unshift(entry);
+  if (historyLog.length > 5) historyLog.pop();
+  document.getElementById('historyLog').innerHTML = historyLog.map(h=>`<span class="hist-entry">${h}</span>`).join('');
+  document.getElementById('lastEdit').textContent = now;
+
+  closeEdit();
+  saveLocal();
+  window._renderAll();
+}
+
+function saveLocal() {
+  localStorage.setItem('naig_org', JSON.stringify(window._orgData));
+}
+
+function saveToCloud() {
+  saveLocal();
+  if (window._fb) {
+    window._fb.save(window._orgData);
+    document.getElementById('syncStatus').textContent = '✅ Saved & synced to cloud';
+    setTimeout(() => document.getElementById('syncStatus').textContent = '🟢 Live — synced', 2000);
+  }
+}
+
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(window._orgData, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'NAIG_2027_OrgChart.json';
+  a.click();
+}
+
+// ══════════════════════════════════════════════
+//  CONTACT CHIP helper (used in node render)
+// ══════════════════════════════════════════════
+function contactChips(n) {
+  if (!n || (!n.email && !n.phone && !n.city)) return '';
+  let chips = '';
+  if (n.email) chips += `<span class="contact-chip" title="${n.email}">✉ ${n.email}</span> `;
+  if (n.phone) chips += `<span class="contact-chip" title="${n.phone}">📞 ${n.phone}</span> `;
+  if (n.city)  chips += `<span class="contact-chip">📍 ${n.city}</span>`;
+  if (n.notes) chips += `<span class="contact-chip" title="${n.notes}" style="background:#fff3cd;color:#856404">📝</span>`;
+  return `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:2px;justify-content:center">${chips}</div>`;
+}
+
+// ══════════════════════════════════════════════
+//  VOLUNTEER PROSPECTS
+// ══════════════════════════════════════════════
+window._prospects = JSON.parse(localStorage.getItem('naig_prospects') || '[]');
+let prospectsPanelOpen = true;
+let editingProspectId  = null;
+
+function saveProspectsLocal() {
+  localStorage.setItem('naig_prospects', JSON.stringify(window._prospects));
+  if (window._fb) window._fb.saveProspects(window._prospects);
+}
+
+function openProspect(id) {
+  editingProspectId = id || null;
+  const p = id ? window._prospects.find(x => x.id === id) : null;
+  document.getElementById('prospectModalTitle').textContent = p ? '✏️ Edit Prospect' : '➕ Add Volunteer Prospect';
+  document.getElementById('prospectEditId').value = id || '';
+  document.getElementById('pName').value     = p ? (p.name     || '') : '';
+  document.getElementById('pEmail').value    = p ? (p.email    || '') : '';
+  document.getElementById('pPhone').value    = p ? (p.phone    || '') : '';
+  document.getElementById('pCity').value     = p ? (p.city     || '') : '';
+  document.getElementById('pRegion').value   = p ? (p.region   || 'usa') : 'usa';
+  document.getElementById('pVertical').value = p ? (p.vertical || '') : '';
+  document.getElementById('pRole').value     = p ? (p.role     || '') : '';
+  document.getElementById('pStatus').value   = p ? (p.status   || 'prospect') : 'prospect';
+  document.getElementById('pNotes').value    = p ? (p.notes    || '') : '';
+  document.getElementById('prospectOverlay').classList.add('active');
 }
 
 function closeProspect() {
-  document.getElementById('edit-modal').style.display = 'none';
-}
-
-function saveProspect() {
-  const n = findNode(editingId, window._orgData);
-  if (!n) return;
-  const prev = JSON.stringify(n);
-  n.name     = document.getElementById('edit-name').value.trim();
-  n.role     = document.getElementById('edit-role').value.trim();
-  n.email    = document.getElementById('edit-email').value.trim();
-  n.phone    = document.getElementById('edit-phone').value.trim();
-  n.linkedin = document.getElementById('edit-linkedin').value.trim();
-  n.notes    = document.getElementById('edit-notes').value.trim();
-  n.status   = document.getElementById('edit-status').value;
-  n.region   = document.getElementById('edit-region').value;
-  const next = JSON.stringify(n);
-  if (prev !== next) {
-    saveAndSync();
-    historyLog.unshift({ ts: Date.now(), msg: `Updated ${n.role} → ${n.name}` });
-    renderHistory();
-  }
-  window._renderAll();
-  closeProspect();
-}
-
-// ══════════════════════════════════════════════
-//  STATUS DROPDOWN (inline)
-// ══════════════════════════════════════════════
-function buildStatusDrop(id, curr) {
-  const opts = [
-    { v: 'confirmed', label: '✅ Confirmed' },
-    { v: 'ontrack',  label: '🟢 On Track' },
-    { v: 'atrisk',   label: '🟡 At Risk' },
-    { v: 'behind',   label: '🔴 Behind' },
-    { v: 'tbd',      label: '⏳ TBD' }
-  ];
-  return opts.map(o =>
-    `<div class="status-opt${o.v === curr ? ' selected' : ''}" onclick="setStatus('${id}','${o.v}')">${o.label}</div>`
-  ).join('');
-}
-
-function toggleStatusDrop(id, evt) {
-  evt.stopPropagation();
-  const drop = document.getElementById('sdrop-' + id);
-  const open = drop.style.display === 'block';
-  document.querySelectorAll('.status-drop').forEach(d => d.style.display = 'none');
-  drop.style.display = open ? 'none' : 'block';
-}
-
-function setStatus(id, status) {
-  const n = findNode(id, window._orgData);
-  if (n) {
-    n.status = status;
-    saveAndSync();
-    historyLog.unshift({ ts: Date.now(), msg: `Status: ${n.role} ₒ ${status}` });
-    renderHistory();
-  }
-  document.querySelectorAll('.status-drop').forEach(d => d.style.display = 'none');
-  window._renderAll();
-}
-
-document.addEventListener('click', () => {
-  document.querySelectorAll('.status-drop').forEach(d => d.style.display = 'none');
-});
-
-// ══════════════════════════════════════════════
-//  TOGGLE EXPAND/COLLAPSE
-// ══════════════════════════════════════════════
-function toggleNode(evt, id) {
-  evt.stopPropagation();
-  const n = findNode(id, window._orgData);
-  if (n) n.expanded = !n.expanded;
-  window._renderAll();
-}
-
-// ══════════════════════════════════════════════
-//  CONTACT CHITS RECAIPeR - appends contact links to each node
-// ══════════════════════════════════════════════
-function contactChips(n) {
-  if (!n.email && !n.phone && !n.linkedin) return '';
-  let html = '<div class="contact-chips">';
-  if (n.email)    html += `<a href="mailto:${n.email}" onclick="event.stopPropagation()">✔</a>`;
-  if (n.phone)    html += `<a href="tel:${n.phone}" onclick="event.stopPropagation()">📺</a>`;
-  if (n.linkedin) html += `<a href="${n.linkedin}" target="_blank" onclick="event.stopPropagation()">in</a>`;
-  html += '</div>';
-  return html;
-}
-
-// ══════════════════════════════════════════════
-//  HISTORY LOG
-// ══════════════════════════════════════════════
-function renderHistory() {
-  const el = document.getElementById('hist-list');
-  if (!el) return;
-  if (historyLog.length === 0) {
-    el.innerHTML = '<div style="color:#99aabb;font-style:italic;font-size:11px">No changes yet</div>';
-    return;
-  }
-  el.innerHTML = historyLog.slice(0,10).map(h => {
-    const d = new Date(h.ts);
-    const t = d.toLocaleTimeString([],{ hour:'2-digit',minute:'2-digit'});
-    return `<div style="margin-bottom:4px;font-size:11px;color:#445566"><span style="color:#99aabb">${t}</span> ${h.msg}</div>`;
-  }).join('');
-}
-
-// ══════════════════════════════════════════════
-//  FIREBASE SYNC
-// ══════════════════════════════════════════════
-let dbRef = null;
-let unsub = null;
-
-function saveAndSync() {
-  localStorage.setItem('naig_org', JSON.stringify(window._orgData));
-  if (dbRef) dbRef.set(window._orgData);
-}
-
-function initFirebase() {
-  const app = firebase.initializeApp({
-    apiKey: "AIzaSyC16ftKuUYRkwexYYUuk0i5fYsxxVzI_eU",
-    authDomain: "naig-2027.firebaseapp.com",
-    databaseURL: "https://naig-2027-default-rtdb.firebaseio.com",
-    projectId: "naig-2027",
-    storageBucket: "naig-2027.firebaseapp.com",
-    messagingSenderId: "663356964673",
-    appId: "1:663356964673:fes:474d47c53304bb3592bb95"
-  });
-  const db = firebase.database();
-  dbRef = db.ref('org');
-  document.getElementById('sync-status').textContent = '⟕ Connecting...';
-
-  unsub = dbRef.on('value', snap => {
-    const remote = snap.val();
-    if (remote) {
-      window._orgData = remote;
-      localStorage.setItem('naig_org', JSON.stringify(remote));
-    } else {
-      dbRef.set(window._orgData);
-    }
-    document.getElementById('sync-status').textContent = '✅ Live';
-    window._renderAll();
-  }, err => {
-    document.getElementById('sync-status').textContent = '⚢ Offline';
-  });
-}
-
-// ══════════════════════════════════════════════
-//  EXPORT / IMPORT
-// ══════════════════════════════════════════════
-function exportData() {
-  const blob = new Blob([JSON.stringify(window._orgData, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(bY\�X�[�8�%�]��[
-�H]��\��H�[[�H��[OH��Y�L	N�X^]�Y�LL���]��[
-�H]��[OH�\�^N��^��\�Lڝ\�Y�KX�۝[���[�\�ٛ^]ܘ\�ܘ\�[YۋZ][\Ι�^\�\�����\�X�[˙�ܑXX�
-�O�Y�
-��\HOOH	���ܛ�\	�H�[
-�H�[�\���ܛ�\
-�N��]\���B��ۜ�\ՈH���[�[�	�����[�[��[����ۜ��[YR[H
-���[Y_	��K�[��Y\�	���H����[YK��]
-	���K�X\
-O���[J
-JK���[�	�����[\�	�H�
-���[Y_	��N[
-�H�]��[OH�\�^N��^ٛ^Y\�X�[ێ���[[��[YۋZ][\Θ�[�\����]��\��H��[[�H��[OH�ZY������]���]��\��H���H��KI݋�Y\�H�YH���KI݋�YH�ۘ�X��H��[�Y]
-	�݋�YI�H��[OH���][ێ��[]]�H���]��\��H���K\��H��݋���_O�]���]��\��H���K[�[YH��ۘ[YR[O�]���]��\��H���KX�Y�\ȏ���]\ИY�J���]\�_H	ܙY�[ې�Y�J���Y�[ۊ_O�]���	��۝X��\��_B�	�\Ո��]ۈ�\��H����KX���ۘ�X��H����S��J]�[�	�݋�YI�H��݋�^[�Y���$�Ή���O؝]ۏ��	��B��]���	�\Ո��]�YH��I݋�YH�	݋�^[�Y��Ή��[OH�\�^N��ۙH��O��]��\��H��[[�H��[OH�ZY������]���]��[OH�\�^N��^��\�ڝ\�Y�KX�۝[���[�\�ٛ^]ܘ\�ܘ\���	݋��[�[��X\
-�O��]��[OH�\�^N��^ٛ^Y\�X�[ێ���[[��[YۋZ][\Θ�[�\����]��\��H��[[�H��[OH�ZY��M���]���]��\��H���H��KI�˝Y\�H�YH���KI�˚YH�ۘ�X��H��[�Y]
-	��˚YI�H���]��\��H���K\��H���˜��_O�]���]��\��H���K[�[YH���˛�[Y_O�]���]��\��H���KX�Y�\ȏ���]\ИY�J˜�]\�_H	ܙY�[ې�Y�J˜�Y�[ۊ_O�]���	��۝X��\��_B��]����]��
-K���[�	��_B��]����]���	��B��]��JN�[
-�H�]������\�X�[���[
-�H�]������\����B��[
-�H�]���������������]و���B�[
-�H�]��[OH�X\��[�]��̜�Y[�ΌM�ؘX��ܛ�[���]N؛ܙ\�\�Y]\ΌL؛�\�Y�Ό��ؘJ�
-N�X^]�Y�L��Y�L	H���]��[OH��۝\�^�N�Lٛ۝]�ZY������܎��XXN�^]�[�ٛܛN�\\��\�N�]\�\�X�[�Ό\�X\��[�X���N������]و���H8�%��X[�Y�Y�H\�X[O�]���]��[OH�\�^N��^��\�ٛ^]ܘ\�ܘ\���	��U�ї����K�X\
-�O�]��[OH��X��ܛ�[��ٍY�Y�N؛ܙ\��\\�Y����؛ܙ\�\�Y]\΍��Y[�΍\L\ٛ۝\�^�N�L����܎��XXH����O�]��
-K���[�	��_B��]����]���[
-�H�]����[Y[���][[Y[��RY
-	��[��\��K�[��\�SH[N���8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d���S�T�P�SӔ��8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d��[��[ۈ���S��JKY
-HK�����Y�][ۊ
-N�ۜ���HH�[���JY�[��˗�ܙ�]JNY�
-[��JH�]\����K�^[�YH[��K�^[�Y�ۜ��H��[Y[���][[Y[��RY
-�I�YX
-N�ۜ���HK��\��[�\��]Y�
-�
-H���[K�\�^HH��K�^[�Y�	���	ۛۙI�Y�
-��H���^�۝[�H��K�^[�Y�	��$���	���B���[��[ۈ^[�[
-
-H��][
-�[��˗�ܙ�]K�YJN��[��˗ܙ[�\�[
-
-N�B��[��[ۈ��\�P[
-
-^��][
-�[��˗�ܙ�]K�[�JN��[��˗ܙ[�\�[
-
-N�B��[��[ۈ�][
-��H���^[�YH��
-���[�[��JK��ܑXX�
-�O��][
-��JN�B���[��[ۈ�[�Y]
-Y
-H�ۜ��H�[���JY�[��˗�ܙ�]JNY�
-[�H�]\��Y][��YHY��[Y[���][[Y[��RY
-	�Y]�[YI�K��[YHH���[YH	����[Y[���][[Y[��RY
-	�Y]��I�K��[YHH����H	����[Y[���][[Y[��RY
-	�Y]�]\��K��[YHH���]\�	��	���[Y[���][[Y[��RY
-	�Y]�Y�[ۉ�K��[YHH���Y�[ۈ	����[Y[���][[Y[��RY
-	�Y][XZ[	�K��[YHH��[XZ[	����[Y[���][[Y[��RY
-	�Y]ۙI�K��[YHH��ۙH	����[Y[���][[Y[��RY
-	�Y]�]I�K��[YHH���]H	����[Y[���][[Y[��RY
-	�Y]��\��K��[YHH����\�	����[Y[���][[Y[��RY
-	�ݙ\�^I�K��\��\��Y
-	�X�]�I�NB���[��[ۈ���QY]
-
-HY][��YH�[��[Y[���][[Y[��RY
-	�ݙ\�^I�K��\��\���[[ݙJ	�X�]�I�NB���[��[ۈ�]�QY]
-
-HY�
-YY][��Y
-H�]\���ۜ��H�[���JY][��Y�[��˗�ܙ�]JNY�
-[�H�]\���ۜ���[YHH���[YN���[YHH��[Y[���][[Y[��RY
-	�Y]�[YI�K��[YK��[J
-H���[YN����HH��[Y[���][[Y[��RY
-	�Y]��I�K��[YK��[J
-H����N���]\�H��[Y[���][[Y[��RY
-	�Y]�]\��K��[YN���Y�[ۈH��[Y[���][[Y[��RY
-	�Y]�Y�[ۉ�K��[YN��[XZ[H��[Y[���][[Y[��RY
-	�Y][XZ[	�K��[YK��[J
-N��ۙHH��[Y[���][[Y[��RY
-	�Y]ۙI�K��[YK��[J
-N���]HH��[Y[���][[Y[��RY
-	�Y]�]I�K��[YK��[J
-N����\�H��[Y[���][[Y[��RY
-	�Y]��\��K��[YK��[J
-N�����H�[��B��ۜ����H�]�]J
-K����[U[YT��[���K��\��̋YY�]	�Z[�]N�̋YY�]	�JN�ۜ�[��HH	ۛ��N�����[Y_H�8����ۋ��[Y_H�
-	ۋ���_JX\�ܞS�˝[��Y�
-[��JNY�
-\�ܞS�˛[���
-JH\�ܞS�˜�
-
-N��[Y[���][[Y[��RY
-	�\�ܞS���K�[��\�SH\�ܞS�˛X\
-O��[��\��H�\�Y[��H���O��[��
-K���[�	��N��[Y[���][[Y[��RY
-	�\�Y]	�K�^�۝[�H�������QY]
-
-N�]�S��[
-
-N�[��˗ܙ[�\�[
-
-NB���[��[ۈ�]�S��[
-
-H��[�ܘY�K��]][J	ۘZY��ܙ����Ӌ���[��Y�J�[��˗�ܙ�]JJNB���[��[ۈ�]�U���Y
-
-H�]�S��[
-
-NY�
-�[��˗٘�H�[��˗٘���]�J�[��˗�ܙ�]JN��[Y[���][[Y[��RY
-	��[���]\��K�^�۝[�H	��!H�]�Y	��[��Y���Y	��][Y[�]
-
-
-HO���[Y[���][[Y[��RY
-	��[���]\��K�^�۝[�H	�'��]�H8�%�[��Y	��
-NB�B���[��[ۈ^ܝ��ӊ
-H�ۜ��؈H�]��؊Ҕ�Ӌ���[��Y�J�[��˗�ܙ�]K�[�WK�\N��\X�][ۋڜ�ۉ�JN�ۜ�HH��[Y[��ܙX]Q[[Y[�
-	�I�NK��Y�HT��ܙX]Sؚ�X�T�
-�؊NK��ۛ�YH	ӐRQ�̌���ܙ��\����ۉ�K��X��
-NB����8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d����ӕP��T[\�
-\�Y[���H�[�\�B���8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d��[��[ۈ�۝X��\��HY�
-[�
-[��[XZ[	��[��ۙH	��[���]JJH�]\��	��]�\�H	��Y�
-��[XZ[
-H�\�
-�H�[��\��H��۝X�X�\�]OH�ۋ�[XZ[H���"H	ۋ�[XZ[O��[��Y�
-��ۙJH�\�
-�H�[��\��H��۝X�X�\�]OH�ۋ�ۙ_H��'��	ۋ�ۙ_O��[��Y�
-���]JH�\�
-�H�[��\��H��۝X�X�\��'��H	ۋ��]_O��[��Y�
-����\�H�\�
-�H�[��\��H��۝X�X�\�]OH�ۋ���\�H��[OH��X��ܛ�[��ٙ�������܎��
-M�
-��'��O��[���]\��]��[OH�X\��[�]���\�^N��^ٛ^]ܘ\�ܘ\��\��ڝ\�Y�KX�۝[���[�\�����\�O�]��B����8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d�����S�QT����P���8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d8�d��[��˗��ctId = null;
+  editingProspectId = null;
   document.getElementById('prospectOverlay').classList.remove('active');
 }
 
