@@ -70,7 +70,7 @@
     });
 
     // ── Roles & Responsibilities ──
-    window._fb.listerRnr((cloudData) => {
+    window._fb.listenRnr((cloudData) => {
       if (cloudData) {
         window._rnrData = cloudData;
         window.renderRnr && window.renderRnr();
@@ -761,14 +761,6 @@ window._renderAll = function() {
 
   html += `</div>`; // root col
 
-  // Out of scope
-  html += `
-  <div style="margin-top:32px;padding:14px 20px;background:white;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.08);max-width:900px;width:100%">
-    <div style="font-size:10px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">⛔ Out of Scope — not managed by this team</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      ${OUT_OF_SCOPE.map(s=>`<div style="background:#f5f5f5;border:1px dashed #ccc;border-radius:6px;padding:5px 11px;font-size:12px;color:#aaa">${s}</div>`).join('')}
-    </div>
-  </div>`;
 
   html += `</div>`;
   document.getElementById('canvas').innerHTML = html;
@@ -1004,7 +996,7 @@ function exportProspectsCSV() {
   a.click();
 }
 
-// ═══════════════════════════════════════════════
+// ══════════════════════════════════════════════
 //  INLINE STATUS DROPDOWN
 // ══════════════════════════════════════════════
 const STATUS_OPTIONS = [
@@ -1231,7 +1223,7 @@ function exportRnrCSV() {
       deputy: (ch.find(c=>(c.role||'').toLowerCase().includes('deputy'))?.name) || 'TBD',
       pmo:    (ch.find(c=>(c.role||'').toLowerCase().includes('pmo')||c.role?.toLowerCase().includes('coord'))?.name) || 'TBD'
     };
-    ['lead','deputy','pmo'].forEach(rk => {
+    ['lead','deputy','pmo'].forEach(uk => {
       (vData.roles[rk]||[]).forEach(item => {
         rows.push([vDef.label, rk, persons[rk], item.text, item.priority, vData.authority || '']);
       });
