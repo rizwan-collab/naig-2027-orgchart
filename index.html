@@ -1223,7 +1223,7 @@ function exportRnrCSV() {
       deputy: (ch.find(c=>(c.role||'').toLowerCase().includes('deputy'))?.name) || 'TBD',
       pmo:    (ch.find(c=>(c.role||'').toLowerCase().includes('pmo')||c.role?.toLowerCase().includes('coord'))?.name) || 'TBD'
     };
-    ['lead','deputy','pmo'].forEach(uk => {
+    ['lead','deputy','pmo'].forEach(rk => {
       (vData.roles[rk]||[]).forEach(item => {
         rows.push([vDef.label, rk, persons[rk], item.text, item.priority, vData.authority || '']);
       });
