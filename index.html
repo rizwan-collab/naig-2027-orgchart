@@ -70,7 +70,7 @@
     });
 
     // ── Roles & Responsibilities ──
-    window._fb.listenRnr((cloudData) => {
+    window._fb.listerRnr((cloudData) => {
       if (cloudData) {
         window._rnrData = cloudData;
         window.renderRnr && window.renderRnr();
@@ -835,7 +835,7 @@ function saveEdit() {
   document.getElementById('lastEdit').textContent = now;
 
   closeEdit();
-  saveLocal();
+  saveToCloud();
   window._renderAll();
 }
 
@@ -1004,7 +1004,7 @@ function exportProspectsCSV() {
   a.click();
 }
 
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════
 //  INLINE STATUS DROPDOWN
 // ══════════════════════════════════════════════
 const STATUS_OPTIONS = [
