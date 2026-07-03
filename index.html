@@ -236,6 +236,44 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .rnr-authority-ta:focus { outline: none; border-color: #2d6a9f; }
 .rnr-pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 9px; font-weight: 700; color: white; }
 
+/* ── Stats Bar ── */
+.stats-bar {
+  display: flex; gap: 0; background: white; border-bottom: 2px solid #e0e8f0;
+  overflow-x: auto;
+}
+.stat-card {
+  flex: 1; min-width: 100px; padding: 12px 20px; border-right: 1px solid #e8eef5;
+  cursor: pointer; transition: background 0.15s; user-select: none;
+}
+.stat-card:last-child { border-right: none; }
+.stat-card:hover { background: #f5f8fc; }
+.stat-card.active { border-bottom: 3px solid #1a3a5c; background: #f0f5fb; }
+.stat-num { font-size: 26px; font-weight: 800; color: #1a3a5c; line-height: 1; }
+.stat-label { font-size: 10px; font-weight: 700; color: #7a9ab5; text-transform: uppercase; letter-spacing: 0.8px; margin-top: 3px; display: flex; align-items: center; gap: 4px; }
+.stat-label::after { content: '▾'; font-size: 9px; }
+
+/* ── Directory Modal ── */
+.dir-modal {
+  background: white; border-radius: 14px; padding: 0; width: 380px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.22); overflow: hidden;
+}
+.dir-header {
+  background: linear-gradient(135deg, #1a3a5c 0%, #2d6a9f 100%);
+  color: white; padding: 18px 20px 14px;
+}
+.dir-role-label { font-size: 10px; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+.dir-name { font-size: 20px; font-weight: 800; line-height: 1.2; }
+.dir-venue { font-size: 11px; opacity: 0.8; margin-top: 4px; }
+.dir-body { padding: 16px 20px; }
+.dir-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #f0f4f8; font-size: 13px; }
+.dir-row:last-child { border-bottom: none; }
+.dir-icon { width: 22px; text-align: center; font-size: 14px; flex-shrink: 0; }
+.dir-val { color: #333; flex: 1; }
+.dir-val a { color: #2d6a9f; text-decoration: none; }
+.dir-val a:hover { text-decoration: underline; }
+.dir-empty { color: #bbb; font-style: italic; }
+.dir-footer { padding: 12px 20px; background: #f8fbff; border-top: 1px solid #e8eef5; display: flex; gap: 8px; justify-content: flex-end; }
+
 /* ── Inline Status Dropdown ── */
 .node-status-wrap { position: relative; display: inline-block; cursor: pointer; }
 .status-drop { display: none; position: absolute; top: calc(100% + 4px); left: 50%; transform: translateX(-50%);
@@ -263,6 +301,31 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
   </div>
 </div>
 
+
+<!-- Stats Bar -->
+<div class="stats-bar" id="statsBar">
+  <div class="stat-card" id="stat-people"><div class="stat-num" id="sn-people">—</div><div class="stat-label">People</div></div>
+  <div class="stat-card" id="stat-dept"><div class="stat-num" id="sn-dept">—</div><div class="stat-label">Departments</div></div>
+  <div class="stat-card" id="stat-mgr"><div class="stat-num" id="sn-mgr">—</div><div class="stat-label">Managers</div></div>
+  <div class="stat-card" id="stat-lvl"><div class="stat-num" id="sn-lvl">—</div><div class="stat-label">Levels</div></div>
+  <div class="stat-card" id="stat-tbd"><div class="stat-num" id="sn-tbd">—</div><div class="stat-label">Pending / Open</div></div>
+</div>
+
+<!-- Directory Modal -->
+<div class="overlay" id="dirOverlay" onclick="closeDirModal()">
+  <div class="dir-modal" onclick="event.stopPropagation()">
+    <div class="dir-header">
+      <div class="dir-role-label" id="dirRole"></div>
+      <div class="dir-name" id="dirName"></div>
+      <div class="dir-venue" id="dirVenue"></div>
+    </div>
+    <div class="dir-body" id="dirBody"></div>
+    <div class="dir-footer">
+      <button class="btn btn-cancel" onclick="closeDirModal()">Close</button>
+      <button class="btn btn-primary" id="dirEditBtn" onclick="openEditFromDir()">✏️ Edit</button>
+    </div>
+  </div>
+</div>
 
 <div class="canvas" id="canvas"></div>
 
@@ -568,7 +631,7 @@ function renderNode(n) {
 
   return `
   <div style="display:flex;flex-direction:column;align-items:center">
-    <div class="node node-${n.tier}" id="node-${n.id}" onclick="openEdit('${n.id}')">
+    <div class="node node-${n.tier}" id="node-${n.id}" onclick="openDir('${n.id}')">
       <div class="node-role">${n.role}${n.venue ? '<br><span style="font-size:9px;opacity:0.85;font-style:italic">📍 ' + n.venue + '</span>' : ''}</div>
       <div class="node-name">${nameHtml}</div>
       <div class="node-badges">
@@ -637,7 +700,7 @@ function renderCoGroup(v) {
   // Expand/collapse + children
   if (hasChildren) {
     h += `
-    <button style="margin-top:6px;background:white;border:2px solid #2d6a9f;border-radius: 50%;
+    <button style="margin-top:6px;background:white;border:2px solid #2d6a9f;border-radius:50%;
       width:20px;height:20px;font-size:12px;line-height:16px;cursor:pointer;text-align:center;
       box-shadow:0 2px 4px rgba(0,0,0,0.15);color:#2d6a9f;font-weight:700;"
       onclick="toggleNode(event,'${v.id}')">${v.expanded ? '−' : '+'}</button>
@@ -678,7 +741,7 @@ window._renderAll = function() {
   // Root
   html += `
   <div style="display:flex;flex-direction:column;align-items:center">
-    <div class="node node-t1" id="node-${root.id}" onclick="openEdit('${root.id}')" style="position:relative">
+    <div class="node node-t1" id="node-${root.id}" onclick="openDir('${root.id}')" style="position:relative">
       <div class="node-role">${root.role}</div>
       <div class="node-name" style="font-size:16px">${root.name}</div>
       <div class="node-badges">
@@ -688,12 +751,12 @@ window._renderAll = function() {
         </div>
         ${regionBadge(root.region)}
       </div>
-      <button class="toggle-btn" onclick="toggleNode(event,'${root.id}')">${root.expanded?'−':'+"}</button>
+      <button class="toggle-btn" onclick="toggleNode(event,'${root.id}')">${root.expanded?'−':'+'}</button>
     </div>`;
 
   if (root.expanded) {
     html += `<div id="ch-${root.id}">`;
-    html += `<div class="v-line" style="height:20px"></dv>`;
+    html += `<div class="v-line" style="height:20px"></div>`;
 
     // Support row
     html += `<div style="text-align:center;font-size:10px;color:#2d6a9f;font-weight:700;letter-spacing:1px;margin-bottom:4px;text-transform:uppercase">— Leadership Support —</div>`;
@@ -760,6 +823,7 @@ window._renderAll = function() {
 
   html += `</div>`;
   document.getElementById('canvas').innerHTML = html;
+  updateStats();
 };
 
 // ══════════════════════════════════════════════
@@ -799,6 +863,94 @@ function openEdit(id) {
 function closeEdit() {
   editingId = null;
   document.getElementById('overlay').classList.remove('active');
+}
+
+// ══════════════════════════════════════════════
+//  DIRECTORY MODAL
+// ══════════════════════════════════════════════
+let _dirId = null;
+
+function openDir(id) {
+  const n = findNode(id, window._orgData);
+  if (!n) return;
+  _dirId = id;
+
+  document.getElementById('dirRole').textContent = n.role || '';
+  document.getElementById('dirName').textContent = n.name || 'TBD';
+  document.getElementById('dirVenue').textContent = n.venue ? '📍 ' + n.venue : '';
+
+  const statusLabel = { confirmed: '✅ Confirmed', 'pending-approval': '⏳ Pending Approval', 'pending-acceptance': '🔲 Pending Acceptance', tbd: '⏳ Pending Approval', tbc: '🔲 Pending Acceptance' };
+  const regionLabel = { usa: '🇺🇸 USA', ca: '🍁 Canada', both: '🇺🇸🍁 Both' };
+
+  let rows = '';
+  rows += `<div class="dir-row"><div class="dir-icon">📋</div><div class="dir-val">${statusLabel[n.status] || n.status || '—'}</div></div>`;
+  if (n.region) rows += `<div class="dir-row"><div class="dir-icon">🌎</div><div class="dir-val">${regionLabel[n.region] || n.region}</div></div>`;
+  if (n.email)  rows += `<div class="dir-row"><div class="dir-icon">✉️</div><div class="dir-val"><a href="mailto:${n.email}">${n.email}</a></div></div>`;
+  if (n.phone)  rows += `<div class="dir-row"><div class="dir-icon">📞</div><div class="dir-val"><a href="tel:${n.phone}">${n.phone}</a></div></div>`;
+  if (n.city)   rows += `<div class="dir-row"><div class="dir-icon">📍</div><div class="dir-val">${n.city}</div></div>`;
+  if (n.notes)  rows += `<div class="dir-row"><div class="dir-icon">📝</div><div class="dir-val">${n.notes}</div></div>`;
+  if (!n.email && !n.phone && !n.city && !n.notes)
+    rows += `<div class="dir-row"><div class="dir-val dir-empty">No contact info yet — click Edit to add</div></div>`;
+
+  document.getElementById('dirBody').innerHTML = rows;
+  document.getElementById('dirOverlay').classList.add('active');
+}
+
+function closeDirModal() {
+  _dirId = null;
+  document.getElementById('dirOverlay').classList.remove('active');
+}
+
+function openEditFromDir() {
+  closeDirModal();
+  if (_dirId) openEdit(_dirId);
+}
+
+// ══════════════════════════════════════════════
+//  STATS BAR
+// ══════════════════════════════════════════════
+function countNodes(node, depth) {
+  if (!node) return { people: 0, pending: 0, managers: 0 };
+  let people = 0, pending = 0, managers = 0;
+  const allNodes = [];
+
+  function walk(n, d) {
+    allNodes.push({ node: n, depth: d });
+    (n.coLeads || []).forEach(cl => allNodes.push({ node: cl, depth: d }));
+    (n.children || []).forEach(c => walk(c, d + 1));
+  }
+  walk(node, 0);
+
+  allNodes.forEach(({ node: n }) => {
+    const isPending = ['tbd','tbc','pending-approval','pending-acceptance'].includes(n.status);
+    if (!isPending && n.name && n.name.toLowerCase() !== 'tbd' && n.name.toLowerCase() !== 'tbc') people++;
+    else if (isPending || !n.name || n.name.toLowerCase() === 'tbd') pending++;
+    const hasKids = (n.children || []).length > 0 || (n.coLeads || []).length > 0;
+    if (hasKids && !isPending) managers++;
+  });
+
+  return { people, pending, managers, total: allNodes.length };
+}
+
+function updateStats() {
+  if (!window._orgData) return;
+  const root = window._orgData;
+  const t2Count = (root.children || []).length;
+
+  function maxDepth(n, d) {
+    let m = d;
+    (n.children || []).forEach(c => { m = Math.max(m, maxDepth(c, d + 1)); });
+    return m;
+  }
+
+  const { people, pending, managers } = countNodes(root, 0);
+  const levels = maxDepth(root, 1);
+
+  document.getElementById('sn-people').textContent = people;
+  document.getElementById('sn-dept').textContent = t2Count;
+  document.getElementById('sn-mgr').textContent = managers;
+  document.getElementById('sn-lvl').textContent = levels;
+  document.getElementById('sn-tbd').textContent = pending;
 }
 
 function saveEdit() {
@@ -1006,7 +1158,7 @@ const STATUS_OPTIONS = [
   { value: 'behind',             label: '🔴 Behind' },
 ];
 
-function buildStatusDrophid, currentStatus) {
+function buildStatusDrop(id, currentStatus) {
   const sep = '<div class="status-drop-sep"></div>';
   return STATUS_OPTIONS.map((opt, i) => {
     const active = opt.value === currentStatus ? ' active' : '';
