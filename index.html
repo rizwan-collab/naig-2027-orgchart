@@ -135,8 +135,9 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .node-badges { margin-top: 4px; display: flex; gap: 3px; justify-content: center; flex-wrap: wrap; }
 
 .badge { display: inline-block; font-size: 9px; padding: 1px 5px; border-radius: 10px; font-weight: 600; }
-.badge-confirmed { background: #d4edda; color: #155724; }
-.badge-tbd       { background: #fff3cd; color: #856404; }
+.badge-confirmed           { background: #d4edda; color: #155724; }
+.badge-pending-approval    { background: #fff3cd; color: #856404; }
+.badge-pending-acceptance  { background: #f0e8ff; color: #5a2d9f; }
 .badge-usa       { background: #cce5ff; color: #004085; }
 .badge-ca        { background: #d4edda; color: #155724; }
 
@@ -258,20 +259,10 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
     <span class="sync-status" id="syncStatus">⏳ Connecting…</span>
     <button class="btn btn-light" onclick="expandAll()">Expand All</button>
     <button class="btn btn-light" onclick="collapseAll()">Collapse All</button>
-    <button class="btn btn-green" onclick="saveToCloud()">☁️ Save & Sync</button>
     <button class="btn btn-accent" onclick="exportJSON()">⬇ Export JSON</button>
   </div>
 </div>
 
-<div class="legend">
-  <div class="legend-item"><div class="legend-dot" style="background:#1a3a5c"></div>T1 Lead</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#2d6a9f;border:2px dashed #7ab3d9"></div>PMO / Dashed</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#2c7a5c"></div>Deputy</div>
-  <div class="legend-item"><div class="legend-dot" style="background:white;border:2px solid #2d6a9f"></div>T2 Vertical</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#e8f4fd;border:2px solid #7ab3d9"></div>T3 Site/Coord</div>
-  <div class="legend-item" style="margin-left:8px">✅ Confirmed &nbsp;⏳ TBD</div>
-  <div class="legend-item" style="margin-left:auto;color:#999;font-style:italic">Last edit: <span id="lastEdit">—</span></div>
-</div>
 
 <div class="canvas" id="canvas"></div>
 
@@ -359,9 +350,13 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
       <label>Status</label>
       <select id="editStatus">
         <option value="confirmed">✅ Confirmed</option>
-        <option value="tbd">⏳ TBD — Follow Up</option>
-        <option value="tbc">🔲 TBC</option>
+        <option value="pending-approval">⏳ Pending Approval</option>
+        <option value="pending-acceptance">🔲 Pending Acceptance</option>
       </select>
+    </div>
+    <div class="form-group" id="venueFieldWrap">
+      <label>Venue (optional)</label>
+      <input type="text" id="editVenue" placeholder="e.g. The Star, Ryse, Fort Worth">
     </div>
     <div class="form-group">
       <label>Region</label>
@@ -547,12 +542,13 @@ function findNode(id, node) {
 }
 
 function statusBadge(s) {
-  if (s === 'confirmed') return '<span class="badge badge-confirmed" title="Click to change status">✅ Confirmed</span>';
+  if (s === 'confirmed')          return '<span class="badge badge-confirmed" title="Click to change status">✅ Confirmed</span>';
+  if (s === 'pending-approval' || s === 'tbd') return '<span class="badge badge-pending-approval" title="Click to change status">⏳ Pending Approval</span>';
+  if (s === 'pending-acceptance' || s === 'tbc') return '<span class="badge badge-pending-acceptance" title="Click to change status">🔲 Pending Acceptance</span>';
   if (s === 'ontrack')   return '<span class="badge" style="background:#e8f8f0;color:#2c7a5c;border:1px solid #a8d9c0;cursor:pointer" title="Click to change status">🟢 On Track</span>';
   if (s === 'atrisk')    return '<span class="badge" style="background:#fff8e8;color:#b7770d;border:1px solid #f0d080;cursor:pointer" title="Click to change status">🟡 At Risk</span>';
   if (s === 'behind')    return '<span class="badge" style="background:#fef0f0;color:#c0392b;border:1px solid #e8a0a0;cursor:pointer" title="Click to change status">🔴 Behind</span>';
-  if (s === 'tbd')       return '<span class="badge badge-tbd" title="Click to change status">⏳ TBD</span>';
-  return '<span class="badge badge-tbd" title="Click to change status">🔲 TBC</span>';
+  return '<span class="badge badge-pending-approval" title="Click to change status">⏳ Pending Approval</span>';
 }
 function regionBadge(r) {
   if (r === 'usa')  return '<span class="badge badge-usa">🇺🇸 USA</span>';
@@ -573,7 +569,7 @@ function renderNode(n) {
   return `
   <div style="display:flex;flex-direction:column;align-items:center">
     <div class="node node-${n.tier}" id="node-${n.id}" onclick="openEdit('${n.id}')">
-      <div class="node-role">${n.role}</div>
+      <div class="node-role">${n.role}${n.venue ? '<br><span style="font-size:9px;opacity:0.85;font-style:italic">📍 ' + n.venue + '</span>' : ''}</div>
       <div class="node-name">${nameHtml}</div>
       <div class="node-badges">
         <div class="node-status-wrap" onclick="event.stopPropagation();toggleStatusDrop('${n.id}',event)">
@@ -641,7 +637,7 @@ function renderCoGroup(v) {
   // Expand/collapse + children
   if (hasChildren) {
     h += `
-    <button style="margin-top:6px;background:white;border:2px solid #2d6a9f;border-radius:50%;
+    <button style="margin-top:6px;background:white;border:2px solid #2d6a9f;border-radius: 50%;
       width:20px;height:20px;font-size:12px;line-height:16px;cursor:pointer;text-align:center;
       box-shadow:0 2px 4px rgba(0,0,0,0.15);color:#2d6a9f;font-weight:700;"
       onclick="toggleNode(event,'${v.id}')">${v.expanded ? '−' : '+'}</button>
@@ -692,12 +688,12 @@ window._renderAll = function() {
         </div>
         ${regionBadge(root.region)}
       </div>
-      <button class="toggle-btn" onclick="toggleNode(event,'${root.id}')">${root.expanded?'−':'+'}</button>
+      <button class="toggle-btn" onclick="toggleNode(event,'${root.id}')">${root.expanded?'−':'+"}</button>
     </div>`;
 
   if (root.expanded) {
     html += `<div id="ch-${root.id}">`;
-    html += `<div class="v-line" style="height:20px"></div>`;
+    html += `<div class="v-line" style="height:20px"></dv>`;
 
     // Support row
     html += `<div style="text-align:center;font-size:10px;color:#2d6a9f;font-weight:700;letter-spacing:1px;margin-bottom:4px;text-transform:uppercase">— Leadership Support —</div>`;
@@ -790,12 +786,13 @@ function openEdit(id) {
   editingId = id;
   document.getElementById('editName').value   = n.name   || '';
   document.getElementById('editRole').value   = n.role   || '';
-  document.getElementById('editStatus').value = n.status || 'tbd';
+  document.getElementById('editStatus').value = n.status === 'tbd' || n.status === 'tbc' ? 'pending-approval' : (n.status || 'pending-approval');
   document.getElementById('editRegion').value = n.region || '';
   document.getElementById('editEmail').value  = n.email  || '';
   document.getElementById('editPhone').value  = n.phone  || '';
   document.getElementById('editCity').value   = n.city   || '';
   document.getElementById('editNotes').value  = n.notes  || '';
+  document.getElementById('editVenue').value  = n.venue  || '';
   document.getElementById('overlay').classList.add('active');
 }
 
@@ -817,6 +814,7 @@ function saveEdit() {
   n.phone  = document.getElementById('editPhone').value.trim();
   n.city   = document.getElementById('editCity').value.trim();
   n.notes  = document.getElementById('editNotes').value.trim();
+  n.venue  = document.getElementById('editVenue').value.trim();
 
   // Log the change
   const now = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
@@ -969,7 +967,7 @@ function renderProspects() {
         <td>${p.vertical || '—'}</td>
         <td style="color:#555">${p.role || '—'}</td>
         <td>${pStatusBadge(p.status)}</td>
-        <td style="color:#888;max-width:160px;white-space:nowraw;overflow:hidden;text-overflow:ellipsis" title="${p.notes||''}">${p.notes||'—'}</td>
+        <td style="color:#888;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${p.notes||''}">${p.notes||'—'}</td>
         <td style="color:#aaa;font-size:10px">${p.added||''}</td>
         <td>
           <div class="prospect-actions">
@@ -1000,15 +998,15 @@ function exportProspectsCSV() {
 //  INLINE STATUS DROPDOWN
 // ══════════════════════════════════════════════
 const STATUS_OPTIONS = [
-  { value: 'confirmed', label: '✅ Confirmed' },
-  { value: 'ontrack',   label: '🟢 On Track' },
-  { value: 'atrisk',    label: '🟡 At Risk' },
-  { value: 'behind',    label: '🔴 Behind' },
-  { value: 'tbd',       label: '⏳ TBD — Follow Up' },
-  { value: 'tbc',       label: '🔲 TBC' },
+  { value: 'confirmed',          label: '✅ Confirmed' },
+  { value: 'pending-approval',   label: '⏳ Pending Approval' },
+  { value: 'pending-acceptance', label: '🔲 Pending Acceptance' },
+  { value: 'ontrack',            label: '🟢 On Track' },
+  { value: 'atrisk',             label: '🟡 At Risk' },
+  { value: 'behind',             label: '🔴 Behind' },
 ];
 
-function buildStatusDrop(id, currentStatus) {
+function buildStatusDrophid, currentStatus) {
   const sep = '<div class="status-drop-sep"></div>';
   return STATUS_OPTIONS.map((opt, i) => {
     const active = opt.value === currentStatus ? ' active' : '';
