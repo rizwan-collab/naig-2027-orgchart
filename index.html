@@ -98,6 +98,24 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .btn-light { background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); }
 .btn-light:hover { background: rgba(255,255,255,0.35); }
 .btn-accent { background: #f5a623; color: #1a3a5c; }
+.btn-danger { background: #c0392b; color: white; border: none; }
+.btn-danger:hover { background: #a93226; }
+.add-child-btn {
+  display: block; width: calc(100% + 0px); margin-top: 6px;
+  background: rgba(255,255,255,0.15); border: 1px dashed rgba(255,255,255,0.5);
+  color: rgba(255,255,255,0.8); font-size: 10px; font-weight: 600;
+  border-radius: 4px; padding: 3px 6px; cursor: pointer; text-align: center;
+  transition: all 0.15s;
+}
+.add-child-btn:hover { background: rgba(255,255,255,0.3); color: white; }
+.add-child-btn-dark {
+  display: block; width: 100%; margin-top: 6px;
+  background: rgba(45,106,159,0.1); border: 1px dashed #2d6a9f;
+  color: #2d6a9f; font-size: 10px; font-weight: 600;
+  border-radius: 4px; padding: 3px 6px; cursor: pointer; text-align: center;
+  transition: all 0.15s;
+}
+.add-child-btn-dark:hover { background: rgba(45,106,159,0.2); }
 .btn-accent:hover { background: #e8961a; }
 .btn-green { background: #28a745; color: white; }
 .btn-green:hover { background: #218838; }
@@ -448,9 +466,70 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
       <label>Notes / Follow-up</label>
       <input type="text" id="editNotes" placeholder="Any notes or items to follow up on">
     </div>
+    <div class="modal-section" style="margin-top:4px">Org Structure</div>
+    <div class="form-group">
+      <label>Move to a different manager</label>
+      <select id="editParent" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        <option value="">— Keep current position —</option>
+      </select>
+    </div>
+    <div class="modal-actions" style="justify-content:space-between">
+      <button class="btn btn-danger" id="deleteBtn" onclick="deleteNode(editingId)">🗑 Delete</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-cancel" onclick="closeEdit()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveEdit()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Member Modal -->
+<div class="overlay" id="addOverlay">
+  <div class="modal" style="width:400px">
+    <h3>➕ Add Team Member</h3>
+    <div class="modal-section">Position Info</div>
+    <div class="form-group">
+      <label>Name <span style="color:#999;font-size:11px">(leave blank for TBD)</span></label>
+      <input type="text" id="addName" placeholder="Full name or leave blank for TBD">
+    </div>
+    <div class="form-group">
+      <label>Role <span style="color:#c0392b">*</span></label>
+      <input type="text" id="addRole" placeholder="e.g. Deputy Lead, PMO / Coordinator">
+    </div>
+    <div class="form-group">
+      <label>Status</label>
+      <select id="addStatus">
+        <option value="confirmed">✅ Confirmed</option>
+        <option value="pending-approval" selected>⏳ Pending Approval</option>
+        <option value="pending-acceptance">🔲 Pending Acceptance</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Region</label>
+      <select id="addRegion">
+        <option value="usa">🇺🇸 USA</option>
+        <option value="ca">🍁 Canada</option>
+        <option value="both">Both</option>
+        <option value="">None</option>
+      </select>
+    </div>
+    <div class="modal-section">Contact Info <span style="color:#999;font-weight:400;font-size:11px">(optional — add now or edit later)</span></div>
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="addEmail" placeholder="email@example.com">
+    </div>
+    <div class="form-group">
+      <label>Phone</label>
+      <input type="tel" id="addPhone" placeholder="+1 (555) 000-0000">
+    </div>
+    <div class="form-group">
+      <label>City / Province</label>
+      <input type="text" id="addCity" placeholder="e.g. Dallas TX or Calgary AB">
+    </div>
+    <div id="addParentInfo" style="font-size:12px;color:#666;background:#f5f7fa;padding:8px 12px;border-radius:6px;margin-bottom:12px"></div>
     <div class="modal-actions">
-      <button class="btn btn-cancel" onclick="closeEdit()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveEdit()">Save</button>
+      <button class="btn btn-cancel" onclick="closeAdd()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveNewNode()">Add to Org Chart</button>
     </div>
   </div>
 </div>
@@ -643,6 +722,7 @@ function renderNode(n) {
       </div>
       ${n.dashed ? '<div style="font-size:9px;opacity:0.65;margin-top:2px">- - dashed line - -</div>' : ''}
       ${has ? `<button class="toggle-btn" onclick="toggleNode(event,'${n.id}')">${n.expanded?'−':'+'}</button>` : ''}
+      <button class="add-child-btn" onclick="openAddChild('${n.id}',event)">+ Add Person</button>
     </div>
     ${has ? `
     <div id="ch-${n.id}" ${n.expanded?'':'style="display:none"'}>
@@ -752,7 +832,9 @@ window._renderAll = function() {
         ${regionBadge(root.region)}
       </div>
       <button class="toggle-btn" onclick="toggleNode(event,'${root.id}')">${root.expanded?'−':'+'}</button>
-    </div>`;
+    </div>
+    <button class="add-child-btn" style="width:auto;margin-top:4px;font-size:10px" onclick="openAddChild('${root.id}',event)">+ Add Person</button>
+    `;
 
   if (root.expanded) {
     html += `<div id="ch-${root.id}">`;
@@ -794,6 +876,7 @@ window._renderAll = function() {
           <div class="node-badges">${statusBadge(v.status)} ${regionBadge(v.region)}</div>
           ${contactChips(v)}
           ${hasV ? `<button class="toggle-btn" onclick="toggleNode(event,'${v.id}')">${v.expanded?'−':'+'}</button>` : ''}
+          <button class="add-child-btn" onclick="openAddChild('${v.id}',event)">+ Add Person</button>
         </div>
         ${hasV ? `
         <div id="ch-${v.id}" ${v.expanded?'':'style="display:none"'}>
@@ -807,6 +890,7 @@ window._renderAll = function() {
                 <div class="node-name">${c.name}</div>
                 <div class="node-badges">${statusBadge(c.status)} ${regionBadge(c.region)}</div>
                 ${contactChips(c)}
+                <button class="add-child-btn-dark" onclick="openAddChild('${c.id}',event)">+ Add Person</button>
               </div>
             </div>`).join('')}
           </div>
@@ -857,6 +941,23 @@ function openEdit(id) {
   document.getElementById('editCity').value   = n.city   || '';
   document.getElementById('editNotes').value  = n.notes  || '';
   document.getElementById('editVenue').value  = n.venue  || '';
+  // Populate parent dropdown (exclude self and descendants)
+  const desc = getDescendantIds(n);
+  desc.add(id);
+  const sel = document.getElementById('editParent');
+  const allNodes = getAllFlatNodes();
+  sel.innerHTML = '<option value="">— Keep current position —</option>';
+  allNodes.forEach(nd => {
+    if (!desc.has(nd.id)) {
+      const opt = document.createElement('option');
+      opt.value = nd.id;
+      opt.textContent = (nd.name || 'TBD') + ' — ' + nd.role;
+      sel.appendChild(opt);
+    }
+  });
+  sel.value = '';
+  // Hide delete btn for root
+  document.getElementById('deleteBtn').style.display = id === window._orgData.id ? 'none' : '';
   document.getElementById('overlay').classList.add('active');
 }
 
@@ -976,6 +1077,24 @@ function saveEdit() {
   document.getElementById('historyLog').innerHTML = historyLog.map(h=>`<span class="hist-entry">${h}</span>`).join('');
   document.getElementById('lastEdit').textContent = now;
 
+  // Handle move/reparent
+  const newParentId = document.getElementById('editParent').value;
+  if (newParentId && newParentId !== '') {
+    const nodeToMove = findNode(editingId, window._orgData);
+    if (nodeToMove) {
+      // Update node props first (already done above via findNode ref)
+      // Remove from current position
+      removeFromTree(editingId, window._orgData);
+      // Add to new parent
+      const newParent = findNode(newParentId, window._orgData);
+      if (newParent) {
+        if (!newParent.children) newParent.children = [];
+        newParent.children.push(nodeToMove);
+        nodeToMove.expanded = true;
+      }
+    }
+  }
+
   closeEdit();
   saveToCloud();
   window._renderAll();
@@ -983,6 +1102,135 @@ function saveEdit() {
 
 function saveLocal() {
   localStorage.setItem('naig_org', JSON.stringify(window._orgData));
+}
+
+// ── ADD CHILD ──────────────────────────────────────────────────────────────
+let addingParentId = null;
+function openAddChild(parentId, event) {
+  if (event) event.stopPropagation();
+  addingParentId = parentId;
+  const parent = findNode(parentId, window._orgData);
+  document.getElementById('addName').value   = '';
+  document.getElementById('addRole').value   = '';
+  document.getElementById('addStatus').value = 'pending-approval';
+  document.getElementById('addRegion').value = 'usa';
+  document.getElementById('addEmail').value  = '';
+  document.getElementById('addPhone').value  = '';
+  document.getElementById('addCity').value   = '';
+  const info = document.getElementById('addParentInfo');
+  if (parent) info.textContent = '📌 Reports to: ' + (parent.name || 'TBD') + ' — ' + parent.role;
+  document.getElementById('addOverlay').classList.add('active');
+  setTimeout(() => document.getElementById('addRole').focus(), 100);
+}
+
+function closeAdd() {
+  addingParentId = null;
+  document.getElementById('addOverlay').classList.remove('active');
+}
+
+function saveNewNode() {
+  const role = document.getElementById('addRole').value.trim();
+  if (!role) { alert('Role is required — enter a role title.'); return; }
+  const name   = document.getElementById('addName').value.trim();
+  const status = document.getElementById('addStatus').value;
+  const region = document.getElementById('addRegion').value;
+  const parent = findNode(addingParentId, window._orgData);
+  if (!parent) { closeAdd(); return; }
+
+  // Determine tier
+  const depth = getNodeDepth(addingParentId);
+  const tier  = (name && status === 'confirmed') ? (depth >= 1 ? 't3' : 't2') : (depth >= 1 ? 't3-tbd' : 't2-tbd');
+
+  const newNode = {
+    id:       'n' + Date.now(),
+    name:     name || 'TBD',
+    role:     role,
+    tier:     tier,
+    status:   status,
+    region:   region,
+    email:    document.getElementById('addEmail').value.trim(),
+    phone:    document.getElementById('addPhone').value.trim(),
+    city:     document.getElementById('addCity').value.trim(),
+    expanded: true,
+    children: []
+  };
+
+  if (!parent.children) parent.children = [];
+  parent.children.push(newNode);
+  parent.expanded = true;
+
+  closeAdd();
+  saveToCloud();
+  window._renderAll();
+}
+
+// ── DELETE NODE ────────────────────────────────────────────────────────────
+function deleteNode(id) {
+  if (!id || id === window._orgData.id) return;
+  const n = findNode(id, window._orgData);
+  if (!n) return;
+  const childCount = countDescendants(n);
+  const msg = childCount > 0
+    ? `Delete "${n.name || 'TBD'}" (${n.role}) and all ${childCount} subordinate(s)?
+
+This cannot be undone.`
+    : `Remove "${n.name || 'TBD'}" (${n.role}) from the org chart?
+
+This cannot be undone.`;
+  if (!confirm(msg)) return;
+  removeFromTree(id, window._orgData);
+  closeEdit();
+  saveToCloud();
+  window._renderAll();
+}
+
+function removeFromTree(id, node) {
+  if (!node) return false;
+  if (node.children) {
+    const idx = node.children.findIndex(c => c.id === id);
+    if (idx >= 0) { node.children.splice(idx, 1); return true; }
+    for (const c of node.children) { if (removeFromTree(id, c)) return true; }
+  }
+  if (node.coLeads) {
+    const idx = node.coLeads.findIndex(c => c.id === id);
+    if (idx >= 0) { node.coLeads.splice(idx, 1); return true; }
+  }
+  return false;
+}
+
+function countDescendants(node) {
+  let count = 0;
+  (node.children || []).forEach(c => { count += 1 + countDescendants(c); });
+  return count;
+}
+
+// ── TREE HELPERS ──────────────────────────────────────────────────────────
+function getAllFlatNodes(node, result) {
+  node   = node   || window._orgData;
+  result = result || [];
+  result.push({ id: node.id, name: node.name, role: node.role });
+  (node.coLeads  || []).forEach(cl => result.push({ id: cl.id, name: cl.name, role: cl.role }));
+  (node.children || []).forEach(c  => getAllFlatNodes(c, result));
+  return result;
+}
+
+function getDescendantIds(node, ids) {
+  ids = ids || new Set();
+  (node.children || []).forEach(c => { ids.add(c.id); getDescendantIds(c, ids); });
+  (node.coLeads  || []).forEach(c => ids.add(c.id));
+  return ids;
+}
+
+function getNodeDepth(id, node, depth) {
+  node  = node  || window._orgData;
+  depth = depth || 0;
+  if (node.id === id) return depth;
+  for (const c of (node.children || [])) {
+    const d = getNodeDepth(id, c, depth + 1);
+    if (d >= 0) return d;
+  }
+  for (const c of (node.coLeads || [])) { if (c.id === id) return depth + 1; }
+  return -1;
 }
 
 function saveToCloud() {
@@ -1404,6 +1652,11 @@ renderProspects();
 renderRnr();
 // Firebase listener will override local data once it resolves
 document.getElementById('syncStatus').textContent = '🔵 Connecting to cloud…';
+// Close add overlay on background click
+document.addEventListener('DOMContentLoaded', () => {
+  const addOv = document.getElementById('addOverlay');
+  if (addOv) addOv.addEventListener('click', e => { if (e.target === addOv) closeAdd(); });
+});
 </script>
 </body>
 </html>
