@@ -1771,7 +1771,7 @@ function openPersonFromDir(id) {
     return null;
   }
   const node = window._orgData ? find(window._orgData) : null;
-  if (node && node.id) openDirModal(node.id);
+  if (node && node.id) openDir(node.id);
 }
 
 function closeOrgDir() {
