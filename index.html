@@ -11,6 +11,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getDatabase, ref, set, remove, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey:            "AIzaSyC16ftKuUYRkwexYYUuk0i5fYsxxVzI_eU",
@@ -60,12 +61,71 @@
   window._dbSet    = set;
   window._dbRemove = remove;
 
+  // ── Firebase Auth ──
+  const auth = getAuth();
+  const googleProvider = new GoogleAuthProvider();
+
+  window.signInWithGoogle = async function() {
+    const btn = document.getElementById('googleSignInBtn');
+    const errEl = document.getElementById('authError');
+    if (btn) { btn.textContent = 'Signing in…'; btn.disabled = true; }
+    if (errEl) errEl.textContent = '';
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (e) {
+      if (errEl) errEl.textContent = e.code === 'auth/popup-closed-by-user'
+        ? 'Sign-in cancelled — please try again.'
+        : 'Sign-in failed: ' + (e.message || e.code);
+      if (btn) { btn.innerHTML = '<svg class="auth-google-icon" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.8 2.5 30.3 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.8 6.1C12.4 13 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/><path fill="#FBBC05" d="M10.4 28.6A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.1.8-4.6l-7.8-6.1A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.7l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.2-8.4 2.2-6.2 0-11.5-4.2-13.4-9.8l-7.8 6.1C6.6 42.6 14.6 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg> Continue with Google'; btn.disabled = false; }
+    }
+  };
+
+  window.firebaseSignOut = async function() {
+    if (!confirm('Sign out of NAIG 2027 Hub?')) return;
+    await signOut(auth);
+  };
+
+  onAuthStateChanged(auth, (user) => {
+    const gate = document.getElementById('authGate');
+    const badge = document.getElementById('userBadge');
+    if (user) {
+      // Signed in — hide gate, show app
+      if (gate) { gate.classList.add('hiding'); setTimeout(() => { gate.style.display = 'none'; }, 400); }
+      // Populate badge
+      if (badge) {
+        badge.style.display = 'inline-flex';
+        const nameEl = document.getElementById('userName');
+        const avatarEl = document.getElementById('userAvatar');
+        const fallbackEl = document.getElementById('userAvatarFallback');
+        if (nameEl) nameEl.textContent = user.displayName ? user.displayName.split(' ')[0] : user.email;
+        if (avatarEl && user.photoURL) { avatarEl.src = user.photoURL; avatarEl.style.display = ''; }
+        if (fallbackEl && !user.photoURL) {
+          fallbackEl.style.display = 'flex';
+          fallbackEl.textContent = (user.displayName || user.email || '?')[0].toUpperCase();
+        }
+      }
+      window._currentUser = user;
+      // Attach data listeners after auth confirmed
+      if (!window._listenersAttached) {
+        window._listenersAttached = true;
+        window._attachHubListeners && window._attachHubListeners();
+      }
+    } else {
+      // Signed out — show gate
+      window._currentUser = null;
+      if (gate) { gate.style.display = 'flex'; gate.classList.remove('hiding'); }
+      if (badge) badge.style.display = 'none';
+      window._listenersAttached = false;
+    }
+  });
+
   function showSyncStatus(msg) {
     const el = document.getElementById('syncStatus');
     if (el) el.textContent = msg;
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
+  // Wrap all Firebase listeners in a function called after auth
+  window._attachHubListeners = function() {
     // ── Org structure ──
     window._fb.listen((cloudData) => {
       if (cloudData) {
@@ -136,7 +196,7 @@
       window._docsData = data || {};
       window.renderDocs && window.renderDocs();
     });
-  });
+  };
 </script>
 
 <style>
@@ -495,6 +555,44 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .dot-medium { background:#d97706; }
 .dot-low { background:#16a34a; }
 
+/* ── Auth Login Gate ── */
+#authGate {
+  position:fixed; inset:0; background:linear-gradient(135deg,#0f2338 0%,#1a3a5c 60%,#2D6A9F 100%);
+  display:flex; align-items:center; justify-content:center; z-index:99999;
+  transition:opacity .4s ease;
+}
+#authGate.hiding { opacity:0; pointer-events:none; }
+.auth-card {
+  background:#fff; border-radius:16px; padding:48px 44px; text-align:center;
+  box-shadow:0 20px 60px rgba(0,0,0,.4); max-width:400px; width:90%;
+}
+.auth-logo { font-size:3rem; margin-bottom:8px; }
+.auth-title { font-size:1.5rem; font-weight:800; color:#1a3a5c; margin:0 0 4px; }
+.auth-sub { font-size:.87rem; color:#666; margin:0 0 32px; }
+.auth-google-btn {
+  display:inline-flex; align-items:center; gap:12px; background:#fff;
+  border:2px solid #e0e7ef; border-radius:10px; padding:13px 24px;
+  font-size:.92rem; font-weight:700; color:#333; cursor:pointer;
+  transition:all .15s; width:100%; justify-content:center;
+  box-shadow:0 2px 8px rgba(0,0,0,.08);
+}
+.auth-google-btn:hover { border-color:#1a3a5c; box-shadow:0 4px 16px rgba(0,0,0,.15); transform:translateY(-1px); }
+.auth-google-btn:active { transform:translateY(0); }
+.auth-google-icon { width:22px; height:22px; flex-shrink:0; }
+.auth-error { margin-top:14px; color:#dc2626; font-size:.82rem; min-height:20px; }
+.auth-note { margin-top:20px; font-size:.76rem; color:#aaa; line-height:1.5; }
+/* ── User badge in header ── */
+#userBadge {
+  display:none; align-items:center; gap:8px; background:rgba(255,255,255,.1);
+  border-radius:8px; padding:5px 10px; cursor:pointer;
+}
+#userBadge:hover { background:rgba(255,255,255,.18); }
+#userAvatar { width:28px; height:28px; border-radius:50%; border:2px solid rgba(255,255,255,.4); object-fit:cover; }
+#userAvatarFallback { width:28px; height:28px; border-radius:50%; background:#2D6A9F; color:#fff; display:flex; align-items:center; justify-content:center; font-size:.75rem; font-weight:700; }
+#userName { font-size:.78rem; font-weight:700; color:#fff; max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#signOutBtn { font-size:.71rem; color:rgba(255,255,255,.65); background:none; border:1px solid rgba(255,255,255,.25); border-radius:4px; padding:2px 7px; cursor:pointer; }
+#signOutBtn:hover { background:rgba(255,255,255,.1); color:#fff; }
+
 /* ── Org Directory Panel (inline below stats bar) ── */
 #orgDirPanel { display:none; background:#fff; border:1.5px solid #e0e7ef; border-radius:10px; margin:8px 0 4px 0; overflow:hidden; box-shadow:0 4px 16px rgba(0,0,0,.1); }
 #orgDirPanel.open { display:block; }
@@ -582,6 +680,21 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 </head>
 <body>
 
+<!-- ── Auth Gate (shown until signed in) ── -->
+<div id="authGate">
+  <div class="auth-card">
+    <div class="auth-logo">🏆</div>
+    <h2 class="auth-title">NAIG 2027</h2>
+    <p class="auth-sub">Logistics Hub · Team Access Only<br>Sign in with your Google account to continue</p>
+    <button class="auth-google-btn" onclick="signInWithGoogle()" id="googleSignInBtn">
+      <svg class="auth-google-icon" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.8 2.5 30.3 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.8 6.1C12.4 13 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/><path fill="#FBBC05" d="M10.4 28.6A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.1.8-4.6l-7.8-6.1A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.7l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.2-8.4 2.2-6.2 0-11.5-4.2-13.4-9.8l-7.8 6.1C6.6 42.6 14.6 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
+      Continue with Google
+    </button>
+    <div class="auth-error" id="authError"></div>
+    <p class="auth-note">Access is restricted to authorised NAIG 2027 team members.<br>Contact Rizwan to request access.</p>
+  </div>
+</div>
+
 <div class="header">
   <div class="header-left">
     <h1>🏆 NAIG 2027 — Logistics Hub</h1>
@@ -589,6 +702,13 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
   </div>
   <div class="header-right">
     <span class="sync-status" id="syncStatus">⏳ Connecting…</span>
+    <!-- User badge -->
+    <span id="userBadge" title="Click to sign out">
+      <img id="userAvatar" src="" alt="" onerror="this.style.display='none';document.getElementById('userAvatarFallback').style.display='flex'">
+      <span id="userAvatarFallback" style="display:none"></span>
+      <span id="userName"></span>
+      <button id="signOutBtn" onclick="firebaseSignOut()">Sign Out</button>
+    </span>
     <span id="orgBtns" style="display:inline-flex;gap:8px;align-items:center">
       <button class="btn btn-light" onclick="expandAll()">Expand All</button>
       <button class="btn btn-light" onclick="collapseAll()">Collapse All</button>
