@@ -106,6 +106,7 @@
     window._fb.listenVenues((data) => {
       window._venuesData = data || {};
       window.renderVenues && window.renderVenues();
+      if (!data) window.seedInitialVenues && window.seedInitialVenues();
     });
     // ── Hub: Vendors ──
     window._fb.listenVendors((data) => {
@@ -323,8 +324,18 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
   cursor: pointer; transition: background 0.15s; user-select: none;
 }
 .stat-card:last-child { border-right: none; }
+.stat-card { cursor: pointer; }
 .stat-card:hover { background: #f5f8fc; }
 .stat-card.active { border-bottom: 3px solid #1a3a5c; background: #f0f5fb; }
+.node.node-pending-highlight {
+  outline: 2px solid #f59e0b !important;
+  box-shadow: 0 0 10px rgba(245,158,11,0.55) !important;
+  animation: pendingPulse 1.2s ease-in-out 3;
+}
+@keyframes pendingPulse {
+  0%,100% { box-shadow: 0 0 6px rgba(245,158,11,0.4); }
+  50%      { box-shadow: 0 0 14px rgba(245,158,11,0.8); }
+}
 .stat-num { font-size: 26px; font-weight: 800; color: #1a3a5c; line-height: 1; }
 .stat-label { font-size: 10px; font-weight: 700; color: #7a9ab5; text-transform: uppercase; letter-spacing: 0.8px; margin-top: 3px; display: flex; align-items: center; gap: 4px; }
 .stat-label::after { content: '▾'; font-size: 9px; }
@@ -516,11 +527,11 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 
 <!-- Stats Bar -->
 <div class="stats-bar" id="statsBar">
-  <div class="stat-card" id="stat-people"><div class="stat-num" id="sn-people">—</div><div class="stat-label">People</div></div>
-  <div class="stat-card" id="stat-dept"><div class="stat-num" id="sn-dept">—</div><div class="stat-label">Departments</div></div>
-  <div class="stat-card" id="stat-mgr"><div class="stat-num" id="sn-mgr">—</div><div class="stat-label">Managers</div></div>
-  <div class="stat-card" id="stat-lvl"><div class="stat-num" id="sn-lvl">—</div><div class="stat-label">Levels</div></div>
-  <div class="stat-card" id="stat-tbd"><div class="stat-num" id="sn-tbd">—</div><div class="stat-label">Pending / Open</div></div>
+  <div class="stat-card" id="stat-people" onclick="statTileClick('people')" title="Click to expand all"><div class="stat-num" id="sn-people">—</div><div class="stat-label">People ▾</div></div>
+  <div class="stat-card" id="stat-dept"   onclick="statTileClick('dept')"   title="Click to collapse to departments"><div class="stat-num" id="sn-dept">—</div><div class="stat-label">Departments ▾</div></div>
+  <div class="stat-card" id="stat-mgr"    onclick="statTileClick('mgr')"    title="Click to expand all"><div class="stat-num" id="sn-mgr">—</div><div class="stat-label">Managers ▾</div></div>
+  <div class="stat-card" id="stat-lvl"    onclick="statTileClick('lvl')"    title="Click to expand all"><div class="stat-num" id="sn-lvl">—</div><div class="stat-label">Levels ▾</div></div>
+  <div class="stat-card" id="stat-tbd"    onclick="statTileClick('tbd')"    title="Click to highlight unfilled roles"><div class="stat-num" id="sn-tbd">—</div><div class="stat-label">Pending / Open ▾</div></div>
 </div>
 
 <!-- Directory Modal -->
@@ -1367,6 +1378,44 @@ function toggleNode(e, id) {
 
 function expandAll()  { setAll(window._orgData, true);  window._renderAll(); }
 function collapseAll(){ setAll(window._orgData, false); window._renderAll(); }
+
+// ── Stat tile click handlers ──
+function statTileClick(type) {
+  // Toggle active highlight on the tile
+  document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
+  const tile = document.getElementById('stat-' + type);
+  if (tile) tile.classList.add('active');
+
+  // Clear any pending highlights from last click
+  document.querySelectorAll('.node.node-pending-highlight').forEach(el => {
+    el.classList.remove('node-pending-highlight');
+  });
+
+  if (type === 'dept') {
+    // Collapse to show only top-level departments
+    collapseAll();
+  } else if (type === 'tbd') {
+    // Expand everything then flash unfilled / TBD nodes
+    expandAll();
+    setTimeout(() => {
+      const PENDING_STATUSES = ['tbd','tbc','pending-approval','pending-acceptance'];
+      function walkHighlight(n) {
+        const isPending = PENDING_STATUSES.includes(n.status) ||
+                          !n.name || n.name.toLowerCase() === 'tbd' || n.name.toLowerCase() === 'tbc';
+        if (isPending) {
+          const el = document.getElementById('node-' + n.id);
+          if (el) el.classList.add('node-pending-highlight');
+        }
+        (n.children || []).forEach(walkHighlight);
+        (n.coLeads || []).forEach(walkHighlight);
+      }
+      if (window._orgData) walkHighlight(window._orgData);
+    }, 350);
+  } else {
+    // People / Managers / Levels — expand everything
+    expandAll();
+  }
+}
 function setAll(n, v) { n.expanded = v; (n.children||[]).forEach(c=>setAll(c,v)); }
 
 function openEdit(id) {
@@ -2380,6 +2429,7 @@ function openVenueModal(editKey) {
   document.getElementById('venueCapacity').value = v.capacity || '';
   document.getElementById('venueLocation').value = v.location || '';
   document.getElementById('venueStatus').value = v.status || 'Exploring';
+  document.getElementById('venueSports').value = v.sports || '';
   document.getElementById('venueNotes').value = v.notes || '';
   document.getElementById('venueDeleteBtn').style.display = editKey ? '' : 'none';
   document.getElementById('venueOverlay').style.display = 'flex';
@@ -2394,6 +2444,7 @@ function saveVenue() {
     capacity: document.getElementById('venueCapacity').value.trim(),
     location: document.getElementById('venueLocation').value.trim(),
     status: document.getElementById('venueStatus').value,
+    sports: document.getElementById('venueSports').value.trim(),
     notes: document.getElementById('venueNotes').value.trim(),
     updated: new Date().toISOString()
   });
@@ -2606,6 +2657,18 @@ function saveHotel() {
   });
   closeHotelModal();
 }
+
+window.seedInitialVenues = function() {
+  const seed = {
+    [hubKey()]: { name:'Kay Bailey Hutchison Convention Center', type:'Convention Center', capacity:'70,000 sq ft', location:'650 S Griffin St, Dallas, TX 75202', status:'Evaluating', sports:'Basketball, Volleyball, Wrestling, Boxing, Badminton, Table Tennis', notes:'Largest convention space in DFW. Ideal for multi-sport indoor setup. Flexible floor plan.' },
+    [hubKey()]: { name:'Fair Park — Cotton Bowl & Facilities', type:'Multi-Sport Complex', capacity:'92,100 (stadium)', location:'1300 Robert B Cullum Blvd, Dallas, TX 75210', status:'Evaluating', sports:'Track & Field, Archery, Softball, Soccer, Lacrosse, Opening Ceremony (optional)', notes:'Historic fairgrounds. Large outdoor footprint. Track facility on-site. Parking excellent.' },
+    [hubKey()]: { name:'Globe Life Field / Choctaw Stadium Area', type:'Stadium Complex', capacity:'40,518', location:'734 Stadium Dr, Arlington, TX 76011', status:'Evaluating', sports:'Baseball, Softball', notes:'Retractable roof. Climate-controlled. Excellent for baseball tournament format. Midpoint between Dallas and Fort Worth.' },
+    [hubKey()]: { name:'Weatherford Road Aquatic Center (Fort Worth)', type:'Aquatics', capacity:'2,500 spectators', location:'Fort Worth area (TBC)', status:'Exploring', sports:'Swimming, Diving', notes:'TBD — evaluating multiple Fort Worth ISD and City of FW aquatic centers. Need 8-lane 50m pool.' },
+    [hubKey()]: { name:'University of Texas at Arlington — Maverick Stadium', type:'University Campus', capacity:'12,000', location:'700 UTA Blvd, Arlington, TX 76019', status:'Exploring', sports:'Track & Field, Soccer, Outdoor events', notes:'Central DFW location. UTA has track, soccer field, gym. Potential for multi-sport hub.' },
+    [hubKey()]: { name:'Dickies Arena (Fort Worth)', type:'Arena', capacity:'14,000', location:'1911 Montgomery St, Fort Worth, TX 76107', status:'Exploring', sports:'Rodeo, Boxing, Gymnastics, Martial Arts', notes:'Modern arena opened 2019. Great sightlines. Fort Worth side — useful for western venue cluster.' },
+  };
+  window._dbSet(window._dbRef('naig2027/venues'), seed);
+};
 
 window.seedInitialHotels = function() {
   const seed = {
@@ -3161,6 +3224,10 @@ function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
         <option value="Confirmed">Confirmed</option>
         <option value="Dropped">Dropped</option>
       </select>
+    </div>
+    <div class="form-group">
+      <label>Sports Assigned</label>
+      <input type="text" id="venueSports" placeholder="e.g. Basketball, Volleyball, Wrestling" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
     </div>
     <div class="form-group">
       <label>Notes</label>
