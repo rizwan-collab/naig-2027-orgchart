@@ -34,6 +34,9 @@
   const venuesRef   = ref(db, 'naig2027/venues');
   const vendorsRef  = ref(db, 'naig2027/vendors');
   const scopeRef    = ref(db, 'naig2027/scope');
+  const hotelsRef   = ref(db, 'naig2027/hotels');
+  const transportRef = ref(db, 'naig2027/transportation');
+  const docsRef      = ref(db, 'naig2027/docs');
 
   // ── expose Firebase to the rest of the page ──
   window._fb = {
@@ -44,10 +47,13 @@
     listen:          (cb)   => onValue(orgRef,       snap => cb(snap.val())),
     listenProspects: (cb)   => onValue(prospectsRef, snap => cb(snap.val())),
     listenRnr:       (cb)   => onValue(rnrRef,       snap => cb(snap.val())),
-    listenTasks:   (cb) => onValue(tasksRef,   snap => cb(snap.val())),
-    listenVenues:  (cb) => onValue(venuesRef,  snap => cb(snap.val())),
-    listenVendors: (cb) => onValue(vendorsRef, snap => cb(snap.val())),
-    listenScope:   (cb) => onValue(scopeRef,   snap => cb(snap.val())),
+    listenTasks:      (cb) => onValue(tasksRef,    snap => cb(snap.val())),
+    listenVenues:     (cb) => onValue(venuesRef,   snap => cb(snap.val())),
+    listenVendors:    (cb) => onValue(vendorsRef,  snap => cb(snap.val())),
+    listenScope:      (cb) => onValue(scopeRef,    snap => cb(snap.val())),
+    listenHotels:     (cb) => onValue(hotelsRef,    snap => cb(snap.val())),
+    listenTransport:  (cb) => onValue(transportRef, snap => cb(snap.val())),
+    listenDocs:       (cb) => onValue(docsRef,      snap => cb(snap.val())),
   };
   // Primitives for global CRUD
   window._dbRef    = (path) => ref(db, path);
@@ -111,6 +117,23 @@
       window._scopeData = data || {};
       window.renderScope && window.renderScope();
       if (!data) window.seedInitialScope && window.seedInitialScope();
+    });
+    // ── Hub: Hotels ──
+    window._fb.listenHotels((data) => {
+      window._hotelsData = data || {};
+      window.renderHotels && window.renderHotels();
+      if (!data) window.seedInitialHotels && window.seedInitialHotels();
+    });
+    // ── Hub: Transportation ──
+    window._fb.listenTransport((data) => {
+      window._transportData = data || {};
+      window.renderTransport && window.renderTransport();
+      if (!data) window.seedInitialTransport && window.seedInitialTransport();
+    });
+    // ── Hub: Documents ──
+    window._fb.listenDocs((data) => {
+      window._docsData = data || {};
+      window.renderDocs && window.renderDocs();
     });
   });
 </script>
@@ -408,6 +431,58 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .scope-card-event { font-size:12px; color:#555; margin-bottom:6px; }
 .scope-card-count { font-size:28px; font-weight:800; color:#1a3a5c; line-height:1; }
 .scope-card-notes { font-size:10px; color:#999; margin-top:6px; line-height:1.4; }
+
+/* ── Tab count badges ── */
+.tab-badge { background:rgba(255,255,255,0.25); border-radius:9px; padding:0px 6px;
+  font-size:10px; font-weight:700; margin-left:5px; }
+.tab-btn.active .tab-badge { background:rgba(191,27,42,0.35); }
+
+/* ── Progress bar ── */
+.task-progress { background:#e8eef5; border-radius:8px; height:8px; margin-bottom:14px; overflow:hidden; }
+.task-progress-fill { height:100%; background:linear-gradient(90deg,#16a34a,#22c55e); border-radius:8px; transition:width 0.4s; }
+.task-progress-label { font-size:11px; color:#666; margin-bottom:6px; display:flex; justify-content:space-between; }
+
+/* ── Hub filter bar ── */
+.hub-filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; align-items:center; }
+.hub-search { flex:1; min-width:180px; padding:7px 12px; border:1px solid #dde6f0; border-radius:8px;
+  font-size:13px; outline:none; }
+.hub-search:focus { border-color:#2d6a9f; box-shadow:0 0 0 2px rgba(45,106,159,0.15); }
+.hub-filter-select { padding:7px 10px; border:1px solid #dde6f0; border-radius:8px; font-size:12px;
+  background:white; cursor:pointer; outline:none; }
+.hub-filter-btn { padding:6px 12px; border:1px solid #dde6f0; border-radius:8px; font-size:12px;
+  background:white; cursor:pointer; color:#2d6a9f; }
+.hub-filter-btn:hover { background:#e8f4fd; }
+.hub-filter-btn.active { background:#2d6a9f; color:white; border-color:#2d6a9f; }
+
+/* ── Overdue badge ── */
+.overdue-badge { background:#fee2e2; color:#991b1b; font-size:9px; font-weight:700;
+  padding:1px 5px; border-radius:4px; text-transform:uppercase; letter-spacing:0.5px; }
+.task-card.is-overdue { border-left-color:#dc2626 !important; }
+.task-card.is-overdue .task-card-title { color:#991b1b; }
+
+/* ── Quick complete ── */
+.quick-done-btn { width:20px; height:20px; border-radius:50%; border:2px solid #ddd; background:none;
+  cursor:pointer; display:inline-flex; align-items:center; justify-content:center; font-size:10px;
+  flex-shrink:0; transition:all 0.15s; }
+.quick-done-btn:hover { border-color:#16a34a; background:#d1fae5; color:#16a34a; }
+
+/* ── Summary stat strip ── */
+.summary-strip { display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+.sum-chip { background:white; border:1px solid #e0e8f0; border-radius:8px; padding:7px 14px;
+  font-size:12px; color:#555; display:flex; flex-direction:column; align-items:center; min-width:80px; }
+.sum-chip strong { font-size:18px; font-weight:800; color:#1a3a5c; line-height:1.1; }
+.sum-chip span { font-size:10px; color:#999; margin-top:2px; text-align:center; }
+
+/* ── Section action bar ── */
+.section-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+
+/* ── Hub table improvements ── */
+.hub-table td.cell-link a { color:#2d6a9f; text-decoration:none; }
+.hub-table td.cell-link a:hover { text-decoration:underline; }
+.priority-dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:5px; }
+.dot-high { background:#dc2626; }
+.dot-medium { background:#d97706; }
+.dot-low { background:#16a34a; }
 </style>
 </head>
 <body>
@@ -419,19 +494,24 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
   </div>
   <div class="header-right">
     <span class="sync-status" id="syncStatus">⏳ Connecting…</span>
-    <button class="btn btn-light" onclick="expandAll()">Expand All</button>
-    <button class="btn btn-light" onclick="collapseAll()">Collapse All</button>
-    <button class="btn btn-accent" onclick="exportJSON()">⬇ Export JSON</button>
+    <span id="orgBtns" style="display:inline-flex;gap:8px;align-items:center">
+      <button class="btn btn-light" onclick="expandAll()">Expand All</button>
+      <button class="btn btn-light" onclick="collapseAll()">Collapse All</button>
+      <button class="btn btn-accent" onclick="exportJSON()">⬇ Export JSON</button>
+    </span>
   </div>
 </div>
 
 <!-- Tab Navigation -->
 <div class="tab-nav">
-  <button class="tab-btn active" onclick="switchTab('orgchart')">🗂 Org Chart</button>
-  <button class="tab-btn" onclick="switchTab('tasks')">📋 Tasks</button>
-  <button class="tab-btn" onclick="switchTab('venues')">🏟 Venues</button>
-  <button class="tab-btn" onclick="switchTab('vendors')">🛒 Vendors</button>
-  <button class="tab-btn" onclick="switchTab('scope')">📊 Scope</button>
+  <button class="tab-btn active" id="taborg" onclick="switchTab('orgchart')">🗂 Org Chart</button>
+  <button class="tab-btn" id="tabtasks" onclick="switchTab('tasks')">📋 Tasks <span class="tab-badge" id="badge-tasks">0</span></button>
+  <button class="tab-btn" id="tabvenues" onclick="switchTab('venues')">🏟 Venues <span class="tab-badge" id="badge-venues">0</span></button>
+  <button class="tab-btn" id="tabvendors" onclick="switchTab('vendors')">🛒 Vendors <span class="tab-badge" id="badge-vendors">0</span></button>
+  <button class="tab-btn" id="tabhotels" onclick="switchTab('hotels')">🏨 Hotels <span class="tab-badge" id="badge-hotels">0</span></button>
+  <button class="tab-btn" id="tabtransport" onclick="switchTab('transport')">🚌 Transportation <span class="tab-badge" id="badge-transport">0</span></button>
+  <button class="tab-btn" id="tabdocs" onclick="switchTab('docs')">📁 Documents <span class="tab-badge" id="badge-docs">0</span></button>
+  <button class="tab-btn" id="tabscope" onclick="switchTab('scope')">📊 Scope</button>
 </div>
 
 <!-- Stats Bar -->
@@ -501,11 +581,40 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 <div class="hub-section" id="sectionTasks">
   <div class="hub-toolbar">
     <div>
-      <div class="hub-title">📋 Task Board</div>
-      <div class="hub-subtitle">All NAIG 2027 work items — drag or click to move between stages</div>
+      <div class="hub-title">📋 Master Task Board</div>
+      <div class="hub-subtitle">All teams · Tasks roll up by Scope Area — use the filter to see a specific team's work</div>
     </div>
-    <button class="btn btn-primary" onclick="openTaskModal()">+ Add Task</button>
+    <div class="section-actions">
+      <button class="btn btn-light" onclick="exportTasksCSV()">⬇ Export CSV</button>
+      <button class="btn btn-primary" onclick="openTaskModal()">+ Add Task</button>
+    </div>
   </div>
+  <!-- Progress -->
+  <div class="task-progress-label">
+    <span id="progressLabel">Loading…</span>
+    <span id="progressPct"></span>
+  </div>
+  <div class="task-progress"><div class="task-progress-fill" id="progressFill" style="width:0%"></div></div>
+  <!-- Summary strip -->
+  <div class="summary-strip" id="taskSummaryStrip"></div>
+  <!-- Filters -->
+  <div class="hub-filters">
+    <input class="hub-search" id="taskSearch" placeholder="🔍 Search tasks…" oninput="renderKanban()">
+    <select class="hub-filter-select" id="filterScope" onchange="renderKanban()">
+      <option value="">All Scope Areas</option>
+      <option>Athletes</option><option>Volunteers</option><option>Venues</option>
+      <option>Hotels</option><option>Transportation</option><option>Vendors</option>
+      <option>Org / Staffing</option><option>Finance</option><option>Technology</option><option>Marketing</option><option>Other</option>
+    </select>
+    <select class="hub-filter-select" id="filterPriority" onchange="renderKanban()">
+      <option value="">All Priorities</option>
+      <option value="high">🔴 High</option><option value="medium">🟡 Medium</option><option value="low">🟢 Low</option>
+    </select>
+    <select class="hub-filter-select" id="filterTeam" onchange="renderKanban()">
+      <option value="">All Teams / Owners</option>
+    </select>
+  </div>
+  <!-- Kanban -->
   <div class="kanban-board" id="kanbanBoard">
     <div class="kanban-col col-backlog">
       <div class="kanban-col-hdr">Backlog <span class="col-count" id="cnt-backlog">0</span></div>
@@ -534,15 +643,27 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
   <div class="hub-toolbar">
     <div>
       <div class="hub-title">🏟 Venue Directory</div>
-      <div class="hub-subtitle">4–6 confirmed sites for NAIG 2027 — DFW, Texas</div>
+      <div class="hub-subtitle">4–6 competition sites for NAIG 2027 — DFW, Texas</div>
     </div>
-    <button class="btn btn-primary" onclick="openVenueModal()">+ Add Venue</button>
+    <div class="section-actions">
+      <button class="btn btn-light" onclick="exportTableCSV('venuesTbody','venues')">⬇ CSV</button>
+      <button class="btn btn-primary" onclick="openVenueModal()">+ Add Venue</button>
+    </div>
   </div>
-  <table class="hub-table" id="venuesTable">
+  <div class="hub-filters">
+    <input class="hub-search" id="venueSearch" placeholder="🔍 Search venues…" oninput="renderVenues()">
+    <select class="hub-filter-select" id="venueStatusFilter" onchange="renderVenues()">
+      <option value="">All Statuses</option>
+      <option>Exploring</option><option>Site Visit Scheduled</option><option>Shortlisted</option>
+      <option>Negotiating</option><option>Confirmed</option><option>Dropped</option>
+    </select>
+  </div>
+  <div class="summary-strip" id="venueSummary"></div>
+  <table class="hub-table">
     <thead><tr>
-      <th>Venue</th><th>Type</th><th>Capacity</th><th>Location</th><th>Status</th><th>Notes</th><th></th>
+      <th>Venue</th><th>Type</th><th>Capacity</th><th>Location</th><th>Status</th><th>Sports Assigned</th><th>Notes</th><th></th>
     </tr></thead>
-    <tbody id="venuesTbody"><tr><td colspan="7" class="hub-empty">No venues yet. Click <strong>+ Add Venue</strong> to start.</td></tr></tbody>
+    <tbody id="venuesTbody"><tr><td colspan="8" class="hub-empty">No venues yet. Click <strong>+ Add Venue</strong> to start.</td></tr></tbody>
   </table>
 </div>
 
@@ -551,15 +672,139 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
   <div class="hub-toolbar">
     <div>
       <div class="hub-title">🛒 Vendor Tracker</div>
-      <div class="hub-subtitle">Transportation, catering, hotels, AV, and all contracted services</div>
+      <div class="hub-subtitle">All contracted services — contract status, financials, and contacts</div>
     </div>
-    <button class="btn btn-primary" onclick="openVendorModal()">+ Add Vendor</button>
+    <div class="section-actions">
+      <button class="btn btn-light" onclick="exportTableCSV('vendorsTbody','vendors')">⬇ CSV</button>
+      <button class="btn btn-primary" onclick="openVendorModal()">+ Add Vendor</button>
+    </div>
   </div>
-  <table class="hub-table" id="vendorsTable">
+  <div class="hub-filters">
+    <input class="hub-search" id="vendorSearch" placeholder="🔍 Search vendors…" oninput="renderVendors()">
+    <select class="hub-filter-select" id="vendorCatFilter" onchange="renderVendors()">
+      <option value="">All Categories</option>
+      <option>Transportation</option><option>Hotel / Housing</option><option>Catering / F&B</option>
+      <option>AV / Production</option><option>Security</option><option>Medical</option>
+      <option>Printing / Signage</option><option>Technology</option><option>Other</option>
+    </select>
+    <select class="hub-filter-select" id="vendorStatusFilter" onchange="renderVendors()">
+      <option value="">All Contract Statuses</option>
+      <option>Not Started</option><option>RFP Sent</option><option>Proposal Received</option>
+      <option>Negotiating</option><option>Signed</option><option>Cancelled</option>
+    </select>
+  </div>
+  <div class="summary-strip" id="vendorSummary"></div>
+  <table class="hub-table">
     <thead><tr>
-      <th>Vendor / Company</th><th>Category</th><th>Contact</th><th>Contract Status</th><th>Est. Cost</th><th>Notes</th><th></th>
+      <th>Vendor / Company</th><th>Category</th><th>Contact</th><th>Contract Status</th>
+      <th>Contract Value</th><th>Invoiced</th><th>Paid</th><th>Notes</th><th></th>
     </tr></thead>
-    <tbody id="vendorsTbody"><tr><td colspan="7" class="hub-empty">No vendors yet. Click <strong>+ Add Vendor</strong> to start.</td></tr></tbody>
+    <tbody id="vendorsTbody"><tr><td colspan="9" class="hub-empty">No vendors yet. Click <strong>+ Add Vendor</strong> to start.</td></tr></tbody>
+  </table>
+</div>
+
+<!-- Hotels -->
+<div class="hub-section" id="sectionHotels">
+  <div class="hub-toolbar">
+    <div>
+      <div class="hub-title">🏨 Hotel &amp; Room Blocks</div>
+      <div class="hub-subtitle">Room block management for athletes, officials, and staff — target 400–600 room-nights</div>
+    </div>
+    <div class="section-actions">
+      <button class="btn btn-light" onclick="exportTableCSV('hotelsTbody','hotels')">⬇ CSV</button>
+      <button class="btn btn-primary" onclick="openHotelModal()">+ Add Hotel</button>
+    </div>
+  </div>
+  <div class="hub-filters">
+    <input class="hub-search" id="hotelSearch" placeholder="🔍 Search hotels…" oninput="renderHotels()">
+    <select class="hub-filter-select" id="hotelStatusFilter" onchange="renderHotels()">
+      <option value="">All Statuses</option>
+      <option>Prospecting</option><option>Block Requested</option><option>Block Confirmed</option>
+      <option>Contract Sent</option><option>Contract Signed</option><option>Cancelled</option>
+    </select>
+  </div>
+  <div class="summary-strip" id="hotelSummary"></div>
+  <table class="hub-table">
+    <thead><tr>
+      <th>Hotel</th><th>Address / Area</th><th>Block Size</th><th>Rooms Used</th><th>Rate/Night</th>
+      <th>Status</th><th>Check-In</th><th>Contact</th><th></th>
+    </tr></thead>
+    <tbody id="hotelsTbody"><tr><td colspan="9" class="hub-empty">No hotels yet. Click <strong>+ Add Hotel</strong> to start.</td></tr></tbody>
+  </table>
+</div>
+
+<!-- Transportation -->
+<div class="hub-section" id="sectionTransport">
+  <div class="hub-toolbar">
+    <div>
+      <div class="hub-title">🚌 Transportation</div>
+      <div class="hub-subtitle">Shuttle routes, bus schedules, and athlete transport logistics</div>
+    </div>
+    <div class="section-actions">
+      <button class="btn btn-light" onclick="exportTableCSV('transportTbody','transportation')">⬇ CSV</button>
+      <button class="btn btn-primary" onclick="openTransportModal()">+ Add Route</button>
+    </div>
+  </div>
+  <div class="hub-filters">
+    <input class="hub-search" id="transportSearch" placeholder="🔍 Search routes…" oninput="renderTransport()">
+    <select class="hub-filter-select" id="transportTypeFilter" onchange="renderTransport()">
+      <option value="">All Types</option>
+      <option>Shuttle Bus</option><option>Charter Bus</option><option>Van</option>
+      <option>Airport Transfer</option><option>VIP / Staff</option><option>Medical / Emergency</option><option>Other</option>
+    </select>
+    <select class="hub-filter-select" id="transportStatusFilter" onchange="renderTransport()">
+      <option value="">All Statuses</option>
+      <option>Planning</option><option>Vendor Shortlisted</option><option>Contract Pending</option>
+      <option>Confirmed</option><option>Cancelled</option>
+    </select>
+  </div>
+  <div class="summary-strip" id="transportSummary"></div>
+  <table class="hub-table">
+    <thead><tr>
+      <th>Route / Service</th><th>Type</th><th>Status</th><th>Vendor</th>
+      <th>From → To</th><th>Schedule</th><th>Cost · Vehicles</th><th></th>
+    </tr></thead>
+    <tbody id="transportTbody"><tr><td colspan="8" class="hub-empty">No routes yet. Click <strong>+ Add Route</strong> to start.</td></tr></tbody>
+  </table>
+</div>
+
+<!-- Documents Repository -->
+<div class="hub-section" id="sectionDocs">
+  <div class="hub-toolbar">
+    <div>
+      <div class="hub-title">📁 Document Repository</div>
+      <div class="hub-subtitle">Contracts, MOUs, proposals, invoices, and all project files — link to Google Drive or any URL</div>
+    </div>
+    <div class="section-actions">
+      <button class="btn btn-light" onclick="exportTableCSV('docsTbody','documents')">⬇ CSV</button>
+      <button class="btn btn-primary" onclick="openDocModal()">+ Add Document</button>
+    </div>
+  </div>
+  <div class="hub-filters">
+    <input class="hub-search" id="docSearch" placeholder="🔍 Search documents…" oninput="renderDocs()">
+    <select class="hub-filter-select" id="docTypeFilter" onchange="renderDocs()">
+      <option value="">All Types</option>
+      <option>Contract</option><option>MOU / LOI</option><option>Invoice</option><option>Proposal / RFP</option>
+      <option>Insurance</option><option>Permit</option><option>Budget</option><option>Report</option><option>Other</option>
+    </select>
+    <select class="hub-filter-select" id="docStatusFilter" onchange="renderDocs()">
+      <option value="">All Statuses</option>
+      <option>Draft</option><option>Under Review</option><option>Pending Signature</option>
+      <option>Executed / Signed</option><option>Expired</option><option>Cancelled</option>
+    </select>
+    <select class="hub-filter-select" id="docAreaFilter" onchange="renderDocs()">
+      <option value="">All Areas</option>
+      <option>Venues</option><option>Hotels</option><option>Transportation</option><option>Catering</option>
+      <option>AV / Production</option><option>Security</option><option>Medical</option><option>Technology</option><option>General</option>
+    </select>
+  </div>
+  <div class="summary-strip" id="docSummary"></div>
+  <table class="hub-table">
+    <thead><tr>
+      <th>Document Name</th><th>Type</th><th>Area</th><th>Status</th>
+      <th>Value</th><th>Expiry / Deadline</th><th>Owner</th><th>Link</th><th></th>
+    </tr></thead>
+    <tbody id="docsTbody"><tr><td colspan="9" class="hub-empty">No documents yet. Click <strong>+ Add Document</strong> to start.</td></tr></tbody>
   </table>
 </div>
 
@@ -1858,34 +2103,46 @@ document.addEventListener('DOMContentLoaded', () => {
    HUB — Tab Switcher
 ══════════════════════════════════════════════════════════ */
 function switchTab(tab) {
-  // Update tab buttons
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  const btns = document.querySelectorAll('.tab-btn');
-  const tabOrder = ['orgchart','tasks','venues','vendors','scope'];
-  const idx = tabOrder.indexOf(tab);
-  if (idx >= 0 && btns[idx]) btns[idx].classList.add('active');
+  const tabMap = { orgchart:'taborg', tasks:'tabtasks', venues:'tabvenues', vendors:'tabvendors',
+    hotels:'tabhotels', transport:'tabtransport', docs:'tabdocs', scope:'tabscope' };
+  const activeBtn = document.getElementById(tabMap[tab]);
+  if (activeBtn) activeBtn.classList.add('active');
 
-  // Org-only elements
+  // Org-only elements (hide on all hub tabs)
   const orgOnly = ['statsBar','canvas','historyBar','prospectsPanel','rnrPanel'];
   orgOnly.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = (tab === 'orgchart') ? '' : 'none';
   });
+  // Expand/Collapse/Export buttons — org chart only
+  const orgBtns = document.getElementById('orgBtns');
+  if (orgBtns) orgBtns.style.display = (tab === 'orgchart') ? '' : 'none';
 
   // Hub sections
-  const hubSections = ['sectionTasks','sectionVenues','sectionVendors','sectionScope'];
+  const hubSections = ['sectionTasks','sectionVenues','sectionVendors','sectionHotels',
+    'sectionTransport','sectionDocs','sectionScope'];
   hubSections.forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.style.display = 'none'; el.classList.remove('active'); }
   });
 
-  if (tab !== 'orgchart') {
-    const sectionId = { tasks:'sectionTasks', venues:'sectionVenues', vendors:'sectionVendors', scope:'sectionScope' }[tab];
-    const el = document.getElementById(sectionId);
+  const sectionMap = {
+    tasks:'sectionTasks', venues:'sectionVenues', vendors:'sectionVendors',
+    hotels:'sectionHotels', transport:'sectionTransport', docs:'sectionDocs', scope:'sectionScope'
+  };
+  if (sectionMap[tab]) {
+    const el = document.getElementById(sectionMap[tab]);
     if (el) { el.style.display = 'block'; el.classList.add('active'); }
   }
 }
 window.switchTab = switchTab;
+
+/* Tab count badges */
+function updateBadge(id, count) {
+  const el = document.getElementById('badge-' + id);
+  if (el) el.textContent = count;
+}
 
 /* ══════════════════════════════════════════════════════════
    HUB — Shared CRUD helpers
@@ -1911,48 +2168,101 @@ function deleteHubItem(path, key, closeFn) {
 window._tasksData = {};
 
 window.renderKanban = function() {
+  const all = Object.entries(window._tasksData || {});
+  const search = (document.getElementById('taskSearch')||{}).value?.toLowerCase() || '';
+  const scopeF = (document.getElementById('filterScope')||{}).value || '';
+  const priF   = (document.getElementById('filterPriority')||{}).value || '';
+  const teamF  = (document.getElementById('filterTeam')||{}).value || '';
+  const today  = new Date().toISOString().slice(0,10);
+
+  // Populate owner filter
+  const teamSel = document.getElementById('filterTeam');
+  if (teamSel) {
+    const owners = [...new Set(all.map(([,t])=>t.owner).filter(Boolean))].sort();
+    const cur = teamSel.value;
+    teamSel.innerHTML = '<option value="">All Teams / Owners</option>' +
+      owners.map(o => `<option${o===cur?' selected':''}>${esc(o)}</option>`).join('');
+  }
+
+  function matchTask([,t]) {
+    if (search && !JSON.stringify(t).toLowerCase().includes(search)) return false;
+    if (scopeF && t.scopeArea !== scopeF) return false;
+    if (priF && (t.priority||'medium') !== priF) return false;
+    if (teamF && t.owner !== teamF) return false;
+    return true;
+  }
+
   const cols = ['backlog','inprogress','done','onhold'];
+  let totalActive = 0, totalDone = 0;
+
   cols.forEach(s => {
-    const el = document.getElementById('col-' + s);
+    const el  = document.getElementById('col-' + s);
     const cnt = document.getElementById('cnt-' + s);
     if (!el) return;
-    const items = Object.entries(window._tasksData || {}).filter(([,t]) => (t.status || 'backlog') === s);
-    if (!items.length) {
-      el.innerHTML = '';
-      if (cnt) cnt.textContent = '0';
-      return;
-    }
+    const items = all.filter(([,t]) => (t.status||'backlog') === s).filter(matchTask);
     if (cnt) cnt.textContent = items.length;
+    if (s === 'done') totalDone += items.length; else totalActive += items.length;
+
     el.innerHTML = items.map(([k,t]) => {
-      const priCls = {high:'pri-high',medium:'pri-medium',low:'pri-low'}[t.priority||'medium'] || 'pri-medium';
+      const priCls = {high:'pri-high',medium:'pri-medium',low:'pri-low'}[t.priority||'medium']||'pri-medium';
       const priIcon = {high:'🔴',medium:'🟡',low:'🟢'}[t.priority||'medium'];
-      return `<div class="task-card ${priCls}" onclick="openTaskModal(null,'${k}')">
-        <div class="task-card-title">${esc(t.title||'Untitled')}</div>
-        <div class="task-card-meta">
-          <span class="t-tag">${priIcon} ${t.priority||'medium'}</span>
-          ${t.owner ? `<span class="t-tag">👤 ${esc(t.owner)}</span>` : ''}
-          ${t.due ? `<span class="t-tag">📅 ${t.due}</span>` : ''}
+      const isOverdue = s !== 'done' && t.due && t.due < today;
+      return `<div class="task-card ${priCls}${isOverdue?' is-overdue':''}" onclick="openTaskModal(null,'${k}')">
+        <div style="display:flex;gap:6px;align-items:flex-start">
+          <button class="quick-done-btn" onclick="event.stopPropagation();quickComplete('${k}')" title="Mark done">✓</button>
+          <div style="flex:1">
+            <div class="task-card-title">${esc(t.title||'Untitled')}</div>
+            <div class="task-card-meta">
+              ${t.scopeArea ? `<span class="t-tag">📂 ${esc(t.scopeArea)}</span>` : ''}
+              <span class="t-tag">${priIcon} ${t.priority||'medium'}</span>
+              ${t.owner ? `<span class="t-tag">👤 ${esc(t.owner)}</span>` : ''}
+              ${t.due ? `<span class="t-tag${isOverdue?' overdue-badge':''}">📅 ${t.due}${isOverdue?' ⚠ OVERDUE':''}</span>` : ''}
+            </div>
+            ${t.notes ? `<div class="task-card-notes">${esc(t.notes)}</div>` : ''}
+          </div>
         </div>
-        ${t.notes ? `<div class="task-card-notes">${esc(t.notes)}</div>` : ''}
       </div>`;
-    }).join('');
+    }).join('') || '';
   });
+
+  // Progress bar
+  const total = totalActive + totalDone;
+  const pct = total ? Math.round((totalDone/total)*100) : 0;
+  const fill = document.getElementById('progressFill');
+  const label = document.getElementById('progressLabel');
+  const pctEl = document.getElementById('progressPct');
+  if (fill) fill.style.width = pct + '%';
+  if (label) label.textContent = `${totalDone} of ${total} tasks complete`;
+  if (pctEl) pctEl.textContent = `${pct}%`;
+
+  // Summary strip
+  const strip = document.getElementById('taskSummaryStrip');
+  if (strip) {
+    const byScope = {};
+    all.forEach(([,t]) => { const s = t.scopeArea||'General'; byScope[s] = (byScope[s]||0)+1; });
+    strip.innerHTML = Object.entries(byScope).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([k,v])=>
+      `<div class="sum-chip"><strong>${v}</strong><span>${esc(k)}</span></div>`).join('');
+  }
+
+  updateBadge('tasks', all.filter(([,t])=>t.status!=='done').length);
 };
 
 window.seedInitialTasks = function() {
   const seed = {
-    [hubKey()]: { title:'Add Firebase auth (security)', status:'backlog', priority:'high', owner:'Rizwan', due:'', notes:'Firebase rules currently open — add auth before sharing URL broadly.' },
-    [hubKey()]: { title:'Cloud-deploy Sports Central app', status:'backlog', priority:'high', owner:'', due:'', notes:'Merge org chart + Sports Central under one hub nav.' },
-    [hubKey()]: { title:'Finalize venue shortlist (4–6 sites)', status:'backlog', priority:'high', owner:'', due:'', notes:'DFW area. Need arena, fields, convention center.' },
-    [hubKey()]: { title:'Confirm event weekend (Labor Day 2027)', status:'backlog', priority:'high', owner:'Rizwan', due:'', notes:'Labor Day weekend preferred.' },
-    [hubKey()]: { title:'Transportation vendor RFPs', status:'backlog', priority:'medium', owner:'', due:'', notes:'Bus/shuttle for athletes. Estimate 1,500–2,000 athletes across 4–6 venues.' },
-    [hubKey()]: { title:'Hotel room block negotiations (400–600 rooms)', status:'backlog', priority:'medium', owner:'', due:'', notes:'30% of athletes + spectators needing accommodation.' },
-    [hubKey()]: { title:'Volunteer recruitment pipeline', status:'backlog', priority:'medium', owner:'', due:'', notes:'Target: 750–1,000 volunteers. 150–200 logistics-specific.' },
-    [hubKey()]: { title:'Build NAIG weekly status brief automation', status:'backlog', priority:'low', owner:'', due:'', notes:'Weekly email summary of hub activity.' },
-    [hubKey()]: { title:'Org chart — fill all TBD roles', status:'inprogress', priority:'medium', owner:'Rizwan', due:'', notes:'Use Volunteer Prospects panel to pipeline candidates.' },
+    [hubKey()]: { title:'Add Firebase auth (security)', status:'backlog', priority:'high', owner:'Rizwan', scopeArea:'Technology', due:'', notes:'Firebase rules currently open — add auth before sharing URL broadly.' },
+    [hubKey()]: { title:'Cloud-deploy Sports Central app', status:'backlog', priority:'high', owner:'', scopeArea:'Technology', due:'', notes:'Merge org chart + Sports Central under one hub nav.' },
+    [hubKey()]: { title:'Finalize venue shortlist (4–6 sites)', status:'backlog', priority:'high', owner:'', scopeArea:'Venues', due:'', notes:'DFW area. Need arena, fields, convention center.' },
+    [hubKey()]: { title:'Confirm event weekend (Labor Day 2027)', status:'backlog', priority:'high', owner:'Rizwan', scopeArea:'Org / Staffing', due:'', notes:'Labor Day weekend preferred.' },
+    [hubKey()]: { title:'Transportation vendor RFPs', status:'backlog', priority:'medium', owner:'', scopeArea:'Transportation', due:'', notes:'Bus/shuttle for athletes. Estimate 1,500–2,000 athletes across 4–6 venues.' },
+    [hubKey()]: { title:'Hotel room block negotiations (400–600 rooms)', status:'backlog', priority:'medium', owner:'', scopeArea:'Hotels', due:'', notes:'30% of athletes + spectators needing accommodation.' },
+    [hubKey()]: { title:'Volunteer recruitment pipeline (750–1,000 target)', status:'backlog', priority:'medium', owner:'', scopeArea:'Volunteers', due:'', notes:'150–200 logistics-specific volunteers needed.' },
+    [hubKey()]: { title:'Athlete registration portal planning', status:'backlog', priority:'medium', owner:'', scopeArea:'Athletes', due:'', notes:'Online registration for 1,500–2,000 athletes.' },
+    [hubKey()]: { title:'Negotiate catering / F&B contracts', status:'backlog', priority:'medium', owner:'', scopeArea:'Vendors', due:'', notes:'Venues + athlete village catering.' },
+    [hubKey()]: { title:'AV / Production vendor selection', status:'backlog', priority:'medium', owner:'', scopeArea:'Vendors', due:'', notes:'Opening ceremony, awards, PA systems.' },
+    [hubKey()]: { title:'Medical services plan', status:'backlog', priority:'high', owner:'', scopeArea:'Volunteers', due:'', notes:'On-site medical staff, AED coverage at all venues.' },
+    [hubKey()]: { title:'Org chart — fill all TBD roles', status:'inprogress', priority:'medium', owner:'Rizwan', scopeArea:'Org / Staffing', due:'', notes:'Use Volunteer Prospects panel to pipeline candidates.' },
   };
-  const db = window._dbRef('naig2027/tasks');
-  window._dbSet(db, seed);
+  window._dbSet(window._dbRef('naig2027/tasks'), seed);
 };
 
 function openTaskModal(defaultStatus, editKey) {
@@ -1962,6 +2272,7 @@ function openTaskModal(defaultStatus, editKey) {
   document.getElementById('taskTitle').value = t.title || '';
   document.getElementById('taskStatus').value = t.status || defaultStatus || 'backlog';
   document.getElementById('taskPriority').value = t.priority || 'medium';
+  document.getElementById('taskScopeArea').value = t.scopeArea || '';
   document.getElementById('taskOwner').value = t.owner || '';
   document.getElementById('taskDue').value = t.due || '';
   document.getElementById('taskNotes').value = t.notes || '';
@@ -1976,6 +2287,7 @@ function saveTask() {
   hubSave('tasks', key, {
     title, status: document.getElementById('taskStatus').value,
     priority: document.getElementById('taskPriority').value,
+    scopeArea: document.getElementById('taskScopeArea').value,
     owner: document.getElementById('taskOwner').value.trim(),
     due: document.getElementById('taskDue').value,
     notes: document.getElementById('taskNotes').value.trim(),
@@ -1983,9 +2295,22 @@ function saveTask() {
   });
   closeTaskModal();
 }
+function quickComplete(key) {
+  const t = window._tasksData[key];
+  if (!t) return;
+  hubSave('tasks', key, {...t, status:'done', updated: new Date().toISOString()});
+}
+function exportTasksCSV() {
+  const rows = [['Title','Status','Priority','Scope Area','Owner','Due','Notes']];
+  Object.values(window._tasksData||{}).forEach(t => {
+    rows.push([t.title,t.status,t.priority,t.scopeArea||'',t.owner||'',t.due||'',t.notes||'']);
+  });
+  downloadCSV(rows, 'naig-tasks.csv');
+}
 window.openTaskModal = openTaskModal;
 window.closeTaskModal = closeTaskModal;
 window.saveTask = saveTask;
+window.quickComplete = quickComplete;
 
 /* ══════════════════════════════════════════════════════════
    VENUES
@@ -2010,9 +2335,27 @@ function contractBadge(s) {
 window.renderVenues = function() {
   const tbody = document.getElementById('venuesTbody');
   if (!tbody) return;
-  const items = Object.entries(window._venuesData || {});
+  const all = Object.entries(window._venuesData || {});
+  const search = (document.getElementById('venueSearch')||{}).value?.toLowerCase()||'';
+  const statusF = (document.getElementById('venueStatusFilter')||{}).value||'';
+  const items = all.filter(([,v])=>{
+    if(search && !JSON.stringify(v).toLowerCase().includes(search)) return false;
+    if(statusF && v.status !== statusF) return false;
+    return true;
+  });
+  // Summary
+  const strip = document.getElementById('venueSummary');
+  if (strip) {
+    const confirmed = all.filter(([,v])=>v.status==='Confirmed').length;
+    strip.innerHTML = [
+      `<div class="sum-chip"><strong>${all.length}</strong><span>Total</span></div>`,
+      `<div class="sum-chip"><strong>${confirmed}</strong><span>Confirmed</span></div>`,
+      `<div class="sum-chip"><strong>${all.filter(([,v])=>v.status==='Exploring'||v.status==='Shortlisted').length}</strong><span>In Evaluation</span></div>`,
+    ].join('');
+  }
+  updateBadge('venues', all.length);
   if (!items.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="hub-empty">No venues yet. Click <strong>+ Add Venue</strong> to start.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="hub-empty">No venues match the filter.</td></tr>';
     return;
   }
   tbody.innerHTML = items.map(([k,v]) => `
@@ -2022,6 +2365,7 @@ window.renderVenues = function() {
       <td>${esc(v.capacity||'—')}</td>
       <td>${esc(v.location||'—')}</td>
       <td>${statusBadge(v.status)}</td>
+      <td style="font-size:11px;color:#555">${esc(v.sports||'—')}</td>
       <td style="color:#888;font-size:11px">${esc(v.notes||'')}</td>
       <td><button class="btn btn-cancel" style="padding:3px 8px;font-size:10px" onclick="event.stopPropagation();deleteHubItem('venues','${k}',window.renderVenues)">✕</button></td>
     </tr>`).join('');
@@ -2060,25 +2404,78 @@ window.closeVenueModal = closeVenueModal;
 window.saveVenue = saveVenue;
 
 /* ══════════════════════════════════════════════════════════
-   VENDORS
+   CSV HELPERS
+══════════════════════════════════════════════════════════ */
+function downloadCSV(rows, filename) {
+  const csv = rows.map(r => r.map(c => '"' + String(c||'').replace(/"/g,'""') + '"').join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = filename;
+  a.click();
+}
+function exportTableCSV(tbodyId, filename) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  const thead = tbody.closest('table')?.querySelector('thead tr');
+  const rows = [];
+  if (thead) rows.push([...thead.querySelectorAll('th')].map(th => th.textContent.trim()));
+  tbody.querySelectorAll('tr').forEach(tr => {
+    const cells = [...tr.querySelectorAll('td')].map(td => td.textContent.trim());
+    if (cells.length) rows.push(cells);
+  });
+  downloadCSV(rows, filename + '-' + new Date().toISOString().slice(0,10) + '.csv');
+}
+window.downloadCSV = downloadCSV;
+window.exportTableCSV = exportTableCSV;
+
+/* ══════════════════════════════════════════════════════════
+   VENDORS (enhanced with financials)
 ══════════════════════════════════════════════════════════ */
 window._vendorsData = {};
 
 window.renderVendors = function() {
   const tbody = document.getElementById('vendorsTbody');
   if (!tbody) return;
-  const items = Object.entries(window._vendorsData || {});
-  if (!items.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="hub-empty">No vendors yet. Click <strong>+ Add Vendor</strong> to start.</td></tr>';
+  const q = (document.getElementById('vendorSearch')?.value || '').toLowerCase();
+  const catF = document.getElementById('vendorCatFilter')?.value || '';
+  const statusF = document.getElementById('vendorStatusFilter')?.value || '';
+  let all = Object.entries(window._vendorsData || {});
+  if (q) all = all.filter(([,v]) => [v.name,v.category,v.contact,v.notes].join(' ').toLowerCase().includes(q));
+  if (catF) all = all.filter(([,v]) => v.category === catF);
+  if (statusF) all = all.filter(([,v]) => v.contractStatus === statusF);
+
+  // summary strip
+  let totalCommitted = 0;
+  let totalInvoiced = 0;
+  let totalPaid = 0;
+  Object.values(window._vendorsData || {}).forEach(v => {
+    totalCommitted += parseFloat(String(v.cost||'0').replace(/[^0-9.]/g,'')) || 0;
+    totalInvoiced  += parseFloat(String(v.invoiced||'0').replace(/[^0-9.]/g,'')) || 0;
+    totalPaid      += parseFloat(String(v.paid||'0').replace(/[^0-9.]/g,'')) || 0;
+  });
+  const fmt = n => n ? '$' + n.toLocaleString('en-US',{maximumFractionDigits:0}) : '—';
+  const strip = document.getElementById('vendorSummary');
+  if (strip) strip.innerHTML =
+    `<span>Total Vendors: <strong>${Object.keys(window._vendorsData||{}).length}</strong></span>` +
+    `<span>Committed: <strong>${fmt(totalCommitted)}</strong></span>` +
+    `<span>Invoiced: <strong>${fmt(totalInvoiced)}</strong></span>` +
+    `<span>Paid: <strong>${fmt(totalPaid)}</strong></span>`;
+
+  updateBadge('vendors', Object.keys(window._vendorsData||{}).length);
+
+  if (!all.length) {
+    tbody.innerHTML = `<tr><td colspan="9" class="hub-empty">${q||catF||statusF ? 'No vendors match filters.' : 'No vendors yet. Click <strong>+ Add Vendor</strong> to start.'}</td></tr>`;
     return;
   }
-  tbody.innerHTML = items.map(([k,v]) => `
-    <tr onclick="openVendorModal('${k}')">
+  tbody.innerHTML = all.map(([k,v]) => `
+    <tr onclick="openVendorModal('${k}')" style="cursor:pointer">
       <td><strong>${esc(v.name||'—')}</strong></td>
-      <td>${esc(v.category||'—')}</td>
+      <td style="font-size:11px">${esc(v.category||'—')}</td>
       <td style="font-size:11px">${esc(v.contact||'—')}</td>
       <td>${contractBadge(v.contractStatus)}</td>
-      <td>${esc(v.cost||'—')}</td>
+      <td style="font-size:11px">${esc(v.cost||'—')}</td>
+      <td style="font-size:11px">${esc(v.invoiced||'—')}</td>
+      <td style="font-size:11px">${esc(v.paid||'—')}</td>
       <td style="color:#888;font-size:11px">${esc(v.notes||'')}</td>
       <td><button class="btn btn-cancel" style="padding:3px 8px;font-size:10px" onclick="event.stopPropagation();deleteHubItem('vendors','${k}',window.renderVendors)">✕</button></td>
     </tr>`).join('');
@@ -2093,6 +2490,10 @@ function openVendorModal(editKey) {
   document.getElementById('vendorContact').value = v.contact || '';
   document.getElementById('vendorContractStatus').value = v.contractStatus || 'Not Started';
   document.getElementById('vendorCost').value = v.cost || '';
+  document.getElementById('vendorPaymentTerms').value = v.paymentTerms || 'Net 30';
+  document.getElementById('vendorInvoiced').value = v.invoiced || '';
+  document.getElementById('vendorPaid').value = v.paid || '';
+  document.getElementById('vendorExpiry').value = v.expiry || '';
   document.getElementById('vendorNotes').value = v.notes || '';
   document.getElementById('vendorDeleteBtn').style.display = editKey ? '' : 'none';
   document.getElementById('vendorOverlay').style.display = 'flex';
@@ -2107,6 +2508,10 @@ function saveVendor() {
     contact: document.getElementById('vendorContact').value.trim(),
     contractStatus: document.getElementById('vendorContractStatus').value,
     cost: document.getElementById('vendorCost').value.trim(),
+    paymentTerms: document.getElementById('vendorPaymentTerms').value,
+    invoiced: document.getElementById('vendorInvoiced').value.trim(),
+    paid: document.getElementById('vendorPaid').value.trim(),
+    expiry: document.getElementById('vendorExpiry').value,
     notes: document.getElementById('vendorNotes').value.trim(),
     updated: new Date().toISOString()
   });
@@ -2115,6 +2520,301 @@ function saveVendor() {
 window.openVendorModal = openVendorModal;
 window.closeVendorModal = closeVendorModal;
 window.saveVendor = saveVendor;
+
+/* ══════════════════════════════════════════════════════════
+   HOTELS
+══════════════════════════════════════════════════════════ */
+window._hotelsData = {};
+
+window.renderHotels = function() {
+  const tbody = document.getElementById('hotelsTbody');
+  if (!tbody) return;
+  const q = (document.getElementById('hotelSearch')?.value || '').toLowerCase();
+  const statusF = document.getElementById('hotelStatusFilter')?.value || '';
+  let all = Object.entries(window._hotelsData || {});
+  if (q) all = all.filter(([,h]) => [h.name,h.address,h.contact,h.notes].join(' ').toLowerCase().includes(q));
+  if (statusF) all = all.filter(([,h]) => h.status === statusF);
+
+  // summary strip
+  const totalBlock = Object.values(window._hotelsData||{}).reduce((s,h) => s + (parseInt(h.blockSize)||0), 0);
+  const totalUsed  = Object.values(window._hotelsData||{}).reduce((s,h) => s + (parseInt(h.roomsUsed)||0), 0);
+  const confirmed  = Object.values(window._hotelsData||{}).filter(h => h.status === 'Contract Signed' || h.status === 'Block Confirmed').length;
+  const strip = document.getElementById('hotelSummary');
+  if (strip) strip.innerHTML =
+    `<span>Hotels: <strong>${Object.keys(window._hotelsData||{}).length}</strong></span>` +
+    `<span>Block Size: <strong>${totalBlock || '—'} rooms</strong></span>` +
+    `<span>Rooms Used: <strong>${totalUsed || '—'}</strong></span>` +
+    `<span>Confirmed: <strong>${confirmed}</strong></span>`;
+
+  updateBadge('hotels', Object.keys(window._hotelsData||{}).length);
+
+  if (!all.length) {
+    tbody.innerHTML = `<tr><td colspan="9" class="hub-empty">${q||statusF ? 'No hotels match filters.' : 'No hotels yet. Click <strong>+ Add Hotel</strong> to start.'}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = all.map(([k,h]) => {
+    const pct = h.blockSize ? Math.round((parseInt(h.roomsUsed)||0)/parseInt(h.blockSize)*100) : 0;
+    const bar = h.blockSize ? `<div style="background:#e5e7eb;border-radius:3px;height:5px;width:60px;display:inline-block;vertical-align:middle;margin-left:4px"><div style="width:${pct}%;background:#2563eb;height:5px;border-radius:3px"></div></div>` : '';
+    return `<tr onclick="openHotelModal('${k}')" style="cursor:pointer">
+      <td><strong>${esc(h.name||'—')}</strong></td>
+      <td style="font-size:11px">${esc(h.address||'—')}</td>
+      <td style="font-size:11px">${esc(h.blockSize||'—')} ${bar}</td>
+      <td style="font-size:11px">${esc(h.roomsUsed||'0')}</td>
+      <td style="font-size:11px">${h.rate ? '$'+esc(h.rate)+'/night' : '—'}</td>
+      <td>${contractBadge(h.status)}</td>
+      <td style="font-size:11px">${h.checkIn||'—'}</td>
+      <td style="font-size:11px;color:#888">${esc(h.contact||'—')}</td>
+      <td><button class="btn btn-cancel" style="padding:3px 8px;font-size:10px" onclick="event.stopPropagation();deleteHubItem('hotels','${k}',window.renderHotels)">✕</button></td>
+    </tr>`;
+  }).join('');
+};
+
+function openHotelModal(editKey) {
+  const h = editKey ? (window._hotelsData[editKey] || {}) : {};
+  document.getElementById('hotelModalTitle').textContent = editKey ? '✏️ Edit Hotel' : '🏨 Add Hotel';
+  document.getElementById('hotelKey').value = editKey || '';
+  document.getElementById('hotelName').value = h.name || '';
+  document.getElementById('hotelAddress').value = h.address || '';
+  document.getElementById('hotelBlockSize').value = h.blockSize || '';
+  document.getElementById('hotelRoomsUsed').value = h.roomsUsed || '';
+  document.getElementById('hotelRate').value = h.rate || '';
+  document.getElementById('hotelStatus').value = h.status || 'Prospecting';
+  document.getElementById('hotelCheckIn').value = h.checkIn || '';
+  document.getElementById('hotelCheckOut').value = h.checkOut || '';
+  document.getElementById('hotelContact').value = h.contact || '';
+  document.getElementById('hotelNotes').value = h.notes || '';
+  document.getElementById('hotelDeleteBtn').style.display = editKey ? '' : 'none';
+  document.getElementById('hotelOverlay').style.display = 'flex';
+}
+function closeHotelModal() { document.getElementById('hotelOverlay').style.display = 'none'; }
+function saveHotel() {
+  const name = document.getElementById('hotelName').value.trim();
+  if (!name) { alert('Hotel name required.'); return; }
+  const key = document.getElementById('hotelKey').value || hubKey();
+  hubSave('hotels', key, {
+    name,
+    address: document.getElementById('hotelAddress').value.trim(),
+    blockSize: document.getElementById('hotelBlockSize').value,
+    roomsUsed: document.getElementById('hotelRoomsUsed').value,
+    rate: document.getElementById('hotelRate').value.trim(),
+    status: document.getElementById('hotelStatus').value,
+    checkIn: document.getElementById('hotelCheckIn').value,
+    checkOut: document.getElementById('hotelCheckOut').value,
+    contact: document.getElementById('hotelContact').value.trim(),
+    notes: document.getElementById('hotelNotes').value.trim(),
+    updated: new Date().toISOString()
+  });
+  closeHotelModal();
+}
+
+window.seedInitialHotels = function() {
+  const seed = {
+    [hubKey()]: { name:'Marriott DFW Airport', address:'8440 Freeport Pkwy, Irving, TX', blockSize:'80', roomsUsed:'0', rate:'169', status:'Prospecting', checkIn:'2027-09-04', checkOut:'2027-09-08', contact:'Sales Office — TBD', notes:'Proximity to airport. Good for arrivals day.' },
+    [hubKey()]: { name:'Hyatt Regency Dallas', address:'300 Reunion Blvd E, Dallas, TX', blockSize:'120', roomsUsed:'0', rate:'189', status:'Prospecting', checkIn:'2027-09-04', checkOut:'2027-09-08', contact:'TBD', notes:'Downtown Dallas. Shuttle distance to venues.' },
+    [hubKey()]: { name:'Omni Fort Worth Hotel', address:'1300 Houston St, Fort Worth, TX', blockSize:'60', roomsUsed:'0', rate:'179', status:'Prospecting', checkIn:'2027-09-04', checkOut:'2027-09-08', contact:'TBD', notes:'Fort Worth side. Good for western venue cluster.' },
+  };
+  window._dbSet(window._dbRef('naig2027/hotels'), seed);
+};
+
+window.openHotelModal = openHotelModal;
+window.closeHotelModal = closeHotelModal;
+window.saveHotel = saveHotel;
+
+/* ══════════════════════════════════════════════════════════
+   TRANSPORTATION
+══════════════════════════════════════════════════════════ */
+window._transportData = {};
+
+window.renderTransport = function() {
+  const tbody = document.getElementById('transportTbody');
+  if (!tbody) return;
+  const q = (document.getElementById('transportSearch')?.value || '').toLowerCase();
+  const typeF = document.getElementById('transportTypeFilter')?.value || '';
+  const statusF = document.getElementById('transportStatusFilter')?.value || '';
+  let all = Object.entries(window._transportData || {});
+  if (q) all = all.filter(([,t]) => [t.name,t.vendor,t.route,t.notes].join(' ').toLowerCase().includes(q));
+  if (typeF) all = all.filter(([,t]) => t.type === typeF);
+  if (statusF) all = all.filter(([,t]) => t.status === statusF);
+
+  // summary strip
+  const confirmed = Object.values(window._transportData||{}).filter(t => t.status === 'Confirmed').length;
+  const totalUnits = Object.values(window._transportData||{}).reduce((s,t) => {
+    const n = parseInt(String(t.units||'0').replace(/[^0-9]/g,''));
+    return s + (isNaN(n) ? 0 : n);
+  }, 0);
+  const strip = document.getElementById('transportSummary');
+  if (strip) strip.innerHTML =
+    `<span>Routes/Services: <strong>${Object.keys(window._transportData||{}).length}</strong></span>` +
+    `<span>Confirmed: <strong>${confirmed}</strong></span>` +
+    `<span>Total Vehicles: <strong>${totalUnits || '—'}</strong></span>`;
+
+  updateBadge('transport', Object.keys(window._transportData||{}).length);
+
+  if (!all.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="hub-empty">${q||typeF||statusF ? 'No routes match filters.' : 'No transportation routes yet. Click <strong>+ Add Route</strong> to start.'}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = all.map(([k,t]) => `
+    <tr onclick="openTransportModal('${k}')" style="cursor:pointer">
+      <td><strong>${esc(t.name||'—')}</strong></td>
+      <td style="font-size:11px">${esc(t.type||'—')}</td>
+      <td>${contractBadge(t.status)}</td>
+      <td style="font-size:11px">${esc(t.vendor||'—')}</td>
+      <td style="font-size:11px">${esc(t.route||'—')}</td>
+      <td style="font-size:11px">${esc(t.schedule||'—')}</td>
+      <td style="font-size:11px">${esc(t.cost||'—')} · ${esc(t.units||'—')}</td>
+      <td><button class="btn btn-cancel" style="padding:3px 8px;font-size:10px" onclick="event.stopPropagation();deleteHubItem('transportation','${k}',window.renderTransport)">✕</button></td>
+    </tr>`).join('');
+};
+
+function openTransportModal(editKey) {
+  const t = editKey ? (window._transportData[editKey] || {}) : {};
+  document.getElementById('transportModalTitle').textContent = editKey ? '✏️ Edit Route' : '🚌 Add Route / Service';
+  document.getElementById('transportKey').value = editKey || '';
+  document.getElementById('transportName').value = t.name || '';
+  document.getElementById('transportType').value = t.type || 'Shuttle Bus';
+  document.getElementById('transportStatus').value = t.status || 'Planning';
+  document.getElementById('transportVendor').value = t.vendor || '';
+  document.getElementById('transportCapacity').value = t.capacity || '';
+  document.getElementById('transportRoute').value = t.route || '';
+  document.getElementById('transportSchedule').value = t.schedule || '';
+  document.getElementById('transportCost').value = t.cost || '';
+  document.getElementById('transportUnits').value = t.units || '';
+  document.getElementById('transportNotes').value = t.notes || '';
+  document.getElementById('transportDeleteBtn').style.display = editKey ? '' : 'none';
+  document.getElementById('transportOverlay').style.display = 'flex';
+}
+function closeTransportModal() { document.getElementById('transportOverlay').style.display = 'none'; }
+function saveTransport() {
+  const name = document.getElementById('transportName').value.trim();
+  if (!name) { alert('Route / service name required.'); return; }
+  const key = document.getElementById('transportKey').value || hubKey();
+  hubSave('transportation', key, {
+    name,
+    type: document.getElementById('transportType').value,
+    status: document.getElementById('transportStatus').value,
+    vendor: document.getElementById('transportVendor').value.trim(),
+    capacity: document.getElementById('transportCapacity').value.trim(),
+    route: document.getElementById('transportRoute').value.trim(),
+    schedule: document.getElementById('transportSchedule').value.trim(),
+    cost: document.getElementById('transportCost').value.trim(),
+    units: document.getElementById('transportUnits').value.trim(),
+    notes: document.getElementById('transportNotes').value.trim(),
+    updated: new Date().toISOString()
+  });
+  closeTransportModal();
+}
+
+window.seedInitialTransport = function() {
+  const seed = {
+    [hubKey()]: { name:'Airport Arrivals Shuttle', type:'Airport Transfer', status:'Planning', vendor:'TBD', capacity:'55', route:'DFW Airport → Athlete Hotels', schedule:'Continuous, Sep 4–5 arrival window', cost:'TBD', units:'2 buses', notes:'Need arrivals manifest from registration system.' },
+    [hubKey()]: { name:'Athlete Hotel → Venue Loop', type:'Shuttle Bus', status:'Planning', vendor:'TBD', capacity:'55', route:'Hotel cluster → Competition venues', schedule:'Every 30 min · 6am–11pm · Game days', cost:'TBD', units:'4 buses', notes:'Route TBD once venues confirmed.' },
+    [hubKey()]: { name:'Airport Departures', type:'Airport Transfer', status:'Planning', vendor:'TBD', capacity:'55', route:'Hotels → DFW Airport', schedule:'Continuous, Sep 8 departure window', cost:'TBD', units:'2 buses', notes:'Coordinate with check-out times at each hotel.' },
+  };
+  window._dbSet(window._dbRef('naig2027/transportation'), seed);
+};
+
+window.openTransportModal = openTransportModal;
+window.closeTransportModal = closeTransportModal;
+window.saveTransport = saveTransport;
+
+/* ══════════════════════════════════════════════════════════
+   DOCUMENT REPOSITORY
+══════════════════════════════════════════════════════════ */
+window._docsData = {};
+
+window.renderDocs = function() {
+  const tbody = document.getElementById('docsTbody');
+  if (!tbody) return;
+  const q = (document.getElementById('docSearch')?.value || '').toLowerCase();
+  const typeF = document.getElementById('docTypeFilter')?.value || '';
+  const statusF = document.getElementById('docStatusFilter')?.value || '';
+  const areaF = document.getElementById('docAreaFilter')?.value || '';
+  let all = Object.entries(window._docsData || {});
+  if (q) all = all.filter(([,d]) => [d.name,d.owner,d.notes].join(' ').toLowerCase().includes(q));
+  if (typeF) all = all.filter(([,d]) => d.type === typeF);
+  if (statusF) all = all.filter(([,d]) => d.status === statusF);
+  if (areaF) all = all.filter(([,d]) => d.area === areaF);
+
+  // summary strip
+  const executed = Object.values(window._docsData||{}).filter(d => d.status === 'Executed / Signed').length;
+  const pending  = Object.values(window._docsData||{}).filter(d => d.status === 'Pending Signature' || d.status === 'Under Review').length;
+  const totalVal = Object.values(window._docsData||{}).reduce((s,d) => s + (parseFloat(String(d.value||'0').replace(/[^0-9.]/g,''))||0), 0);
+  const strip = document.getElementById('docSummary');
+  if (strip) strip.innerHTML =
+    `<span>Documents: <strong>${Object.keys(window._docsData||{}).length}</strong></span>` +
+    `<span>Executed: <strong>${executed}</strong></span>` +
+    `<span>Pending: <strong>${pending}</strong></span>` +
+    (totalVal ? `<span>Total Value: <strong>$${totalVal.toLocaleString('en-US',{maximumFractionDigits:0})}</strong></span>` : '');
+
+  updateBadge('docs', Object.keys(window._docsData||{}).length);
+
+  if (!all.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="hub-empty">${q||typeF||statusF||areaF ? 'No documents match filters.' : 'No documents yet. Click <strong>+ Add Document</strong> to start.'}</td></tr>`;
+    return;
+  }
+  const today = new Date().toISOString().slice(0,10);
+  tbody.innerHTML = all.map(([k,d]) => {
+    const expiring = d.expiry && d.expiry > today && d.expiry <= new Date(Date.now()+30*864e5).toISOString().slice(0,10);
+    const expired  = d.expiry && d.expiry < today;
+    const expiryCell = d.expiry
+      ? `<span style="color:${expired?'#dc2626':expiring?'#d97706':'inherit'}">${d.expiry}${expired?' ⚠️':expiring?' ⏰':''}</span>`
+      : '—';
+    const linkCell = d.link
+      ? `<a href="${esc(d.link)}" target="_blank" onclick="event.stopPropagation()" style="color:#2563eb;font-size:11px">🔗 Open</a>`
+      : '—';
+    return `<tr onclick="openDocModal('${k}')" style="cursor:pointer">
+      <td><strong>${esc(d.name||'—')}</strong></td>
+      <td style="font-size:11px">${esc(d.type||'—')}</td>
+      <td style="font-size:11px">${esc(d.area||'—')}</td>
+      <td>${contractBadge(d.status)}</td>
+      <td style="font-size:11px">${d.value ? '$'+esc(d.value) : '—'}</td>
+      <td style="font-size:11px">${expiryCell}</td>
+      <td style="font-size:11px">${esc(d.owner||'—')}</td>
+      <td>${linkCell}</td>
+      <td><button class="btn btn-cancel" style="padding:3px 8px;font-size:10px" onclick="event.stopPropagation();deleteHubItem('docs','${k}',window.renderDocs)">✕</button></td>
+    </tr>`;
+  }).join('');
+};
+
+function openDocModal(editKey) {
+  const d = editKey ? (window._docsData[editKey] || {}) : {};
+  document.getElementById('docModalTitle').textContent = editKey ? '✏️ Edit Document' : '📁 Add Document';
+  document.getElementById('docKey').value = editKey || '';
+  document.getElementById('docName').value = d.name || '';
+  document.getElementById('docType').value = d.type || 'Contract';
+  document.getElementById('docArea').value = d.area || 'Venues';
+  document.getElementById('docStatus').value = d.status || 'Draft';
+  document.getElementById('docValue').value = d.value || '';
+  document.getElementById('docExpiry').value = d.expiry || '';
+  document.getElementById('docOwner').value = d.owner || '';
+  document.getElementById('docLink').value = d.link || '';
+  document.getElementById('docNotes').value = d.notes || '';
+  document.getElementById('docDeleteBtn').style.display = editKey ? '' : 'none';
+  document.getElementById('docOverlay').style.display = 'flex';
+}
+function closeDocModal() { document.getElementById('docOverlay').style.display = 'none'; }
+function saveDoc() {
+  const name = document.getElementById('docName').value.trim();
+  if (!name) { alert('Document name required.'); return; }
+  const key = document.getElementById('docKey').value || hubKey();
+  hubSave('docs', key, {
+    name,
+    type: document.getElementById('docType').value,
+    area: document.getElementById('docArea').value,
+    status: document.getElementById('docStatus').value,
+    value: document.getElementById('docValue').value.trim(),
+    expiry: document.getElementById('docExpiry').value,
+    owner: document.getElementById('docOwner').value.trim(),
+    link: document.getElementById('docLink').value.trim(),
+    notes: document.getElementById('docNotes').value.trim(),
+    updated: new Date().toISOString()
+  });
+  closeDocModal();
+}
+window.openDocModal = openDocModal;
+window.closeDocModal = closeDocModal;
+window.saveDoc = saveDoc;
 
 /* ══════════════════════════════════════════════════════════
    SCOPE / Working Assumptions
@@ -2188,6 +2888,185 @@ function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
 
 <!-- ══════════ HUB MODALS ══════════ -->
 
+<!-- Hotel Modal -->
+<div class="overlay" id="hotelOverlay" onclick="closeHotelModal()">
+  <div class="modal modal-scroll" style="width:460px" onclick="event.stopPropagation()">
+    <h3 id="hotelModalTitle">🏨 Add Hotel</h3>
+    <input type="hidden" id="hotelKey">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Hotel Name</label>
+        <input type="text" id="hotelName" placeholder="e.g. Marriott DFW Airport" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Address / Location</label>
+        <input type="text" id="hotelAddress" placeholder="Full address or area" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+      </div>
+      <div class="form-group">
+        <label>Room Block Size</label>
+        <input type="number" id="hotelBlockSize" placeholder="e.g. 100" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+      </div>
+      <div class="form-group">
+        <label>Rooms Used / Picked Up</label>
+        <input type="number" id="hotelRoomsUsed" placeholder="e.g. 45" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+      </div>
+      <div class="form-group">
+        <label>Rate Per Night ($)</label>
+        <input type="text" id="hotelRate" placeholder="e.g. 159" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+      </div>
+      <div class="form-group">
+        <label>Contract Status</label>
+        <select id="hotelStatus" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+          <option>Prospecting</option><option>Block Requested</option><option>Block Confirmed</option>
+          <option>Contract Sent</option><option>Contract Signed</option><option>Cancelled</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Check-In Date</label>
+        <input type="date" id="hotelCheckIn" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+      </div>
+      <div class="form-group">
+        <label>Check-Out Date</label>
+        <input type="date" id="hotelCheckOut" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Primary Contact (Name / Email / Phone)</label>
+        <input type="text" id="hotelContact" placeholder="Sales manager contact info" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Notes (attrition clause, amenities, shuttle, etc.)</label>
+        <textarea id="hotelNotes" placeholder="Key contract terms, parking, proximity to venues…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;resize:vertical;min-height:60px;font-family:inherit;line-height:1.5"></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" onclick="closeHotelModal()">Cancel</button>
+      <button class="btn btn-danger" id="hotelDeleteBtn" onclick="deleteHubItem('hotels',document.getElementById('hotelKey').value,closeHotelModal)" style="display:none">Delete</button>
+      <button class="btn btn-primary" onclick="saveHotel()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Transportation Modal -->
+<div class="overlay" id="transportOverlay" onclick="closeTransportModal()">
+  <div class="modal modal-scroll" style="width:460px" onclick="event.stopPropagation()">
+    <h3 id="transportModalTitle">🚌 Add Route / Service</h3>
+    <input type="hidden" id="transportKey">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Route / Service Name</label>
+        <input type="text" id="transportName" placeholder="e.g. Athletes Hotel → Arena Shuttle" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+      </div>
+      <div class="form-group">
+        <label>Type</label>
+        <select id="transportType" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+          <option>Shuttle Bus</option><option>Charter Bus</option><option>Van</option>
+          <option>Airport Transfer</option><option>VIP / Staff</option><option>Medical / Emergency</option><option>Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Status</label>
+        <select id="transportStatus" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+          <option>Planning</option><option>Vendor Shortlisted</option><option>Contract Pending</option>
+          <option>Confirmed</option><option>Cancelled</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Vendor / Operator</label>
+        <input type="text" id="transportVendor" placeholder="Bus company name" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+      </div>
+      <div class="form-group">
+        <label>Vehicle Capacity</label>
+        <input type="text" id="transportCapacity" placeholder="e.g. 55 passengers" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label>From → To</label>
+        <input type="text" id="transportRoute" placeholder="e.g. Marriott DFW → Kay Bailey Convention Center" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Schedule / Frequency</label>
+        <input type="text" id="transportSchedule" placeholder="e.g. Every 30 min, 7am–10pm · Game days only" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+      </div>
+      <div class="form-group">
+        <label>Estimated Cost</label>
+        <input type="text" id="transportCost" placeholder="e.g. $12,000 / day" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+      </div>
+      <div class="form-group">
+        <label>Vehicles / Units Needed</label>
+        <input type="text" id="transportUnits" placeholder="e.g. 4 buses" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Notes</label>
+        <textarea id="transportNotes" placeholder="Driver requirements, accessible vehicles, backup plans…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;resize:vertical;min-height:55px;font-family:inherit;line-height:1.5"></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" onclick="closeTransportModal()">Cancel</button>
+      <button class="btn btn-danger" id="transportDeleteBtn" onclick="deleteHubItem('transportation',document.getElementById('transportKey').value,closeTransportModal)" style="display:none">Delete</button>
+      <button class="btn btn-primary" onclick="saveTransport()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Document Modal -->
+<div class="overlay" id="docOverlay" onclick="closeDocModal()">
+  <div class="modal modal-scroll" style="width:460px" onclick="event.stopPropagation()">
+    <h3 id="docModalTitle">📁 Add Document</h3>
+    <input type="hidden" id="docKey">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Document Name</label>
+        <input type="text" id="docName" placeholder="e.g. Venue Contract — Kay Bailey" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+      </div>
+      <div class="form-group">
+        <label>Type</label>
+        <select id="docType" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+          <option>Contract</option><option>MOU / LOI</option><option>Invoice</option><option>Proposal / RFP</option>
+          <option>Insurance</option><option>Permit</option><option>Budget</option><option>Report</option><option>Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Area / Category</label>
+        <select id="docArea" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+          <option>Venues</option><option>Hotels</option><option>Transportation</option><option>Catering</option>
+          <option>AV / Production</option><option>Security</option><option>Medical</option><option>Technology</option><option>General</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Status</label>
+        <select id="docStatus" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+          <option>Draft</option><option>Under Review</option><option>Pending Signature</option>
+          <option>Executed / Signed</option><option>Expired</option><option>Cancelled</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Value / Amount ($)</label>
+        <input type="text" id="docValue" placeholder="e.g. 85,000" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+      </div>
+      <div class="form-group">
+        <label>Expiry / Deadline Date</label>
+        <input type="date" id="docExpiry" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+      </div>
+      <div class="form-group">
+        <label>Owner / Responsible Party</label>
+        <input type="text" id="docOwner" placeholder="Who manages this document" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Document Link (Google Drive, Dropbox, etc.)</label>
+        <input type="url" id="docLink" placeholder="https://drive.google.com/…" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Notes</label>
+        <textarea id="docNotes" placeholder="Key terms, renewal conditions, signatories…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;resize:vertical;min-height:55px;font-family:inherit;line-height:1.5"></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" onclick="closeDocModal()">Cancel</button>
+      <button class="btn btn-danger" id="docDeleteBtn" onclick="deleteHubItem('docs',document.getElementById('docKey').value,closeDocModal)" style="display:none">Delete</button>
+      <button class="btn btn-primary" onclick="saveDoc()">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- Task Modal -->
 <div class="overlay" id="taskOverlay" onclick="closeTaskModal()">
   <div class="modal" style="width:420px" onclick="event.stopPropagation()">
@@ -2215,8 +3094,17 @@ function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
       </select>
     </div>
     <div class="form-group">
-      <label>Owner</label>
-      <input type="text" id="taskOwner" placeholder="Assigned to…" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+      <label>Scope Area / Team</label>
+      <select id="taskScopeArea" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        <option value="">— General / Unassigned —</option>
+        <option>Athletes</option><option>Volunteers</option><option>Venues</option>
+        <option>Hotels</option><option>Transportation</option><option>Vendors</option>
+        <option>Org / Staffing</option><option>Finance</option><option>Technology</option><option>Marketing</option><option>Other</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Assigned To</label>
+      <input type="text" id="taskOwner" placeholder="Name or team" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
     </div>
     <div class="form-group">
       <label>Due Date</label>
@@ -2325,8 +3213,28 @@ function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
       </select>
     </div>
     <div class="form-group">
-      <label>Estimated Cost</label>
+      <label>Contract Value (Total $)</label>
       <input type="text" id="vendorCost" placeholder="e.g. $45,000" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+    </div>
+    <div class="form-group">
+      <label>Payment Terms</label>
+      <select id="vendorPaymentTerms" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        <option value="">Select…</option>
+        <option>Net 30</option><option>Net 60</option><option>50% Deposit / 50% on Completion</option>
+        <option>Milestone-Based</option><option>Monthly</option><option>Lump Sum on Signing</option><option>Other</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Amount Invoiced ($)</label>
+      <input type="text" id="vendorInvoiced" placeholder="e.g. $22,500" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+    </div>
+    <div class="form-group">
+      <label>Amount Paid ($)</label>
+      <input type="text" id="vendorPaid" placeholder="e.g. $10,000" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+    </div>
+    <div class="form-group">
+      <label>Contract Expiry / Deadline</label>
+      <input type="date" id="vendorExpiry" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
     </div>
     <div class="form-group">
       <label>Notes</label>
