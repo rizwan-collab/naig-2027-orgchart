@@ -722,8 +722,8 @@ function renderNode(n) {
       </div>
       ${n.dashed ? '<div style="font-size:9px;opacity:0.65;margin-top:2px">- - dashed line - -</div>' : ''}
       ${has ? `<button class="toggle-btn" onclick="toggleNode(event,'${n.id}')">${n.expanded?'−':'+'}</button>` : ''}
-      <button class="add-child-btn" onclick="openAddChild('${n.id}',event)">+ Add Person</button>
     </div>
+    <button class="add-child-btn" onclick="openAddChild('${n.id}',event)">+ Add Person</button>
     ${has ? `
     <div id="ch-${n.id}" ${n.expanded?'':'style="display:none"'}>
       <div class="v-line" style="height:20px"></div>
@@ -876,8 +876,8 @@ window._renderAll = function() {
           <div class="node-badges">${statusBadge(v.status)} ${regionBadge(v.region)}</div>
           ${contactChips(v)}
           ${hasV ? `<button class="toggle-btn" onclick="toggleNode(event,'${v.id}')">${v.expanded?'−':'+'}</button>` : ''}
-          <button class="add-child-btn" onclick="openAddChild('${v.id}',event)">+ Add Person</button>
         </div>
+        <button class="add-child-btn" onclick="openAddChild('${v.id}',event)">+ Add Person</button>
         ${hasV ? `
         <div id="ch-${v.id}" ${v.expanded?'':'style="display:none"'}>
           <div class="v-line" style="height:20px"></div>
@@ -890,8 +890,8 @@ window._renderAll = function() {
                 <div class="node-name">${c.name}</div>
                 <div class="node-badges">${statusBadge(c.status)} ${regionBadge(c.region)}</div>
                 ${contactChips(c)}
-                <button class="add-child-btn-dark" onclick="openAddChild('${c.id}',event)">+ Add Person</button>
               </div>
+              <button class="add-child-btn-dark" onclick="openAddChild('${c.id}',event)">+ Add Person</button>
             </div>`).join('')}
           </div>
         </div>` : ''}
