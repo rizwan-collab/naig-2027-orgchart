@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NAIG 2027 — Logistics Org Chart</title>
+<title>NAIG 2027 — Logistics Hub</title>
 
 <!-- ═══════════════════════════════════════════════════════
      FIREBASE CONFIG — NAIG 2027 Org Chart (naig-2027)
      ═══════════════════════════════════════════════════════ -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getDatabase, ref, set, remove, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
   const firebaseConfig = {
     apiKey:            "AIzaSyC16ftKuUYRkwexYYUuk0i5fYsxxVzI_eU",
@@ -29,6 +29,12 @@
   const prospectsRef = ref(db, 'naig2027/prospects');
   const rnrRef       = ref(db, 'naig2027/rnr');
 
+  // Hub paths
+  const tasksRef    = ref(db, 'naig2027/tasks');
+  const venuesRef   = ref(db, 'naig2027/venues');
+  const vendorsRef  = ref(db, 'naig2027/vendors');
+  const scopeRef    = ref(db, 'naig2027/scope');
+
   // ── expose Firebase to the rest of the page ──
   window._fb = {
     demoMode: false,
@@ -38,7 +44,15 @@
     listen:          (cb)   => onValue(orgRef,       snap => cb(snap.val())),
     listenProspects: (cb)   => onValue(prospectsRef, snap => cb(snap.val())),
     listenRnr:       (cb)   => onValue(rnrRef,       snap => cb(snap.val())),
+    listenTasks:   (cb) => onValue(tasksRef,   snap => cb(snap.val())),
+    listenVenues:  (cb) => onValue(venuesRef,  snap => cb(snap.val())),
+    listenVendors: (cb) => onValue(vendorsRef, snap => cb(snap.val())),
+    listenScope:   (cb) => onValue(scopeRef,   snap => cb(snap.val())),
   };
+  // Primitives for global CRUD
+  window._dbRef    = (path) => ref(db, path);
+  window._dbSet    = set;
+  window._dbRemove = remove;
 
   function showSyncStatus(msg) {
     const el = document.getElementById('syncStatus');
@@ -75,6 +89,28 @@
         window._rnrData = cloudData;
         window.renderRnr && window.renderRnr();
       }
+    });
+    // ── Hub: Tasks ──
+    window._fb.listenTasks((data) => {
+      window._tasksData = data || {};
+      window.renderKanban && window.renderKanban();
+      if (!data) window.seedInitialTasks && window.seedInitialTasks();
+    });
+    // ── Hub: Venues ──
+    window._fb.listenVenues((data) => {
+      window._venuesData = data || {};
+      window.renderVenues && window.renderVenues();
+    });
+    // ── Hub: Vendors ──
+    window._fb.listenVendors((data) => {
+      window._vendorsData = data || {};
+      window.renderVendors && window.renderVendors();
+    });
+    // ── Hub: Scope ──
+    window._fb.listenScope((data) => {
+      window._scopeData = data || {};
+      window.renderScope && window.renderScope();
+      if (!data) window.seedInitialScope && window.seedInitialScope();
     });
   });
 </script>
@@ -302,14 +338,84 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .status-drop-item:hover { background: #f0f5fb; }
 .status-drop-item.active { background: #e8f4fd; font-weight: 700; }
 .status-drop-sep { height: 1px; background: #eef2f7; margin: 3px 0; }
+
+/* ══════════════════════════════════════════
+   HUB NAVIGATION
+══════════════════════════════════════════ */
+.tab-nav { display:flex; background:#162d4a; padding:0 20px; overflow-x:auto; }
+.tab-btn { padding:10px 18px; font-size:12px; font-weight:600; cursor:pointer;
+  background:none; border:none; border-bottom:3px solid transparent;
+  color:rgba(255,255,255,0.55); transition:all 0.15s; white-space:nowrap; letter-spacing:0.3px; }
+.tab-btn.active { color:#fff; border-bottom-color:#BF1B2A; }
+.tab-btn:hover:not(.active) { color:rgba(255,255,255,0.9); background:rgba(255,255,255,0.07); }
+
+/* ══════════════════════════════════════════
+   HUB SECTIONS
+══════════════════════════════════════════ */
+.hub-section { display:none; padding:18px 22px; background:#f4f7fb; min-height:65vh; }
+.hub-section.active { display:block; }
+.hub-toolbar { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; flex-wrap:wrap; gap:10px; }
+.hub-title { font-size:15px; font-weight:700; color:#1a3a5c; margin-bottom:2px; }
+.hub-subtitle { font-size:11px; color:#888; }
+
+/* Kanban */
+.kanban-board { display:flex; gap:14px; overflow-x:auto; padding-bottom:14px; align-items:flex-start; }
+.kanban-col { flex:0 0 265px; background:white; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.07); overflow:hidden; }
+.kanban-col-hdr { padding:10px 14px; font-size:11px; font-weight:700; letter-spacing:0.8px;
+  text-transform:uppercase; display:flex; justify-content:space-between; align-items:center; }
+.col-backlog    .kanban-col-hdr { background:#dbeafe; color:#1e40af; }
+.col-inprogress .kanban-col-hdr { background:#fef3c7; color:#92400e; }
+.col-done       .kanban-col-hdr { background:#d1fae5; color:#065f46; }
+.col-onhold     .kanban-col-hdr { background:#f3f4f6; color:#6b7280; }
+.kanban-col-body { padding:10px; min-height:80px; }
+.task-card { background:white; border:1px solid #e0e8f0; border-radius:8px; padding:10px 12px;
+  margin-bottom:8px; cursor:pointer; transition:box-shadow 0.15s; border-left:3px solid #ddd; }
+.task-card:hover { box-shadow:0 3px 10px rgba(0,0,0,0.1); }
+.task-card.pri-high   { border-left-color:#dc2626; }
+.task-card.pri-medium { border-left-color:#d97706; }
+.task-card.pri-low    { border-left-color:#16a34a; }
+.task-card-title { font-size:13px; font-weight:600; color:#1a3a5c; margin-bottom:5px; line-height:1.3; }
+.task-card-meta { font-size:10px; color:#888; display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.task-card-notes { font-size:11px; color:#777; margin-top:4px; line-height:1.4; }
+.t-tag { background:#f0f4f8; padding:1px 7px; border-radius:8px; }
+.col-count { background:rgba(0,0,0,0.12); border-radius:10px; padding:1px 7px; font-size:10px; font-weight:700; }
+.add-col-btn { width:100%; padding:7px; font-size:11px; color:#2d6a9f; background:none;
+  border:1px dashed #7ab3d9; border-radius:6px; cursor:pointer; margin-top:2px; }
+.add-col-btn:hover { background:#e8f4fd; }
+
+/* Hub Tables */
+.hub-table { width:100%; border-collapse:collapse; font-size:13px; background:white;
+  border-radius:10px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.07); }
+.hub-table th { background:#1a3a5c; color:white; padding:9px 13px; text-align:left;
+  font-size:11px; font-weight:600; letter-spacing:0.5px; white-space:nowrap; }
+.hub-table td { padding:9px 13px; border-bottom:1px solid #f0f4f8; color:#333; vertical-align:top; line-height:1.4; }
+.hub-table tr:last-child td { border-bottom:none; }
+.hub-table tbody tr:hover td { background:#f8fafc; cursor:pointer; }
+.hub-empty { text-align:center; padding:40px; color:#aaa; font-size:13px; }
+.hbadge { display:inline-block; padding:2px 9px; border-radius:9px; font-size:10px; font-weight:600; }
+.hbadge-green  { background:#d1fae5; color:#065f46; }
+.hbadge-yellow { background:#fef3c7; color:#92400e; }
+.hbadge-grey   { background:#f3f4f6; color:#6b7280; }
+.hbadge-red    { background:#fee2e2; color:#991b1b; }
+.hbadge-blue   { background:#dbeafe; color:#1e40af; }
+
+/* Scope grid */
+.scope-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px; }
+.scope-card { background:white; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.07);
+  padding:16px 18px; cursor:pointer; border-top:3px solid #1E3A8A; transition:box-shadow 0.15s; }
+.scope-card:hover { box-shadow:0 4px 14px rgba(0,0,0,0.12); }
+.scope-card-cat { font-size:10px; font-weight:700; color:#2d6a9f; letter-spacing:0.8px; text-transform:uppercase; margin-bottom:4px; }
+.scope-card-event { font-size:12px; color:#555; margin-bottom:6px; }
+.scope-card-count { font-size:28px; font-weight:800; color:#1a3a5c; line-height:1; }
+.scope-card-notes { font-size:10px; color:#999; margin-top:6px; line-height:1.4; }
 </style>
 </head>
 <body>
 
 <div class="header">
   <div class="header-left">
-    <h1>🏆 NAIG 2027 — Logistics Org Chart</h1>
-    <div class="sub">North American Indigenous Games · DFW, Texas · Click any node to edit · Changes sync live for all team members</div>
+    <h1>🏆 NAIG 2027 — Logistics Hub</h1>
+    <div class="sub">North American Indigenous Games · DFW, Texas · All tabs sync live · Changes visible to all team members instantly</div>
   </div>
   <div class="header-right">
     <span class="sync-status" id="syncStatus">⏳ Connecting…</span>
@@ -319,6 +425,14 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
   </div>
 </div>
 
+<!-- Tab Navigation -->
+<div class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('orgchart')">🗂 Org Chart</button>
+  <button class="tab-btn" onclick="switchTab('tasks')">📋 Tasks</button>
+  <button class="tab-btn" onclick="switchTab('venues')">🏟 Venues</button>
+  <button class="tab-btn" onclick="switchTab('vendors')">🛒 Vendors</button>
+  <button class="tab-btn" onclick="switchTab('scope')">📊 Scope</button>
+</div>
 
 <!-- Stats Bar -->
 <div class="stats-bar" id="statsBar">
@@ -353,7 +467,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 </div>
 
 <!-- Volunteer Prospects Panel -->
-<div class="prospects-panel">
+<div class="prospects-panel" id="prospectsPanel">
   <div class="prospects-header" onclick="toggleProspectsPanel()">
     <h2>👥 Volunteer Prospects — Pre-Nomex Pool</h2>
     <span id="prospectCount" style="font-size:11px;color:#666;background:#e8f4fd;padding:2px 8px;border-radius:10px">0 prospects</span>
@@ -369,7 +483,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 </div>
 
 <!-- R&R Panel -->
-<div class="rnr-panel">
+<div class="rnr-panel" id="rnrPanel">
   <div class="rnr-header" onclick="toggleRnrPanel()">
     <h2>📋 Roles &amp; Responsibilities — By Vertical</h2>
     <span id="rnrCount" style="font-size:11px;color:#2c7a5c;background:#d4edda;padding:2px 8px;border-radius:10px">Loading…</span>
@@ -378,6 +492,88 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
   </div>
   <div class="rnr-body" id="rnrBody">
     <div class="rnr-grid" id="rnrGrid"></div>
+  </div>
+</div>
+
+<!-- ══════════ HUB SECTIONS ══════════ -->
+
+<!-- Tasks — Kanban Board -->
+<div class="hub-section" id="sectionTasks">
+  <div class="hub-toolbar">
+    <div>
+      <div class="hub-title">📋 Task Board</div>
+      <div class="hub-subtitle">All NAIG 2027 work items — drag or click to move between stages</div>
+    </div>
+    <button class="btn btn-primary" onclick="openTaskModal()">+ Add Task</button>
+  </div>
+  <div class="kanban-board" id="kanbanBoard">
+    <div class="kanban-col col-backlog">
+      <div class="kanban-col-hdr">Backlog <span class="col-count" id="cnt-backlog">0</span></div>
+      <div class="kanban-col-body" id="col-backlog"></div>
+      <button class="add-col-btn" onclick="openTaskModal('backlog')">+ Add Task</button>
+    </div>
+    <div class="kanban-col col-inprogress">
+      <div class="kanban-col-hdr">In Progress <span class="col-count" id="cnt-inprogress">0</span></div>
+      <div class="kanban-col-body" id="col-inprogress"></div>
+      <button class="add-col-btn" onclick="openTaskModal('inprogress')">+ Add Task</button>
+    </div>
+    <div class="kanban-col col-done">
+      <div class="kanban-col-hdr">Done <span class="col-count" id="cnt-done">0</span></div>
+      <div class="kanban-col-body" id="col-done"></div>
+    </div>
+    <div class="kanban-col col-onhold">
+      <div class="kanban-col-hdr">On Hold <span class="col-count" id="cnt-onhold">0</span></div>
+      <div class="kanban-col-body" id="col-onhold"></div>
+      <button class="add-col-btn" onclick="openTaskModal('onhold')">+ Add Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- Venues -->
+<div class="hub-section" id="sectionVenues">
+  <div class="hub-toolbar">
+    <div>
+      <div class="hub-title">🏟 Venue Directory</div>
+      <div class="hub-subtitle">4–6 confirmed sites for NAIG 2027 — DFW, Texas</div>
+    </div>
+    <button class="btn btn-primary" onclick="openVenueModal()">+ Add Venue</button>
+  </div>
+  <table class="hub-table" id="venuesTable">
+    <thead><tr>
+      <th>Venue</th><th>Type</th><th>Capacity</th><th>Location</th><th>Status</th><th>Notes</th><th></th>
+    </tr></thead>
+    <tbody id="venuesTbody"><tr><td colspan="7" class="hub-empty">No venues yet. Click <strong>+ Add Venue</strong> to start.</td></tr></tbody>
+  </table>
+</div>
+
+<!-- Vendors -->
+<div class="hub-section" id="sectionVendors">
+  <div class="hub-toolbar">
+    <div>
+      <div class="hub-title">🛒 Vendor Tracker</div>
+      <div class="hub-subtitle">Transportation, catering, hotels, AV, and all contracted services</div>
+    </div>
+    <button class="btn btn-primary" onclick="openVendorModal()">+ Add Vendor</button>
+  </div>
+  <table class="hub-table" id="vendorsTable">
+    <thead><tr>
+      <th>Vendor / Company</th><th>Category</th><th>Contact</th><th>Contract Status</th><th>Est. Cost</th><th>Notes</th><th></th>
+    </tr></thead>
+    <tbody id="vendorsTbody"><tr><td colspan="7" class="hub-empty">No vendors yet. Click <strong>+ Add Vendor</strong> to start.</td></tr></tbody>
+  </table>
+</div>
+
+<!-- Scope / Working Assumptions -->
+<div class="hub-section" id="sectionScope">
+  <div class="hub-toolbar">
+    <div>
+      <div class="hub-title">📊 Scope &amp; Working Assumptions</div>
+      <div class="hub-subtitle">Headcount targets, ratios, and logistics assumptions — edit as plans firm up</div>
+    </div>
+    <button class="btn btn-primary" onclick="openScopeModal()">+ Add Assumption</button>
+  </div>
+  <div class="scope-grid" id="scopeGrid">
+    <div class="hub-empty" style="grid-column:1/-1">Loading scope data…</div>
   </div>
 </div>
 
@@ -1657,6 +1853,521 @@ document.addEventListener('DOMContentLoaded', () => {
   const addOv = document.getElementById('addOverlay');
   if (addOv) addOv.addEventListener('click', e => { if (e.target === addOv) closeAdd(); });
 });
+
+/* ══════════════════════════════════════════════════════════
+   HUB — Tab Switcher
+══════════════════════════════════════════════════════════ */
+function switchTab(tab) {
+  // Update tab buttons
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  const btns = document.querySelectorAll('.tab-btn');
+  const tabOrder = ['orgchart','tasks','venues','vendors','scope'];
+  const idx = tabOrder.indexOf(tab);
+  if (idx >= 0 && btns[idx]) btns[idx].classList.add('active');
+
+  // Org-only elements
+  const orgOnly = ['statsBar','canvas','historyBar','prospectsPanel','rnrPanel'];
+  orgOnly.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = (tab === 'orgchart') ? '' : 'none';
+  });
+
+  // Hub sections
+  const hubSections = ['sectionTasks','sectionVenues','sectionVendors','sectionScope'];
+  hubSections.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.style.display = 'none'; el.classList.remove('active'); }
+  });
+
+  if (tab !== 'orgchart') {
+    const sectionId = { tasks:'sectionTasks', venues:'sectionVenues', vendors:'sectionVendors', scope:'sectionScope' }[tab];
+    const el = document.getElementById(sectionId);
+    if (el) { el.style.display = 'block'; el.classList.add('active'); }
+  }
+}
+window.switchTab = switchTab;
+
+/* ══════════════════════════════════════════════════════════
+   HUB — Shared CRUD helpers
+══════════════════════════════════════════════════════════ */
+function hubKey() { return 'k' + Date.now() + Math.random().toString(36).slice(2,6); }
+
+function hubSave(path, key, data) {
+  if (!window._dbRef || !window._dbSet) { alert('Firebase not ready yet — try again in a moment.'); return; }
+  window._dbSet(window._dbRef('naig2027/' + path + '/' + key), data);
+}
+
+function deleteHubItem(path, key, closeFn) {
+  if (!key) return;
+  if (!confirm('Delete this item?')) return;
+  if (!window._dbRemove) { alert('Firebase not ready.'); return; }
+  window._dbRemove(window._dbRef('naig2027/' + path + '/' + key));
+  closeFn && closeFn();
+}
+
+/* ══════════════════════════════════════════════════════════
+   TASKS — Kanban
+══════════════════════════════════════════════════════════ */
+window._tasksData = {};
+
+window.renderKanban = function() {
+  const cols = ['backlog','inprogress','done','onhold'];
+  cols.forEach(s => {
+    const el = document.getElementById('col-' + s);
+    const cnt = document.getElementById('cnt-' + s);
+    if (!el) return;
+    const items = Object.entries(window._tasksData || {}).filter(([,t]) => (t.status || 'backlog') === s);
+    if (!items.length) {
+      el.innerHTML = '';
+      if (cnt) cnt.textContent = '0';
+      return;
+    }
+    if (cnt) cnt.textContent = items.length;
+    el.innerHTML = items.map(([k,t]) => {
+      const priCls = {high:'pri-high',medium:'pri-medium',low:'pri-low'}[t.priority||'medium'] || 'pri-medium';
+      const priIcon = {high:'🔴',medium:'🟡',low:'🟢'}[t.priority||'medium'];
+      return `<div class="task-card ${priCls}" onclick="openTaskModal(null,'${k}')">
+        <div class="task-card-title">${esc(t.title||'Untitled')}</div>
+        <div class="task-card-meta">
+          <span class="t-tag">${priIcon} ${t.priority||'medium'}</span>
+          ${t.owner ? `<span class="t-tag">👤 ${esc(t.owner)}</span>` : ''}
+          ${t.due ? `<span class="t-tag">📅 ${t.due}</span>` : ''}
+        </div>
+        ${t.notes ? `<div class="task-card-notes">${esc(t.notes)}</div>` : ''}
+      </div>`;
+    }).join('');
+  });
+};
+
+window.seedInitialTasks = function() {
+  const seed = {
+    [hubKey()]: { title:'Add Firebase auth (security)', status:'backlog', priority:'high', owner:'Rizwan', due:'', notes:'Firebase rules currently open — add auth before sharing URL broadly.' },
+    [hubKey()]: { title:'Cloud-deploy Sports Central app', status:'backlog', priority:'high', owner:'', due:'', notes:'Merge org chart + Sports Central under one hub nav.' },
+    [hubKey()]: { title:'Finalize venue shortlist (4–6 sites)', status:'backlog', priority:'high', owner:'', due:'', notes:'DFW area. Need arena, fields, convention center.' },
+    [hubKey()]: { title:'Confirm event weekend (Labor Day 2027)', status:'backlog', priority:'high', owner:'Rizwan', due:'', notes:'Labor Day weekend preferred.' },
+    [hubKey()]: { title:'Transportation vendor RFPs', status:'backlog', priority:'medium', owner:'', due:'', notes:'Bus/shuttle for athletes. Estimate 1,500–2,000 athletes across 4–6 venues.' },
+    [hubKey()]: { title:'Hotel room block negotiations (400–600 rooms)', status:'backlog', priority:'medium', owner:'', due:'', notes:'30% of athletes + spectators needing accommodation.' },
+    [hubKey()]: { title:'Volunteer recruitment pipeline', status:'backlog', priority:'medium', owner:'', due:'', notes:'Target: 750–1,000 volunteers. 150–200 logistics-specific.' },
+    [hubKey()]: { title:'Build NAIG weekly status brief automation', status:'backlog', priority:'low', owner:'', due:'', notes:'Weekly email summary of hub activity.' },
+    [hubKey()]: { title:'Org chart — fill all TBD roles', status:'inprogress', priority:'medium', owner:'Rizwan', due:'', notes:'Use Volunteer Prospects panel to pipeline candidates.' },
+  };
+  const db = window._dbRef('naig2027/tasks');
+  window._dbSet(db, seed);
+};
+
+function openTaskModal(defaultStatus, editKey) {
+  const t = editKey ? (window._tasksData[editKey] || {}) : {};
+  document.getElementById('taskModalTitle').textContent = editKey ? '✏️ Edit Task' : '📋 Add Task';
+  document.getElementById('taskKey').value = editKey || '';
+  document.getElementById('taskTitle').value = t.title || '';
+  document.getElementById('taskStatus').value = t.status || defaultStatus || 'backlog';
+  document.getElementById('taskPriority').value = t.priority || 'medium';
+  document.getElementById('taskOwner').value = t.owner || '';
+  document.getElementById('taskDue').value = t.due || '';
+  document.getElementById('taskNotes').value = t.notes || '';
+  document.getElementById('taskDeleteBtn').style.display = editKey ? '' : 'none';
+  document.getElementById('taskOverlay').style.display = 'flex';
+}
+function closeTaskModal() { document.getElementById('taskOverlay').style.display = 'none'; }
+function saveTask() {
+  const title = document.getElementById('taskTitle').value.trim();
+  if (!title) { alert('Task title is required.'); return; }
+  const key = document.getElementById('taskKey').value || hubKey();
+  hubSave('tasks', key, {
+    title, status: document.getElementById('taskStatus').value,
+    priority: document.getElementById('taskPriority').value,
+    owner: document.getElementById('taskOwner').value.trim(),
+    due: document.getElementById('taskDue').value,
+    notes: document.getElementById('taskNotes').value.trim(),
+    updated: new Date().toISOString()
+  });
+  closeTaskModal();
+}
+window.openTaskModal = openTaskModal;
+window.closeTaskModal = closeTaskModal;
+window.saveTask = saveTask;
+
+/* ══════════════════════════════════════════════════════════
+   VENUES
+══════════════════════════════════════════════════════════ */
+window._venuesData = {};
+
+function statusBadge(s) {
+  const map = {
+    'Confirmed':'hbadge-green','Shortlisted':'hbadge-blue','Negotiating':'hbadge-yellow',
+    'Site Visit Scheduled':'hbadge-yellow','Exploring':'hbadge-grey','Dropped':'hbadge-red'
+  };
+  return `<span class="hbadge ${map[s]||'hbadge-grey'}">${esc(s||'—')}</span>`;
+}
+function contractBadge(s) {
+  const map = {
+    'Signed':'hbadge-green','Negotiating':'hbadge-yellow','Proposal Received':'hbadge-blue',
+    'RFP Sent':'hbadge-grey','Not Started':'hbadge-grey','Cancelled':'hbadge-red'
+  };
+  return `<span class="hbadge ${map[s]||'hbadge-grey'}">${esc(s||'—')}</span>`;
+}
+
+window.renderVenues = function() {
+  const tbody = document.getElementById('venuesTbody');
+  if (!tbody) return;
+  const items = Object.entries(window._venuesData || {});
+  if (!items.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="hub-empty">No venues yet. Click <strong>+ Add Venue</strong> to start.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = items.map(([k,v]) => `
+    <tr onclick="openVenueModal('${k}')">
+      <td><strong>${esc(v.name||'—')}</strong></td>
+      <td>${esc(v.type||'—')}</td>
+      <td>${esc(v.capacity||'—')}</td>
+      <td>${esc(v.location||'—')}</td>
+      <td>${statusBadge(v.status)}</td>
+      <td style="color:#888;font-size:11px">${esc(v.notes||'')}</td>
+      <td><button class="btn btn-cancel" style="padding:3px 8px;font-size:10px" onclick="event.stopPropagation();deleteHubItem('venues','${k}',window.renderVenues)">✕</button></td>
+    </tr>`).join('');
+};
+
+function openVenueModal(editKey) {
+  const v = editKey ? (window._venuesData[editKey] || {}) : {};
+  document.getElementById('venueModalTitle').textContent = editKey ? '✏️ Edit Venue' : '🏟 Add Venue';
+  document.getElementById('venueKey').value = editKey || '';
+  document.getElementById('venueName').value = v.name || '';
+  document.getElementById('venueType').value = v.type || 'Arena';
+  document.getElementById('venueCapacity').value = v.capacity || '';
+  document.getElementById('venueLocation').value = v.location || '';
+  document.getElementById('venueStatus').value = v.status || 'Exploring';
+  document.getElementById('venueNotes').value = v.notes || '';
+  document.getElementById('venueDeleteBtn').style.display = editKey ? '' : 'none';
+  document.getElementById('venueOverlay').style.display = 'flex';
+}
+function closeVenueModal() { document.getElementById('venueOverlay').style.display = 'none'; }
+function saveVenue() {
+  const name = document.getElementById('venueName').value.trim();
+  if (!name) { alert('Venue name required.'); return; }
+  const key = document.getElementById('venueKey').value || hubKey();
+  hubSave('venues', key, {
+    name, type: document.getElementById('venueType').value,
+    capacity: document.getElementById('venueCapacity').value.trim(),
+    location: document.getElementById('venueLocation').value.trim(),
+    status: document.getElementById('venueStatus').value,
+    notes: document.getElementById('venueNotes').value.trim(),
+    updated: new Date().toISOString()
+  });
+  closeVenueModal();
+}
+window.openVenueModal = openVenueModal;
+window.closeVenueModal = closeVenueModal;
+window.saveVenue = saveVenue;
+
+/* ══════════════════════════════════════════════════════════
+   VENDORS
+══════════════════════════════════════════════════════════ */
+window._vendorsData = {};
+
+window.renderVendors = function() {
+  const tbody = document.getElementById('vendorsTbody');
+  if (!tbody) return;
+  const items = Object.entries(window._vendorsData || {});
+  if (!items.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="hub-empty">No vendors yet. Click <strong>+ Add Vendor</strong> to start.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = items.map(([k,v]) => `
+    <tr onclick="openVendorModal('${k}')">
+      <td><strong>${esc(v.name||'—')}</strong></td>
+      <td>${esc(v.category||'—')}</td>
+      <td style="font-size:11px">${esc(v.contact||'—')}</td>
+      <td>${contractBadge(v.contractStatus)}</td>
+      <td>${esc(v.cost||'—')}</td>
+      <td style="color:#888;font-size:11px">${esc(v.notes||'')}</td>
+      <td><button class="btn btn-cancel" style="padding:3px 8px;font-size:10px" onclick="event.stopPropagation();deleteHubItem('vendors','${k}',window.renderVendors)">✕</button></td>
+    </tr>`).join('');
+};
+
+function openVendorModal(editKey) {
+  const v = editKey ? (window._vendorsData[editKey] || {}) : {};
+  document.getElementById('vendorModalTitle').textContent = editKey ? '✏️ Edit Vendor' : '🛒 Add Vendor';
+  document.getElementById('vendorKey').value = editKey || '';
+  document.getElementById('vendorName').value = v.name || '';
+  document.getElementById('vendorCategory').value = v.category || 'Transportation';
+  document.getElementById('vendorContact').value = v.contact || '';
+  document.getElementById('vendorContractStatus').value = v.contractStatus || 'Not Started';
+  document.getElementById('vendorCost').value = v.cost || '';
+  document.getElementById('vendorNotes').value = v.notes || '';
+  document.getElementById('vendorDeleteBtn').style.display = editKey ? '' : 'none';
+  document.getElementById('vendorOverlay').style.display = 'flex';
+}
+function closeVendorModal() { document.getElementById('vendorOverlay').style.display = 'none'; }
+function saveVendor() {
+  const name = document.getElementById('vendorName').value.trim();
+  if (!name) { alert('Vendor name required.'); return; }
+  const key = document.getElementById('vendorKey').value || hubKey();
+  hubSave('vendors', key, {
+    name, category: document.getElementById('vendorCategory').value,
+    contact: document.getElementById('vendorContact').value.trim(),
+    contractStatus: document.getElementById('vendorContractStatus').value,
+    cost: document.getElementById('vendorCost').value.trim(),
+    notes: document.getElementById('vendorNotes').value.trim(),
+    updated: new Date().toISOString()
+  });
+  closeVendorModal();
+}
+window.openVendorModal = openVendorModal;
+window.closeVendorModal = closeVendorModal;
+window.saveVendor = saveVendor;
+
+/* ══════════════════════════════════════════════════════════
+   SCOPE / Working Assumptions
+══════════════════════════════════════════════════════════ */
+window._scopeData = {};
+
+window.renderScope = function() {
+  const grid = document.getElementById('scopeGrid');
+  if (!grid) return;
+  const items = Object.entries(window._scopeData || {});
+  if (!items.length) {
+    grid.innerHTML = '<div class="hub-empty" style="grid-column:1/-1">No assumptions yet. Click <strong>+ Add Assumption</strong> to start.</div>';
+    return;
+  }
+  grid.innerHTML = items.map(([k,s]) => `
+    <div class="scope-card" onclick="openScopeModal('${k}')">
+      <div class="scope-card-cat">${esc(s.category||'General')}</div>
+      ${s.event ? `<div class="scope-card-event">${esc(s.event)}</div>` : ''}
+      <div class="scope-card-count">${esc(s.count||'—')}</div>
+      ${s.notes ? `<div class="scope-card-notes">${esc(s.notes)}</div>` : ''}
+    </div>`).join('');
+};
+
+window.seedInitialScope = function() {
+  const seed = {
+    [hubKey()]: { category:'Athletes', event:'All Sports', count:'1,500–2,000', notes:'Primary registrants. 70+ sport categories across NAIG.' },
+    [hubKey()]: { category:'Spectators', event:'Est. Daily Attendance', count:'450–600', notes:'~30% of athlete count. Varies by event day.' },
+    [hubKey()]: { category:'Volunteers', event:'Total Required', count:'750–1,000', notes:'50% ratio vs athletes. Includes logistics, sport, medical, etc.' },
+    [hubKey()]: { category:'Volunteers', event:'Logistics-Specific', count:'150–200', notes:'Transportation, venue ops, athlete services.' },
+    [hubKey()]: { category:'Venues', event:'Competition Sites', count:'4–6', notes:'DFW area. Mix of arena, field, aquatics, track.' },
+    [hubKey()]: { category:'Hotels', event:'Room-Nights', count:'400–600', notes:'Block for athletes + officials. Labor Day weekend 2027.' },
+    [hubKey()]: { category:'Event Weekend', event:'Preferred Dates', count:'Labor Day 2027', notes:'Tentative. Aligns with school calendars and venue availability.' },
+    [hubKey()]: { category:'Location', event:'Host City', count:'DFW, Texas', notes:'Dallas–Fort Worth metro. TBD specific city/municipality.' },
+    [hubKey()]: { category:'Transportation', event:'Bus/Shuttle Runs (est.)', count:'TBD', notes:'Routes between hotels, venues, and airport. Scope once venues confirmed.' },
+  };
+  window._dbSet(window._dbRef('naig2027/scope'), seed);
+};
+
+function openScopeModal(editKey) {
+  const s = editKey ? (window._scopeData[editKey] || {}) : {};
+  document.getElementById('scopeModalTitle').textContent = editKey ? '✏️ Edit Assumption' : '📊 Add Assumption';
+  document.getElementById('scopeKey').value = editKey || '';
+  document.getElementById('scopeCategory').value = s.category || '';
+  document.getElementById('scopeEvent').value = s.event || '';
+  document.getElementById('scopeCount').value = s.count || '';
+  document.getElementById('scopeNotes').value = s.notes || '';
+  document.getElementById('scopeDeleteBtn').style.display = editKey ? '' : 'none';
+  document.getElementById('scopeOverlay').style.display = 'flex';
+}
+function closeScopeModal() { document.getElementById('scopeOverlay').style.display = 'none'; }
+function saveScope() {
+  const cat = document.getElementById('scopeCategory').value.trim();
+  if (!cat) { alert('Category required.'); return; }
+  const key = document.getElementById('scopeKey').value || hubKey();
+  hubSave('scope', key, {
+    category: cat,
+    event: document.getElementById('scopeEvent').value.trim(),
+    count: document.getElementById('scopeCount').value.trim(),
+    notes: document.getElementById('scopeNotes').value.trim(),
+    updated: new Date().toISOString()
+  });
+  closeScopeModal();
+}
+window.openScopeModal = openScopeModal;
+window.closeScopeModal = closeScopeModal;
+window.saveScope = saveScope;
+
+/* Helper: escape HTML */
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 </script>
+
+<!-- ══════════ HUB MODALS ══════════ -->
+
+<!-- Task Modal -->
+<div class="overlay" id="taskOverlay" onclick="closeTaskModal()">
+  <div class="modal" style="width:420px" onclick="event.stopPropagation()">
+    <h3 id="taskModalTitle">📋 Add Task</h3>
+    <input type="hidden" id="taskKey">
+    <div class="form-group">
+      <label>Title</label>
+      <input type="text" id="taskTitle" placeholder="Task description…" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+    </div>
+    <div class="form-group">
+      <label>Status</label>
+      <select id="taskStatus" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        <option value="backlog">Backlog</option>
+        <option value="inprogress">In Progress</option>
+        <option value="done">Done</option>
+        <option value="onhold">On Hold</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Priority</label>
+      <select id="taskPriority" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        <option value="high">🔴 High</option>
+        <option value="medium" selected>🟡 Medium</option>
+        <option value="low">🟢 Low</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Owner</label>
+      <input type="text" id="taskOwner" placeholder="Assigned to…" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+    </div>
+    <div class="form-group">
+      <label>Due Date</label>
+      <input type="date" id="taskDue" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="taskNotes" placeholder="Additional context…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;resize:vertical;min-height:60px;font-family:inherit;line-height:1.5"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" onclick="closeTaskModal()">Cancel</button>
+      <button class="btn btn-danger" id="taskDeleteBtn" onclick="deleteHubItem('tasks',document.getElementById('taskKey').value,closeTaskModal)" style="display:none">Delete</button>
+      <button class="btn btn-primary" onclick="saveTask()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Venue Modal -->
+<div class="overlay" id="venueOverlay" onclick="closeVenueModal()">
+  <div class="modal" style="width:420px" onclick="event.stopPropagation()">
+    <h3 id="venueModalTitle">🏟 Add Venue</h3>
+    <input type="hidden" id="venueKey">
+    <div class="form-group">
+      <label>Venue Name</label>
+      <input type="text" id="venueName" placeholder="e.g. Kay Bailey Hutchison Convention Center" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+    </div>
+    <div class="form-group">
+      <label>Type</label>
+      <select id="venueType" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        <option value="Arena">Arena</option>
+        <option value="Convention Center">Convention Center</option>
+        <option value="Field / Outdoor">Field / Outdoor</option>
+        <option value="Gymnasium">Gymnasium</option>
+        <option value="Track">Track</option>
+        <option value="Pool">Pool</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Capacity</label>
+      <input type="text" id="venueCapacity" placeholder="e.g. 2,000" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+    </div>
+    <div class="form-group">
+      <label>Location / Address</label>
+      <input type="text" id="venueLocation" placeholder="City, neighborhood, or full address" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+    </div>
+    <div class="form-group">
+      <label>Status</label>
+      <select id="venueStatus" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        <option value="Exploring">Exploring</option>
+        <option value="Site Visit Scheduled">Site Visit Scheduled</option>
+        <option value="Shortlisted">Shortlisted</option>
+        <option value="Negotiating">Negotiating</option>
+        <option value="Confirmed">Confirmed</option>
+        <option value="Dropped">Dropped</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="venueNotes" placeholder="Parking, accessibility, AV, logistics notes…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;resize:vertical;min-height:60px;font-family:inherit;line-height:1.5"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" onclick="closeVenueModal()">Cancel</button>
+      <button class="btn btn-danger" id="venueDeleteBtn" onclick="deleteHubItem('venues',document.getElementById('venueKey').value,closeVenueModal)" style="display:none">Delete</button>
+      <button class="btn btn-primary" onclick="saveVenue()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Vendor Modal -->
+<div class="overlay" id="vendorOverlay" onclick="closeVendorModal()">
+  <div class="modal" style="width:420px" onclick="event.stopPropagation()">
+    <h3 id="vendorModalTitle">🛒 Add Vendor</h3>
+    <input type="hidden" id="vendorKey">
+    <div class="form-group">
+      <label>Company / Vendor Name</label>
+      <input type="text" id="vendorName" placeholder="Company name" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+    </div>
+    <div class="form-group">
+      <label>Category</label>
+      <select id="vendorCategory" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        <option value="Transportation">Transportation</option>
+        <option value="Hotel / Housing">Hotel / Housing</option>
+        <option value="Catering / F&amp;B">Catering / F&B</option>
+        <option value="AV / Production">AV / Production</option>
+        <option value="Security">Security</option>
+        <option value="Medical">Medical</option>
+        <option value="Printing / Signage">Printing / Signage</option>
+        <option value="Technology">Technology</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Primary Contact</label>
+      <input type="text" id="vendorContact" placeholder="Name, email, or phone" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+    </div>
+    <div class="form-group">
+      <label>Contract Status</label>
+      <select id="vendorContractStatus" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        <option value="Not Started">Not Started</option>
+        <option value="RFP Sent">RFP Sent</option>
+        <option value="Proposal Received">Proposal Received</option>
+        <option value="Negotiating">Negotiating</option>
+        <option value="Signed">Signed</option>
+        <option value="Cancelled">Cancelled</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Estimated Cost</label>
+      <input type="text" id="vendorCost" placeholder="e.g. $45,000" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="vendorNotes" placeholder="Key terms, contact history, deadlines…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;resize:vertical;min-height:60px;font-family:inherit;line-height:1.5"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" onclick="closeVendorModal()">Cancel</button>
+      <button class="btn btn-danger" id="vendorDeleteBtn" onclick="deleteHubItem('vendors',document.getElementById('vendorKey').value,closeVendorModal)" style="display:none">Delete</button>
+      <button class="btn btn-primary" onclick="saveVendor()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Scope Modal -->
+<div class="overlay" id="scopeOverlay" onclick="closeScopeModal()">
+  <div class="modal" style="width:420px" onclick="event.stopPropagation()">
+    <h3 id="scopeModalTitle">📊 Add / Edit Assumption</h3>
+    <input type="hidden" id="scopeKey">
+    <div class="form-group">
+      <label>Category</label>
+      <input type="text" id="scopeCategory" placeholder="e.g. Athletes, Hotels, Volunteers" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+    </div>
+    <div class="form-group">
+      <label>Event / Item</label>
+      <input type="text" id="scopeEvent" placeholder="e.g. Opening Ceremony, Basketball" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+    </div>
+    <div class="form-group">
+      <label>Count / Target</label>
+      <input type="text" id="scopeCount" placeholder="e.g. 1,500–2,000 or 400" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+    </div>
+    <div class="form-group">
+      <label>Notes / Basis</label>
+      <textarea id="scopeNotes" placeholder="Assumptions, ratios, source…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;resize:vertical;min-height:60px;font-family:inherit;line-height:1.5"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" onclick="closeScopeModal()">Cancel</button>
+      <button class="btn btn-danger" id="scopeDeleteBtn" onclick="deleteHubItem('scope',document.getElementById('scopeKey').value,closeScopeModal)" style="display:none">Delete</button>
+      <button class="btn btn-primary" onclick="saveScope()">Save</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
