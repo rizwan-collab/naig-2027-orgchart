@@ -1763,7 +1763,6 @@ function renderOrgDir() {
 }
 
 function openPersonFromDir(id) {
-  // Find by id or name and open the existing single-person modal
   function find(n) {
     if (n.id === id || n.name === id) return n;
     for (const c of (n.children||[])) { const r=find(c); if (r) return r; }
@@ -1771,7 +1770,26 @@ function openPersonFromDir(id) {
     return null;
   }
   const node = window._orgData ? find(window._orgData) : null;
-  if (node && node.id) openDir(node.id);
+  if (!node) return;
+  // Populate modal directly from the node we already have (avoids re-lookup by id failing on id-less nodes)
+  _dirId = node.id || null;
+  const sl = { confirmed:'✅ Confirmed','pending-approval':'⏳ Pending Approval','pending-acceptance':'🔲 Pending Acceptance',tbd:'⏳ Pending Approval',tbc:'🔲 Pending Acceptance'};
+  const rl = { usa:'🇺🇸 USA', ca:'🍁 Canada', both:'🇺🇸🍁 Both' };
+  let rows = `<div class="dir-row"><div class="dir-icon">📋</div><div class="dir-val">${sl[node.status]||node.status||'—'}</div></div>`;
+  if (node.region) rows += `<div class="dir-row"><div class="dir-icon">🌎</div><div class="dir-val">${rl[node.region]||node.region}</div></div>`;
+  if (node.email)  rows += `<div class="dir-row"><div class="dir-icon">✉️</div><div class="dir-val"><a href="mailto:${node.email}">${node.email}</a></div></div>`;
+  if (node.phone)  rows += `<div class="dir-row"><div class="dir-icon">📞</div><div class="dir-val"><a href="tel:${node.phone}">${node.phone}</a></div></div>`;
+  if (node.city)   rows += `<div class="dir-row"><div class="dir-icon">📍</div><div class="dir-val">${node.city}</div></div>`;
+  if (node.notes)  rows += `<div class="dir-row"><div class="dir-icon">📝</div><div class="dir-val">${node.notes}</div></div>`;
+  if (!node.email && !node.phone && !node.city && !node.notes)
+    rows += `<div class="dir-row"><div class="dir-val dir-empty">No contact info yet — click Edit to add</div></div>`;
+  document.getElementById('dirRole').textContent = node.role || '';
+  document.getElementById('dirName').textContent = node.name || 'TBD';
+  document.getElementById('dirVenue').textContent = node.venue ? '📍 ' + node.venue : '';
+  document.getElementById('dirBody').innerHTML = rows;
+  const editBtn = document.getElementById('dirEditBtn');
+  if (editBtn) editBtn.style.display = node.id ? '' : 'none';
+  document.getElementById('dirOverlay').classList.add('active');
 }
 
 function closeOrgDir() {
