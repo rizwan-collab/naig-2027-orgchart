@@ -494,6 +494,90 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .dot-high { background:#dc2626; }
 .dot-medium { background:#d97706; }
 .dot-low { background:#16a34a; }
+
+/* ── Org Directory Panel (inline below stats bar) ── */
+#orgDirPanel { display:none; background:#fff; border:1.5px solid #e0e7ef; border-radius:10px; margin:8px 0 4px 0; overflow:hidden; box-shadow:0 4px 16px rgba(0,0,0,.1); }
+#orgDirPanel.open { display:block; }
+.dir-panel-hdr { background:#1a3a5c; color:#fff; padding:11px 16px; display:flex; align-items:center; justify-content:space-between; }
+.dir-panel-hdr h4 { margin:0; font-size:.9rem; font-weight:700; }
+.dir-panel-close { background:rgba(255,255,255,.15); border:none; color:#fff; border-radius:6px; padding:3px 10px; cursor:pointer; font-size:.8rem; font-weight:700; }
+.dir-panel-close:hover { background:rgba(255,255,255,.25); }
+.dir-panel-search { padding:10px 14px; border-bottom:1px solid #f0f4f8; }
+.dir-panel-search input { width:100%; border:1.5px solid #d0dae4; border-radius:7px; padding:7px 12px; font-size:.83rem; outline:none; box-sizing:border-box; }
+.dir-panel-search input:focus { border-color:#1a3a5c; }
+.dir-panel-list { max-height:340px; overflow-y:auto; }
+.dir-grp-label { background:#f4f7fb; padding:5px 14px; font-size:.7rem; font-weight:700; text-transform:uppercase; color:#666; letter-spacing:.5px; position:sticky; top:0; z-index:1; border-bottom:1px solid #e8edf2; }
+.dir-row { display:flex; align-items:center; gap:10px; padding:9px 14px; border-bottom:1px solid #f0f4f8; cursor:pointer; transition:background .12s; }
+.dir-row:hover { background:#f8fafc; }
+.dir-row:last-child { border-bottom:none; }
+.dir-avatar { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.78rem; font-weight:700; color:#fff; flex-shrink:0; }
+.dir-info { flex:1; min-width:0; }
+.dir-person-name { font-weight:600; font-size:.83rem; color:#1a3a5c; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dir-person-role { font-size:.74rem; color:#666; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dir-badge { font-size:.7rem; padding:2px 7px; border-radius:20px; font-weight:700; white-space:nowrap; }
+.dir-badge-green { background:#d4edda; color:#155724; }
+.dir-badge-amber { background:#fff3cd; color:#856404; }
+.dir-badge-gray { background:#e2e8f0; color:#4a5568; }
+.dir-badge-blue { background:#cce5ff; color:#004085; }
+.dir-region { font-size:.72rem; color:#888; margin-left:4px; }
+.dir-panel-empty { padding:24px; text-align:center; color:#aaa; font-size:.84rem; }
+
+/* ── Transport sub-nav ── */
+.transport-subnav { display:flex; gap:0; border-bottom:2px solid #e0e7ef; margin-bottom:16px; overflow-x:auto; flex-wrap:nowrap; }
+.tnav-btn { background:none; border:none; padding:9px 15px; font-size:.8rem; font-weight:600; cursor:pointer; color:#64748b; border-bottom:3px solid transparent; margin-bottom:-2px; white-space:nowrap; transition:all .15s; border-radius:4px 4px 0 0; }
+.tnav-btn:hover { color:#1a3a5c; background:#f0f4f8; }
+.tnav-btn.active { color:#1a3a5c; border-bottom:3px solid #1a3a5c; background:#f0f4f8; }
+.transport-subpanel { }
+/* transport guide cards */
+.t-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(185px,1fr)); gap:12px; margin-bottom:16px; }
+.t-card { background:#fff; border-radius:10px; padding:14px; box-shadow:0 2px 8px rgba(0,0,0,.07); border-left:4px solid #2D6A9F; }
+.t-card.navy { border-color:#1a3a5c; } .t-card.green { border-color:#2C7A5C; } .t-card.amber { border-color:#F5A623; }
+.t-card-icon { font-size:1.4rem; margin-bottom:4px; } .t-card-label { font-size:.69rem; font-weight:700; text-transform:uppercase; color:#666; letter-spacing:.5px; }
+.t-card-value { font-size:1.1rem; font-weight:700; color:#1a3a5c; margin-top:2px; } .t-card-sub { font-size:.74rem; color:#666; margin-top:3px; }
+/* route visual */
+.t-route-map { background:#fff; border-radius:8px; padding:16px; margin-bottom:16px; box-shadow:0 2px 8px rgba(0,0,0,.06); }
+.t-hub-node { background:#1a3a5c; color:#fff; border-radius:10px; padding:9px 18px; font-weight:700; font-size:.84rem; text-align:center; display:inline-block; min-width:135px; }
+.t-venue-node { background:#2D6A9F; color:#fff; border-radius:7px; padding:7px 12px; font-size:.76rem; font-weight:600; text-align:center; display:inline-block; min-width:120px; margin-bottom:8px; }
+.t-venue-node.pending { background:#6c757d; }
+.t-cluster-label { font-size:.7rem; font-weight:700; color:#F5A623; text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+/* alerts */
+.t-alert { border-radius:7px; padding:9px 13px; font-size:.81rem; margin-bottom:12px; display:flex; gap:10px; align-items:flex-start; }
+.t-alert-info { background:#e3f2fd; border-left:4px solid #2196f3; color:#1565c0; }
+.t-alert-warn { background:#fff3cd; border-left:4px solid #F5A623; color:#856404; }
+.t-alert-success { background:#d4edda; border-left:4px solid #2C7A5C; color:#155724; }
+/* schedule */
+.t-sched-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
+@media(max-width:700px) { .t-sched-grid { grid-template-columns:1fr; } }
+.t-sched-block { border-radius:7px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.08); }
+.t-sched-hdr { padding:8px 13px; font-weight:700; font-size:.82rem; color:#fff; }
+.t-sched-item { display:flex; align-items:center; gap:10px; padding:7px 13px; border-bottom:1px solid #f0f4f8; font-size:.79rem; }
+.t-sched-item:last-child { border-bottom:none; }
+.t-sched-time { font-weight:700; color:#1a3a5c; min-width:44px; } .t-sched-route { flex:1; } .t-sched-vehicle { color:#666; font-size:.74rem; }
+/* contacts */
+.t-contact-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:10px; }
+.t-contact-card { background:#fff; border-radius:7px; padding:12px; box-shadow:0 1px 4px rgba(0,0,0,.06); border-top:4px solid #2D6A9F; }
+.t-contact-name { font-weight:700; font-size:.84rem; color:#1a3a5c; } .t-contact-role { font-size:.73rem; color:#666; margin-top:2px; margin-bottom:6px; }
+.t-pill { display:inline-block; padding:2px 8px; border-radius:20px; font-size:.71rem; font-weight:700; }
+.t-pill-green { background:#d4edda; color:#155724; } .t-pill-amber { background:#fff3cd; color:#856404; }
+.t-pill-gray { background:#e2e8f0; color:#4a5568; } .t-pill-blue { background:#cce5ff; color:#004085; }
+.t-arr td { background:#e8f5e9!important; } .t-dep td { background:#fff8e1!important; }
+.t-section-hdr { background:#1a3a5c; color:#fff; padding:9px 13px; border-radius:5px 5px 0 0; font-weight:700; font-size:.87rem; }
+.t-section-body { background:#fff; border-radius:0 0 5px 5px; box-shadow:0 2px 8px rgba(0,0,0,.05); margin-bottom:16px; overflow:hidden; }
+
+/* ── Venue modal tabs ── */
+.vmodal-tabs { display:flex; gap:0; border-bottom:2px solid #e0e7ef; margin:0 -10px 14px -10px; padding:0 10px; overflow-x:auto; }
+.vmodal-tab { background:none; border:none; padding:8px 12px; font-size:.78rem; font-weight:600; cursor:pointer; color:#64748b; border-bottom:2px solid transparent; margin-bottom:-2px; white-space:nowrap; }
+.vmodal-tab.active { color:#1a3a5c; border-bottom:2px solid #1a3a5c; }
+.vmodal-panel { display:none; } .vmodal-panel.active { display:block; }
+.venue-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; }
+@media(max-width:500px) { .venue-form-grid { grid-template-columns:1fr; } }
+.custom-q-row { display:flex; gap:8px; margin-bottom:6px; align-items:center; }
+.custom-q-row input { flex:1; border:1px solid #ddd; border-radius:5px; padding:5px 8px; font-size:.8rem; }
+.custom-q-list { border:1px solid #e0e7ef; border-radius:6px; overflow:hidden; margin-bottom:8px; }
+.custom-q-item { display:flex; align-items:center; gap:8px; padding:7px 10px; border-bottom:1px solid #f0f4f8; font-size:.81rem; }
+.custom-q-item:last-child { border-bottom:none; }
+.custom-q-label { flex:1; color:#333; font-weight:600; } .custom-q-answer { color:#1a3a5c; font-size:.79rem; flex:1.5; }
+.custom-q-del { background:none; border:none; color:#c00; cursor:pointer; font-size:.85rem; }
 </style>
 </head>
 <body>
@@ -532,6 +616,20 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
   <div class="stat-card" id="stat-mgr"    onclick="statTileClick('mgr')"    title="Click to expand all"><div class="stat-num" id="sn-mgr">—</div><div class="stat-label">Managers ▾</div></div>
   <div class="stat-card" id="stat-lvl"    onclick="statTileClick('lvl')"    title="Click to expand all"><div class="stat-num" id="sn-lvl">—</div><div class="stat-label">Levels ▾</div></div>
   <div class="stat-card" id="stat-tbd"    onclick="statTileClick('tbd')"    title="Click to highlight unfilled roles"><div class="stat-num" id="sn-tbd">—</div><div class="stat-label">Pending / Open ▾</div></div>
+</div>
+
+<!-- Org People Directory Panel (inline, below stats) -->
+<div id="orgDirPanel">
+  <div class="dir-panel-hdr">
+    <h4 id="orgDirTitle">👥 People Directory</h4>
+    <button class="dir-panel-close" onclick="closeOrgDir()">✕ Close</button>
+  </div>
+  <div class="dir-panel-search">
+    <input type="text" id="orgDirSearch" placeholder="🔍 Search by name, role, department…" oninput="renderOrgDir()">
+  </div>
+  <div class="dir-panel-list" id="orgDirList">
+    <div class="dir-panel-empty">Loading…</div>
+  </div>
 </div>
 
 <!-- Directory Modal -->
@@ -749,34 +847,190 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
   <div class="hub-toolbar">
     <div>
       <div class="hub-title">🚌 Transportation</div>
-      <div class="hub-subtitle">Shuttle routes, bus schedules, and athlete transport logistics</div>
+      <div class="hub-subtitle">Hub-and-spoke shuttle system · Airport transfers · Venue routes · NAIG 2027</div>
     </div>
     <div class="section-actions">
       <button class="btn btn-light" onclick="exportTableCSV('transportTbody','transportation')">⬇ CSV</button>
       <button class="btn btn-primary" onclick="openTransportModal()">+ Add Route</button>
     </div>
   </div>
-  <div class="hub-filters">
-    <input class="hub-search" id="transportSearch" placeholder="🔍 Search routes…" oninput="renderTransport()">
-    <select class="hub-filter-select" id="transportTypeFilter" onchange="renderTransport()">
-      <option value="">All Types</option>
-      <option>Shuttle Bus</option><option>Charter Bus</option><option>Van</option>
-      <option>Airport Transfer</option><option>VIP / Staff</option><option>Medical / Emergency</option><option>Other</option>
-    </select>
-    <select class="hub-filter-select" id="transportStatusFilter" onchange="renderTransport()">
-      <option value="">All Statuses</option>
-      <option>Planning</option><option>Vendor Shortlisted</option><option>Contract Pending</option>
-      <option>Confirmed</option><option>Cancelled</option>
-    </select>
+
+  <!-- Sub-navigation -->
+  <div class="transport-subnav">
+    <button class="tnav-btn active" id="tnav-routesdb" onclick="switchTransportTab('routesdb',this)">📋 Routes DB</button>
+    <button class="tnav-btn" id="tnav-overview" onclick="switchTransportTab('overview',this)">🗺 Overview</button>
+    <button class="tnav-btn" id="tnav-airport" onclick="switchTransportTab('airport',this)">✈️ Airport Shuttles</button>
+    <button class="tnav-btn" id="tnav-venue" onclick="switchTransportTab('venue',this)">🏟 Venue Shuttles</button>
+    <button class="tnav-btn" id="tnav-fleet" onclick="switchTransportTab('fleet',this)">🚍 Fleet &amp; Contacts</button>
+    <button class="tnav-btn" id="tnav-faq" onclick="switchTransportTab('faq',this)">❓ FAQ</button>
   </div>
-  <div class="summary-strip" id="transportSummary"></div>
-  <table class="hub-table">
-    <thead><tr>
-      <th>Route / Service</th><th>Type</th><th>Status</th><th>Vendor</th>
-      <th>From → To</th><th>Schedule</th><th>Cost · Vehicles</th><th></th>
-    </tr></thead>
-    <tbody id="transportTbody"><tr><td colspan="8" class="hub-empty">No routes yet. Click <strong>+ Add Route</strong> to start.</td></tr></tbody>
-  </table>
+
+  <!-- Panel: Routes DB (Firebase CRUD) -->
+  <div class="transport-subpanel" id="tpanel-routesdb">
+    <div class="hub-filters">
+      <input class="hub-search" id="transportSearch" placeholder="🔍 Search routes…" oninput="renderTransport()">
+      <select class="hub-filter-select" id="transportTypeFilter" onchange="renderTransport()">
+        <option value="">All Types</option>
+        <option>Shuttle Bus</option><option>Charter Bus</option><option>Van</option>
+        <option>Airport Transfer</option><option>VIP / Staff</option><option>Medical / Emergency</option><option>Other</option>
+      </select>
+      <select class="hub-filter-select" id="transportStatusFilter" onchange="renderTransport()">
+        <option value="">All Statuses</option>
+        <option>Planning</option><option>Vendor Shortlisted</option><option>Contract Pending</option>
+        <option>Confirmed</option><option>Cancelled</option>
+      </select>
+    </div>
+    <div class="summary-strip" id="transportSummary"></div>
+    <table class="hub-table">
+      <thead><tr>
+        <th>Route / Service</th><th>Type</th><th>Status</th><th>Vendor</th>
+        <th>From → To</th><th>Schedule</th><th>Cost · Vehicles</th><th></th>
+      </tr></thead>
+      <tbody id="transportTbody"><tr><td colspan="8" class="hub-empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- Panel: Overview -->
+  <div class="transport-subpanel" id="tpanel-overview" style="display:none">
+    <div class="t-alert t-alert-info">ℹ️ <div><strong>Hub-and-Spoke System</strong> — All shuttles originate from JK Hub at 2500 Dickerson Pkwy, Carrollton TX. No point-to-point service between venues.</div></div>
+    <div class="t-alert t-alert-warn">⚠️ <div><strong>Event Dates:</strong> Sep 4 (arrival/check-in) · Sep 5–7 (competition) · Sep 8 (departures) — Labor Day Weekend 2027</div></div>
+
+    <div class="t-cards">
+      <div class="t-card navy"><div class="t-card-icon">🏢</div><div class="t-card-label">HQ Hub</div><div class="t-card-value">Carrollton, TX</div><div class="t-card-sub">2500 Dickerson Pkwy · All routes start here</div></div>
+      <div class="t-card"><div class="t-card-icon">🏟</div><div class="t-card-label">Total Venue Sites</div><div class="t-card-value">6 Confirmed</div><div class="t-card-sub">+2 TBD (Cricket, Tennis)</div></div>
+      <div class="t-card green"><div class="t-card-icon">✈️</div><div class="t-card-label">Airports Served</div><div class="t-card-value">DFW + DAL</div><div class="t-card-sub">DFW ~45 min · DAL ~35 min from hub</div></div>
+      <div class="t-card amber"><div class="t-card-icon">👥</div><div class="t-card-label">Athletes</div><div class="t-card-value">2,200+</div><div class="t-card-sub">+450–600 spectators · +750–1,000 volunteers</div></div>
+      <div class="t-card"><div class="t-card-icon">📅</div><div class="t-card-label">Arrivals</div><div class="t-card-value">Sep 4–5, 2027</div><div class="t-card-sub">Airport runs DFW + DAL</div></div>
+      <div class="t-card"><div class="t-card-icon">🚪</div><div class="t-card-label">Departures</div><div class="t-card-value">Sep 8, 2027</div><div class="t-card-sub">DFW 05:30–15:30 · DAL 06:00–13:30</div></div>
+    </div>
+
+    <div class="t-route-map" style="padding:20px">
+      <div style="text-align:center;margin-bottom:16px">
+        <div class="t-hub-node">🏢 JK HUB — Carrollton TX<br><small style="font-weight:400;opacity:.85">2500 Dickerson Pkwy · All Routes Originate Here</small></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;text-align:center">
+        <div>
+          <div class="t-cluster-label">✈️ Airport Runs</div>
+          <div class="t-venue-node">DFW Airport<br><small>~45 min</small></div>
+          <div class="t-venue-node">DAL Airport<br><small>~35 min</small></div>
+        </div>
+        <div>
+          <div class="t-cluster-label">⬆️ North Cluster</div>
+          <div class="t-venue-node">RYSE StarCenter</div>
+          <div class="t-venue-node">CH StarCenter Northlake</div>
+          <div class="t-venue-node">Lewisville Badminton</div>
+        </div>
+        <div>
+          <div class="t-cluster-label">⬇️ South Cluster</div>
+          <div class="t-venue-node">Little Elm Soccer Park</div>
+          <div class="t-venue-node">Gateway Park Ft Worth</div>
+          <div class="t-venue-node pending">Cricket TBD</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="t-section-hdr">📅 Day-by-Day Schedule Summary</div>
+    <div class="t-section-body">
+      <table class="hub-table" style="margin:0">
+        <thead><tr><th>Day</th><th>Service Focus</th><th>Details</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Sep 4</strong></td><td>Airport Arrivals</td><td>DFW runs every 90 min (09:00–22:30) · DAL runs (09:00–18:00)</td></tr>
+          <tr><td><strong>Sep 5</strong></td><td>Arrivals + Games Day 1</td><td>Late airport runs AM · Venue shuttles all day (North AM, South PM)</td></tr>
+          <tr><td><strong>Sep 6</strong></td><td>Games Day 2</td><td>Full venue shuttle rotation · North cluster morning · South cluster afternoon</td></tr>
+          <tr><td><strong>Sep 7</strong></td><td>Games Day 3 / Finals</td><td>Full venue shuttle rotation · Return loops evening from all venues</td></tr>
+          <tr><td><strong>Sep 8</strong></td><td>Airport Departures</td><td>DFW runs (05:30–15:30) · DAL runs (06:00–13:30)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Panel: Airport Shuttles -->
+  <div class="transport-subpanel" id="tpanel-airport" style="display:none">
+    <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+      <select id="airportDayFilter" onchange="filterAirport()" style="border:1.5px solid #d0dae4;border-radius:7px;padding:6px 10px;font-size:.81rem">
+        <option value="">All Days</option>
+        <option value="Sep 4">Sep 4 — Arrivals</option>
+        <option value="Sep 5">Sep 5 — Late Arrivals</option>
+        <option value="Sep 8">Sep 8 — Departures</option>
+      </select>
+      <select id="airportPortFilter" onchange="filterAirport()" style="border:1.5px solid #d0dae4;border-radius:7px;padding:6px 10px;font-size:.81rem">
+        <option value="">Both Airports</option>
+        <option value="DFW">DFW Airport</option>
+        <option value="DAL">DAL Airport</option>
+      </select>
+      <span id="airportCount" style="font-size:.8rem;color:#666;margin-left:4px"></span>
+    </div>
+    <div class="t-alert t-alert-success">✅ <div>All airport shuttles depart from JK Hub (2500 Dickerson Pkwy, Carrollton). Arrivals: Sep 4–5. Departures: Sep 8 only.</div></div>
+    <table class="hub-table" id="airportTable">
+      <thead><tr><th>Day</th><th>Airport</th><th>Direction</th><th>Depart Hub / Airport</th><th>Arrive</th><th>Vehicle</th><th>Notes</th></tr></thead>
+      <tbody id="airportTbody"></tbody>
+    </table>
+  </div>
+
+  <!-- Panel: Venue Shuttles -->
+  <div class="transport-subpanel" id="tpanel-venue" style="display:none">
+    <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+      <select id="venueDayFilter" onchange="filterVenueShuttle()" style="border:1.5px solid #d0dae4;border-radius:7px;padding:6px 10px;font-size:.81rem">
+        <option value="">All Game Days</option>
+        <option value="Sep 5">Sep 5</option>
+        <option value="Sep 6">Sep 6</option>
+        <option value="Sep 7">Sep 7</option>
+      </select>
+      <select id="venueClusterFilter" onchange="filterVenueShuttle()" style="border:1.5px solid #d0dae4;border-radius:7px;padding:6px 10px;font-size:.81rem">
+        <option value="">Both Clusters</option>
+        <option value="North">North Cluster</option>
+        <option value="South">South Cluster</option>
+        <option value="Return">Return Loop</option>
+      </select>
+      <span id="venueShuttleCount" style="font-size:.8rem;color:#666;margin-left:4px"></span>
+    </div>
+    <div class="t-alert t-alert-info">ℹ️ <div>North cluster runs morning (before 12:00). South cluster runs afternoon (before 16:00). Return loops run evening from all venues.</div></div>
+    <table class="hub-table" id="venueShuttleTable">
+      <thead><tr><th>Day</th><th>Cluster</th><th>Depart Hub</th><th>Route</th><th>Vehicle</th><th>Return</th></tr></thead>
+      <tbody id="venueShuttleTbody"></tbody>
+    </table>
+  </div>
+
+  <!-- Panel: Fleet & Contacts -->
+  <div class="transport-subpanel" id="tpanel-fleet" style="display:none">
+    <div class="t-cards">
+      <div class="t-card navy"><div class="t-card-icon">🚌</div><div class="t-card-label">Charter Coach</div><div class="t-card-value">2 × 55-pax</div><div class="t-card-sub">Airport + large groups · Status: TBD</div></div>
+      <div class="t-card"><div class="t-card-icon">🚐</div><div class="t-card-label">Mini Bus</div><div class="t-card-value">2 × 28-pax</div><div class="t-card-sub">Venue shuttle loops · Status: TBD</div></div>
+      <div class="t-card green"><div class="t-card-icon">🚙</div><div class="t-card-label">Passenger Vans</div><div class="t-card-value">3 × 12-pax</div><div class="t-card-sub">Staff / VIP · Status: TBD</div></div>
+      <div class="t-card amber"><div class="t-card-icon">♿</div><div class="t-card-label">ADA Vehicle</div><div class="t-card-value">1 × Accessible</div><div class="t-card-sub">Wheelchair accessible · Priority booking</div></div>
+    </div>
+
+    <div class="t-section-hdr" style="margin-top:16px">📞 Key Contacts</div>
+    <div class="t-section-body" style="padding:14px">
+      <div class="t-contact-grid">
+        <div class="t-contact-card"><div class="t-contact-name">Transport Coordinator</div><div class="t-contact-role">NAIG Logistics Team</div><span class="t-pill t-pill-amber">Role TBD</span></div>
+        <div class="t-contact-card"><div class="t-contact-name">Charter Bus Vendor</div><div class="t-contact-role">Airport Shuttles</div><span class="t-pill t-pill-gray">RFP Not Started</span></div>
+        <div class="t-contact-card"><div class="t-contact-name">Venue Shuttle Vendor</div><div class="t-contact-role">Game Day Loops</div><span class="t-pill t-pill-gray">RFP Not Started</span></div>
+        <div class="t-contact-card"><div class="t-contact-name">DFW Airport Liaison</div><div class="t-contact-role">Arrivals / Departures</div><span class="t-pill t-pill-amber">Contact TBD</span></div>
+      </div>
+    </div>
+
+    <div class="t-section-hdr" style="margin-top:16px">📍 Venue Directory with Drive Times</div>
+    <div class="t-section-body">
+      <table class="hub-table" style="margin:0">
+        <thead><tr><th>Venue</th><th>Address</th><th>Sport</th><th>Cluster</th><th>Drive from Hub</th></tr></thead>
+        <tbody>
+          <tr><td>RYSE StarCenter</td><td>465 E John Carpenter Frwy, Irving TX</td><td>Arena Sports</td><td>North</td><td>~20 min</td></tr>
+          <tr><td>CH StarCenter Northlake</td><td>2001 Windhaven Pkwy, Northlake TX</td><td>Arena Sports</td><td>North</td><td>~25 min</td></tr>
+          <tr><td>Lewisville Badminton Center</td><td>TBD, Lewisville TX</td><td>Badminton</td><td>North</td><td>~22 min</td></tr>
+          <tr><td>Little Elm Soccer Park</td><td>TBD, Little Elm TX</td><td>Soccer</td><td>South</td><td>~35 min</td></tr>
+          <tr><td>Gateway Park Ft Worth</td><td>TBD, Fort Worth TX</td><td>Multi-sport</td><td>South</td><td>~40 min</td></tr>
+          <tr><td>Cricket Venue</td><td>TBD</td><td>Cricket</td><td>TBD</td><td>TBD</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Panel: FAQ -->
+  <div class="transport-subpanel" id="tpanel-faq" style="display:none">
+    <div id="tFaqContainer"></div>
+  </div>
+
 </div>
 
 <!-- Documents Repository -->
@@ -1379,42 +1633,150 @@ function toggleNode(e, id) {
 function expandAll()  { setAll(window._orgData, true);  window._renderAll(); }
 function collapseAll(){ setAll(window._orgData, false); window._renderAll(); }
 
-// ── Stat tile click handlers ──
+// ── Stat tile click — opens inline people directory panel ──
+let _orgDirMode = null;
+
 function statTileClick(type) {
-  // Toggle active highlight on the tile
+  document.querySelectorAll('.node.node-pending-highlight').forEach(el => el.classList.remove('node-pending-highlight'));
+  const panel = document.getElementById('orgDirPanel');
+  const wasOpen = panel.classList.contains('open') && _orgDirMode === type;
+
+  // If clicking the same tile again → close
+  if (wasOpen) {
+    panel.classList.remove('open');
+    document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
+    _orgDirMode = null;
+    return;
+  }
+
+  // Activate tile
   document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
   const tile = document.getElementById('stat-' + type);
   if (tile) tile.classList.add('active');
+  _orgDirMode = type;
 
-  // Clear any pending highlights from last click
-  document.querySelectorAll('.node.node-pending-highlight').forEach(el => {
-    el.classList.remove('node-pending-highlight');
-  });
+  // Set panel title
+  const titles = {
+    people: '👥 All People — A-Z Directory',
+    dept:   '🏢 Browse by Department',
+    mgr:    '👔 Managers & Their Teams',
+    lvl:    '📊 Browse by Level / Tier',
+    tbd:    '⚠️ Pending & Open Roles'
+  };
+  document.getElementById('orgDirTitle').textContent = titles[type] || '👥 Directory';
+  document.getElementById('orgDirSearch').value = '';
 
-  if (type === 'dept') {
-    // Collapse to show only top-level departments
-    collapseAll();
-  } else if (type === 'tbd') {
-    // Expand everything then flash unfilled / TBD nodes
-    expandAll();
-    setTimeout(() => {
-      const PENDING_STATUSES = ['tbd','tbc','pending-approval','pending-acceptance'];
-      function walkHighlight(n) {
-        const isPending = PENDING_STATUSES.includes(n.status) ||
-                          !n.name || n.name.toLowerCase() === 'tbd' || n.name.toLowerCase() === 'tbc';
-        if (isPending) {
-          const el = document.getElementById('node-' + n.id);
-          if (el) el.classList.add('node-pending-highlight');
-        }
-        (n.children || []).forEach(walkHighlight);
-        (n.coLeads || []).forEach(walkHighlight);
-      }
-      if (window._orgData) walkHighlight(window._orgData);
-    }, 350);
-  } else {
-    // People / Managers / Levels — expand everything
-    expandAll();
+  panel.classList.add('open');
+  renderOrgDir();
+
+  // Scroll panel into view
+  setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+}
+
+// Collect all nodes from org tree recursively
+function collectAllNodes(n, arr = []) {
+  if (!n) return arr;
+  arr.push(n);
+  (n.children || []).forEach(c => collectAllNodes(c, arr));
+  (n.coLeads || []).forEach(c => collectAllNodes(c, arr));
+  return arr;
+}
+
+// Avatar background from name
+function avatarBg(name) {
+  const colors = ['#1a3a5c','#2D6A9F','#2C7A5C','#7c3aed','#b45309','#c2410c','#0369a1'];
+  let h = 0; for (let i=0; i<(name||'').length; i++) h = (h*31+name.charCodeAt(i))%colors.length;
+  return colors[h];
+}
+
+function renderOrgDir() {
+  const list = document.getElementById('orgDirList');
+  const q = (document.getElementById('orgDirSearch').value || '').toLowerCase().trim();
+  const mode = _orgDirMode;
+  if (!window._orgData) { list.innerHTML = '<div class="dir-panel-empty">Org data not loaded yet.</div>'; return; }
+
+  const PENDING_STATUSES = ['tbd','tbc','pending-approval','pending-acceptance'];
+  let all = collectAllNodes(window._orgData);
+
+  // Filter by search
+  if (q) {
+    all = all.filter(n =>
+      (n.name||'').toLowerCase().includes(q) ||
+      (n.role||'').toLowerCase().includes(q) ||
+      (n.dept||n.department||'').toLowerCase().includes(q) ||
+      (n.venue||n.region||'').toLowerCase().includes(q)
+    );
   }
+
+  // Filter by mode
+  if (mode === 'tbd') {
+    all = all.filter(n => PENDING_STATUSES.includes(n.status) || !n.name || (n.name||'').toLowerCase()==='tbd' || (n.name||'').toLowerCase()==='tbc');
+  } else if (mode === 'mgr') {
+    all = all.filter(n => (n.children||[]).length > 0 || (n.coLeads||[]).length > 0);
+  }
+
+  if (!all.length) { list.innerHTML = '<div class="dir-panel-empty">No matches found.</div>'; return; }
+
+  // Group by mode
+  let groups = {};
+  if (mode === 'dept') {
+    all.forEach(n => { const k = n.dept || n.department || 'Unassigned'; (groups[k]=groups[k]||[]).push(n); });
+  } else if (mode === 'lvl') {
+    all.forEach(n => { const k = n.level || n.tier || 'Unknown'; (groups[k]=groups[k]||[]).push(n); });
+  } else if (mode === 'mgr') {
+    all.forEach(n => { const k = (n.children||[]).length+(n.coLeads||[]).length > 3 ? '⭐ Senior Leads (3+ direct)' : '👤 Leads (1–3 direct)'; (groups[k]=groups[k]||[]).push(n); });
+  } else {
+    // People / TBD — single alpha group
+    const sorted = [...all].sort((a,b) => (a.name||'zzz').localeCompare(b.name||'zzz'));
+    const letters = {};
+    sorted.forEach(n => { const l = (n.name||'?')[0].toUpperCase(); (letters[l]=letters[l]||[]).push(n); });
+    groups = letters;
+  }
+
+  const html = Object.keys(groups).sort().map(gKey => {
+    const items = groups[gKey].sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+    const rows = items.map(n => {
+      const isPending = PENDING_STATUSES.includes(n.status) || !n.name || (n.name||'').toLowerCase()==='tbd';
+      const badge = isPending
+        ? '<span class="dir-badge dir-badge-amber">Open</span>'
+        : n.status === 'confirmed' ? '<span class="dir-badge dir-badge-green">Confirmed</span>'
+        : n.status === 'volunteer' ? '<span class="dir-badge dir-badge-blue">Volunteer</span>'
+        : '<span class="dir-badge dir-badge-gray">'+(n.status||'—')+'</span>';
+      const initials = (n.name||'TBD').split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
+      const teamCount = (n.children||[]).length + (n.coLeads||[]).length;
+      const teamStr = teamCount > 0 ? '<small class="dir-region"> · '+teamCount+' direct</small>' : '';
+      return `<div class="dir-row" onclick="openPersonFromDir('${n.id||n.name}')">
+        <div class="dir-avatar" style="background:${avatarBg(n.name)}">${initials}</div>
+        <div class="dir-info">
+          <div class="dir-person-name">${n.name || '<em style="color:#aaa">Open Role</em>'}${teamStr}</div>
+          <div class="dir-person-role">${n.role||''} ${n.dept||n.department ? '· '+( n.dept||n.department) : ''}</div>
+        </div>
+        ${badge}
+        ${n.venue||n.region ? '<span class="dir-region">'+( n.venue||n.region)+'</span>' : ''}
+      </div>`;
+    }).join('');
+    return `<div class="dir-grp-label">${gKey} <span style="font-weight:400;text-transform:none">(${items.length})</span></div>${rows}`;
+  }).join('');
+
+  list.innerHTML = html;
+}
+
+function openPersonFromDir(id) {
+  // Find by id or name and open the existing single-person modal
+  function find(n) {
+    if (n.id === id || n.name === id) return n;
+    for (const c of (n.children||[])) { const r=find(c); if (r) return r; }
+    for (const c of (n.coLeads||[])) { const r=find(c); if (r) return r; }
+    return null;
+  }
+  const node = window._orgData ? find(window._orgData) : null;
+  if (node && node.id) openDirModal(node.id);
+}
+
+function closeOrgDir() {
+  document.getElementById('orgDirPanel').classList.remove('open');
+  document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
+  _orgDirMode = null;
 }
 function setAll(n, v) { n.expanded = v; (n.children||[]).forEach(c=>setAll(c,v)); }
 
@@ -2297,19 +2659,59 @@ window.renderKanban = function() {
 };
 
 window.seedInitialTasks = function() {
+  const k = hubKey;
   const seed = {
-    [hubKey()]: { title:'Add Firebase auth (security)', status:'backlog', priority:'high', owner:'Rizwan', scopeArea:'Technology', due:'', notes:'Firebase rules currently open — add auth before sharing URL broadly.' },
-    [hubKey()]: { title:'Cloud-deploy Sports Central app', status:'backlog', priority:'high', owner:'', scopeArea:'Technology', due:'', notes:'Merge org chart + Sports Central under one hub nav.' },
-    [hubKey()]: { title:'Finalize venue shortlist (4–6 sites)', status:'backlog', priority:'high', owner:'', scopeArea:'Venues', due:'', notes:'DFW area. Need arena, fields, convention center.' },
-    [hubKey()]: { title:'Confirm event weekend (Labor Day 2027)', status:'backlog', priority:'high', owner:'Rizwan', scopeArea:'Org / Staffing', due:'', notes:'Labor Day weekend preferred.' },
-    [hubKey()]: { title:'Transportation vendor RFPs', status:'backlog', priority:'medium', owner:'', scopeArea:'Transportation', due:'', notes:'Bus/shuttle for athletes. Estimate 1,500–2,000 athletes across 4–6 venues.' },
-    [hubKey()]: { title:'Hotel room block negotiations (400–600 rooms)', status:'backlog', priority:'medium', owner:'', scopeArea:'Hotels', due:'', notes:'30% of athletes + spectators needing accommodation.' },
-    [hubKey()]: { title:'Volunteer recruitment pipeline (750–1,000 target)', status:'backlog', priority:'medium', owner:'', scopeArea:'Volunteers', due:'', notes:'150–200 logistics-specific volunteers needed.' },
-    [hubKey()]: { title:'Athlete registration portal planning', status:'backlog', priority:'medium', owner:'', scopeArea:'Athletes', due:'', notes:'Online registration for 1,500–2,000 athletes.' },
-    [hubKey()]: { title:'Negotiate catering / F&B contracts', status:'backlog', priority:'medium', owner:'', scopeArea:'Vendors', due:'', notes:'Venues + athlete village catering.' },
-    [hubKey()]: { title:'AV / Production vendor selection', status:'backlog', priority:'medium', owner:'', scopeArea:'Vendors', due:'', notes:'Opening ceremony, awards, PA systems.' },
-    [hubKey()]: { title:'Medical services plan', status:'backlog', priority:'high', owner:'', scopeArea:'Volunteers', due:'', notes:'On-site medical staff, AED coverage at all venues.' },
-    [hubKey()]: { title:'Org chart — fill all TBD roles', status:'inprogress', priority:'medium', owner:'Rizwan', scopeArea:'Org / Staffing', due:'', notes:'Use Volunteer Prospects panel to pipeline candidates.' },
+    // ── Technology ──
+    [k()]: { title:'Add Firebase auth (security)', status:'backlog', priority:'high', owner:'Rizwan', scopeArea:'Technology', due:'2026-12-01', notes:'Firebase rules currently open — add auth before sharing URL broadly.' },
+    [k()]: { title:'Deploy Sports Central to custom domain', status:'backlog', priority:'high', owner:'Rizwan', scopeArea:'Technology', due:'2026-10-01', notes:'Move from GitHub Pages to NAIG 2027 domain.' },
+    [k()]: { title:'Build athlete registration portal', status:'backlog', priority:'high', owner:'', scopeArea:'Technology', due:'2027-01-01', notes:'Online registration for 2,200+ athletes. Integration with payment + sport assignment.' },
+    [k()]: { title:'Volunteer management system setup', status:'backlog', priority:'medium', owner:'', scopeArea:'Technology', due:'2027-02-01', notes:'Track 750–1,000 volunteers. Role assignment, shift scheduling, communication.' },
+    [k()]: { title:'Event app / mobile guide for athletes', status:'backlog', priority:'low', owner:'', scopeArea:'Technology', due:'2027-06-01', notes:'Schedule, maps, results, transport info for athletes.' },
+    // ── Venues ──
+    [k()]: { title:'Finalize venue shortlist — all sports', status:'inprogress', priority:'high', owner:'', scopeArea:'Venues', due:'2026-09-01', notes:'RYSE + CH StarCenter confirmed candidates. Cricket, Tennis, Track still TBD.' },
+    [k()]: { title:'Site visit — RYSE StarCenter (Irving)', status:'backlog', priority:'high', owner:'', scopeArea:'Venues', due:'2026-10-01', notes:'North cluster. Arena sports. Need to confirm capacity, floor, AV.' },
+    [k()]: { title:'Site visit — CH StarCenter Northlake', status:'backlog', priority:'high', owner:'', scopeArea:'Venues', due:'2026-10-01', notes:'North cluster. Confirm suitability for indoor sports.' },
+    [k()]: { title:'Site visit — Little Elm Soccer Park', status:'backlog', priority:'high', owner:'', scopeArea:'Venues', due:'2026-10-01', notes:'South cluster. Confirm # of fields, turf/grass mix, locker rooms.' },
+    [k()]: { title:'Site visit — Gateway Park Fort Worth', status:'backlog', priority:'medium', owner:'', scopeArea:'Venues', due:'2026-11-01', notes:'South cluster. Confirm sport suitability + infrastructure.' },
+    [k()]: { title:'Source cricket venue — DFW area', status:'backlog', priority:'high', owner:'', scopeArea:'Venues', due:'2026-12-01', notes:'Need NAIG-standard pitch + outfield. Check South Asian community grounds.' },
+    [k()]: { title:'Source tennis / racquet venue', status:'backlog', priority:'medium', owner:'', scopeArea:'Venues', due:'2027-01-01', notes:'Need 8+ courts. Check municipal and club facilities.' },
+    [k()]: { title:'Negotiate and sign all venue contracts', status:'backlog', priority:'high', owner:'', scopeArea:'Venues', due:'2027-03-01', notes:'All 6–8 venues need executed agreements before athlete registration opens.' },
+    // ── Transportation ──
+    [k()]: { title:'Finalize transportation vendor RFP', status:'backlog', priority:'high', owner:'', scopeArea:'Transportation', due:'2026-11-01', notes:'Issue RFP for charter coach + mini bus + van fleet. Hub-and-spoke system.' },
+    [k()]: { title:'Sign transportation vendor contract', status:'backlog', priority:'high', owner:'', scopeArea:'Transportation', due:'2027-02-01', notes:'Finalize fleet: 2×55-pax coach, 2×28-pax mini, 3×12-pax van, 1 ADA.' },
+    [k()]: { title:'Build airport shuttle schedule — DFW', status:'backlog', priority:'high', owner:'', scopeArea:'Transportation', due:'2027-04-01', notes:'Sep 4 arrivals every 90 min 09:00–22:30. Sep 8 departures 05:30–15:30.' },
+    [k()]: { title:'Build airport shuttle schedule — DAL', status:'backlog', priority:'high', owner:'', scopeArea:'Transportation', due:'2027-04-01', notes:'Sep 4 arrivals 09:00–18:00. Sep 8 departures 06:00–13:30.' },
+    [k()]: { title:'Confirm JK Hub logistics setup (Carrollton)', status:'backlog', priority:'high', owner:'', scopeArea:'Transportation', due:'2027-05-01', notes:'2500 Dickerson Pkwy. Staging, dispatch, signage, holding area.' },
+    [k()]: { title:'ADA transportation plan', status:'backlog', priority:'high', owner:'', scopeArea:'Transportation', due:'2027-03-01', notes:'At least 1 accessible vehicle per route. Pre-registration for mobility needs.' },
+    // ── Lodging / Hotels ──
+    [k()]: { title:'Identify hotel block candidates (400–600 rooms)', status:'inprogress', priority:'high', owner:'', scopeArea:'Hotels', due:'2026-10-01', notes:'Target: airport-adjacent + downtown Dallas + Fort Worth. 3–4 properties.' },
+    [k()]: { title:'Send hotel RFPs and block requests', status:'backlog', priority:'high', owner:'', scopeArea:'Hotels', due:'2026-12-01', notes:'Block for Sep 4–8, 2027. Competitive group rate. Attrition clause.' },
+    [k()]: { title:'Negotiate and sign hotel contracts', status:'backlog', priority:'high', owner:'', scopeArea:'Hotels', due:'2027-03-01', notes:'Finalize rates, cut-off dates, attrition, comp rooms.' },
+    [k()]: { title:'Build athlete accommodation assignment system', status:'backlog', priority:'medium', owner:'', scopeArea:'Hotels', due:'2027-05-01', notes:'Assign athletes/teams to hotel blocks. Track usage.' },
+    // ── Food & Beverage ──
+    [k()]: { title:'F&B plan — athlete village / main hub', status:'backlog', priority:'medium', owner:'', scopeArea:'Food', due:'2027-02-01', notes:'Daily meal service for ~2,200 athletes. Catering or venue concessions.' },
+    [k()]: { title:'Identify halal/kosher/dietary accommodation vendors', status:'backlog', priority:'high', owner:'', scopeArea:'Food', due:'2027-04-01', notes:'Indigenous Games context — diverse dietary requirements.' },
+    [k()]: { title:'Catering vendor RFP and contract', status:'backlog', priority:'medium', owner:'', scopeArea:'Food', due:'2027-02-01', notes:'Venue food service + athlete meals.' },
+    // ── Health & Medical ──
+    [k()]: { title:'Medical services plan — all venues', status:'backlog', priority:'high', owner:'', scopeArea:'Health Board', due:'2027-03-01', notes:'On-site EMT/paramedic at each venue. AED placement. Hospital liaison.' },
+    [k()]: { title:'Mental health + wellness support plan', status:'backlog', priority:'medium', owner:'', scopeArea:'Health Board', due:'2027-04-01', notes:'Elder / cultural wellness team on-site. Space at hub.' },
+    [k()]: { title:'Anti-doping / CMT protocol', status:'backlog', priority:'high', owner:'', scopeArea:'CMT', due:'2027-01-01', notes:'NAIG CMT (Competition Management Team) requirements. Drug testing if applicable.' },
+    [k()]: { title:'First responder training for volunteers', status:'backlog', priority:'medium', owner:'', scopeArea:'Health Board', due:'2027-06-01', notes:'Basic first aid for RST team and site leads.' },
+    // ── Org / Staffing ──
+    [k()]: { title:'Fill all TBD roles in org chart', status:'inprogress', priority:'medium', owner:'Rizwan', scopeArea:'Org / Staffing', due:'2026-12-01', notes:'Use Volunteer Prospects panel. 30+ open roles.' },
+    [k()]: { title:'Confirm event weekend — Labor Day 2027', status:'done', priority:'high', owner:'Rizwan', scopeArea:'Org / Staffing', due:'2026-07-01', notes:'Sep 4 arrival, Sep 5–7 games, Sep 8 departure.' },
+    [k()]: { title:'Recruit RST (Regional Support Team) leads', status:'backlog', priority:'high', owner:'', scopeArea:'Org / Staffing', due:'2026-11-01', notes:'One RST per province/territory delegation. ~14 leads.' },
+    [k()]: { title:'Volunteer onboarding and training plan', status:'backlog', priority:'medium', owner:'', scopeArea:'Org / Staffing', due:'2027-06-01', notes:'750–1,000 volunteers. Role-specific training sessions.' },
+    // ── Site Management ──
+    [k()]: { title:'Site management plan — all venues', status:'backlog', priority:'high', owner:'', scopeArea:'Site Management', due:'2027-04-01', notes:'Each venue needs a site lead, RST presence, signage, security.' },
+    [k()]: { title:'Signage and wayfinding design', status:'backlog', priority:'medium', owner:'', scopeArea:'Site Management', due:'2027-06-01', notes:'NAIG-branded signage at all venues + hub. Route maps.' },
+    [k()]: { title:'Security vendor selection', status:'backlog', priority:'high', owner:'', scopeArea:'Site Management', due:'2027-02-01', notes:'Licensed security at each venue. Crowd management plan.' },
+    [k()]: { title:'Opening / closing ceremony planning', status:'backlog', priority:'high', owner:'', scopeArea:'Site Management', due:'2027-03-01', notes:'Venue TBD. AV, production, program, cultural elements.' },
+    // ── Vendors ──
+    [k()]: { title:'AV / production vendor selection', status:'backlog', priority:'medium', owner:'', scopeArea:'Vendors', due:'2027-02-01', notes:'PA system, scoreboard integration, livestream capability.' },
+    [k()]: { title:'Printing / signage vendor', status:'backlog', priority:'low', owner:'', scopeArea:'Vendors', due:'2027-05-01', notes:'Banners, programs, lanyards, bibs.' },
+    [k()]: { title:'Medical supplies procurement', status:'backlog', priority:'medium', owner:'', scopeArea:'Vendors', due:'2027-06-01', notes:'First aid kits, ice, AED units for each venue.' },
+    [k()]: { title:'Insurance procurement — event liability', status:'backlog', priority:'high', owner:'', scopeArea:'Vendors', due:'2026-12-01', notes:'General liability + athlete accident insurance for full event.' },
   };
   window._dbSet(window._dbRef('naig2027/tasks'), seed);
 };
@@ -2420,18 +2822,74 @@ window.renderVenues = function() {
     </tr>`).join('');
 };
 
+// custom Q&A state for venue modal
+let _venueCustomQA = [];
+
+function switchVenueTab(tabId, btn) {
+  document.querySelectorAll('.vmodal-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.vmodal-panel').forEach(p => p.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const panel = document.getElementById('vp-' + tabId);
+  if (panel) panel.classList.add('active');
+}
+
+function addCustomQ() {
+  const q = (document.getElementById('newQLabel').value || '').trim();
+  const a = (document.getElementById('newQAnswer').value || '').trim();
+  if (!q) { alert('Please enter a question/label.'); return; }
+  _venueCustomQA.push({ q, a });
+  document.getElementById('newQLabel').value = '';
+  document.getElementById('newQAnswer').value = '';
+  renderCustomQList();
+}
+function delCustomQ(i) { _venueCustomQA.splice(i,1); renderCustomQList(); }
+function renderCustomQList() {
+  const el = document.getElementById('customQList');
+  if (!_venueCustomQA.length) { el.innerHTML = '<div style="padding:8px 10px;color:#aaa;font-size:.79rem">No custom questions yet.</div>'; return; }
+  el.innerHTML = _venueCustomQA.map((row,i) =>
+    `<div class="custom-q-item"><div class="custom-q-label">${row.q}</div><div class="custom-q-answer">${row.a||'—'}</div><button class="custom-q-del" onclick="delCustomQ(${i})">✕</button></div>`
+  ).join('');
+}
+
 function openVenueModal(editKey) {
   const v = editKey ? (window._venuesData[editKey] || {}) : {};
+  _venueCustomQA = v.customQA ? JSON.parse(v.customQA) : [];
   document.getElementById('venueModalTitle').textContent = editKey ? '✏️ Edit Venue' : '🏟 Add Venue';
   document.getElementById('venueKey').value = editKey || '';
+  // Basic Info
   document.getElementById('venueName').value = v.name || '';
   document.getElementById('venueType').value = v.type || 'Arena';
   document.getElementById('venueCapacity').value = v.capacity || '';
   document.getElementById('venueLocation').value = v.location || '';
+  document.getElementById('venueAddress').value = v.address || '';
   document.getElementById('venueStatus').value = v.status || 'Exploring';
   document.getElementById('venueSports').value = v.sports || '';
+  document.getElementById('venueDriveLink').value = v.driveLink || '';
   document.getElementById('venueNotes').value = v.notes || '';
+  // Logistics
+  document.getElementById('venueParking').value = v.parking || '';
+  document.getElementById('venueFloorType').value = v.floorType || '';
+  document.getElementById('venueAV').value = v.av || '';
+  document.getElementById('venueAccessibility').value = v.accessibility || '';
+  document.getElementById('venueFoodPolicy').value = v.foodPolicy || '';
+  document.getElementById('venueSiteVisit').value = v.siteVisit || '';
+  // Contacts
+  document.getElementById('venuePrimaryContact').value = v.primaryContact || '';
+  document.getElementById('venuePrimaryPhone').value = v.primaryPhone || '';
+  document.getElementById('venuePrimaryEmail').value = v.primaryEmail || '';
+  document.getElementById('venueSiteLead').value = v.siteLead || '';
+  document.getElementById('venueEmergContact').value = v.emergContact || '';
+  // Financials
+  document.getElementById('venueRentalFee').value = v.rentalFee || '';
+  document.getElementById('venueDeposit').value = v.deposit || '';
+  document.getElementById('venueContractStatus').value = v.contractStatus || 'Not Started';
+  document.getElementById('venuePOC').value = v.poc || '';
+  // Custom Q&A
+  renderCustomQList();
+
   document.getElementById('venueDeleteBtn').style.display = editKey ? '' : 'none';
+  // Reset to first tab
+  switchVenueTab('basic', document.querySelector('.vmodal-tab'));
   document.getElementById('venueOverlay').style.display = 'flex';
 }
 function closeVenueModal() { document.getElementById('venueOverlay').style.display = 'none'; }
@@ -2443,9 +2901,27 @@ function saveVenue() {
     name, type: document.getElementById('venueType').value,
     capacity: document.getElementById('venueCapacity').value.trim(),
     location: document.getElementById('venueLocation').value.trim(),
+    address: document.getElementById('venueAddress').value.trim(),
     status: document.getElementById('venueStatus').value,
     sports: document.getElementById('venueSports').value.trim(),
+    driveLink: document.getElementById('venueDriveLink').value.trim(),
     notes: document.getElementById('venueNotes').value.trim(),
+    parking: document.getElementById('venueParking').value.trim(),
+    floorType: document.getElementById('venueFloorType').value.trim(),
+    av: document.getElementById('venueAV').value.trim(),
+    accessibility: document.getElementById('venueAccessibility').value.trim(),
+    foodPolicy: document.getElementById('venueFoodPolicy').value.trim(),
+    siteVisit: document.getElementById('venueSiteVisit').value.trim(),
+    primaryContact: document.getElementById('venuePrimaryContact').value.trim(),
+    primaryPhone: document.getElementById('venuePrimaryPhone').value.trim(),
+    primaryEmail: document.getElementById('venuePrimaryEmail').value.trim(),
+    siteLead: document.getElementById('venueSiteLead').value.trim(),
+    emergContact: document.getElementById('venueEmergContact').value.trim(),
+    rentalFee: document.getElementById('venueRentalFee').value.trim(),
+    deposit: document.getElementById('venueDeposit').value.trim(),
+    contractStatus: document.getElementById('venueContractStatus').value,
+    poc: document.getElementById('venuePOC').value.trim(),
+    customQA: _venueCustomQA.length ? JSON.stringify(_venueCustomQA) : '',
     updated: new Date().toISOString()
   });
   closeVenueModal();
@@ -2453,6 +2929,9 @@ function saveVenue() {
 window.openVenueModal = openVenueModal;
 window.closeVenueModal = closeVenueModal;
 window.saveVenue = saveVenue;
+window.switchVenueTab = switchVenueTab;
+window.addCustomQ = addCustomQ;
+window.delCustomQ = delCustomQ;
 
 /* ══════════════════════════════════════════════════════════
    CSV HELPERS
@@ -2659,13 +3138,16 @@ function saveHotel() {
 }
 
 window.seedInitialVenues = function() {
+  const k = hubKey;
   const seed = {
-    [hubKey()]: { name:'Kay Bailey Hutchison Convention Center', type:'Convention Center', capacity:'70,000 sq ft', location:'650 S Griffin St, Dallas, TX 75202', status:'Evaluating', sports:'Basketball, Volleyball, Wrestling, Boxing, Badminton, Table Tennis', notes:'Largest convention space in DFW. Ideal for multi-sport indoor setup. Flexible floor plan.' },
-    [hubKey()]: { name:'Fair Park — Cotton Bowl & Facilities', type:'Multi-Sport Complex', capacity:'92,100 (stadium)', location:'1300 Robert B Cullum Blvd, Dallas, TX 75210', status:'Evaluating', sports:'Track & Field, Archery, Softball, Soccer, Lacrosse, Opening Ceremony (optional)', notes:'Historic fairgrounds. Large outdoor footprint. Track facility on-site. Parking excellent.' },
-    [hubKey()]: { name:'Globe Life Field / Choctaw Stadium Area', type:'Stadium Complex', capacity:'40,518', location:'734 Stadium Dr, Arlington, TX 76011', status:'Evaluating', sports:'Baseball, Softball', notes:'Retractable roof. Climate-controlled. Excellent for baseball tournament format. Midpoint between Dallas and Fort Worth.' },
-    [hubKey()]: { name:'Weatherford Road Aquatic Center (Fort Worth)', type:'Aquatics', capacity:'2,500 spectators', location:'Fort Worth area (TBC)', status:'Exploring', sports:'Swimming, Diving', notes:'TBD — evaluating multiple Fort Worth ISD and City of FW aquatic centers. Need 8-lane 50m pool.' },
-    [hubKey()]: { name:'University of Texas at Arlington — Maverick Stadium', type:'University Campus', capacity:'12,000', location:'700 UTA Blvd, Arlington, TX 76019', status:'Exploring', sports:'Track & Field, Soccer, Outdoor events', notes:'Central DFW location. UTA has track, soccer field, gym. Potential for multi-sport hub.' },
-    [hubKey()]: { name:'Dickies Arena (Fort Worth)', type:'Arena', capacity:'14,000', location:'1911 Montgomery St, Fort Worth, TX 76107', status:'Exploring', sports:'Rodeo, Boxing, Gymnastics, Martial Arts', notes:'Modern arena opened 2019. Great sightlines. Fort Worth side — useful for western venue cluster.' },
+    [k()]: { name:'RYSE StarCenter', type:'Arena', capacity:'6,000', location:'Irving, TX', address:'465 E John Carpenter Frwy, Irving, TX 75062', status:'Shortlisted', sports:'Arena Sports (TBD)', notes:'North cluster venue. ~20 min from JK Hub. Confirmed as candidate by logistics team.', parking:'Large surface lot', floorType:'Ice rink + event floor', accessibility:'ADA compliant', updated:new Date().toISOString() },
+    [k()]: { name:'CH StarCenter Northlake', type:'Arena', capacity:'4,000', location:'Northlake, TX', address:'2001 Windhaven Pkwy, Northlake, TX 76262', status:'Shortlisted', sports:'Arena Sports (TBD)', notes:'North cluster venue. ~25 min from JK Hub. Paired with RYSE for North cluster.', parking:'Surface lot', floorType:'Ice rink + event floor', accessibility:'ADA compliant', updated:new Date().toISOString() },
+    [k()]: { name:'Lewisville Badminton Center', type:'Badminton Center', capacity:'1,200', location:'Lewisville, TX', address:'TBD, Lewisville, TX', status:'Exploring', sports:'Badminton', notes:'North cluster. ~22 min from JK Hub. Being evaluated for badminton tournament.', updated:new Date().toISOString() },
+    [k()]: { name:'Little Elm Soccer Park', type:'Soccer Park', capacity:'3,000 (outdoor)', location:'Little Elm, TX', address:'TBD, Little Elm, TX', status:'Exploring', sports:'Soccer', notes:'South cluster. ~35 min from JK Hub. Multiple grass + turf fields available.', parking:'Large parking area', floorType:'Grass + Artificial Turf', updated:new Date().toISOString() },
+    [k()]: { name:'Gateway Park — Fort Worth', type:'Multi-sport', capacity:'5,000 (outdoor)', location:'Fort Worth, TX', address:'TBD, Fort Worth, TX', status:'Exploring', sports:'Multiple outdoor sports', notes:'South cluster. ~40 min from JK Hub. Large multi-use park facility.', updated:new Date().toISOString() },
+    [k()]: { name:'Cricket Venue — TBD', type:'Field / Outdoor', capacity:'TBD', location:'DFW Area — TBD', address:'TBD', status:'Exploring', sports:'Cricket', notes:'Venue not yet confirmed. Need 22-yard pitch + outfield. Sourcing underway.', updated:new Date().toISOString() },
+    [k()]: { name:'Tennis / Racquet Venue — TBD', type:'Other', capacity:'TBD', location:'DFW Area — TBD', address:'TBD', status:'Exploring', sports:'Tennis, Racquet Sports', notes:'Venue not yet confirmed. Need 8+ courts with spectator areas.', updated:new Date().toISOString() },
+    [k()]: { name:'Track & Field Venue — TBD', type:'Track', capacity:'TBD', location:'DFW Area — TBD', address:'TBD', status:'Exploring', sports:'Track & Field, Athletics', notes:'Need IAAF-standard 400m track with field event areas.', updated:new Date().toISOString() },
   };
   window._dbSet(window._dbRef('naig2027/venues'), seed);
 };
@@ -2780,6 +3262,166 @@ window.seedInitialTransport = function() {
 window.openTransportModal = openTransportModal;
 window.closeTransportModal = closeTransportModal;
 window.saveTransport = saveTransport;
+
+/* ══════════════════════════════════════════════════════════
+   TRANSPORT SUB-TABS — Overview / Airport / Venue / Fleet / FAQ
+══════════════════════════════════════════════════════════ */
+function switchTransportTab(id, btn) {
+  document.querySelectorAll('.tnav-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.transport-subpanel').forEach(p => { p.style.display='none'; });
+  if (btn) btn.classList.add('active');
+  const panel = document.getElementById('tpanel-' + id);
+  if (panel) panel.style.display = '';
+  // Lazy-render data panels
+  if (id === 'airport')  { renderAirportTable(); }
+  if (id === 'venue')    { renderVenueShuttleTable(); }
+  if (id === 'faq')      { renderTransportFAQ(); }
+}
+window.switchTransportTab = switchTransportTab;
+
+// ── Helper: add minutes to HH:MM ──
+function addMin(t, m) {
+  const [h, mn] = t.split(':').map(Number);
+  const total = h * 60 + mn + m;
+  return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;
+}
+
+// ── Airport Shuttle Data ──
+const airportData = (function() {
+  const rows = [];
+  // Sep 4 — DFW Arrivals every 90 min 09:00–22:30
+  let t = '09:00';
+  while (t <= '22:30') {
+    rows.push({ day:'Sep 4', airport:'DFW', dir:'Arrival (→ Hub)', depart:t, arrive:addMin(t,45), vehicle:'55-pax Coach', notes:'Runs until last flight' });
+    t = addMin(t, 90);
+  }
+  // Sep 4 — DAL Arrivals 09:00–18:00 every 90 min
+  t = '09:00';
+  while (t <= '18:00') {
+    rows.push({ day:'Sep 4', airport:'DAL', dir:'Arrival (→ Hub)', depart:t, arrive:addMin(t,35), vehicle:'28-pax Mini', notes:'Love Field — shorter run' });
+    t = addMin(t, 90);
+  }
+  // Sep 5 — Late arrivals DFW 09:00–14:00
+  t = '09:00';
+  while (t <= '14:00') {
+    rows.push({ day:'Sep 5', airport:'DFW', dir:'Late Arrival (→ Hub)', depart:t, arrive:addMin(t,45), vehicle:'55-pax Coach', notes:'Late-arriving athletes' });
+    t = addMin(t, 120);
+  }
+  // Sep 8 — DFW Departures 05:30–15:30 every 90 min
+  t = '05:30';
+  while (t <= '15:30') {
+    rows.push({ day:'Sep 8', airport:'DFW', dir:'Departure (Hub →)', depart:t, arrive:addMin(t,45), vehicle:'55-pax Coach', notes:'Allow 3 hr before flight' });
+    t = addMin(t, 90);
+  }
+  // Sep 8 — DAL Departures 06:00–13:30 every 90 min
+  t = '06:00';
+  while (t <= '13:30') {
+    rows.push({ day:'Sep 8', airport:'DAL', dir:'Departure (Hub →)', depart:t, arrive:addMin(t,35), vehicle:'28-pax Mini', notes:'Love Field departures' });
+    t = addMin(t, 90);
+  }
+  return rows;
+})();
+
+function renderAirportTable() {
+  const dayF = document.getElementById('airportDayFilter')?.value || '';
+  const portF = document.getElementById('airportPortFilter')?.value || '';
+  let rows = airportData;
+  if (dayF)  rows = rows.filter(r => r.day  === dayF);
+  if (portF) rows = rows.filter(r => r.airport === portF);
+  const countEl = document.getElementById('airportCount');
+  if (countEl) countEl.textContent = rows.length + ' runs';
+  const tbody = document.getElementById('airportTbody');
+  if (!tbody) return;
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="hub-empty">No runs match filter.</td></tr>'; return; }
+  tbody.innerHTML = rows.map(r => {
+    const isDep = r.dir.includes('Departure');
+    return `<tr class="${isDep ? 't-dep' : 't-arr'}">
+      <td><strong>${r.day}</strong></td>
+      <td><strong>${r.airport}</strong></td>
+      <td>${r.dir}</td>
+      <td>${r.depart}</td>
+      <td>${r.arrive}</td>
+      <td><span class="t-pill t-pill-blue">${r.vehicle}</span></td>
+      <td style="font-size:.77rem;color:#666">${r.notes}</td>
+    </tr>`;
+  }).join('');
+}
+function filterAirport() { renderAirportTable(); }
+window.filterAirport = filterAirport;
+
+// ── Venue Shuttle Data ──
+const venueShuttleData = (function() {
+  const rows = [];
+  const days = ['Sep 5', 'Sep 6', 'Sep 7'];
+  days.forEach(day => {
+    // North cluster — morning runs every 60 min starting 07:00–11:00
+    let t = '07:00';
+    while (t < '12:00') {
+      rows.push({ day, cluster:'North', depart:t, route:'Hub → RYSE StarCenter → CH StarCenter Northlake → Lewisville Badminton', vehicle:'55-pax Coach + 28-pax Mini', ret:addMin(t,90) });
+      t = addMin(t, 60);
+    }
+    // South cluster — afternoon runs every 60 min 12:00–15:00
+    t = '12:00';
+    while (t <= '16:00') {
+      rows.push({ day, cluster:'South', depart:t, route:'Hub → Little Elm Soccer Park → Gateway Park Fort Worth', vehicle:'55-pax Coach', ret:addMin(t,105) });
+      t = addMin(t, 60);
+    }
+    // Return loops — evening
+    rows.push({ day, cluster:'Return', depart:'18:00', route:'All Venues → Hub', vehicle:'Full Fleet', ret:'21:00' });
+    rows.push({ day, cluster:'Return', depart:'20:00', route:'All Venues → Hub (late)', vehicle:'Full Fleet', ret:'22:30' });
+  });
+  return rows;
+})();
+
+function renderVenueShuttleTable() {
+  const dayF = document.getElementById('venueDayFilter')?.value || '';
+  const clusterF = document.getElementById('venueClusterFilter')?.value || '';
+  let rows = venueShuttleData;
+  if (dayF)     rows = rows.filter(r => r.day === dayF);
+  if (clusterF) rows = rows.filter(r => r.cluster === clusterF);
+  const countEl = document.getElementById('venueShuttleCount');
+  if (countEl) countEl.textContent = rows.length + ' runs';
+  const tbody = document.getElementById('venueShuttleTbody');
+  if (!tbody) return;
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="6" class="hub-empty">No runs match filter.</td></tr>'; return; }
+  tbody.innerHTML = rows.map(r => `<tr>
+    <td><strong>${r.day}</strong></td>
+    <td><span class="t-pill ${r.cluster==='North'?'t-pill-blue':r.cluster==='South'?'t-pill-green':'t-pill-amber'}">${r.cluster}</span></td>
+    <td>${r.depart}</td>
+    <td style="font-size:.78rem">${r.route}</td>
+    <td><small>${r.vehicle}</small></td>
+    <td>${r.ret}</td>
+  </tr>`).join('');
+}
+function filterVenueShuttle() { renderVenueShuttleTable(); }
+window.filterVenueShuttle = filterVenueShuttle;
+
+// ── FAQ Data ──
+const tFaqList = [
+  { q:'How do I know which shuttle to take?', a:'All athletes will receive a transport guide at check-in with their venue assignment, shuttle times, and pickup location at the JK Hub.' },
+  { q:'Where do airport shuttles pick up?', a:'All airport shuttles pick up from designated areas at DFW Terminal D (baggage claim level) and DAL (Love Field, arrivals exit). Look for NAIG 2027 signage.' },
+  { q:'Is there a shuttle for every flight?', a:'Shuttles run on a fixed schedule. If your flight lands between runs, wait at the airport staging area — the next shuttle will come within 90 minutes.' },
+  { q:'Is ADA / wheelchair-accessible transport available?', a:'Yes. One ADA-accessible vehicle is dedicated per route cluster. Pre-register your needs during athlete registration to guarantee availability.' },
+  { q:'Can I take an Uber/Lyft instead?', a:'Yes, all venues are accessible by rideshare. However, shuttles are free for registered athletes and recommended for groups.' },
+  { q:'What time does the first shuttle leave on game days?', a:'First venue shuttles depart the JK Hub at 07:00 on Sep 5, 6, and 7.' },
+  { q:'What happens if I miss the last shuttle?', a:'Contact the Transport Desk at the JK Hub. Emergency transport can be arranged. You may need to use rideshare for very late returns.' },
+  { q:'Is parking available at the JK Hub?', a:'Yes. The JK Hub at 2500 Dickerson Pkwy has surface parking. Spectators and coaches may drive and park at the hub, then shuttle to venues.' },
+  { q:'When do departure shuttles run on Sep 8?', a:'DFW shuttles run every 90 min from 05:30 to 15:30. DAL (Love Field) shuttles run from 06:00 to 13:30. Allow 3 hours before your flight.' },
+  { q:'Who do I contact if there is a transport problem?', a:'Contact the NAIG Transport Coordinator on-site at the JK Hub. Emergency contact details will be provided in the athlete guide.' },
+];
+
+function renderTransportFAQ() {
+  const el = document.getElementById('tFaqContainer');
+  if (!el) return;
+  el.innerHTML = tFaqList.map((item, i) => `
+    <div style="border:1px solid #e0e7ef;border-radius:7px;margin-bottom:8px;overflow:hidden">
+      <button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.faq-arrow').textContent=this.nextElementSibling.style.display==='none'?'▸':'▾'"
+        style="width:100%;text-align:left;background:#f8fafc;border:none;padding:11px 14px;cursor:pointer;font-size:.83rem;font-weight:700;color:#1a3a5c;display:flex;gap:10px;align-items:center">
+        <span class="faq-arrow">▸</span><span>${item.q}</span>
+      </button>
+      <div style="display:none;padding:11px 14px;font-size:.82rem;color:#444;line-height:1.55;background:#fff">${item.a}</div>
+    </div>`).join('');
+}
 
 /* ══════════════════════════════════════════════════════════
    DOCUMENT REPOSITORY
@@ -3185,58 +3827,169 @@ function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
   </div>
 </div>
 
-<!-- Venue Modal -->
+<!-- Venue Modal (expanded — tabbed) -->
 <div class="overlay" id="venueOverlay" onclick="closeVenueModal()">
-  <div class="modal" style="width:420px" onclick="event.stopPropagation()">
+  <div class="modal" style="width:520px;max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">
     <h3 id="venueModalTitle">🏟 Add Venue</h3>
     <input type="hidden" id="venueKey">
-    <div class="form-group">
-      <label>Venue Name</label>
-      <input type="text" id="venueName" placeholder="e.g. Kay Bailey Hutchison Convention Center" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+
+    <!-- Tabs -->
+    <div class="vmodal-tabs">
+      <button class="vmodal-tab active" onclick="switchVenueTab('basic',this)">📋 Basic Info</button>
+      <button class="vmodal-tab" onclick="switchVenueTab('logistics',this)">🔧 Logistics</button>
+      <button class="vmodal-tab" onclick="switchVenueTab('contacts',this)">📞 Contacts</button>
+      <button class="vmodal-tab" onclick="switchVenueTab('financials',this)">💰 Financials</button>
+      <button class="vmodal-tab" onclick="switchVenueTab('customqa',this)">❓ Custom Q&amp;A</button>
     </div>
-    <div class="form-group">
-      <label>Type</label>
-      <select id="venueType" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
-        <option value="Arena">Arena</option>
-        <option value="Convention Center">Convention Center</option>
-        <option value="Field / Outdoor">Field / Outdoor</option>
-        <option value="Gymnasium">Gymnasium</option>
-        <option value="Track">Track</option>
-        <option value="Pool">Pool</option>
-        <option value="Other">Other</option>
-      </select>
+
+    <!-- Panel: Basic Info -->
+    <div class="vmodal-panel active" id="vp-basic">
+      <div class="venue-form-grid">
+        <div class="form-group" style="grid-column:1/-1">
+          <label>Venue Name *</label>
+          <input type="text" id="venueName" placeholder="e.g. RYSE StarCenter" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+        <div class="form-group">
+          <label>Type</label>
+          <select id="venueType" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+            <option>Arena</option><option>Convention Center</option><option>Field / Outdoor</option>
+            <option>Gymnasium</option><option>Track</option><option>Pool</option>
+            <option>Soccer Park</option><option>Badminton Center</option><option>Multi-sport</option><option>Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Capacity (spectators)</label>
+          <input type="text" id="venueCapacity" placeholder="e.g. 2,000" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+        <div class="form-group">
+          <label>City / Neighborhood</label>
+          <input type="text" id="venueLocation" placeholder="e.g. Irving, TX" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+        <div class="form-group">
+          <label>Full Address</label>
+          <input type="text" id="venueAddress" placeholder="Street address" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="venueStatus" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+            <option>Exploring</option><option>Site Visit Scheduled</option><option>Shortlisted</option>
+            <option>Negotiating</option><option>Confirmed</option><option>Dropped</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Sports Assigned</label>
+          <input type="text" id="venueSports" placeholder="e.g. Basketball, Volleyball" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label>Google Drive / File Link</label>
+          <input type="url" id="venueDriveLink" placeholder="https://drive.google.com/…" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label>General Notes</label>
+          <textarea id="venueNotes" placeholder="General notes, observations…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;resize:vertical;min-height:55px;font-family:inherit;line-height:1.5"></textarea>
+        </div>
+      </div>
     </div>
-    <div class="form-group">
-      <label>Capacity</label>
-      <input type="text" id="venueCapacity" placeholder="e.g. 2,000" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+
+    <!-- Panel: Logistics -->
+    <div class="vmodal-panel" id="vp-logistics">
+      <div class="venue-form-grid">
+        <div class="form-group" style="grid-column:1/-1">
+          <label>Parking Notes</label>
+          <input type="text" id="venueParking" placeholder="Lot capacity, ADA spaces, coach parking…" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+        <div class="form-group">
+          <label>Floor / Surface Type</label>
+          <input type="text" id="venueFloorType" placeholder="e.g. Hardwood, Turf, Synthetic" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+        <div class="form-group">
+          <label>AV / Tech</label>
+          <input type="text" id="venueAV" placeholder="Scoreboard, PA system, Wi-Fi…" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+        <div class="form-group">
+          <label>Accessibility (ADA)</label>
+          <input type="text" id="venueAccessibility" placeholder="Ramps, elevators, accessible seating…" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+        <div class="form-group">
+          <label>Food &amp; Beverage Policy</label>
+          <input type="text" id="venueFoodPolicy" placeholder="Exclusive caterer, outside food allowed…" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label>Site Visit Date</label>
+          <input type="date" id="venueSiteVisit" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+      </div>
     </div>
-    <div class="form-group">
-      <label>Location / Address</label>
-      <input type="text" id="venueLocation" placeholder="City, neighborhood, or full address" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+
+    <!-- Panel: Contacts -->
+    <div class="vmodal-panel" id="vp-contacts">
+      <div class="venue-form-grid">
+        <div class="form-group" style="grid-column:1/-1">
+          <label>Primary Venue Contact (Name)</label>
+          <input type="text" id="venuePrimaryContact" placeholder="Contact name at venue" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+        <div class="form-group">
+          <label>Phone</label>
+          <input type="tel" id="venuePrimaryPhone" placeholder="Phone number" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="venuePrimaryEmail" placeholder="Email address" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+        <div class="form-group">
+          <label>NAIG Site Lead</label>
+          <input type="text" id="venueSiteLead" placeholder="Our team member on-site" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+        <div class="form-group">
+          <label>Emergency Contact</label>
+          <input type="text" id="venueEmergContact" placeholder="Emergency contact name / phone" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+      </div>
     </div>
-    <div class="form-group">
-      <label>Status</label>
-      <select id="venueStatus" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
-        <option value="Exploring">Exploring</option>
-        <option value="Site Visit Scheduled">Site Visit Scheduled</option>
-        <option value="Shortlisted">Shortlisted</option>
-        <option value="Negotiating">Negotiating</option>
-        <option value="Confirmed">Confirmed</option>
-        <option value="Dropped">Dropped</option>
-      </select>
+
+    <!-- Panel: Financials -->
+    <div class="vmodal-panel" id="vp-financials">
+      <div class="venue-form-grid">
+        <div class="form-group">
+          <label>Rental Fee</label>
+          <input type="text" id="venueRentalFee" placeholder="e.g. $5,000 / day" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+        <div class="form-group">
+          <label>Deposit Required</label>
+          <input type="text" id="venueDeposit" placeholder="e.g. $1,000 due MM/DD" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+        <div class="form-group">
+          <label>Contract Status</label>
+          <select id="venueContractStatus" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+            <option>Not Started</option><option>Draft Received</option><option>Under Review</option>
+            <option>Pending Signature</option><option>Signed</option><option>Cancelled</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Point of Contact (Finance)</label>
+          <input type="text" id="venuePOC" placeholder="Finance / invoicing contact" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+      </div>
     </div>
-    <div class="form-group">
-      <label>Sports Assigned</label>
-      <input type="text" id="venueSports" placeholder="e.g. Basketball, Volleyball, Wrestling" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+
+    <!-- Panel: Custom Q&A -->
+    <div class="vmodal-panel" id="vp-customqa">
+      <p style="font-size:.81rem;color:#555;margin:0 0 10px">Add any custom questions or details specific to this venue — e.g. "Does venue provide tables?", "Number of change rooms", etc.</p>
+      <div class="custom-q-list" id="customQList"><div style="padding:8px 10px;color:#aaa;font-size:.79rem">No custom questions yet.</div></div>
+      <div style="margin-top:10px;background:#f8fafc;border-radius:7px;padding:10px;border:1px solid #e0e7ef">
+        <p style="font-size:.78rem;font-weight:700;margin:0 0 7px;color:#1a3a5c">+ Add Question / Detail</p>
+        <div class="custom-q-row">
+          <input type="text" id="newQLabel" placeholder="Question or label (e.g. Tables available?)" style="flex:2">
+          <input type="text" id="newQAnswer" placeholder="Answer (optional)" style="flex:1.5">
+          <button class="btn btn-primary" onclick="addCustomQ()" style="font-size:.79rem;padding:5px 10px;flex-shrink:0">+ Add</button>
+        </div>
+      </div>
     </div>
-    <div class="form-group">
-      <label>Notes</label>
-      <textarea id="venueNotes" placeholder="Parking, accessibility, AV, logistics notes…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;resize:vertical;min-height:60px;font-family:inherit;line-height:1.5"></textarea>
-    </div>
-    <div class="modal-actions">
+
+    <div class="modal-actions" style="margin-top:12px">
       <button class="btn btn-cancel" onclick="closeVenueModal()">Cancel</button>
       <button class="btn btn-danger" id="venueDeleteBtn" onclick="deleteHubItem('venues',document.getElementById('venueKey').value,closeVenueModal)" style="display:none">Delete</button>
-      <button class="btn btn-primary" onclick="saveVenue()">Save</button>
+      <button class="btn btn-primary" onclick="saveVenue()">💾 Save Venue</button>
     </div>
   </div>
 </div>
