@@ -105,6 +105,14 @@
     });
     // ── Hub: Venues ──
     window._fb.listenVenues((data) => {
+      // Auto-migration v2: wipe and reseed if old venue names detected
+      if (data) {
+        const vals = Object.values(data);
+        if (vals.some(v => v.name === 'RYSE StarCenter' || v.name === 'CH StarCenter Northlake' || v.name === 'Gateway Park — Fort Worth')) {
+          window._dbSet(window._dbRef('naig2027/venues'), null);
+          return;
+        }
+      }
       window._venuesData = data || {};
       window.renderVenues && window.renderVenues();
       window.refreshAthleteBreakdown && window.refreshAthleteBreakdown();
@@ -117,6 +125,14 @@
     });
     // ── Hub: Scope ──
     window._fb.listenScope((data) => {
+      // Auto-migration v2: wipe and reseed if old athlete count detected
+      if (data) {
+        const vals = Object.values(data);
+        if (vals.some(s => s.count === '1,500–2,000' || (s.category === 'Venues' && s.count === '4–6'))) {
+          window._dbSet(window._dbRef('naig2027/scope'), null);
+          return;
+        }
+      }
       window._scopeData = data || {};
       window.renderScope && window.renderScope();
       window.refreshAthleteBreakdown && window.refreshAthleteBreakdown();
@@ -458,12 +474,14 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 /* Scope grid */
 .scope-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px; }
 .scope-card { background:white; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.07);
-  padding:16px 18px; cursor:pointer; border-top:3px solid #1E3A8A; transition:box-shadow 0.15s; }
-.scope-card:hover { box-shadow:0 4px 14px rgba(0,0,0,0.12); }
+  padding:16px 18px; cursor:pointer; border-top:4px solid #1E3A8A; transition:box-shadow 0.15s,transform 0.1s; position:relative; }
+.scope-card:hover { box-shadow:0 6px 18px rgba(0,0,0,0.13); transform:translateY(-1px); }
+.scope-card-edit { position:absolute; top:10px; right:12px; font-size:11px; color:#94a3b8; opacity:0; transition:opacity 0.15s; }
+.scope-card:hover .scope-card-edit { opacity:1; }
 .scope-card-cat { font-size:10px; font-weight:700; color:#2d6a9f; letter-spacing:0.8px; text-transform:uppercase; margin-bottom:4px; }
-.scope-card-event { font-size:12px; color:#555; margin-bottom:6px; }
-.scope-card-count { font-size:28px; font-weight:800; color:#1a3a5c; line-height:1; }
-.scope-card-notes { font-size:10px; color:#999; margin-top:6px; line-height:1.4; }
+.scope-card-event { font-size:12px; color:#555; margin-bottom:8px; font-weight:500; }
+.scope-card-count { font-size:26px; font-weight:800; color:#1a3a5c; line-height:1.1; word-break:break-word; }
+.scope-card-notes { font-size:10px; color:#888; margin-top:8px; line-height:1.5; border-top:1px solid #f1f5f9; padding-top:8px; }
 
 /* ── Tab count badges ── */
 .tab-badge { background:rgba(255,255,255,0.25); border-radius:9px; padding:0px 6px;
@@ -1089,8 +1107,8 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 <div class="hub-section" id="sectionScope">
  <div class="hub-toolbar">
  <div>
- <div class="hub-title"> Scope &amp; Working Assumptions</div>
- <div class="hub-subtitle">Headcount targets, ratios, and logistics assumptions — edit as plans firm up</div>
+ <div class="hub-title">Scope &amp; Working Assumptions</div>
+ <div class="hub-subtitle">Headcount targets, ratios, and logistics assumptions — sourced from NAIG_Logistics_Master (Jul 2026). Click any tile to edit.</div>
  </div>
  <button class="btn btn-primary" onclick="openScopeModal()">+ Add Assumption</button>
  </div>
@@ -1099,8 +1117,11 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  </div>
  <div style="margin-top:24px">
  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
- <div style="font-size:.85rem;font-weight:700;color:#1a3a5c;text-transform:uppercase;letter-spacing:.6px">Athlete Breakdown by Sport</div>
- <button class="btn" style="font-size:11px;padding:4px 10px;background:#f1f5f9;color:#334155;border:1px solid #cbd5e1" onclick="refreshAthleteBreakdown()">Refresh from Scope</button>
+ <div>
+   <div style="font-size:.85rem;font-weight:700;color:#1a3a5c;text-transform:uppercase;letter-spacing:.6px">Athlete Breakdown by Sport</div>
+   <div style="font-size:11px;color:#94a3b8;margin-top:2px">13 sports — sourced from NAIG_Logistics_Master (Jul 2026). Per-sport counts TBD per RST-14.</div>
+ </div>
+ <button class="btn" style="font-size:11px;padding:4px 10px;background:#f1f5f9;color:#334155;border:1px solid #cbd5e1" onclick="refreshAthleteBreakdown()">Refresh</button>
  </div>
  <table class="hub-table">
  <thead><tr>
@@ -2763,11 +2784,11 @@ window.seedInitialTasks = function() {
     [k()]: { title:'Event app / mobile guide for athletes', status:'backlog', priority:'low', owner:'', scopeArea:'Technology', due:'2027-06-01', notes:'Schedule, maps, results, transport info for athletes.' },
     // ── Venues ──
     [k()]: { title:'Finalize venue shortlist — all sports', status:'inprogress', priority:'high', owner:'', scopeArea:'Venues', due:'2026-09-01', notes:'RYSE + CH StarCenter confirmed candidates. Cricket, Tennis, Track still TBD.' },
-    [k()]: { title:'Site visit — RYSE StarCenter (Irving)', status:'backlog', priority:'high', owner:'', scopeArea:'Venues', due:'2026-10-01', notes:'North cluster. Arena sports. Need to confirm capacity, floor, AV.' },
-    [k()]: { title:'Site visit — CH StarCenter Northlake', status:'backlog', priority:'high', owner:'', scopeArea:'Venues', due:'2026-10-01', notes:'North cluster. Confirm suitability for indoor sports.' },
+    [k()]: { title:'Confirm venue details — RYSE Energy StarCenter, Farmers Branch', status:'backlog', priority:'high', owner:'Alishah Momin', scopeArea:'Venues', due:'2026-08-31', notes:'2400 Pike St, Farmers Branch. Contact: Lee Wisener 972-880-5281. Confirm court count (est 16), floor type, AV, parking.' },
+    [k()]: { title:"Confirm venue details — Children's Health StarCenter, Northlake", status:'backlog', priority:'high', owner:'Karim Hemani', scopeArea:'Venues', due:'2026-08-31', notes:'13850 Chadwick Pkwy, Northlake. Contact: Lee Wisener 972-880-5281. Confirm court count (est 8), floor, parking, Chess space.' },
     [k()]: { title:'Site visit — Little Elm Soccer Park', status:'backlog', priority:'high', owner:'', scopeArea:'Venues', due:'2026-10-01', notes:'South cluster. Confirm # of fields, turf/grass mix, locker rooms.' },
     [k()]: { title:'Site visit — Gateway Park Fort Worth', status:'backlog', priority:'medium', owner:'', scopeArea:'Venues', due:'2026-11-01', notes:'South cluster. Confirm sport suitability + infrastructure.' },
-    [k()]: { title:'Source cricket venue — DFW area', status:'backlog', priority:'high', owner:'', scopeArea:'Venues', due:'2026-12-01', notes:'Need NAIG-standard pitch + outfield. Check South Asian community grounds.' },
+    [k()]: { title:'Source cricket venue — DFW area (target WBE 40)', status:'backlog', priority:'high', owner:'', scopeArea:'Venues', due:'2026-10-01', notes:'Need 22-yard hardball pitch + tapeball outfield. Target WBE 40 sign. Check South Asian community grounds in DFW.' },
     [k()]: { title:'Source tennis / racquet venue', status:'backlog', priority:'medium', owner:'', scopeArea:'Venues', due:'2027-01-01', notes:'Need 8+ courts. Check municipal and club facilities.' },
     [k()]: { title:'Negotiate and sign all venue contracts', status:'backlog', priority:'high', owner:'', scopeArea:'Venues', due:'2027-03-01', notes:'All 6–8 venues need executed agreements before athlete registration opens.' },
     // ── Transportation ──
@@ -3270,14 +3291,14 @@ function saveHotel() {
 window.seedInitialVenues = function() {
   const k = hubKey;
   const seed = {
-    [k()]: { name:'RYSE StarCenter', type:'Arena', capacity:'6,000', location:'Irving, TX', address:'465 E John Carpenter Frwy, Irving, TX 75062', status:'Confirmed', sports:'Volleyball, Throwball', notes:'North cluster. Lee Wisener POC (972-880-5281). Volleyball + Throwball competition site.', parking:'Large surface lot', floorType:'Ice rink + event floor', accessibility:'ADA compliant', updated:new Date().toISOString() },
-    [k()]: { name:'CH StarCenter Northlake', type:'Arena', capacity:'4,000', location:'Northlake, TX', address:'2001 Windhaven Pkwy, Northlake, TX 76262', status:'Confirmed', sports:'Basketball, Chess', notes:'North cluster. Lee Wisener POC (same). Basketball + Chess competition site.', parking:'Surface lot', floorType:'Ice rink + event floor', accessibility:'ADA compliant', updated:new Date().toISOString() },
-    [k()]: { name:'Lewisville Badminton Center', type:'Badminton Center', capacity:'1,200', location:'Lewisville, TX', address:'TBD, Lewisville, TX', status:'In Works', sports:'Badminton, Table Tennis', notes:'28 courts. Cin Abidin POC (949-436-8849). Being confirmed for Badminton + Table Tennis.', updated:new Date().toISOString() },
-    [k()]: { name:'Little Elm Soccer Park', type:'Soccer Park', capacity:'3,000 (outdoor)', location:'Little Elm, TX', address:'TBD, Little Elm, TX', status:'Confirmed', sports:'Soccer', notes:'Soccer Site 1. Ellie Peters POC (214-618-3103). Multiple grass + turf fields.', parking:'Large parking area', floorType:'Grass + Artificial Turf', updated:new Date().toISOString() },
-    [k()]: { name:'Gateway Park — Fort Worth', type:'Multi-sport', capacity:'5,000 (outdoor)', location:'Fort Worth, TX', address:'TBD, Fort Worth, TX', status:'Confirmed', sports:'Soccer, Flag Football', notes:'Soccer Site 2 + Flag Football. Samuel Robbie POC (817-925-2459, Robbie.Samuel@fortworthtexas.gov).', updated:new Date().toISOString() },
-    [k()]: { name:'Cricket Venue — TBD', type:'Field / Outdoor', capacity:'TBD', location:'DFW Area — TBD', address:'TBD', status:'In Works', sports:'Cricket', notes:'Venue TBD. Need 22-yard pitch + outfield. Sourcing underway.', updated:new Date().toISOString() },
-    [k()]: { name:'Tennis / Racquet Venue — TBD', type:'Other', capacity:'TBD', location:'DFW Area — TBD', address:'TBD', status:'In Works', sports:'Tennis, Pickleball', notes:'Venue TBD. Need 8+ courts with spectator areas.', updated:new Date().toISOString() },
-    [k()]: { name:'Track & Field Venue — TBD', type:'Track', capacity:'TBD', location:'DFW Area — TBD', address:'TBD', status:'In Works', sports:'Track & Field, Dance', notes:'Venue TBD. Need IAAF 400m track + field event areas.', updated:new Date().toISOString() },
+    [k()]: { name:'RYSE Energy StarCenter', type:'Arena', capacity:'TBD', location:'Farmers Branch, TX', address:'2400 Pike St, Farmers Branch, TX 75234', status:'Confirmed', sports:'Volleyball, Throwball', contact:'Lee Wisener', phone:'972-880-5281', siteLead:'Alishah Momin', notes:'Farmers Branch. Same StarCenter operator as Northlake (Lee Wisener). Volleyball + Throwball site. ~16 courts est — pending confirmation.', parking:'TBD', floorType:'Ice rink + event floor', accessibility:'ADA compliant', updated:new Date().toISOString() },
+    [k()]: { name:"Children's Health StarCenter", type:'Arena', capacity:'TBD', location:'Northlake, TX', address:'13850 Chadwick Pkwy, Northlake, TX 76262', status:'Confirmed', sports:'Basketball, Chess', contact:'Lee Wisener', phone:'972-880-5281', siteLead:'Karim Hemani', notes:'Northlake. Same StarCenter operator as Farmers Branch (Lee Wisener). Basketball + Chess site. ~8 courts est — pending confirmation.', parking:'TBD', floorType:'Ice rink + event floor', accessibility:'ADA compliant', updated:new Date().toISOString() },
+    [k()]: { name:'Lewisville Badminton Center', type:'Badminton Center', capacity:'TBD', location:'Lewisville, TX', address:'2801 Rockbrook Dr, Lewisville, TX 75067', status:'Confirmed', sports:'Badminton, Table Tennis', contact:'Cin Abidin', phone:'949-436-8849', siteLead:'TBD', notes:'28 courts confirmed. Badminton + Table Tennis. 20+ TT tables needed per RST plan.', updated:new Date().toISOString() },
+    [k()]: { name:'Little Elm Soccer Park', type:'Soccer Park', capacity:'TBD', location:'Little Elm, TX', address:'704 W Eldorado Pkwy, Little Elm, TX 75068', status:'Confirmed', sports:'Soccer', contact:'Ellie Peters', phone:'214-618-3103', siteLead:'TBD', notes:'Soccer Site 1. Grass + turf fields. Site lead TBD.', parking:'Large parking area', floorType:'Grass + Artificial Turf', updated:new Date().toISOString() },
+    [k()]: { name:'GatewayPark Soccer Fields', type:'Multi-sport', capacity:'TBD', location:'Fort Worth, TX', address:'4321 E 1st St, Fort Worth, TX 76111', status:'Confirmed', sports:'Soccer, Flag Football', contact:'Samuel Robbie', phone:'817-925-2459', siteLead:'Nadeem Ali', notes:'Soccer Site 2 + Flag Football. Farthest venue — 42 min from Little Elm. Dedicated shuttle loop required. Nadeem Ali site lead.', updated:new Date().toISOString() },
+    [k()]: { name:'Cricket Venue — TBD', type:'Field / Outdoor', capacity:'TBD', location:'DFW Area — TBD', address:'TBD', status:'In Works', sports:'Cricket', contact:'TBD', notes:'Target WBE 40 confirmation. Need 22-yard hardball pitch + tapeball outfield.', updated:new Date().toISOString() },
+    [k()]: { name:'Tennis / Pickleball Venue — TBD', type:'Other', capacity:'TBD', location:'DFW Area — TBD', address:'TBD', status:'In Works', sports:'Tennis, Pickleball', contact:'TBD', notes:'Target WBE 40. Need 8+ tennis courts + dedicated pickleball courts.', updated:new Date().toISOString() },
+    [k()]: { name:'Track & Dance Venue — TBD', type:'Track / Performance', capacity:'TBD', location:'DFW Area — TBD', address:'TBD', status:'In Works', sports:'Track & Field, Dance', contact:'TBD', notes:'Target WBE 40. Need IAAF 400m track + performance stage for dance.', updated:new Date().toISOString() },
   };
   window._dbSet(window._dbRef('naig2027/venues'), seed);
 };
@@ -3658,26 +3679,37 @@ window.renderScope = function() {
     grid.innerHTML = '<div class="hub-empty" style="grid-column:1/-1">No assumptions yet. Click <strong>+ Add Assumption</strong> to start.</div>';
     return;
   }
-  grid.innerHTML = items.map(([k,s]) => `
- <div class="scope-card" onclick="openScopeModal('${k}')">
- <div class="scope-card-cat">${esc(s.category||'General')}</div>
+  const catColors = {
+    'Athletes':'#1E3A8A','Spectators':'#0e7490','Volunteers':'#7c3aed',
+    'Venues':'#b45309','Sports':'#15803d','Hotels':'#c2410c',
+    'Transportation':'#1e40af','Event Weekend':'#831843','Location':'#065f46',
+    'Divisions':'#6b21a8'
+  };
+  grid.innerHTML = items.map(([k,s]) => {
+    const color = catColors[s.category] || '#1E3A8A';
+    return `<div class="scope-card" onclick="openScopeModal('${k}')" style="border-top-color:${color}">
+ <div class="scope-card-edit">edit</div>
+ <div class="scope-card-cat" style="color:${color}">${esc(s.category||'General')}</div>
       ${s.event ? `<div class="scope-card-event">${esc(s.event)}</div>` : ''}
  <div class="scope-card-count">${esc(s.count||'—')}</div>
       ${s.notes ? `<div class="scope-card-notes">${esc(s.notes)}</div>` : ''}
- </div>`).join('');
+ </div>`;
+  }).join('');
 };
 
 window.seedInitialScope = function() {
   const seed = {
-    [hubKey()]: { category:'Athletes', event:'All Sports', count:'1,500–2,000', notes:'Primary registrants. 70+ sport categories across NAIG.' },
-    [hubKey()]: { category:'Spectators', event:'Est. Daily Attendance', count:'450–600', notes:'~30% of athlete count. Varies by event day.' },
-    [hubKey()]: { category:'Volunteers', event:'Total Required', count:'750–1,000', notes:'50% ratio vs athletes. Includes logistics, sport, medical, etc.' },
-    [hubKey()]: { category:'Volunteers', event:'Logistics-Specific', count:'150–200', notes:'Transportation, venue ops, athlete services.' },
-    [hubKey()]: { category:'Venues', event:'Competition Sites', count:'4–6', notes:'DFW area. Mix of arena, field, aquatics, track.' },
-    [hubKey()]: { category:'Hotels', event:'Room-Nights', count:'400–600', notes:'Block for athletes + officials. Labor Day weekend 2027.' },
-    [hubKey()]: { category:'Event Weekend', event:'Preferred Dates', count:'Labor Day 2027', notes:'Tentative. Aligns with school calendars and venue availability.' },
-    [hubKey()]: { category:'Location', event:'Host City', count:'DFW, Texas', notes:'Dallas–Fort Worth metro. TBD specific city/municipality.' },
-    [hubKey()]: { category:'Transportation', event:'Bus/Shuttle Runs (est.)', count:'TBD', notes:'Routes between hotels, venues, and airport. Scope once venues confirmed.' },
+    [hubKey()]: { category:'Athletes', event:'All Divisions', count:'2,200+', notes:'14 regions (7 USA + 7 Canada). Youth/U18: ~400–500 | Open 18+: ~1,300–1,500 | Legends 45+: included in Open count. Per-sport counts in progress (RST-14).' },
+    [hubKey()]: { category:'Spectators', event:'Est. Daily Attendance', count:'450–600', notes:'~30% of athlete count. Varies by sport and event day.' },
+    [hubKey()]: { category:'Volunteers', event:'Total Required', count:'750–1,000', notes:'50% ratio vs athletes. Covers logistics, sport, medical, F&B, tech-AV, security.' },
+    [hubKey()]: { category:'Volunteers', event:'Logistics-Specific', count:'150–200', notes:'Transportation, venue ops, athlete services, equipment.' },
+    [hubKey()]: { category:'Venues', event:'Competition Sites', count:'8 (5 confirmed, 3 TBD)', notes:'5 confirmed: RYSE Farmers Branch, CH StarCenter Northlake, Lewisville Badminton, Little Elm Soccer, GatewayPark Fort Worth. TBD: Cricket, Tennis/Pickleball, Track/Dance (target WBE 40).' },
+    [hubKey()]: { category:'Sports', event:'Confirmed Roster', count:'13', notes:'Soccer, Basketball, Volleyball, Cricket, Throwball, Flag Football, Dance, Badminton, Table Tennis, Pickleball, Tennis, Track & Field, Chess. Min 3 regions required per sport.' },
+    [hubKey()]: { category:'Hotels', event:'Room-Night Target', count:'400–600', notes:'3–5 properties within 5 mi of HQ (Carrollton, TX). Target $89–109/night + breakfast. All RFP Pending.' },
+    [hubKey()]: { category:'Event Weekend', event:'Preferred Dates', count:'Labor Day 2027', notes:'Not yet confirmed. Preferred for school calendar alignment + Canadian RST schedule.' },
+    [hubKey()]: { category:'Location', event:'Host City', count:'DFW, Texas', notes:'Dallas–Fort Worth metro confirmed. HQ/Logistics Hub: 2500 Dickerson Pkwy, Carrollton, TX 75006.' },
+    [hubKey()]: { category:'Transportation', event:'Bus/Shuttle Runs (est.)', count:'TBD', notes:'DFW airport arrivals/departures + athlete hotel loops (every 30 min game days) + dedicated Fort Worth shuttle (42 min from Little Elm). Finalize once all venues confirmed.' },
+    [hubKey()]: { category:'Divisions', event:'Age Categories', count:'3', notes:'Youth/U18 (ages 15–17, born Jan 1 2009–Dec 31 2011), Open (18+, born on/before Dec 31 2008), Legends 45+ (born on/before Dec 31 1981 — separate category within Open).' },
   };
   window._dbSet(window._dbRef('naig2027/scope'), seed);
 };
@@ -3697,35 +3729,29 @@ function closeScopeModal() { document.getElementById('scopeOverlay').style.displ
 window.refreshAthleteBreakdown = function() {
   const tbody = document.getElementById('athleteTbody');
   if (!tbody) return;
-  // First try scope tiles with sport-related content
-  const scopeItems = Object.values(window._scopeData || {});
-  const sportScope = scopeItems.filter(s =>
-    (s.category||'').toLowerCase().includes('sport') ||
-    (s.label||'').toLowerCase().match(/athlete|badminton|volleyball|basketball|soccer|cricket|tennis|track|dance|chess|throwball|pickleball/)
-  );
-  if (sportScope.length) {
-    tbody.innerHTML = sportScope.map(s => `<tr>
-      <td>${esc(s.label||'—')}</td>
-      <td><strong>${esc(s.value||'—')}</strong></td>
-      <td style="font-size:11px;color:#555">${esc(s.venue||'—')}</td>
-      <td style="font-size:11px;color:#555">${esc(s.days||'—')}</td>
-      <td style="font-size:11px;color:#888">${esc(s.notes||'')}</td>
-    </tr>`).join('');
-    return;
-  }
-  // Fall back to venues data
-  const venues = Object.values(window._venuesData || {});
-  const withSports = venues.filter(v => v.sports && v.status !== 'Dropped' && v.status !== 'Closed');
-  if (!withSports.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="hub-empty">No sport/venue data yet. Add venues with sports assigned, or add Scope tiles with category "Sport Breakdown".</td></tr>';
-    return;
-  }
-  tbody.innerHTML = withSports.map(v => `<tr>
-    <td>${esc(v.sports)}</td>
-    <td style="color:#888">—</td>
-    <td>${esc(v.name||'—')}</td>
-    <td style="color:#888">—</td>
-    <td style="font-size:11px;color:#888">${esc((v.status||'')+(v.notes?' · '+v.notes.slice(0,60):''))}</td>
+  // Real NAIG 2027 sport data — sourced from NAIG_Logistics_Master (Jul 2026)
+  // Per-sport athlete counts: TBD (RST-14 open action item — 7 USA + 7 CAN regions, 1 team/individual per region per category)
+  const sports = [
+    { sport:'Soccer', type:'Team', venue:'Little Elm Soccer Park + GatewayPark Fort Worth', est:'~70–140', days:'Fri–Sun', notes:'2 outdoor sites. Boys/Girls U18 + Open + Women's.' },
+    { sport:'Basketball', type:'Team', venue:"Children's Health StarCenter, Northlake", est:'~70–140', days:'Fri–Sun', notes:'~8 courts est. Boys/Girls U18 + Open + Women's.' },
+    { sport:"Volleyball (Int'l)", type:'Team', venue:'RYSE Energy StarCenter, Farmers Branch', est:'~70–140', days:'Fri–Sun', notes:'~16 courts est. Boys/Girls U18 + Open + Women's.' },
+    { sport:'Throwball', type:'Team', venue:'RYSE Energy StarCenter, Farmers Branch', est:'~14–28', days:'Sat–Sun', notes:'Shares VB courts. Women's only.' },
+    { sport:'Badminton', type:'Individual', venue:'Lewisville Badminton Center', est:'~56–112', days:'Fri–Sun', notes:'28 courts confirmed. U18 + Open + Legends 45+.' },
+    { sport:'Table Tennis', type:'Individual', venue:'Lewisville Badminton Center', est:'~56–112', days:'Fri–Sun', notes:'20+ tables needed. U18 + Open + Legends 45+.' },
+    { sport:'Cricket', type:'Team', venue:'Cricket Venue — TBD (WBE 40)', est:'~28–56', days:'Fri–Sun', notes:'Hardball + Tapeball Women's. Venue TBD.' },
+    { sport:'Flag Football', type:'Team', venue:'GatewayPark Soccer Fields, Fort Worth', est:'~28–56', days:'Sat–Sun', notes:'Open + Women's. Shares Gateway Park with Soccer Site 2.' },
+    { sport:'Tennis', type:'Individual', venue:'Tennis/Pickleball Venue — TBD (WBE 40)', est:'~28–56', days:'Fri–Sun', notes:'U18 + Open.' },
+    { sport:'Pickleball', type:'Individual', venue:'Tennis/Pickleball Venue — TBD (WBE 40)', est:'~28–56', days:'Fri–Sun', notes:'NEW vs USIG. U18 + Open + Legends 45+.' },
+    { sport:'Track & Field', type:'Individual', venue:'Track/Dance Venue — TBD (WBE 40)', est:'~56–112', days:'Fri–Sat', notes:'U18 + Open.' },
+    { sport:'Dance', type:'Team', venue:'Track/Dance Venue — TBD (WBE 40)', est:'~56–112', days:'Sat–Sun', notes:'Needs stage/performance space. Boys/Girls U18 + Open.' },
+    { sport:'Chess', type:'Individual', venue:"Children's Health StarCenter, Northlake", est:'~28–56', days:'Sat', notes:'Low space needs — tables + chairs only. Mixed divisions.' },
+  ];
+  tbody.innerHTML = sports.map(s => `<tr>
+    <td><strong>${esc(s.sport)}</strong> <span style="font-size:10px;color:#94a3b8;margin-left:4px">${esc(s.type)}</span></td>
+    <td style="font-weight:600;color:#1a3a5c">${esc(s.est)}</td>
+    <td style="font-size:11px">${esc(s.venue)}</td>
+    <td style="font-size:11px">${esc(s.days)}</td>
+    <td style="font-size:11px;color:#666">${esc(s.notes)}</td>
   </tr>`).join('');
 };
 function saveScope() {
@@ -3744,6 +3770,8 @@ function saveScope() {
 window.openScopeModal = openScopeModal;
 window.closeScopeModal = closeScopeModal;
 window.saveScope = saveScope;
+// Auto-populate athlete breakdown on page load (data comes from Drive — hardcoded per RST plan)
+setTimeout(() => { window.refreshAthleteBreakdown && window.refreshAthleteBreakdown(); }, 600);
 
 /* Helper: escape HTML */
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
