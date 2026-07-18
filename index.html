@@ -108,7 +108,11 @@
       // Auto-migration v2: wipe and reseed if old venue names detected
       if (data) {
         const vals = Object.values(data);
-        if (vals.some(v => v.name === 'RYSE StarCenter' || v.name === 'CH StarCenter Northlake' || v.name === 'Gateway Park — Fort Worth')) {
+        if (vals.some(v =>
+          v.name === 'RYSE StarCenter' || v.name === 'CH StarCenter Northlake' || v.name === 'Gateway Park — Fort Worth' ||
+          v.name === 'RYSE Energy StarCenter' || v.name === "Children's Health StarCenter" || v.name === 'GatewayPark Soccer Fields' ||
+          v.name === 'Little Elm Soccer Park'
+        )) {
           window._dbSet(window._dbRef('naig2027/venues'), null);
           return;
         }
@@ -536,16 +540,16 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .dot-low { background:#16a34a; }
 
 /* ── Org Directory Panel (inline below stats bar) ── */
-#orgDirPanel { display:none; background:#fff; border:1.5px solid #e0e7ef; border-radius:10px; margin:8px 0 4px 0; overflow:hidden; box-shadow:0 4px 16px rgba(0,0,0,.1); }
-#orgDirPanel.open { display:block; }
-.dir-panel-hdr { background:#1a3a5c; color:#fff; padding:11px 16px; display:flex; align-items:center; justify-content:space-between; }
+#orgDirPanel { display:none; position:fixed; inset:0; background:#fff; z-index:950; flex-direction:column; overflow:hidden; }
+#orgDirPanel.open { display:flex; }
+.dir-panel-hdr { background:#1a3a5c; color:#fff; padding:11px 16px; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
 .dir-panel-hdr h4 { margin:0; font-size:.9rem; font-weight:700; }
 .dir-panel-close { background:rgba(255,255,255,.15); border:none; color:#fff; border-radius:6px; padding:3px 10px; cursor:pointer; font-size:.8rem; font-weight:700; }
 .dir-panel-close:hover { background:rgba(255,255,255,.25); }
-.dir-panel-search { padding:10px 14px; border-bottom:1px solid #f0f4f8; }
+.dir-panel-search { padding:10px 14px; border-bottom:1px solid #f0f4f8; flex-shrink:0; }
 .dir-panel-search input { width:100%; border:1.5px solid #d0dae4; border-radius:7px; padding:7px 12px; font-size:.83rem; outline:none; box-sizing:border-box; }
 .dir-panel-search input:focus { border-color:#1a3a5c; }
-.dir-panel-list { max-height:340px; overflow-y:auto; }
+.dir-panel-list { flex:1; overflow-y:auto; }
 .dir-grp-label { background:#f4f7fb; padding:5px 14px; font-size:.7rem; font-weight:700; text-transform:uppercase; color:#666; letter-spacing:.5px; position:sticky; top:0; z-index:1; border-bottom:1px solid #e8edf2; }
 .dir-row { display:flex; align-items:center; gap:10px; padding:9px 14px; border-bottom:1px solid #f0f4f8; cursor:pointer; transition:background .12s; }
 .dir-row:hover { background:#f8fafc; }
@@ -793,7 +797,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <div class="hub-toolbar">
  <div>
  <div class="hub-title"> Venue Directory</div>
- <div class="hub-subtitle">4–6 competition sites for NAIG 2027 — DFW, Texas</div>
+ <div class="hub-subtitle">8 sports venues — DFW, Texas. 5 In Conversation · 3 Pending Identification (target WBE 40)</div>
  </div>
  <div class="section-actions">
  <button class="btn btn-light" onclick="exportVenuesCSV()">⬇ CSV</button>
@@ -2906,9 +2910,9 @@ window.renderVenues = function() {
   const search = (document.getElementById('venueSearch')||{}).value?.toLowerCase()||'';
   const items = all.filter(([,v]) => !search || JSON.stringify(v).toLowerCase().includes(search));
 
-  const confirmed = items.filter(([,v]) => v.status === 'Confirmed');
-  const inWorks   = items.filter(([,v]) => ['In Works','Exploring','Shortlisted','Negotiating','Site Visit Scheduled'].includes(v.status));
-  const closed    = items.filter(([,v]) => ['Dropped','Closed','Cancelled'].includes(v.status));
+  const confirmed = items.filter(([,v]) => ['Confirmed','Signed','Walk Done','Ops Ready'].includes(v.status));
+  const inWorks   = items.filter(([,v]) => ['In Works','In Conversation','Identified','Outreach Sent','LOI Sent','Contract Review','Exploring','Shortlisted','Negotiating','Site Visit Scheduled'].includes(v.status));
+  const closed    = items.filter(([,v]) => ['Dropped','Closed','Cancelled','Not Available'].includes(v.status));
 
   const strip = document.getElementById('venueSummary');
   if (strip) strip.innerHTML =
@@ -3292,11 +3296,11 @@ function saveHotel() {
 window.seedInitialVenues = function() {
   const k = hubKey;
   const seed = {
-    [k()]: { name:'RYSE Energy StarCenter', type:'Arena', capacity:'TBD', location:'Farmers Branch, TX', address:'2400 Pike St, Farmers Branch, TX 75234', status:'Confirmed', sports:'Volleyball, Throwball', contact:'Lee Wisener', phone:'972-880-5281', siteLead:'Alishah Momin', notes:'Farmers Branch. Same StarCenter operator as Northlake (Lee Wisener). Volleyball + Throwball site. ~16 courts est — pending confirmation.', parking:'TBD', floorType:'Ice rink + event floor', accessibility:'ADA compliant', updated:new Date().toISOString() },
-    [k()]: { name:"Children's Health StarCenter", type:'Arena', capacity:'TBD', location:'Northlake, TX', address:'13850 Chadwick Pkwy, Northlake, TX 76262', status:'Confirmed', sports:'Basketball, Chess', contact:'Lee Wisener', phone:'972-880-5281', siteLead:'Karim Hemani', notes:'Northlake. Same StarCenter operator as Farmers Branch (Lee Wisener). Basketball + Chess site. ~8 courts est — pending confirmation.', parking:'TBD', floorType:'Ice rink + event floor', accessibility:'ADA compliant', updated:new Date().toISOString() },
-    [k()]: { name:'Lewisville Badminton Center', type:'Badminton Center', capacity:'TBD', location:'Lewisville, TX', address:'2801 Rockbrook Dr, Lewisville, TX 75067', status:'Confirmed', sports:'Badminton, Table Tennis', contact:'Cin Abidin', phone:'949-436-8849', siteLead:'TBD', notes:'28 courts confirmed. Badminton + Table Tennis. 20+ TT tables needed per RST plan.', updated:new Date().toISOString() },
-    [k()]: { name:'Little Elm Soccer Park', type:'Soccer Park', capacity:'TBD', location:'Little Elm, TX', address:'704 W Eldorado Pkwy, Little Elm, TX 75068', status:'Confirmed', sports:'Soccer', contact:'Ellie Peters', phone:'214-618-3103', siteLead:'TBD', notes:'Soccer Site 1. Grass + turf fields. Site lead TBD.', parking:'Large parking area', floorType:'Grass + Artificial Turf', updated:new Date().toISOString() },
-    [k()]: { name:'GatewayPark Soccer Fields', type:'Multi-sport', capacity:'TBD', location:'Fort Worth, TX', address:'4321 E 1st St, Fort Worth, TX 76111', status:'Confirmed', sports:'Soccer, Flag Football', contact:'Samuel Robbie', phone:'817-925-2459', siteLead:'Nadeem Ali', notes:'Soccer Site 2 + Flag Football. Farthest venue — 42 min from Little Elm. Dedicated shuttle loop required. Nadeem Ali site lead.', updated:new Date().toISOString() },
+    [k()]: { name:'RYSE Energy StarCenter — Farmers Branch', type:'Arena', cluster:'South-Central', location:'Farmers Branch, TX', address:'2400 Pike St, Farmers Branch, TX 75234', status:'In Conversation', pipelineStatus:'In Conversation', sports:'Volleyball, Throwball', contact:'Lee Wisener', phone:'972-880-5281', email:'LWisener@dallasstars.com', siteLead:'TBD', notes:'Same Dallas Stars operator as Northlake. Coordinate both StarCenters together. ~16 courts est — pending site walk.', driveTime:'17 min from Carrollton HQ', updated:new Date().toISOString() },
+    [k()]: { name:"Children's Health StarCenter — Northlake", type:'Arena', cluster:'North', location:'Northlake, TX', address:'13850 Chadwick Pkwy, Northlake, TX 76262', status:'In Conversation', pipelineStatus:'In Conversation', sports:'Basketball, Chess', contact:'Lee Wisener', phone:'972-880-5281', email:'LWisener@dallasstars.com', siteLead:'TBD', notes:'Same Dallas Stars operator as Farmers Branch. ~8 courts est — pending site walk. 27 min from Farmers Branch.', driveTime:'15 min from Carrollton HQ', updated:new Date().toISOString() },
+    [k()]: { name:'Lewisville Badminton Center', type:'Badminton Center', cluster:'Central-North', location:'Lewisville, TX', address:'2801 Rockbrook Dr, Lewisville, TX 75067', status:'In Conversation', pipelineStatus:'In Conversation', sports:'Badminton, Table Tennis', contact:'Cin Abidin', phone:'949-436-8849', email:'info@lewisvillebadmintoncenter.com', siteLead:'TBD', notes:'28 courts confirmed. 20+ TT tables needed. Central location — 12 min from Carrollton HQ.', driveTime:'12 min from Carrollton HQ', updated:new Date().toISOString() },
+    [k()]: { name:'Town of Little Elm — Soccer Site 1', type:'Soccer Park', cluster:'North', location:'Little Elm, TX', address:'704 W Eldorado Pkwy, Little Elm, TX 75068', status:'In Conversation', pipelineStatus:'In Conversation', sports:'Soccer', contact:'Ellie Peters', phone:'214-618-3103', email:'Ellie.Peters@littleelm.gov', siteLead:'TBD', notes:'Soccer Site 1. Grass + turf fields. Confirm field availability + insurance requirements.', driveTime:'20 min from Carrollton HQ', updated:new Date().toISOString() },
+    [k()]: { name:'GatewayPark Soccer Fields — Fort Worth', type:'Multi-sport Park', cluster:'West', location:'Fort Worth, TX', address:'4321 E 1st St, Fort Worth, TX 76111', status:'In Conversation', pipelineStatus:'In Conversation', sports:'Soccer (Site 2), Flag Football', contact:'Samuel Robbie', phone:'817-925-2459', email:'Robbie.Samuel@fortworthtexas.gov', siteLead:'TBD', notes:'Soccer Site 2 + Flag Football. FARTHEST venue — 42 min from Little Elm, 38 min from Farmers Branch. Dedicated shuttle loop required.', driveTime:'33 min from Carrollton HQ', updated:new Date().toISOString() },
     [k()]: { name:'Cricket Venue — TBD', type:'Field / Outdoor', capacity:'TBD', location:'DFW Area — TBD', address:'TBD', status:'In Works', sports:'Cricket', contact:'TBD', notes:'Target WBE 40 confirmation. Need 22-yard hardball pitch + tapeball outfield.', updated:new Date().toISOString() },
     [k()]: { name:'Tennis / Pickleball Venue — TBD', type:'Other', capacity:'TBD', location:'DFW Area — TBD', address:'TBD', status:'In Works', sports:'Tennis, Pickleball', contact:'TBD', notes:'Target WBE 40. Need 8+ tennis courts + dedicated pickleball courts.', updated:new Date().toISOString() },
     [k()]: { name:'Track & Dance Venue — TBD', type:'Track / Performance', capacity:'TBD', location:'DFW Area — TBD', address:'TBD', status:'In Works', sports:'Track & Field, Dance', contact:'TBD', notes:'Target WBE 40. Need IAAF 400m track + performance stage for dance.', updated:new Date().toISOString() },
@@ -3704,7 +3708,7 @@ window.seedInitialScope = function() {
     [hubKey()]: { category:'Spectators', event:'Est. Daily Attendance', count:'450–600', notes:'~30% of athlete count. Varies by sport and event day.' },
     [hubKey()]: { category:'Volunteers', event:'Total Required', count:'750–1,000', notes:'50% ratio vs athletes. Covers logistics, sport, medical, F&B, tech-AV, security.' },
     [hubKey()]: { category:'Volunteers', event:'Logistics-Specific', count:'150–200', notes:'Transportation, venue ops, athlete services, equipment.' },
-    [hubKey()]: { category:'Venues', event:'Competition Sites', count:'8 (5 confirmed, 3 TBD)', notes:'5 confirmed: RYSE Farmers Branch, CH StarCenter Northlake, Lewisville Badminton, Little Elm Soccer, GatewayPark Fort Worth. TBD: Cricket, Tennis/Pickleball, Track/Dance (target WBE 40).' },
+    [hubKey()]: { category:'Venues', event:'Competition Sites', count:'8 (5 in convo, 3 TBD)', notes:'5 In Conversation: RYSE Farmers Branch (VB/Throwball), CH StarCenter Northlake (Bball/Chess), Lewisville Badminton (Bad/TT), Little Elm Soccer, GatewayPark Fort Worth (Soccer/Flag FB). TBD: Cricket, Tennis/Pickleball, Track/Dance (target WBE 40).' },
     [hubKey()]: { category:'Sports', event:'Confirmed Roster', count:'13', notes:'Soccer, Basketball, Volleyball, Cricket, Throwball, Flag Football, Dance, Badminton, Table Tennis, Pickleball, Tennis, Track & Field, Chess. Min 3 regions required per sport.' },
     [hubKey()]: { category:'Hotels', event:'Room-Night Target', count:'400–600', notes:'3–5 properties within 5 mi of HQ (Carrollton, TX). Target $89–109/night + breakfast. All RFP Pending.' },
     [hubKey()]: { category:'Event Weekend', event:'Preferred Dates', count:'Labor Day 2027', notes:'Not yet confirmed. Preferred for school calendar alignment + Canadian RST schedule.' },
