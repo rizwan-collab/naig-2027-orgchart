@@ -927,14 +927,14 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  </div>
  <div>
  <div class="t-cluster-label">⬆ North Cluster</div>
- <div class="t-venue-node">RYSE StarCenter</div>
- <div class="t-venue-node">CH StarCenter Northlake</div>
- <div class="t-venue-node">Lewisville Badminton</div>
+ <div class="t-venue-node">RYSE Energy StarCenter<br><small>Farmers Branch</small></div>
+ <div class="t-venue-node">Children's Health StarCenter<br><small>Northlake</small></div>
+ <div class="t-venue-node">Lewisville Badminton Center</div>
  </div>
  <div>
  <div class="t-cluster-label">⬇ South Cluster</div>
- <div class="t-venue-node">Little Elm Soccer Park</div>
- <div class="t-venue-node">Gateway Park Ft Worth</div>
+ <div class="t-venue-node">Town of Little Elm<br><small>Soccer Site 1</small></div>
+ <div class="t-venue-node">GatewayPark Soccer Fields<br><small>Fort Worth</small></div>
  <div class="t-venue-node pending">Cricket TBD</div>
  </div>
  </div>
@@ -1049,11 +1049,11 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <table class="hub-table" style="margin:0">
  <thead><tr><th>Venue</th><th>Address</th><th>Sport</th><th>Cluster</th><th>Drive from Hub</th></tr></thead>
  <tbody>
- <tr><td>RYSE StarCenter</td><td>465 E John Carpenter Frwy, Irving TX</td><td>Arena Sports</td><td>North</td><td>~20 min</td></tr>
- <tr><td>CH StarCenter Northlake</td><td>2001 Windhaven Pkwy, Northlake TX</td><td>Arena Sports</td><td>North</td><td>~25 min</td></tr>
- <tr><td>Lewisville Badminton Center</td><td>TBD, Lewisville TX</td><td>Badminton</td><td>North</td><td>~22 min</td></tr>
- <tr><td>Little Elm Soccer Park</td><td>TBD, Little Elm TX</td><td>Soccer</td><td>South</td><td>~35 min</td></tr>
- <tr><td>Gateway Park Ft Worth</td><td>TBD, Fort Worth TX</td><td>Multi-sport</td><td>South</td><td>~40 min</td></tr>
+ <tr><td>RYSE Energy StarCenter — Farmers Branch</td><td>2400 Pike St, Farmers Branch, TX 75234</td><td>Volleyball, Throwball</td><td>South-Central</td><td>~17 min</td></tr>
+ <tr><td>Children's Health StarCenter — Northlake</td><td>13850 Chadwick Pkwy, Northlake, TX 76262</td><td>Basketball, Chess</td><td>North</td><td>~15 min</td></tr>
+ <tr><td>Lewisville Badminton Center</td><td>2801 Rockbrook Dr, Lewisville, TX 75067</td><td>Badminton, Table Tennis</td><td>Central-North</td><td>~12 min</td></tr>
+ <tr><td>Town of Little Elm — Soccer Site 1</td><td>704 W Eldorado Pkwy, Little Elm, TX 75068</td><td>Soccer</td><td>North</td><td>~20 min</td></tr>
+ <tr><td>GatewayPark Soccer Fields — Fort Worth</td><td>4321 E 1st St, Fort Worth, TX 76111</td><td>Soccer (Site 2), Flag Football</td><td>West</td><td>~33 min</td></tr>
  <tr><td>Cricket Venue</td><td>TBD</td><td>Cricket</td><td>TBD</td><td>TBD</td></tr>
  </tbody>
  </table>
@@ -2788,11 +2788,11 @@ window.seedInitialTasks = function() {
     [k()]: { title:'Volunteer management system setup', status:'backlog', priority:'medium', owner:'', scopeArea:'Technology', due:'2027-02-01', notes:'Track 750–1,000 volunteers. Role assignment, shift scheduling, communication.' },
     [k()]: { title:'Event app / mobile guide for athletes', status:'backlog', priority:'low', owner:'', scopeArea:'Technology', due:'2027-06-01', notes:'Schedule, maps, results, transport info for athletes.' },
     // ── Venues ──
-    [k()]: { title:'Finalize venue shortlist — all sports', status:'inprogress', priority:'high', owner:'', scopeArea:'Venues', due:'2026-09-01', notes:'RYSE + CH StarCenter confirmed candidates. Cricket, Tennis, Track still TBD.' },
+    [k()]: { title:'Finalize venue shortlist — all sports', status:'inprogress', priority:'high', owner:'', scopeArea:'Venues', due:'2026-09-01', notes:'5 venues In Conversation: RYSE Energy StarCenter (Farmers Branch), Children\'s Health StarCenter (Northlake), Lewisville Badminton Center, Little Elm Soccer Site 1, GatewayPark Fort Worth. Cricket, Tennis/Pickleball, Track/Dance still TBD.' },
     [k()]: { title:'Confirm venue details — RYSE Energy StarCenter, Farmers Branch', status:'backlog', priority:'high', owner:'Alishah Momin', scopeArea:'Venues', due:'2026-08-31', notes:'2400 Pike St, Farmers Branch. Contact: Lee Wisener 972-880-5281. Confirm court count (est 16), floor type, AV, parking.' },
     [k()]: { title:"Confirm venue details — Children's Health StarCenter, Northlake", status:'backlog', priority:'high', owner:'Karim Hemani', scopeArea:'Venues', due:'2026-08-31', notes:'13850 Chadwick Pkwy, Northlake. Contact: Lee Wisener 972-880-5281. Confirm court count (est 8), floor, parking, Chess space.' },
-    [k()]: { title:'Site visit — Little Elm Soccer Park', status:'backlog', priority:'high', owner:'', scopeArea:'Venues', due:'2026-10-01', notes:'South cluster. Confirm # of fields, turf/grass mix, locker rooms.' },
-    [k()]: { title:'Site visit — Gateway Park Fort Worth', status:'backlog', priority:'medium', owner:'', scopeArea:'Venues', due:'2026-11-01', notes:'South cluster. Confirm sport suitability + infrastructure.' },
+    [k()]: { title:'Site visit — Town of Little Elm Soccer Site 1', status:'backlog', priority:'high', owner:'', scopeArea:'Venues', due:'2026-10-01', notes:'704 W Eldorado Pkwy, Little Elm, TX 75068. Contact: Ellie Peters 214-618-3103. North cluster. Confirm # of fields, turf/grass mix, locker rooms, insurance requirements.' },
+    [k()]: { title:'Site visit — GatewayPark Soccer Fields, Fort Worth', status:'backlog', priority:'medium', owner:'', scopeArea:'Venues', due:'2026-11-01', notes:'4321 E 1st St, Fort Worth, TX 76111. Contact: Samuel Robbie 817-925-2459. West cluster. Confirm Soccer Site 2 + Flag Football suitability. Farthest venue — dedicated shuttle loop required.' },
     [k()]: { title:'Source cricket venue — DFW area (target WBE 40)', status:'backlog', priority:'high', owner:'', scopeArea:'Venues', due:'2026-10-01', notes:'Need 22-yard hardball pitch + tapeball outfield. Target WBE 40 sign. Check South Asian community grounds in DFW.' },
     [k()]: { title:'Source tennis / racquet venue', status:'backlog', priority:'medium', owner:'', scopeArea:'Venues', due:'2027-01-01', notes:'Need 8+ courts. Check municipal and club facilities.' },
     [k()]: { title:'Negotiate and sign all venue contracts', status:'backlog', priority:'high', owner:'', scopeArea:'Venues', due:'2027-03-01', notes:'All 6–8 venues need executed agreements before athlete registration opens.' },
@@ -3513,13 +3513,13 @@ const venueShuttleData = (function() {
     // North cluster — morning runs every 60 min starting 07:00–11:00
     let t = '07:00';
     while (t < '12:00') {
-      rows.push({ day, cluster:'North', depart:t, route:'Hub → RYSE StarCenter → CH StarCenter Northlake → Lewisville Badminton', vehicle:'55-pax Coach + 28-pax Mini', ret:addMin(t,90) });
+      rows.push({ day, cluster:'North', depart:t, route:'Hub → RYSE Energy StarCenter (Farmers Branch) → Children\'s Health StarCenter (Northlake) → Lewisville Badminton Center', vehicle:'55-pax Coach + 28-pax Mini', ret:addMin(t,90) });
       t = addMin(t, 60);
     }
     // South cluster — afternoon runs every 60 min 12:00–15:00
     t = '12:00';
     while (t <= '16:00') {
-      rows.push({ day, cluster:'South', depart:t, route:'Hub → Little Elm Soccer Park → Gateway Park Fort Worth', vehicle:'55-pax Coach', ret:addMin(t,105) });
+      rows.push({ day, cluster:'South', depart:t, route:'Hub → Town of Little Elm Soccer Site 1 → GatewayPark Soccer Fields (Fort Worth)', vehicle:'55-pax Coach', ret:addMin(t,105) });
       t = addMin(t, 60);
     }
     // Return loops — evening
@@ -3737,7 +3737,7 @@ window.refreshAthleteBreakdown = function() {
   // Real NAIG 2027 sport data — sourced from NAIG_Logistics_Master (Jul 2026)
   // Per-sport athlete counts: TBD (RST-14 open action item — 7 USA + 7 CAN regions, 1 team/individual per region per category)
   const sports = [
-    { sport:'Soccer', type:'Team', venue:'Little Elm Soccer Park + GatewayPark Fort Worth', est:'~70–140', days:'Fri–Sun', notes:'2 outdoor sites. Boys/Girls U18 + Open + Women\'s.' },
+    { sport:'Soccer', type:'Team', venue:'Town of Little Elm Soccer Site 1 + GatewayPark Soccer Fields (Fort Worth)', est:'~70–140', days:'Fri–Sun', notes:'2 outdoor sites. Boys/Girls U18 + Open + Women\'s.' },
     { sport:'Basketball', type:'Team', venue:"Children's Health StarCenter, Northlake", est:'~70–140', days:'Fri–Sun', notes:'~8 courts est. Boys/Girls U18 + Open + Women\'s.' },
     { sport:"Volleyball (Int'l)", type:'Team', venue:'RYSE Energy StarCenter, Farmers Branch', est:'~70–140', days:'Fri–Sun', notes:'~16 courts est. Boys/Girls U18 + Open + Women\'s.' },
     { sport:'Throwball', type:'Team', venue:'RYSE Energy StarCenter, Farmers Branch', est:'~14–28', days:'Sat–Sun', notes:'Shares VB courts. Women\'s only.' },
@@ -4044,7 +4044,7 @@ function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
  <div class="venue-form-grid">
  <div class="form-group" style="grid-column:1/-1">
  <label>Venue Name *</label>
- <input type="text" id="venueName" placeholder="e.g. RYSE StarCenter" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ <input type="text" id="venueName" placeholder="e.g. RYSE Energy StarCenter — Farmers Branch" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
  </div>
  <div class="form-group">
  <label>Type</label>
@@ -4069,8 +4069,12 @@ function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
  <div class="form-group">
  <label>Status</label>
  <select id="venueStatus" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ <option>Identified</option><option>Outreach Sent</option><option>In Conversation</option>
+ <option>LOI Sent</option><option>Contract Review</option><option>Signed</option>
+ <option>Walk Done</option><option>Ops Ready</option>
  <option>Exploring</option><option>Site Visit Scheduled</option><option>Shortlisted</option>
- <option>Negotiating</option><option>Confirmed</option><option>Dropped</option>
+ <option>Negotiating</option><option>Confirmed</option>
+ <option>Not Available</option><option>Dropped</option><option>Cancelled</option>
  </select>
  </div>
  <div class="form-group">
