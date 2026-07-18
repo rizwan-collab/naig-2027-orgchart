@@ -1963,8 +1963,9 @@ function closeDirModal() {
 }
 
 function openEditFromDir() {
+  const id = _dirId;
   closeDirModal();
-  if (_dirId) openEdit(_dirId);
+  if (id) openEdit(id);
 }
 
 // ══════════════════════════════════════════════
