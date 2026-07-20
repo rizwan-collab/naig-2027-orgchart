@@ -34,8 +34,10 @@
   const venuesRef   = ref(db, 'naig2027/venues');
   const vendorsRef  = ref(db, 'naig2027/vendors');
   const scopeRef    = ref(db, 'naig2027/scope');
-  const hotelsRef   = ref(db, 'naig2027/hotels');
+  const hotelsRef    = ref(db, 'naig2027/hotels');
   const transportRef = ref(db, 'naig2027/transportation');
+  const loopsRef     = ref(db, 'naig2027/loops');
+  const driversRef   = ref(db, 'naig2027/drivers');
   const docsRef      = ref(db, 'naig2027/docs');
   const planRef      = ref(db, 'naig2027/plan');
 
@@ -54,6 +56,8 @@
     listenScope:      (cb) => onValue(scopeRef,    snap => cb(snap.val())),
     listenHotels:     (cb) => onValue(hotelsRef,    snap => cb(snap.val())),
     listenTransport:  (cb) => onValue(transportRef, snap => cb(snap.val())),
+    listenLoops:      (cb) => onValue(loopsRef,     snap => cb(snap.val())),
+    listenDrivers:    (cb) => onValue(driversRef,   snap => cb(snap.val())),
     listenDocs:       (cb) => onValue(docsRef,      snap => cb(snap.val())),
     listenPlan:       (cb) => onValue(planRef,      snap => cb(snap.val())),
     savePlan:         (data) => set(planRef, data),
@@ -157,6 +161,15 @@
       window._transportData = data || {};
       window.renderTransport && window.renderTransport();
       if (!data) window.seedInitialTransport && window.seedInitialTransport();
+    });
+    window._fb.listenLoops((data) => {
+      window._loopsData = data || {};
+      window.renderLoops && window.renderLoops();
+      if (!data) window.seedInitialLoops && window.seedInitialLoops();
+    });
+    window._fb.listenDrivers((data) => {
+      window._driversData = data || {};
+      window.renderDrivers && window.renderDrivers();
     });
     // ── Hub: Documents ──
     window._fb.listenDocs((data) => {
@@ -1054,16 +1067,58 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <div class="hub-toolbar">
  <div>
  <div class="hub-title"> Transportation</div>
- <div class="hub-subtitle">Hub-and-spoke shuttle system · Airport transfers · Venue routes · NAIG 2027</div>
+ <div class="hub-subtitle">Shuttle loop planning · Driver roster · NAIG 2027</div>
  </div>
  <div class="section-actions">
- <button class="btn btn-light" onclick="exportTableCSV('transportTbody','transportation')">⬇ CSV</button>
- <button class="btn btn-primary" onclick="openTransportModal()">+ Add Route</button>
+ <button class="btn btn-light" onclick="exportTransportCSV()">⬇ CSV</button>
+ <button class="btn btn-primary" id="transportAddBtn" onclick="openLoopModal()">+ Add Loop</button>
  </div>
  </div>
 
- <!-- Sub-navigation -->
- <div class="transport-subnav">
+ <!-- Sub-tab pills -->
+ <div style="display:flex;gap:8px;margin:12px 0;border-bottom:1px solid #e5e7eb;padding-bottom:10px">
+ <button class="tnav-btn active" id="tnav-loops" onclick="switchTransportSubTab('loops')"> Shuttle Loops</button>
+ <button class="tnav-btn" id="tnav-drivers" onclick="switchTransportSubTab('drivers')"> Driver Roster</button>
+ </div>
+
+ <!-- Panel: Shuttle Loops -->
+ <div id="tpanel-loops">
+ <div class="hub-filters">
+ <input class="hub-search" id="loopSearch" placeholder=" Search loops…" oninput="renderLoops()">
+ <select class="hub-filter-select" id="loopStatusFilter" onchange="renderLoops()">
+  <option value="">All Statuses</option>
+  <option>Planning</option><option>Confirmed</option><option>Active</option><option>Cancelled</option>
+ </select>
+ </div>
+ <div class="summary-strip" id="loopSummary"></div>
+ <table class="hub-table">
+ <thead><tr>
+  <th>Loop Name</th><th>Route</th><th>Schedule</th><th>Vehicles</th><th>Stops</th><th>Status</th><th>Contract</th><th></th>
+ </tr></thead>
+ <tbody id="loopTbody"><tr><td colspan="8" class="hub-empty">Loading…</td></tr></tbody>
+ </table>
+ </div>
+
+ <!-- Panel: Driver Roster -->
+ <div id="tpanel-drivers" style="display:none">
+ <div class="hub-filters">
+ <input class="hub-search" id="driverSearch" placeholder=" Search drivers…" oninput="renderDrivers()">
+ <select class="hub-filter-select" id="driverStatusFilter" onchange="renderDrivers()">
+  <option value="">All Statuses</option>
+  <option>Active</option><option>Pending Docs</option><option>Inactive</option>
+ </select>
+ </div>
+ <div class="summary-strip" id="driverSummary"></div>
+ <table class="hub-table">
+ <thead><tr>
+  <th>Driver</th><th>Phone</th><th>DL #</th><th>DL Expiry</th><th>Assigned Loop</th><th>Vehicle</th><th>Status</th><th></th>
+ </tr></thead>
+ <tbody id="driverTbody"><tr><td colspan="8" class="hub-empty">No drivers added yet. Click <strong>+ Add Driver</strong> to start.</td></tr></tbody>
+ </table>
+ </div>
+
+ <!-- legacy subnav placeholder (hidden) -->
+ <div class="transport-subnav" style="display:none">
  <button class="tnav-btn active" id="tnav-routesdb" onclick="switchTransportTab('routesdb',this)">Command Center</button>
  <button class="tnav-btn" id="tnav-airport" onclick="switchTransportTab('airport',this)">Airport Shuttles</button>
  <button class="tnav-btn" id="tnav-venue" onclick="switchTransportTab('venue',this)">Venue Shuttles</button>
@@ -3906,99 +3961,211 @@ window.saveHotel = saveHotel;
    TRANSPORTATION
 ══════════════════════════════════════════════════════════ */
 window._transportData = {};
+window._loopsData     = {};
+window._driversData   = {};
+let _transportSubTab  = 'loops';
 
-window.renderTransport = function() {
-  const tbody = document.getElementById('transportTbody');
+function switchTransportSubTab(tab) {
+  _transportSubTab = tab;
+  document.getElementById('tpanel-loops').style.display   = tab === 'loops'   ? '' : 'none';
+  document.getElementById('tpanel-drivers').style.display = tab === 'drivers' ? '' : 'none';
+  ['loops','drivers'].forEach(t => document.getElementById('tnav-'+t)?.classList.remove('active'));
+  document.getElementById('tnav-'+tab)?.classList.add('active');
+  const addBtn = document.getElementById('transportAddBtn');
+  if (addBtn) { addBtn.textContent = tab === 'loops' ? '+ Add Loop' : '+ Add Driver'; addBtn.onclick = tab === 'loops' ? openLoopModal : openDriverModal; }
+}
+window.switchTransportSubTab = switchTransportSubTab;
+
+/* ── Loop status tag rail ── */
+const _loopStatusFlow = ['Planning','Confirmed','Active','Cancelled'];
+function updateLoopStatusFlow(forcedStatus) {
+  const cur = forcedStatus || document.getElementById('loopStatus').value || 'Planning';
+  document.getElementById('loopStatus').value = cur;
+  const rail = document.getElementById('loopStatusFlow');
+  if (!rail) return;
+  rail.innerHTML = _loopStatusFlow.map(s => {
+    const active = s === cur, cancelled = s === 'Cancelled';
+    const bg = active ? (cancelled ? '#fee2e2' : '#dbeafe') : '#f1f5f9';
+    const border = active ? (cancelled ? '#fca5a5' : '#93c5fd') : '#e2e8f0';
+    const color = active ? (cancelled ? '#dc2626' : '#1d4ed8') : '#64748b';
+    return `<span onclick="selectLoopStatus('${s}')" style="cursor:pointer;padding:4px 10px;border-radius:20px;font-size:12px;border:1.5px solid ${border};background:${bg};color:${color};font-weight:${active?'700':'400'}">${s}</span>`;
+  }).join('');
+}
+function selectLoopStatus(s) { document.getElementById('loopStatus').value = s; updateLoopStatusFlow(s); }
+window.selectLoopStatus = selectLoopStatus;
+
+/* ── Render Loops ── */
+window.renderLoops = function() {
+  const tbody = document.getElementById('loopTbody');
   if (!tbody) return;
-  const q = (document.getElementById('transportSearch')?.value || '').toLowerCase();
-  const typeF = document.getElementById('transportTypeFilter')?.value || '';
-  const statusF = document.getElementById('transportStatusFilter')?.value || '';
-  let all = Object.entries(window._transportData || {});
-  if (q) all = all.filter(([,t]) => [t.name,t.vendor,t.route,t.notes].join(' ').toLowerCase().includes(q));
-  if (typeF) all = all.filter(([,t]) => t.type === typeF);
-  if (statusF) all = all.filter(([,t]) => t.status === statusF);
-
-  // summary strip
-  const confirmed = Object.values(window._transportData||{}).filter(t => t.status === 'Confirmed').length;
-  const totalUnits = Object.values(window._transportData||{}).reduce((s,t) => {
-    const n = parseInt(String(t.units||'0').replace(/[^0-9]/g,''));
-    return s + (isNaN(n) ? 0 : n);
-  }, 0);
-  const strip = document.getElementById('transportSummary');
+  const q = (document.getElementById('loopSearch')?.value || '').toLowerCase();
+  const statusF = document.getElementById('loopStatusFilter')?.value || '';
+  let all = Object.entries(window._loopsData || {});
+  if (q) all = all.filter(([,l]) => [l.name,l.from,l.to,l.stops,l.notes].join(' ').toLowerCase().includes(q));
+  if (statusF) all = all.filter(([,l]) => l.status === statusF);
+  const allLoops = Object.values(window._loopsData || {});
+  const confirmed = allLoops.filter(l => l.status === 'Confirmed' || l.status === 'Active').length;
+  const totalVeh = allLoops.reduce((s,l) => s + (parseInt(l.vehicles)||0), 0);
+  const strip = document.getElementById('loopSummary');
   if (strip) strip.innerHTML =
-    `<span>Routes/Services: <strong>${Object.keys(window._transportData||{}).length}</strong></span>` +
-    `<span>Confirmed: <strong>${confirmed}</strong></span>` +
-    `<span>Total Vehicles: <strong>${totalUnits || '—'}</strong></span>`;
-
-  updateBadge('transport', Object.keys(window._transportData||{}).length);
-
-  if (!all.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="hub-empty">${q||typeF||statusF ? 'No routes match filters.' : 'No transportation routes yet. Click <strong>+ Add Route</strong> to start.'}</td></tr>`;
-    return;
-  }
-  tbody.innerHTML = all.map(([k,t]) => `
- <tr onclick="openTransportModal('${k}')" style="cursor:pointer">
- <td><strong>${esc(t.name||'—')}</strong></td>
- <td style="font-size:11px">${esc(t.type||'—')}</td>
- <td>${contractBadge(t.status)}</td>
- <td style="font-size:11px">${esc(t.vendor||'—')}</td>
- <td style="font-size:11px">${esc(t.route||'—')}</td>
- <td style="font-size:11px">${esc(t.schedule||'—')}</td>
- <td style="font-size:11px">${esc(t.cost||'—')} · ${esc(t.units||'—')}</td>
- <td><button class="btn btn-cancel" style="padding:3px 8px;font-size:10px" onclick="event.stopPropagation();deleteHubItem('transportation','${k}',window.renderTransport)">×</button></td>
- </tr>`).join('');
+    `<span>Loops: <strong>${allLoops.length}</strong></span>` +
+    `<span>Confirmed / Active: <strong>${confirmed}</strong></span>` +
+    `<span>Total Vehicles: <strong>${totalVeh||'—'}</strong></span>`;
+  updateBadge('transport', allLoops.length);
+  if (!all.length) { tbody.innerHTML = `<tr><td colspan="8" class="hub-empty">${q||statusF ? 'No loops match filters.' : 'No shuttle loops yet. Click <strong>+ Add Loop</strong> to start.'}</td></tr>`; return; }
+  tbody.innerHTML = all.map(([k,l]) => {
+    const sched = [l.firstBus&&`First: ${l.firstBus}`, l.lastBus&&`Last: ${l.lastBus}`, l.frequency].filter(Boolean).join(' · ');
+    const veStr = [l.vehicles&&`${l.vehicles} bus${l.vehicles>1?'es':''}`, l.capacity&&`${l.capacity} seats`].filter(Boolean).join(' · ');
+    const stopCount = l.stops ? l.stops.split('\n').filter(s=>s.trim()).length : 0;
+    const contractIcon = l.contractLink ? `<a href="${esc(l.contractLink)}" target="_blank" onclick="event.stopPropagation()" style="color:#2563eb;font-size:11px"> Contract</a>` : `<span style="color:#9ca3af;font-size:11px">—</span>`;
+    return `<tr onclick="openLoopModal('${k}')" style="cursor:pointer">
+ <td><strong>${esc(l.name||'—')}</strong>${l.daysOp?`<div style="font-size:10px;color:#6366f1;margin-top:2px">${esc(l.daysOp)}</div>`:''}</td>
+ <td style="font-size:11px">${esc(l.from||'—')} → ${esc(l.to||'—')}${l.rideTime?`<div style="color:#64748b;font-size:10px"> ${esc(l.rideTime)}</div>`:''}</td>
+ <td style="font-size:11px">${esc(sched||'—')}</td>
+ <td style="font-size:11px">${esc(veStr||'—')}</td>
+ <td style="font-size:11px">${stopCount ? `<span title="${esc(l.stops)}">${stopCount} stop${stopCount>1?'s':''}</span>` : '—'}</td>
+ <td>${contractBadge(l.status)}</td>
+ <td>${contractIcon}</td>
+ <td><button class="btn btn-cancel" style="padding:3px 8px;font-size:10px" onclick="event.stopPropagation();deleteHubItem('loops','${k}',window.renderLoops)">×</button></td>
+ </tr>`;
+  }).join('');
 };
 
-function openTransportModal(editKey) {
-  const t = editKey ? (window._transportData[editKey] || {}) : {};
-  document.getElementById('transportModalTitle').textContent = editKey ? ' Edit Route' : ' Add Route / Service';
-  document.getElementById('transportKey').value = editKey || '';
-  document.getElementById('transportName').value = t.name || '';
-  document.getElementById('transportType').value = t.type || 'Shuttle Bus';
-  document.getElementById('transportStatus').value = t.status || 'Planning';
-  document.getElementById('transportVendor').value = t.vendor || '';
-  document.getElementById('transportCapacity').value = t.capacity || '';
-  document.getElementById('transportRoute').value = t.route || '';
-  document.getElementById('transportSchedule').value = t.schedule || '';
-  document.getElementById('transportCost').value = t.cost || '';
-  document.getElementById('transportUnits').value = t.units || '';
-  document.getElementById('transportNotes').value = t.notes || '';
-  document.getElementById('transportDeleteBtn').style.display = editKey ? '' : 'none';
-  document.getElementById('transportOverlay').style.display = 'flex';
+function openLoopModal(editKey) {
+  const l = editKey ? (window._loopsData[editKey] || {}) : {};
+  document.getElementById('loopModalTitle').textContent = editKey ? 'Edit Shuttle Loop' : 'Add Shuttle Loop';
+  document.getElementById('loopKey').value = editKey || '';
+  document.getElementById('loopName').value = l.name || '';
+  document.getElementById('loopFrom').value = l.from || '';
+  document.getElementById('loopTo').value = l.to || '';
+  document.getElementById('loopFrequency').value = l.frequency || '';
+  document.getElementById('loopFirstBus').value = l.firstBus || '';
+  document.getElementById('loopLastBus').value = l.lastBus || '';
+  document.getElementById('loopDaysOp').value = l.daysOp || '';
+  document.getElementById('loopRideTime').value = l.rideTime || '';
+  document.getElementById('loopVehicles').value = l.vehicles || '';
+  document.getElementById('loopCapacity').value = l.capacity || '';
+  document.getElementById('loopStops').value = l.stops || '';
+  document.getElementById('loopContractLink').value = l.contractLink || '';
+  document.getElementById('loopNotes').value = l.notes || '';
+  updateLoopStatusFlow(l.status || 'Planning');
+  document.getElementById('loopDeleteBtn').style.display = editKey ? '' : 'none';
+  document.getElementById('loopOverlay').style.display = 'flex';
 }
-function closeTransportModal() { document.getElementById('transportOverlay').style.display = 'none'; }
-function saveTransport() {
-  const name = document.getElementById('transportName').value.trim();
-  if (!name) { alert('Route / service name required.'); return; }
-  const key = document.getElementById('transportKey').value || hubKey();
-  hubSave('transportation', key, {
-    name,
-    type: document.getElementById('transportType').value,
-    status: document.getElementById('transportStatus').value,
-    vendor: document.getElementById('transportVendor').value.trim(),
-    capacity: document.getElementById('transportCapacity').value.trim(),
-    route: document.getElementById('transportRoute').value.trim(),
-    schedule: document.getElementById('transportSchedule').value.trim(),
-    cost: document.getElementById('transportCost').value.trim(),
-    units: document.getElementById('transportUnits').value.trim(),
-    notes: document.getElementById('transportNotes').value.trim(),
+function closeLoopModal() { document.getElementById('loopOverlay').style.display = 'none'; }
+function saveLoop() {
+  const name = document.getElementById('loopName').value.trim();
+  if (!name) { alert('Loop name required.'); return; }
+  const key = document.getElementById('loopKey').value || hubKey();
+  hubSave('loops', key, {
+    name, from: document.getElementById('loopFrom').value.trim(), to: document.getElementById('loopTo').value.trim(),
+    frequency: document.getElementById('loopFrequency').value.trim(),
+    firstBus: document.getElementById('loopFirstBus').value, lastBus: document.getElementById('loopLastBus').value,
+    daysOp: document.getElementById('loopDaysOp').value.trim(), rideTime: document.getElementById('loopRideTime').value.trim(),
+    vehicles: document.getElementById('loopVehicles').value, capacity: document.getElementById('loopCapacity').value,
+    stops: document.getElementById('loopStops').value.trim(), contractLink: document.getElementById('loopContractLink').value.trim(),
+    status: document.getElementById('loopStatus').value, notes: document.getElementById('loopNotes').value.trim(),
     updated: new Date().toISOString()
   });
-  closeTransportModal();
+  closeLoopModal();
 }
 
-window.seedInitialTransport = function() {
-  const seed = {
-    [hubKey()]: { name:'Airport Arrivals Shuttle', type:'Airport Transfer', status:'Planning', vendor:'TBD', capacity:'55', route:'DFW Airport → Athlete Hotels', schedule:'Continuous, Sep 4–5 arrival window', cost:'TBD', units:'2 buses', notes:'Need arrivals manifest from registration system.' },
-    [hubKey()]: { name:'Athlete Hotel → Venue Loop', type:'Shuttle Bus', status:'Planning', vendor:'TBD', capacity:'55', route:'Hotel cluster → Competition venues', schedule:'Every 30 min · 6am–11pm · Game days', cost:'TBD', units:'4 buses', notes:'Route TBD once venues confirmed.' },
-    [hubKey()]: { name:'Airport Departures', type:'Airport Transfer', status:'Planning', vendor:'TBD', capacity:'55', route:'Hotels → DFW Airport', schedule:'Continuous, Sep 8 departure window', cost:'TBD', units:'2 buses', notes:'Coordinate with check-out times at each hotel.' },
-  };
-  window._dbSet(window._dbRef('naig2027/transportation'), seed);
+/* ── Render Drivers ── */
+window.renderDrivers = function() {
+  const tbody = document.getElementById('driverTbody');
+  if (!tbody) return;
+  const q = (document.getElementById('driverSearch')?.value || '').toLowerCase();
+  const statusF = document.getElementById('driverStatusFilter')?.value || '';
+  let all = Object.entries(window._driversData || {});
+  if (q) all = all.filter(([,d]) => [d.name,d.phone,d.email,d.dlNumber,d.assignedLoop,d.vehicle].join(' ').toLowerCase().includes(q));
+  if (statusF) all = all.filter(([,d]) => d.status === statusF);
+  const allDrv = Object.values(window._driversData || {});
+  const strip = document.getElementById('driverSummary');
+  if (strip) strip.innerHTML =
+    `<span>Drivers: <strong>${allDrv.length}</strong></span>` +
+    `<span>Active: <strong>${allDrv.filter(d=>d.status==='Active').length}</strong></span>` +
+    `<span>Pending Docs: <strong>${allDrv.filter(d=>d.status==='Pending Docs').length}</strong></span>`;
+  if (!all.length) { tbody.innerHTML = `<tr><td colspan="8" class="hub-empty">${q||statusF ? 'No drivers match.' : 'No drivers yet. Click <strong>+ Add Driver</strong> to start.'}</td></tr>`; return; }
+  tbody.innerHTML = all.map(([k,d]) => {
+    const dlExp = d.dlExpiry ? new Date(d.dlExpiry) : null;
+    const expired = dlExp && dlExp < new Date(), soon = dlExp && !expired && (dlExp-new Date()) < 90*86400000;
+    const dlStr = d.dlExpiry ? `<span style="color:${expired?'#dc2626':soon?'#d97706':'inherit'}">${d.dlExpiry}${expired?' ⚠️':soon?' ⚠️':''}</span>` : '—';
+    const dlLink = d.dlLink ? ` <a href="${esc(d.dlLink)}" target="_blank" onclick="event.stopPropagation()" style="color:#2563eb;font-size:10px"> DL</a>` : '';
+    const sBg = d.status==='Active'?'#d1fae5':d.status==='Pending Docs'?'#fef3c7':'#f3f4f6';
+    const sColor = d.status==='Active'?'#065f46':d.status==='Pending Docs'?'#854d0e':'#6b7280';
+    return `<tr onclick="openDriverModal('${k}')" style="cursor:pointer">
+ <td><strong>${esc(d.name||'—')}</strong>${d.email?`<div style="font-size:10px;color:#64748b">${esc(d.email)}</div>`:''}</td>
+ <td style="font-size:11px">${esc(d.phone||'—')}</td>
+ <td style="font-size:11px">${esc(d.dlNumber||'—')}${dlLink}</td>
+ <td style="font-size:11px">${dlStr}</td>
+ <td style="font-size:11px">${esc(d.assignedLoop||'—')}</td>
+ <td style="font-size:11px">${[d.vehicle,d.plate].filter(Boolean).join(' · ')||'—'}</td>
+ <td><span style="padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:${sBg};color:${sColor}">${d.status||'—'}</span></td>
+ <td><button class="btn btn-cancel" style="padding:3px 8px;font-size:10px" onclick="event.stopPropagation();deleteHubItem('drivers','${k}',window.renderDrivers)">×</button></td>
+ </tr>`;
+  }).join('');
 };
 
-window.openTransportModal = openTransportModal;
-window.closeTransportModal = closeTransportModal;
-window.saveTransport = saveTransport;
+function openDriverModal(editKey) {
+  const d = editKey ? (window._driversData[editKey] || {}) : {};
+  document.getElementById('driverModalTitle').textContent = editKey ? 'Edit Driver' : 'Add Driver';
+  document.getElementById('driverKey').value = editKey || '';
+  document.getElementById('driverName').value = d.name || '';
+  document.getElementById('driverPhone').value = d.phone || '';
+  document.getElementById('driverEmail').value = d.email || '';
+  document.getElementById('driverDlNumber').value = d.dlNumber || '';
+  document.getElementById('driverDlExpiry').value = d.dlExpiry || '';
+  document.getElementById('driverDlLink').value = d.dlLink || '';
+  document.getElementById('driverAssignedLoop').value = d.assignedLoop || '';
+  document.getElementById('driverStatus').value = d.status || 'Pending Docs';
+  document.getElementById('driverVehicle').value = d.vehicle || '';
+  document.getElementById('driverPlate').value = d.plate || '';
+  document.getElementById('driverInsuranceExpiry').value = d.insuranceExpiry || '';
+  document.getElementById('driverDeleteBtn').style.display = editKey ? '' : 'none';
+  document.getElementById('driverOverlay').style.display = 'flex';
+}
+function closeDriverModal() { document.getElementById('driverOverlay').style.display = 'none'; }
+function saveDriver() {
+  const name = document.getElementById('driverName').value.trim();
+  if (!name) { alert('Driver name required.'); return; }
+  const key = document.getElementById('driverKey').value || hubKey();
+  hubSave('drivers', key, {
+    name, phone: document.getElementById('driverPhone').value.trim(), email: document.getElementById('driverEmail').value.trim(),
+    dlNumber: document.getElementById('driverDlNumber').value.trim(), dlExpiry: document.getElementById('driverDlExpiry').value,
+    dlLink: document.getElementById('driverDlLink').value.trim(), assignedLoop: document.getElementById('driverAssignedLoop').value.trim(),
+    status: document.getElementById('driverStatus').value, vehicle: document.getElementById('driverVehicle').value.trim(),
+    plate: document.getElementById('driverPlate').value.trim(), insuranceExpiry: document.getElementById('driverInsuranceExpiry').value,
+    updated: new Date().toISOString()
+  });
+  closeDriverModal();
+}
+
+window.seedInitialLoops = function() {
+  const seed = {
+    [hubKey()]: { name:'Hotel Hub → RYSE StarCenter', from:'JK Hub — Carrollton', to:'RYSE Energy StarCenter, Farmers Branch', frequency:'Every 30 min', firstBus:'07:00', lastBus:'22:00', daysOp:'Sep 5–7 (Competition Days)', rideTime:'~20 min', vehicles:'2', capacity:'55', stops:'JK Hub (Carrollton)\nCourtyard Farmers Branch\nRYSE Energy StarCenter', contractLink:'', status:'Planning', notes:'Primary VB/Throwball venue. Highest athlete volume.', updated:new Date().toISOString() },
+    [hubKey()]: { name:'Hotel Hub → CH StarCenter Northlake', from:'JK Hub — Carrollton', to:"Children's Health StarCenter, Northlake", frequency:'Every 45 min', firstBus:'07:00', lastBus:'22:00', daysOp:'Sep 5–7 (Competition Days)', rideTime:'~25 min', vehicles:'2', capacity:'55', stops:'JK Hub (Carrollton)\nHilton Garden Inn Lewisville\nCH StarCenter Northlake', contractLink:'', status:'Planning', notes:'Badminton, Basketball, Table Tennis. North cluster.', updated:new Date().toISOString() },
+    [hubKey()]: { name:'Hotel Hub → GatewayPark Fort Worth', from:'JK Hub — Carrollton', to:'GatewayPark Soccer Fields, Fort Worth', frequency:'Every 60 min', firstBus:'06:30', lastBus:'21:30', daysOp:'Sep 5–7 (Competition Days)', rideTime:'~40 min', vehicles:'2', capacity:'55', stops:'JK Hub (Carrollton)\nResidence Inn Fort Worth\nGatewayPark Soccer Fields', contractLink:'', status:'Planning', notes:'Soccer 11v11, Soccer 7v7, Flag Football. Longest loop — dedicated buses.', updated:new Date().toISOString() },
+    [hubKey()]: { name:'DFW Airport Arrivals Loop', from:'DFW Airport — Terminal D', to:'JK Hub — Carrollton', frequency:'Every 90 min', firstBus:'09:00', lastBus:'23:00', daysOp:'Sep 4 (Main Arrivals) + Sep 5 AM', rideTime:'~45 min', vehicles:'1', capacity:'55', stops:'DFW Terminal C\nDFW Terminal D\nJK Hub (Carrollton)', contractLink:'', status:'Planning', notes:'Coordinate with registration arrivals manifest.', updated:new Date().toISOString() },
+    [hubKey()]: { name:'DFW Airport Departures Loop', from:'JK Hub — Carrollton', to:'DFW Airport — Terminal D', frequency:'Every 90 min', firstBus:'05:30', lastBus:'15:30', daysOp:'Sep 8 (Departures only)', rideTime:'~45 min', vehicles:'2', capacity:'55', stops:'JK Hub (Carrollton)\nCourtyard Farmers Branch\nHampton Inn Addison\nDFW Terminal C\nDFW Terminal D', contractLink:'', status:'Planning', notes:'Sep 8 only. Coordinate hotel check-out times.', updated:new Date().toISOString() },
+  };
+  window._dbSet(window._dbRef('naig2027/loops'), seed);
+};
+
+window.seedInitialTransport = function() {}; // legacy — loops now used
+window.renderTransport = function() {};       // legacy stub
+
+window.openLoopModal    = openLoopModal;
+window.closeLoopModal   = closeLoopModal;
+window.saveLoop         = saveLoop;
+window.openDriverModal  = openDriverModal;
+window.closeDriverModal = closeDriverModal;
+window.saveDriver       = saveDriver;
+
+function exportTransportCSV() {
+  if (_transportSubTab === 'loops') exportTableCSV('loopTbody','shuttle-loops');
+  else exportTableCSV('driverTbody','driver-roster');
+}
+window.exportTransportCSV = exportTransportCSV;
 
 /* ══════════════════════════════════════════════════════════
    TRANSPORT SUB-TABS — Overview / Airport / Venue / Fleet / FAQ
@@ -4710,63 +4877,137 @@ window.addEventListener('load', function() {
  </div>
 </div>
 
-<!-- Transportation Modal -->
-<div class="overlay" id="transportOverlay" onclick="closeTransportModal()">
- <div class="modal modal-scroll" style="width:460px" onclick="event.stopPropagation()">
- <h3 id="transportModalTitle"> Add Route / Service</h3>
- <input type="hidden" id="transportKey">
+<!-- Loop Modal -->
+<div class="overlay" id="loopOverlay" onclick="closeLoopModal()">
+ <div class="modal modal-scroll" style="width:520px" onclick="event.stopPropagation()">
+ <h3 id="loopModalTitle">Add Shuttle Loop</h3>
+ <input type="hidden" id="loopKey">
  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
  <div class="form-group" style="grid-column:1/-1">
- <label>Route / Service Name</label>
- <input type="text" id="transportName" placeholder="e.g. Athletes Hotel → Arena Shuttle" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ <label>Loop Name</label>
+ <input type="text" id="loopName" placeholder="e.g. Hotel Hub → RYSE StarCenter" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
  </div>
  <div class="form-group">
- <label>Type</label>
- <select id="transportType" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
- <option>Shuttle Bus</option><option>Charter Bus</option><option>Van</option>
- <option>Airport Transfer</option><option>VIP / Staff</option><option>Medical / Emergency</option><option>Other</option>
- </select>
+ <label>From (Origin)</label>
+ <input type="text" id="loopFrom" placeholder="e.g. JK Hub — Carrollton" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
  </div>
  <div class="form-group">
+ <label>To (Destination)</label>
+ <input type="text" id="loopTo" placeholder="e.g. RYSE Energy StarCenter" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group">
+ <label>Frequency</label>
+ <input type="text" id="loopFrequency" placeholder="e.g. Every 30 min" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group">
+ <label>Approx. Ride Time</label>
+ <input type="text" id="loopRideTime" placeholder="e.g. ~20 min" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group">
+ <label>First Bus</label>
+ <input type="time" id="loopFirstBus" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group">
+ <label>Last Bus</label>
+ <input type="time" id="loopLastBus" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group" style="grid-column:1/-1">
+ <label>Operating Days</label>
+ <input type="text" id="loopDaysOp" placeholder="e.g. Sep 5–7 (Competition Days)" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group">
+ <label># of Buses</label>
+ <input type="number" id="loopVehicles" min="1" placeholder="2" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group">
+ <label>Seats per Bus</label>
+ <input type="number" id="loopCapacity" min="1" placeholder="55" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group" style="grid-column:1/-1">
  <label>Status</label>
- <select id="transportStatus" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
- <option>Planning</option><option>Vendor Shortlisted</option><option>Contract Pending</option>
- <option>Confirmed</option><option>Cancelled</option>
- </select>
- </div>
- <div class="form-group">
- <label>Vendor / Operator</label>
- <input type="text" id="transportVendor" placeholder="Bus company name" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
- </div>
- <div class="form-group">
- <label>Vehicle Capacity</label>
- <input type="text" id="transportCapacity" placeholder="e.g. 55 passengers" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ <input type="hidden" id="loopStatus" value="Planning">
+ <div id="loopStatusFlow" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 0;min-height:36px"></div>
  </div>
  <div class="form-group" style="grid-column:1/-1">
- <label>From → To</label>
- <input type="text" id="transportRoute" placeholder="e.g. Marriott DFW → Kay Bailey Convention Center" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ <label>Stops (one per line)</label>
+ <textarea id="loopStops" placeholder="JK Hub (Carrollton)&#10;Courtyard Farmers Branch&#10;RYSE Energy StarCenter" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;resize:vertical;min-height:70px;font-family:inherit;line-height:1.5"></textarea>
  </div>
  <div class="form-group" style="grid-column:1/-1">
- <label>Schedule / Frequency</label>
- <input type="text" id="transportSchedule" placeholder="e.g. Every 30 min, 7am–10pm · Game days only" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
- </div>
- <div class="form-group">
- <label>Estimated Cost</label>
- <input type="text" id="transportCost" placeholder="e.g. $12,000 / day" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
- </div>
- <div class="form-group">
- <label>Vehicles / Units Needed</label>
- <input type="text" id="transportUnits" placeholder="e.g. 4 buses" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ <label>Contract / Schedule Link</label>
+ <input type="url" id="loopContractLink" placeholder="https://drive.google.com/…" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
  </div>
  <div class="form-group" style="grid-column:1/-1">
- <label>Notes</label>
- <textarea id="transportNotes" placeholder="Driver requirements, accessible vehicles, backup plans…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;resize:vertical;min-height:55px;font-family:inherit;line-height:1.5"></textarea>
+ <label>Notes / Comms</label>
+ <textarea id="loopNotes" placeholder="Accessibility needs, backup plan, driver notes…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;resize:vertical;min-height:55px;font-family:inherit;line-height:1.5"></textarea>
  </div>
  </div>
  <div class="modal-actions">
- <button class="btn btn-cancel" onclick="closeTransportModal()">Cancel</button>
- <button class="btn btn-danger" id="transportDeleteBtn" onclick="deleteHubItem('transportation',document.getElementById('transportKey').value,closeTransportModal)" style="display:none">Delete</button>
- <button class="btn btn-primary" onclick="saveTransport()">Save</button>
+ <button class="btn btn-cancel" onclick="closeLoopModal()">Cancel</button>
+ <button class="btn btn-danger" id="loopDeleteBtn" onclick="deleteHubItem('loops',document.getElementById('loopKey').value,closeLoopModal)" style="display:none">Delete</button>
+ <button class="btn btn-primary" onclick="saveLoop()">Save Loop</button>
+ </div>
+ </div>
+</div>
+
+<!-- Driver Modal -->
+<div class="overlay" id="driverOverlay" onclick="closeDriverModal()">
+ <div class="modal modal-scroll" style="width:500px" onclick="event.stopPropagation()">
+ <h3 id="driverModalTitle">Add Driver</h3>
+ <input type="hidden" id="driverKey">
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+ <div class="form-group" style="grid-column:1/-1">
+ <label>Full Name</label>
+ <input type="text" id="driverName" placeholder="Driver's full name" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group">
+ <label>Phone</label>
+ <input type="tel" id="driverPhone" placeholder="(214) 555-0100" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group">
+ <label>Email</label>
+ <input type="email" id="driverEmail" placeholder="driver@example.com" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group">
+ <label>Driver's License #</label>
+ <input type="text" id="driverDlNumber" placeholder="TX 12345678" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group">
+ <label>DL Expiry Date</label>
+ <input type="date" id="driverDlExpiry" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group" style="grid-column:1/-1">
+ <label>DL Upload Link</label>
+ <input type="url" id="driverDlLink" placeholder="https://drive.google.com/… (upload a scan)" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group">
+ <label>Assigned Loop</label>
+ <input type="text" id="driverAssignedLoop" placeholder="e.g. Hotel Hub → RYSE" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group">
+ <label>Status</label>
+ <select id="driverStatus" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ <option value="Pending Docs">Pending Docs</option>
+ <option value="Active">Active</option>
+ <option value="Inactive">Inactive</option>
+ </select>
+ </div>
+ <div class="form-group">
+ <label>Vehicle</label>
+ <input type="text" id="driverVehicle" placeholder="e.g. 2023 Ford Transit 350" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group">
+ <label>License Plate</label>
+ <input type="text" id="driverPlate" placeholder="e.g. TX ABC-1234" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group" style="grid-column:1/-1">
+ <label>Insurance Expiry</label>
+ <input type="date" id="driverInsuranceExpiry" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ </div>
+ <div class="modal-actions">
+ <button class="btn btn-cancel" onclick="closeDriverModal()">Cancel</button>
+ <button class="btn btn-danger" id="driverDeleteBtn" onclick="deleteHubItem('drivers',document.getElementById('driverKey').value,closeDriverModal)" style="display:none">Delete</button>
+ <button class="btn btn-primary" onclick="saveDriver()">Save Driver</button>
  </div>
  </div>
 </div>
