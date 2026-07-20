@@ -107,7 +107,7 @@
     // ── Hub: Tasks ──
     window._fb.listenTasks((data) => {
       window._tasksData = data || {};
-      window.renderKanban && window.renderKanban();
+      window.renderTasks && window.renderTasks();
       if (!data) window.seedInitialTasks && window.seedInitialTasks();
     });
     // ── Hub: Venues ──
@@ -921,14 +921,14 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <div class="hub-toolbar">
  <div>
  <div class="hub-title"> Master Task Board</div>
- <div class="hub-subtitle">All teams · Tasks roll up by Scope Area — use the filter to see a specific team's work</div>
+ <div class="hub-subtitle">Logistics team · Granular tasks with assignments, priorities, and due dates</div>
  </div>
  <div class="section-actions">
- <button class="btn btn-light" onclick="exportTasksCSV()">⬇ Export CSV</button>
+ <button class="btn btn-light" onclick="exportTasksCSV()">⬇ CSV</button>
  <button class="btn btn-primary" onclick="openTaskModal()">+ Add Task</button>
  </div>
  </div>
- <!-- Progress -->
+ <!-- Progress bar -->
  <div class="task-progress-label">
  <span id="progressLabel">Loading…</span>
  <span id="progressPct"></span>
@@ -936,44 +936,85 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <div class="task-progress"><div class="task-progress-fill" id="progressFill" style="width:0%"></div></div>
  <!-- Summary strip -->
  <div class="summary-strip" id="taskSummaryStrip"></div>
- <!-- Filters -->
- <div class="hub-filters">
- <input class="hub-search" id="taskSearch" placeholder=" Search tasks…" oninput="renderKanban()">
- <select class="hub-filter-select" id="filterScope" onchange="renderKanban()">
- <option value="">All Scope Areas</option>
- <option>Athletes</option><option>Volunteers</option><option>Venues</option>
- <option>Hotels</option><option>Transportation</option><option>Vendors</option>
- <option>Org / Staffing</option><option>Finance</option><option>Technology</option><option>Marketing</option><option>Other</option>
+ <!-- Workload chips -->
+ <div id="taskWorkloadStrip" style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px"></div>
+ <!-- View switcher + filters -->
+ <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0 6px;border-bottom:1px solid #e5e7eb;padding-bottom:10px">
+ <div style="display:flex;gap:4px">
+ <button class="tnav-btn active" id="tvw-table"   onclick="switchTaskView('table')">≡ Table</button>
+ <button class="tnav-btn"        id="tvw-kanban"  onclick="switchTaskView('kanban')"> Kanban</button>
+ <button class="tnav-btn"        id="tvw-grouped" onclick="switchTaskView('grouped')"> By Person</button>
+ </div>
+ <div class="hub-filters" style="flex:1;margin:0;padding:0;border:none">
+ <input class="hub-search" id="taskSearch" placeholder=" Search tasks…" oninput="renderTasks()">
+ <select class="hub-filter-select" id="filterStatus" onchange="renderTasks()">
+ <option value="">All Statuses</option>
+ <option value="todo">To Do</option><option value="inprogress">In Progress</option>
+ <option value="blocked">Blocked</option><option value="done">Done</option>
  </select>
- <select class="hub-filter-select" id="filterPriority" onchange="renderKanban()">
+ <select class="hub-filter-select" id="filterPriority" onchange="renderTasks()">
  <option value="">All Priorities</option>
- <option value="high"> High</option><option value="medium"> Medium</option><option value="low"> Low</option>
+ <option value="Urgent">🔴 Urgent</option><option value="High">🟠 High</option>
+ <option value="Medium">🟡 Medium</option><option value="Low">🟢 Low</option>
  </select>
- <select class="hub-filter-select" id="filterTeam" onchange="renderKanban()">
- <option value="">All Teams / Owners</option>
+ <select class="hub-filter-select" id="filterDept" onchange="renderTasks()">
+ <option value="">All Departments</option>
+ <option>Leadership</option><option>F&amp;B</option><option>Hotels &amp; Accommodations</option>
+ <option>Transportation</option><option>Site Logistics</option><option>Equipment &amp; Signage</option>
+ </select>
+ <select class="hub-filter-select" id="filterOwner" onchange="renderTasks()">
+ <option value="">All Assignees</option>
+ <option>Rizwan Ali</option><option>Azmina Hashim</option><option>Sohail Ali</option>
+ <option>Humera Kabani</option><option>Maleka Surani</option><option>Akil Momin</option>
+ <option>Shehzad Ali</option><option>Raj Thakur</option><option>Kiran Surani</option>
+ <option>Shah</option><option>Anil</option><option>Shahneel Kanji</option><option>Sharez Prasla</option>
  </select>
  </div>
- <!-- Kanban -->
+ </div>
+ <!-- TABLE VIEW -->
+ <div id="tpanel-tasktable">
+ <table style="width:100%;border-collapse:collapse;font-size:12px">
+ <thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;text-align:left">
+ <th style="padding:8px 10px;font-weight:600;color:#475569">Task</th>
+ <th style="padding:8px 10px;font-weight:600;color:#475569">Status</th>
+ <th style="padding:8px 10px;font-weight:600;color:#475569">Priority</th>
+ <th style="padding:8px 10px;font-weight:600;color:#475569">Assignee</th>
+ <th style="padding:8px 10px;font-weight:600;color:#475569">Department</th>
+ <th style="padding:8px 10px;font-weight:600;color:#475569">Due</th>
+ <th style="padding:8px 10px;font-weight:600;color:#475569">Scope / Link</th>
+ <th style="padding:8px 10px;font-weight:600;color:#475569">Hrs</th>
+ <th style="padding:8px 6px"></th>
+ </tr></thead>
+ <tbody id="taskTbody"></tbody>
+ </table>
+ </div>
+ <!-- KANBAN VIEW -->
+ <div id="tpanel-taskkanban" style="display:none">
  <div class="kanban-board" id="kanbanBoard">
  <div class="kanban-col col-backlog">
- <div class="kanban-col-hdr">Backlog <span class="col-count" id="cnt-backlog">0</span></div>
- <div class="kanban-col-body" id="col-backlog"></div>
- <button class="add-col-btn" onclick="openTaskModal('backlog')">+ Add Task</button>
+ <div class="kanban-col-hdr">To Do <span class="col-count" id="cnt-todo">0</span></div>
+ <div class="kanban-col-body" id="col-todo"></div>
+ <button class="add-col-btn" onclick="openTaskModal('todo')">+ Add Task</button>
  </div>
  <div class="kanban-col col-inprogress">
  <div class="kanban-col-hdr">In Progress <span class="col-count" id="cnt-inprogress">0</span></div>
  <div class="kanban-col-body" id="col-inprogress"></div>
  <button class="add-col-btn" onclick="openTaskModal('inprogress')">+ Add Task</button>
  </div>
+ <div class="kanban-col col-onhold" style="border-top-color:#ef4444">
+ <div class="kanban-col-hdr">Blocked <span class="col-count" id="cnt-blocked">0</span></div>
+ <div class="kanban-col-body" id="col-blocked"></div>
+ <button class="add-col-btn" onclick="openTaskModal('blocked')">+ Add Task</button>
+ </div>
  <div class="kanban-col col-done">
  <div class="kanban-col-hdr">Done <span class="col-count" id="cnt-done">0</span></div>
  <div class="kanban-col-body" id="col-done"></div>
  </div>
- <div class="kanban-col col-onhold">
- <div class="kanban-col-hdr">On Hold <span class="col-count" id="cnt-onhold">0</span></div>
- <div class="kanban-col-body" id="col-onhold"></div>
- <button class="add-col-btn" onclick="openTaskModal('onhold')">+ Add Task</button>
  </div>
+ </div>
+ <!-- GROUPED VIEW -->
+ <div id="tpanel-taskgrouped" style="display:none">
+ <div id="taskGroupedBody"></div>
  </div>
 </div>
 
@@ -3222,46 +3263,128 @@ function deleteHubItem(path, key, closeFn) {
    TASKS — Kanban
 ══════════════════════════════════════════════════════════ */
 window._tasksData = {};
+let _taskView = 'table';
 
-window.renderKanban = function() {
-  const all = Object.entries(window._tasksData || {});
-  const search = (document.getElementById('taskSearch')||{}).value?.toLowerCase() || '';
-  const scopeF = (document.getElementById('filterScope')||{}).value || '';
-  const priF   = (document.getElementById('filterPriority')||{}).value || '';
-  const teamF  = (document.getElementById('filterTeam')||{}).value || '';
-  const today  = new Date().toISOString().slice(0,10);
+function switchTaskView(v) {
+  _taskView = v;
+  ['table','kanban','grouped'].forEach(x => {
+    document.getElementById('tpanel-task'+x).style.display = x === v ? '' : 'none';
+    document.getElementById('tvw-'+x)?.classList.toggle('active', x === v);
+  });
+  renderTasks();
+}
+window.switchTaskView = switchTaskView;
 
-  // Populate owner filter
-  const teamSel = document.getElementById('filterTeam');
-  if (teamSel) {
-    const owners = [...new Set(all.map(([,t])=>t.owner).filter(Boolean))].sort();
-    const cur = teamSel.value;
-    teamSel.innerHTML = '<option value="">All Teams / Owners</option>' +
-      owners.map(o => `<option${o===cur?' selected':''}>${esc(o)}</option>`).join('');
-  }
+const _ASSIGNEES = ['Rizwan Ali','Azmina Hashim','Sohail Ali','Humera Kabani','Maleka Surani','Akil Momin','Shehzad Ali','Raj Thakur','Kiran Surani','Shah','Anil','Shahneel Kanji','Sharez Prasla'];
+const _DEPTS = ['Leadership','F&B','Hotels & Accommodations','Transportation','Site Logistics','Equipment & Signage'];
+const _PRI_ORDER = {Urgent:0, High:1, Medium:2, Low:3};
+const _PRI_ICON  = {Urgent:'🔴', High:'🟠', Medium:'🟡', Low:'🟢'};
+const _STATUS_LABEL = {todo:'To Do', inprogress:'In Progress', blocked:'Blocked', done:'Done'};
+const _STATUS_COLOR = {
+  todo:      {bg:'#eff6ff',color:'#1d4ed8'},
+  inprogress:{bg:'#fef3c7',color:'#92400e'},
+  blocked:   {bg:'#fee2e2',color:'#dc2626'},
+  done:      {bg:'#d1fae5',color:'#065f46'}
+};
 
-  function matchTask([,t]) {
-    if (search && !JSON.stringify(t).toLowerCase().includes(search)) return false;
-    if (scopeF && t.scopeArea !== scopeF) return false;
-    if (priF && (t.priority||'medium') !== priF) return false;
-    if (teamF && t.owner !== teamF) return false;
+function _taskFiltered() {
+  const q    = (document.getElementById('taskSearch')?.value || '').toLowerCase();
+  const stF  = document.getElementById('filterStatus')?.value || '';
+  const priF = document.getElementById('filterPriority')?.value || '';
+  const dptF = document.getElementById('filterDept')?.value || '';
+  const ownF = document.getElementById('filterOwner')?.value || '';
+  return Object.entries(window._tasksData || {}).filter(([,t]) => {
+    if (q && !JSON.stringify(t).toLowerCase().includes(q)) return false;
+    if (stF && (t.status||'todo') !== stF) return false;
+    if (priF && (t.priority||'Medium') !== priF) return false;
+    if (dptF && (t.department||'') !== dptF) return false;
+    if (ownF && (t.owner||'') !== ownF) return false;
     return true;
-  }
+  });
+}
 
-  const cols = ['backlog','inprogress','done','onhold'];
-  let totalActive = 0, totalDone = 0;
+function _updateTaskSummary(all) {
+  const today = new Date().toISOString().slice(0,10);
+  const allV = all.map(([,t])=>t);
+  const todo = allV.filter(t=>(t.status||'todo')==='todo').length;
+  const inp  = allV.filter(t=>t.status==='inprogress').length;
+  const blk  = allV.filter(t=>t.status==='blocked').length;
+  const done = allV.filter(t=>t.status==='done').length;
+  const total = allV.length;
+  const ovd  = allV.filter(t=>t.status!=='done' && t.due && t.due < today).length;
+  const pct  = total ? Math.round((done/total)*100) : 0;
+  document.getElementById('progressFill') && (document.getElementById('progressFill').style.width = pct+'%');
+  document.getElementById('progressLabel') && (document.getElementById('progressLabel').textContent = `${done} of ${total} tasks complete`);
+  document.getElementById('progressPct') && (document.getElementById('progressPct').textContent = `${pct}%`);
+  const strip = document.getElementById('taskSummaryStrip');
+  if (strip) strip.innerHTML =
+    `<span>Total: <strong>${total}</strong></span>` +
+    `<span>To Do: <strong>${todo}</strong></span>` +
+    `<span>In Progress: <strong>${inp}</strong></span>` +
+    `<span style="color:${blk?'#dc2626':'inherit'}">Blocked: <strong>${blk}</strong></span>` +
+    `<span>Done: <strong>${done}</strong></span>` +
+    (ovd ? `<span style="color:#dc2626">Overdue: <strong>${ovd}</strong></span>` : '');
+  // Per-person workload chips
+  const wl = {};
+  Object.values(window._tasksData||{}).forEach(t => {
+    if (t.owner && t.status !== 'done') wl[t.owner] = (wl[t.owner]||0)+1;
+  });
+  const wlStrip = document.getElementById('taskWorkloadStrip');
+  if (wlStrip) wlStrip.innerHTML = Object.entries(wl).sort((a,b)=>b[1]-a[1]).map(([name,cnt]) =>
+    `<span style="padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;background:#e0e7ff;color:#3730a3">${esc(name)} <span style="background:#3730a3;color:#fff;border-radius:8px;padding:1px 6px;font-size:10px">${cnt}</span></span>`
+  ).join('');
+  updateBadge('tasks', Object.values(window._tasksData||{}).filter(t=>t.status!=='done').length);
+}
 
+/* ── Table view ── */
+function renderTaskTable() {
+  const today = new Date().toISOString().slice(0,10);
+  const all = _taskFiltered().sort((a,b) => (_PRI_ORDER[a[1].priority||'Medium']||2) - (_PRI_ORDER[b[1].priority||'Medium']||2));
+  const tbody = document.getElementById('taskTbody');
+  if (!tbody) return;
+  if (!all.length) { tbody.innerHTML = `<tr><td colspan="9" class="hub-empty">No tasks match filters. Click <strong>+ Add Task</strong> to start.</td></tr>`; return; }
+  tbody.innerHTML = all.map(([k,t]) => {
+    const st    = t.status || 'todo';
+    const sc    = _STATUS_COLOR[st] || _STATUS_COLOR.todo;
+    const ovd   = st !== 'done' && t.due && t.due < today;
+    const pri   = t.priority || 'Medium';
+    const subs  = Object.values(window._tasksData||{}).filter(x=>x.parentTask===k);
+    const subDone = subs.filter(x=>x.status==='done').length;
+    const subStr  = subs.length ? `<div style="font-size:10px;color:#64748b;margin-top:2px">${subDone}/${subs.length} subtasks</div>` : '';
+    return `<tr onclick="openTaskModal(null,'${k}')" style="cursor:pointer;border-bottom:1px solid #f1f5f9">
+ <td style="padding:8px 10px">
+   <div style="font-weight:600;font-size:12px">${esc(t.title||'—')}</div>
+   ${t.linkedTo?`<div style="font-size:10px;color:#6366f1;margin-top:2px"> ${esc(t.linkedTo)}</div>`:''}
+   ${t.tags?`<div style="font-size:10px;color:#64748b;margin-top:2px">${t.tags.split(',').map(x=>`<span style="background:#f1f5f9;padding:1px 6px;border-radius:8px;margin-right:3px">${esc(x.trim())}</span>`).join('')}</div>`:''}
+   ${subStr}
+ </td>
+ <td style="padding:8px 10px"><span style="padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:${sc.bg};color:${sc.color}">${_STATUS_LABEL[st]||st}</span></td>
+ <td style="padding:8px 10px;font-size:12px">${_PRI_ICON[pri]||''} ${pri}</td>
+ <td style="padding:8px 10px;font-size:12px">${esc(t.owner||'—')}</td>
+ <td style="padding:8px 10px;font-size:11px;color:#64748b">${esc(t.department||'—')}</td>
+ <td style="padding:8px 10px;font-size:11px${ovd?' color:#dc2626;font-weight:600':''}">${t.due||'—'}${ovd?' ⚠️':''}</td>
+ <td style="padding:8px 10px;font-size:11px;color:#64748b">${esc(t.scopeArea||'—')}</td>
+ <td style="padding:8px 10px;font-size:11px;color:#64748b">${t.estHours?t.estHours+'h':'—'}</td>
+ <td style="padding:8px 6px"><button class="btn btn-cancel" style="padding:2px 7px;font-size:10px" onclick="event.stopPropagation();quickComplete('${k}')" title="Mark done">✓</button></td>
+ </tr>`;
+  }).join('');
+}
+
+/* ── Kanban view ── */
+window.renderKanban = function() {
+  const today = new Date().toISOString().slice(0,10);
+  const all = _taskFiltered();
+  const cols = ['todo','inprogress','blocked','done'];
   cols.forEach(s => {
     const el  = document.getElementById('col-' + s);
     const cnt = document.getElementById('cnt-' + s);
     if (!el) return;
-    const items = all.filter(([,t]) => (t.status||'backlog') === s).filter(matchTask);
+    const items = all.filter(([,t]) => (t.status||'todo') === s);
     if (cnt) cnt.textContent = items.length;
-    if (s === 'done') totalDone += items.length; else totalActive += items.length;
-
-    el.innerHTML = items.map(([k,t]) => {
-      const priCls = {high:'pri-high',medium:'pri-medium',low:'pri-low'}[t.priority||'medium']||'pri-medium';
-      const priIcon = {high:'',medium:'',low:''}[t.priority||'medium'];
+    const sorted = items.sort((a,b)=>(_PRI_ORDER[a[1].priority||'Medium']||2)-(_PRI_ORDER[b[1].priority||'Medium']||2));
+    el.innerHTML = sorted.map(([k,t]) => {
+      const pri = t.priority || 'Medium';
+      const priCls = {Urgent:'pri-high',High:'pri-high',Medium:'pri-medium',Low:'pri-low'}[pri]||'pri-medium';
       const isOverdue = s !== 'done' && t.due && t.due < today;
       return `<div class="task-card ${priCls}${isOverdue?' is-overdue':''}" onclick="openTaskModal(null,'${k}')">
  <div style="display:flex;gap:6px;align-items:flex-start">
@@ -3269,125 +3392,173 @@ window.renderKanban = function() {
  <div style="flex:1">
  <div class="task-card-title">${esc(t.title||'Untitled')}</div>
  <div class="task-card-meta">
-              ${t.scopeArea ? `<span class="t-tag"> ${esc(t.scopeArea)}</span>` : ''}
- <span class="t-tag">${priIcon} ${t.priority||'medium'}</span>
-              ${t.owner ? `<span class="t-tag"> ${esc(t.owner)}</span>` : ''}
-              ${t.due ? `<span class="t-tag${isOverdue?' overdue-badge':''}"> ${t.due}${isOverdue?'  OVERDUE':''}</span>` : ''}
+   ${t.department?`<span class="t-tag">${esc(t.department)}</span>`:''}
+   <span class="t-tag">${_PRI_ICON[pri]||''} ${pri}</span>
+   ${t.owner?`<span class="t-tag"> ${esc(t.owner)}</span>`:''}
+   ${t.due?`<span class="t-tag${isOverdue?' overdue-badge':''}">${t.due}${isOverdue?' ⚠️':''}</span>`:''}
  </div>
-            ${t.notes ? `<div class="task-card-notes">${esc(t.notes)}</div>` : ''}
+ ${t.notes?`<div class="task-card-notes">${esc(t.notes)}</div>`:''}
  </div>
  </div>
  </div>`;
     }).join('') || '';
   });
-
-  // Progress bar
-  const total = totalActive + totalDone;
-  const pct = total ? Math.round((totalDone/total)*100) : 0;
-  const fill = document.getElementById('progressFill');
-  const label = document.getElementById('progressLabel');
-  const pctEl = document.getElementById('progressPct');
-  if (fill) fill.style.width = pct + '%';
-  if (label) label.textContent = `${totalDone} of ${total} tasks complete`;
-  if (pctEl) pctEl.textContent = `${pct}%`;
-
-  // Summary strip
-  const strip = document.getElementById('taskSummaryStrip');
-  if (strip) {
-    const byScope = {};
-    all.forEach(([,t]) => { const s = t.scopeArea||'General'; byScope[s] = (byScope[s]||0)+1; });
-    strip.innerHTML = Object.entries(byScope).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([k,v])=>
-      `<div class="sum-chip"><strong>${v}</strong><span>${esc(k)}</span></div>`).join('');
-  }
-
-  updateBadge('tasks', all.filter(([,t])=>t.status!=='done').length);
 };
+
+/* ── Grouped by person ── */
+function renderGrouped() {
+  const today = new Date().toISOString().slice(0,10);
+  const all = _taskFiltered();
+  const groups = {};
+  all.forEach(([k,t]) => {
+    const person = t.owner || '(Unassigned)';
+    if (!groups[person]) groups[person] = [];
+    groups[person].push([k,t]);
+  });
+  // Sort each group by priority
+  Object.values(groups).forEach(g => g.sort((a,b)=>(_PRI_ORDER[a[1].priority||'Medium']||2)-(_PRI_ORDER[b[1].priority||'Medium']||2)));
+  const body = document.getElementById('taskGroupedBody');
+  if (!body) return;
+  const personOrder = [..._ASSIGNEES.filter(n=>groups[n]), ...Object.keys(groups).filter(n=>!_ASSIGNEES.includes(n))];
+  if (!personOrder.length) { body.innerHTML = `<div class="hub-empty">No tasks match filters.</div>`; return; }
+  body.innerHTML = personOrder.map(person => {
+    const items = groups[person] || [];
+    const open = items.filter(([,t])=>t.status!=='done').length;
+    const done = items.filter(([,t])=>t.status==='done').length;
+    return `<div style="margin-bottom:18px">
+ <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:#f8fafc;border-radius:8px;margin-bottom:8px;border-left:4px solid #6366f1">
+   <strong style="font-size:13px">${esc(person)}</strong>
+   <span style="font-size:11px;color:#64748b">${open} open · ${done} done</span>
+ </div>
+ <table style="width:100%;border-collapse:collapse;font-size:12px">
+ ${items.map(([k,t]) => {
+   const st = t.status||'todo'; const sc = _STATUS_COLOR[st]||_STATUS_COLOR.todo;
+   const ovd = st!=='done' && t.due && t.due < today;
+   return `<tr onclick="openTaskModal(null,'${k}')" style="cursor:pointer;border-bottom:1px solid #f1f5f9">
+ <td style="padding:6px 10px;width:40%"><strong>${esc(t.title||'—')}</strong>${t.linkedTo?`<span style="margin-left:6px;font-size:10px;color:#6366f1"> ${esc(t.linkedTo)}</span>`:''}</td>
+ <td style="padding:6px 10px"><span style="padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:${sc.bg};color:${sc.color}">${_STATUS_LABEL[st]||st}</span></td>
+ <td style="padding:6px 10px">${_PRI_ICON[t.priority||'Medium']||''} ${t.priority||'Medium'}</td>
+ <td style="padding:6px 10px;color:#64748b">${esc(t.department||'—')}</td>
+ <td style="padding:6px 10px${ovd?' color:#dc2626;font-weight:600':''}">${t.due||'—'}${ovd?' ⚠️':''}</td>
+ <td style="padding:6px 6px"><button class="btn btn-cancel" style="padding:2px 7px;font-size:10px" onclick="event.stopPropagation();quickComplete('${k}')">✓</button></td>
+ </tr>`;
+ }).join('')}
+ </table>
+ </div>`;
+  }).join('');
+}
+
+/* ── Master render dispatcher ── */
+window.renderTasks = function() {
+  const all = Object.entries(window._tasksData || {});
+  _updateTaskSummary(all);
+  if (_taskView === 'table')   renderTaskTable();
+  else if (_taskView === 'kanban')  window.renderKanban();
+  else if (_taskView === 'grouped') renderGrouped();
+};
+window.renderKanban = window.renderKanban; // keep legacy alias
 
 window.seedInitialTasks = function() {
   const k = hubKey;
   const seed = {
     // ── Technology ──
-    [k()]: { title:'Add Firebase auth (security)', status:'backlog', priority:'high', owner:'Rizwan', scopeArea:'Technology', due:'2026-12-01', notes:'Firebase rules currently open — add auth before sharing URL broadly.' },
-    [k()]: { title:'Deploy Sports Central to custom domain', status:'backlog', priority:'high', owner:'Rizwan', scopeArea:'Technology', due:'2026-10-01', notes:'Move from GitHub Pages to NAIG 2027 domain.' },
-    [k()]: { title:'Build athlete registration portal', status:'backlog', priority:'high', owner:'', scopeArea:'Technology', due:'2027-01-01', notes:'Online registration for 2,200+ athletes. Integration with payment + sport assignment.' },
-    [k()]: { title:'Volunteer management system setup', status:'backlog', priority:'medium', owner:'', scopeArea:'Technology', due:'2027-02-01', notes:'Track 750–1,000 volunteers. Role assignment, shift scheduling, communication.' },
-    [k()]: { title:'Event app / mobile guide for athletes', status:'backlog', priority:'low', owner:'', scopeArea:'Technology', due:'2027-06-01', notes:'Schedule, maps, results, transport info for athletes.' },
+    [k()]: { title:'Add Firebase auth (security)', status:'todo', priority:'High', owner:'Rizwan', scopeArea:'Technology', due:'2026-12-01', notes:'Firebase rules currently open — add auth before sharing URL broadly.' },
+    [k()]: { title:'Deploy Sports Central to custom domain', status:'todo', priority:'High', owner:'Rizwan', scopeArea:'Technology', due:'2026-10-01', notes:'Move from GitHub Pages to NAIG 2027 domain.' },
+    [k()]: { title:'Build athlete registration portal', status:'todo', priority:'High', owner:'', scopeArea:'Technology', due:'2027-01-01', notes:'Online registration for 2,200+ athletes. Integration with payment + sport assignment.' },
+    [k()]: { title:'Volunteer management system setup', status:'todo', priority:'Medium', owner:'', scopeArea:'Technology', due:'2027-02-01', notes:'Track 750–1,000 volunteers. Role assignment, shift scheduling, communication.' },
+    [k()]: { title:'Event app / mobile guide for athletes', status:'todo', priority:'Low', owner:'', scopeArea:'Technology', due:'2027-06-01', notes:'Schedule, maps, results, transport info for athletes.' },
     // ── Venues ──
-    [k()]: { title:'Finalize venue shortlist — all sports', status:'inprogress', priority:'high', owner:'', scopeArea:'Venues', due:'2026-09-01', notes:'Primary (In Conversation): RYSE Farmers Branch (VB/Throwball), CH StarCenter Northlake (Bad/BB/TT), GatewayPark Fort Worth (Soccer/Flag FB), Texomo Cricket Ground, Picklr (Pickleball/Dance), McKinney Courts (Tennis/Pickleball). Backups: Lewisville Badminton, Little Elm Soccer, Russell Creek (Cricket), Prairie View (Cricket). TBD: Track, Chess.' },
-    [k()]: { title:'Confirm venue details — RYSE Energy StarCenter, Farmers Branch', status:'backlog', priority:'high', owner:'Alishah Momin', scopeArea:'Venues', due:'2026-08-31', notes:'2400 Pike St, Farmers Branch. Contact: Lee Wisener 972-880-5281. Confirm court count (est 16), floor type, AV, parking.' },
-    [k()]: { title:"Confirm venue details — Children's Health StarCenter, Northlake", status:'backlog', priority:'high', owner:'Karim Hemani', scopeArea:'Venues', due:'2026-08-31', notes:'13850 Chadwick Pkwy, Northlake. Contact: Lee Wisener 972-880-5281. Sports: Badminton, Basketball, Table Tennis (Tennis moved to McKinney Courts). Confirm court count (est 8+), TT table space, floor type, parking.' },
-    [k()]: { title:'Site visit — Town of Little Elm Soccer Site 1', status:'backlog', priority:'high', owner:'', scopeArea:'Venues', due:'2026-10-01', notes:'704 W Eldorado Pkwy, Little Elm, TX 75068. Contact: Ellie Peters 214-618-3103. North cluster. Confirm # of fields, turf/grass mix, locker rooms, insurance requirements.' },
-    [k()]: { title:'Site visit — GatewayPark Soccer Fields, Fort Worth', status:'backlog', priority:'medium', owner:'', scopeArea:'Venues', due:'2026-11-01', notes:'4321 E 1st St, Fort Worth, TX 76111. Contact: Samuel Robbie 817-925-2459. West cluster. Confirm Soccer Site 2 + Flag Football suitability. Farthest venue — dedicated shuttle loop required.' },
-    [k()]: { title:'Source cricket venue — DFW area (target WBE 40)', status:'backlog', priority:'high', owner:'', scopeArea:'Venues', due:'2026-10-01', notes:'Need 22-yard hardball pitch + tapeball outfield. Target WBE 40 sign. Check South Asian community grounds in DFW.' },
-    [k()]: { title:'Source tennis / racquet venue', status:'backlog', priority:'medium', owner:'', scopeArea:'Venues', due:'2027-01-01', notes:'Need 8+ courts. Check municipal and club facilities.' },
-    [k()]: { title:'Negotiate and sign all venue contracts', status:'backlog', priority:'high', owner:'', scopeArea:'Venues', due:'2027-03-01', notes:'All 6–8 venues need executed agreements before athlete registration opens.' },
+    [k()]: { title:'Finalize venue shortlist — all sports', status:'inprogress', priority:'High', owner:'', scopeArea:'Venues', due:'2026-09-01', notes:'Primary (In Conversation): RYSE Farmers Branch (VB/Throwball), CH StarCenter Northlake (Bad/BB/TT), GatewayPark Fort Worth (Soccer/Flag FB), Texomo Cricket Ground, Picklr (Pickleball/Dance), McKinney Courts (Tennis/Pickleball). Backups: Lewisville Badminton, Little Elm Soccer, Russell Creek (Cricket), Prairie View (Cricket). TBD: Track, Chess.' },
+    [k()]: { title:'Confirm venue details — RYSE Energy StarCenter, Farmers Branch', status:'todo', priority:'High', owner:'Alishah Momin', scopeArea:'Venues', due:'2026-08-31', notes:'2400 Pike St, Farmers Branch. Contact: Lee Wisener 972-880-5281. Confirm court count (est 16), floor type, AV, parking.' },
+    [k()]: { title:"Confirm venue details — Children's Health StarCenter, Northlake", status:'todo', priority:'High', owner:'Karim Hemani', scopeArea:'Venues', due:'2026-08-31', notes:'13850 Chadwick Pkwy, Northlake. Contact: Lee Wisener 972-880-5281. Sports: Badminton, Basketball, Table Tennis (Tennis moved to McKinney Courts). Confirm court count (est 8+), TT table space, floor type, parking.' },
+    [k()]: { title:'Site visit — Town of Little Elm Soccer Site 1', status:'todo', priority:'High', owner:'', scopeArea:'Venues', due:'2026-10-01', notes:'704 W Eldorado Pkwy, Little Elm, TX 75068. Contact: Ellie Peters 214-618-3103. North cluster. Confirm # of fields, turf/grass mix, locker rooms, insurance requirements.' },
+    [k()]: { title:'Site visit — GatewayPark Soccer Fields, Fort Worth', status:'todo', priority:'Medium', owner:'', scopeArea:'Venues', due:'2026-11-01', notes:'4321 E 1st St, Fort Worth, TX 76111. Contact: Samuel Robbie 817-925-2459. West cluster. Confirm Soccer Site 2 + Flag Football suitability. Farthest venue — dedicated shuttle loop required.' },
+    [k()]: { title:'Source cricket venue — DFW area (target WBE 40)', status:'todo', priority:'High', owner:'', scopeArea:'Venues', due:'2026-10-01', notes:'Need 22-yard hardball pitch + tapeball outfield. Target WBE 40 sign. Check South Asian community grounds in DFW.' },
+    [k()]: { title:'Source tennis / racquet venue', status:'todo', priority:'Medium', owner:'', scopeArea:'Venues', due:'2027-01-01', notes:'Need 8+ courts. Check municipal and club facilities.' },
+    [k()]: { title:'Negotiate and sign all venue contracts', status:'todo', priority:'High', owner:'', scopeArea:'Venues', due:'2027-03-01', notes:'All 6–8 venues need executed agreements before athlete registration opens.' },
     // ── Transportation ──
-    [k()]: { title:'Finalize transportation vendor RFP', status:'backlog', priority:'high', owner:'', scopeArea:'Transportation', due:'2026-11-01', notes:'Issue RFP for charter coach + mini bus + van fleet. Hub-and-spoke system.' },
-    [k()]: { title:'Sign transportation vendor contract', status:'backlog', priority:'high', owner:'', scopeArea:'Transportation', due:'2027-02-01', notes:'Finalize fleet: 2×55-pax coach, 2×28-pax mini, 3×12-pax van, 1 ADA.' },
-    [k()]: { title:'Build airport shuttle schedule — DFW', status:'backlog', priority:'high', owner:'', scopeArea:'Transportation', due:'2027-04-01', notes:'Sep 4 arrivals every 90 min 09:00–22:30. Sep 8 departures 05:30–15:30.' },
-    [k()]: { title:'Build airport shuttle schedule — DAL', status:'backlog', priority:'high', owner:'', scopeArea:'Transportation', due:'2027-04-01', notes:'Sep 4 arrivals 09:00–18:00. Sep 8 departures 06:00–13:30.' },
-    [k()]: { title:'Confirm JK Hub logistics setup (Carrollton)', status:'backlog', priority:'high', owner:'', scopeArea:'Transportation', due:'2027-05-01', notes:'2500 Dickerson Pkwy. Staging, dispatch, signage, holding area.' },
-    [k()]: { title:'ADA transportation plan', status:'backlog', priority:'high', owner:'', scopeArea:'Transportation', due:'2027-03-01', notes:'At least 1 accessible vehicle per route. Pre-registration for mobility needs.' },
+    [k()]: { title:'Finalize transportation vendor RFP', status:'todo', priority:'High', owner:'', scopeArea:'Transportation', due:'2026-11-01', notes:'Issue RFP for charter coach + mini bus + van fleet. Hub-and-spoke system.' },
+    [k()]: { title:'Sign transportation vendor contract', status:'todo', priority:'High', owner:'', scopeArea:'Transportation', due:'2027-02-01', notes:'Finalize fleet: 2×55-pax coach, 2×28-pax mini, 3×12-pax van, 1 ADA.' },
+    [k()]: { title:'Build airport shuttle schedule — DFW', status:'todo', priority:'High', owner:'', scopeArea:'Transportation', due:'2027-04-01', notes:'Sep 4 arrivals every 90 min 09:00–22:30. Sep 8 departures 05:30–15:30.' },
+    [k()]: { title:'Build airport shuttle schedule — DAL', status:'todo', priority:'High', owner:'', scopeArea:'Transportation', due:'2027-04-01', notes:'Sep 4 arrivals 09:00–18:00. Sep 8 departures 06:00–13:30.' },
+    [k()]: { title:'Confirm JK Hub logistics setup (Carrollton)', status:'todo', priority:'High', owner:'', scopeArea:'Transportation', due:'2027-05-01', notes:'2500 Dickerson Pkwy. Staging, dispatch, signage, holding area.' },
+    [k()]: { title:'ADA transportation plan', status:'todo', priority:'High', owner:'', scopeArea:'Transportation', due:'2027-03-01', notes:'At least 1 accessible vehicle per route. Pre-registration for mobility needs.' },
     // ── Lodging / Hotels ──
-    [k()]: { title:'Identify hotel block candidates (400–600 rooms)', status:'inprogress', priority:'high', owner:'', scopeArea:'Hotels', due:'2026-10-01', notes:'Target: airport-adjacent + downtown Dallas + Fort Worth. 3–4 properties.' },
-    [k()]: { title:'Send hotel RFPs and block requests', status:'backlog', priority:'high', owner:'', scopeArea:'Hotels', due:'2026-12-01', notes:'Block for Sep 4–8, 2027. Competitive group rate. Attrition clause.' },
-    [k()]: { title:'Negotiate and sign hotel contracts', status:'backlog', priority:'high', owner:'', scopeArea:'Hotels', due:'2027-03-01', notes:'Finalize rates, cut-off dates, attrition, comp rooms.' },
-    [k()]: { title:'Build athlete accommodation assignment system', status:'backlog', priority:'medium', owner:'', scopeArea:'Hotels', due:'2027-05-01', notes:'Assign athletes/teams to hotel blocks. Track usage.' },
+    [k()]: { title:'Identify hotel block candidates (400–600 rooms)', status:'inprogress', priority:'High', owner:'', scopeArea:'Hotels', due:'2026-10-01', notes:'Target: airport-adjacent + downtown Dallas + Fort Worth. 3–4 properties.' },
+    [k()]: { title:'Send hotel RFPs and block requests', status:'todo', priority:'High', owner:'', scopeArea:'Hotels', due:'2026-12-01', notes:'Block for Sep 4–8, 2027. Competitive group rate. Attrition clause.' },
+    [k()]: { title:'Negotiate and sign hotel contracts', status:'todo', priority:'High', owner:'', scopeArea:'Hotels', due:'2027-03-01', notes:'Finalize rates, cut-off dates, attrition, comp rooms.' },
+    [k()]: { title:'Build athlete accommodation assignment system', status:'todo', priority:'Medium', owner:'', scopeArea:'Hotels', due:'2027-05-01', notes:'Assign athletes/teams to hotel blocks. Track usage.' },
     // ── Food & Beverage ──
-    [k()]: { title:'F&B plan — athlete village / main hub', status:'backlog', priority:'medium', owner:'', scopeArea:'Food', due:'2027-02-01', notes:'Daily meal service for ~2,200 athletes. Catering or venue concessions.' },
-    [k()]: { title:'Identify halal/kosher/dietary accommodation vendors', status:'backlog', priority:'high', owner:'', scopeArea:'Food', due:'2027-04-01', notes:'Indigenous Games context — diverse dietary requirements.' },
-    [k()]: { title:'Catering vendor RFP and contract', status:'backlog', priority:'medium', owner:'', scopeArea:'Food', due:'2027-02-01', notes:'Venue food service + athlete meals.' },
+    [k()]: { title:'F&B plan — athlete village / main hub', status:'todo', priority:'Medium', owner:'', scopeArea:'Food', due:'2027-02-01', notes:'Daily meal service for ~2,200 athletes. Catering or venue concessions.' },
+    [k()]: { title:'Identify halal/kosher/dietary accommodation vendors', status:'todo', priority:'High', owner:'', scopeArea:'Food', due:'2027-04-01', notes:'Indigenous Games context — diverse dietary requirements.' },
+    [k()]: { title:'Catering vendor RFP and contract', status:'todo', priority:'Medium', owner:'', scopeArea:'Food', due:'2027-02-01', notes:'Venue food service + athlete meals.' },
     // ── Health & Medical ──
-    [k()]: { title:'Medical services plan — all venues', status:'backlog', priority:'high', owner:'', scopeArea:'Health Board', due:'2027-03-01', notes:'On-site EMT/paramedic at each venue. AED placement. Hospital liaison.' },
-    [k()]: { title:'Mental health + wellness support plan', status:'backlog', priority:'medium', owner:'', scopeArea:'Health Board', due:'2027-04-01', notes:'Elder / cultural wellness team on-site. Space at hub.' },
-    [k()]: { title:'Anti-doping / CMT protocol', status:'backlog', priority:'high', owner:'', scopeArea:'CMT', due:'2027-01-01', notes:'NAIG CMT (Competition Management Team) requirements. Drug testing if applicable.' },
-    [k()]: { title:'First responder training for volunteers', status:'backlog', priority:'medium', owner:'', scopeArea:'Health Board', due:'2027-06-01', notes:'Basic first aid for RST team and site leads.' },
+    [k()]: { title:'Medical services plan — all venues', status:'todo', priority:'High', owner:'', scopeArea:'Health Board', due:'2027-03-01', notes:'On-site EMT/paramedic at each venue. AED placement. Hospital liaison.' },
+    [k()]: { title:'Mental health + wellness support plan', status:'todo', priority:'Medium', owner:'', scopeArea:'Health Board', due:'2027-04-01', notes:'Elder / cultural wellness team on-site. Space at hub.' },
+    [k()]: { title:'Anti-doping / CMT protocol', status:'todo', priority:'High', owner:'', scopeArea:'CMT', due:'2027-01-01', notes:'NAIG CMT (Competition Management Team) requirements. Drug testing if applicable.' },
+    [k()]: { title:'First responder training for volunteers', status:'todo', priority:'Medium', owner:'', scopeArea:'Health Board', due:'2027-06-01', notes:'Basic first aid for RST team and site leads.' },
     // ── Org / Staffing ──
-    [k()]: { title:'Fill all TBD roles in org chart', status:'inprogress', priority:'medium', owner:'Rizwan', scopeArea:'Org / Staffing', due:'2026-12-01', notes:'Use Volunteer Prospects panel. 30+ open roles.' },
-    [k()]: { title:'Confirm event weekend — Labor Day 2027', status:'done', priority:'high', owner:'Rizwan', scopeArea:'Org / Staffing', due:'2026-07-01', notes:'Sep 4 arrival, Sep 5–7 games, Sep 8 departure.' },
-    [k()]: { title:'Recruit RST (Regional Support Team) leads', status:'backlog', priority:'high', owner:'', scopeArea:'Org / Staffing', due:'2026-11-01', notes:'One RST per province/territory delegation. ~14 leads.' },
-    [k()]: { title:'Volunteer onboarding and training plan', status:'backlog', priority:'medium', owner:'', scopeArea:'Org / Staffing', due:'2027-06-01', notes:'750–1,000 volunteers. Role-specific training sessions.' },
+    [k()]: { title:'Fill all TBD roles in org chart', status:'inprogress', priority:'Medium', owner:'Rizwan', scopeArea:'Org / Staffing', due:'2026-12-01', notes:'Use Volunteer Prospects panel. 30+ open roles.' },
+    [k()]: { title:'Confirm event weekend — Labor Day 2027', status:'done', priority:'High', owner:'Rizwan', scopeArea:'Org / Staffing', due:'2026-07-01', notes:'Sep 4 arrival, Sep 5–7 games, Sep 8 departure.' },
+    [k()]: { title:'Recruit RST (Regional Support Team) leads', status:'todo', priority:'High', owner:'', scopeArea:'Org / Staffing', due:'2026-11-01', notes:'One RST per province/territory delegation. ~14 leads.' },
+    [k()]: { title:'Volunteer onboarding and training plan', status:'todo', priority:'Medium', owner:'', scopeArea:'Org / Staffing', due:'2027-06-01', notes:'750–1,000 volunteers. Role-specific training sessions.' },
     // ── Site Management ──
-    [k()]: { title:'Site management plan — all venues', status:'backlog', priority:'high', owner:'', scopeArea:'Site Management', due:'2027-04-01', notes:'Each venue needs a site lead, RST presence, signage, security.' },
-    [k()]: { title:'Signage and wayfinding design', status:'backlog', priority:'medium', owner:'', scopeArea:'Site Management', due:'2027-06-01', notes:'NAIG-branded signage at all venues + hub. Route maps.' },
-    [k()]: { title:'Security vendor selection', status:'backlog', priority:'high', owner:'', scopeArea:'Site Management', due:'2027-02-01', notes:'Licensed security at each venue. Crowd management plan.' },
-    [k()]: { title:'Opening / closing ceremony planning', status:'backlog', priority:'high', owner:'', scopeArea:'Site Management', due:'2027-03-01', notes:'Venue TBD. AV, production, program, cultural elements.' },
+    [k()]: { title:'Site management plan — all venues', status:'todo', priority:'High', owner:'', scopeArea:'Site Management', due:'2027-04-01', notes:'Each venue needs a site lead, RST presence, signage, security.' },
+    [k()]: { title:'Signage and wayfinding design', status:'todo', priority:'Medium', owner:'', scopeArea:'Site Management', due:'2027-06-01', notes:'NAIG-branded signage at all venues + hub. Route maps.' },
+    [k()]: { title:'Security vendor selection', status:'todo', priority:'High', owner:'', scopeArea:'Site Management', due:'2027-02-01', notes:'Licensed security at each venue. Crowd management plan.' },
+    [k()]: { title:'Opening / closing ceremony planning', status:'todo', priority:'High', owner:'', scopeArea:'Site Management', due:'2027-03-01', notes:'Venue TBD. AV, production, program, cultural elements.' },
     // ── Vendors ──
-    [k()]: { title:'AV / production vendor selection', status:'backlog', priority:'medium', owner:'', scopeArea:'Vendors', due:'2027-02-01', notes:'PA system, scoreboard integration, livestream capability.' },
-    [k()]: { title:'Printing / signage vendor', status:'backlog', priority:'low', owner:'', scopeArea:'Vendors', due:'2027-05-01', notes:'Banners, programs, lanyards, bibs.' },
-    [k()]: { title:'Medical supplies procurement', status:'backlog', priority:'medium', owner:'', scopeArea:'Vendors', due:'2027-06-01', notes:'First aid kits, ice, AED units for each venue.' },
-    [k()]: { title:'Insurance procurement — event liability', status:'backlog', priority:'high', owner:'', scopeArea:'Vendors', due:'2026-12-01', notes:'General liability + athlete accident insurance for full event.' },
+    [k()]: { title:'AV / production vendor selection', status:'todo', priority:'Medium', owner:'', scopeArea:'Vendors', due:'2027-02-01', notes:'PA system, scoreboard integration, livestream capability.' },
+    [k()]: { title:'Printing / signage vendor', status:'todo', priority:'Low', owner:'', scopeArea:'Vendors', due:'2027-05-01', notes:'Banners, programs, lanyards, bibs.' },
+    [k()]: { title:'Medical supplies procurement', status:'todo', priority:'Medium', owner:'', scopeArea:'Vendors', due:'2027-06-01', notes:'First aid kits, ice, AED units for each venue.' },
+    [k()]: { title:'Insurance procurement — event liability', status:'todo', priority:'High', owner:'', scopeArea:'Vendors', due:'2026-12-01', notes:'General liability + athlete accident insurance for full event.' },
   };
   window._dbSet(window._dbRef('naig2027/tasks'), seed);
 };
 
 function openTaskModal(defaultStatus, editKey) {
   const t = editKey ? (window._tasksData[editKey] || {}) : {};
-  document.getElementById('taskModalTitle').textContent = editKey ? ' Edit Task' : ' Add Task';
+  document.getElementById('taskModalTitle').textContent = editKey ? 'Edit Task' : 'Add Task';
   document.getElementById('taskKey').value = editKey || '';
   document.getElementById('taskTitle').value = t.title || '';
-  document.getElementById('taskStatus').value = t.status || defaultStatus || 'backlog';
-  document.getElementById('taskPriority').value = t.priority || 'medium';
+  document.getElementById('taskStatus').value = t.status || defaultStatus || 'todo';
+  document.getElementById('taskPriority').value = t.priority || 'Medium';
+  document.getElementById('taskDept').value = t.department || '';
   document.getElementById('taskScopeArea').value = t.scopeArea || '';
+  document.getElementById('taskLinkedTo').value = t.linkedTo || '';
   document.getElementById('taskOwner').value = t.owner || '';
   document.getElementById('taskDue').value = t.due || '';
+  document.getElementById('taskEstHours').value = t.estHours || '';
+  document.getElementById('taskTags').value = t.tags || '';
   document.getElementById('taskNotes').value = t.notes || '';
+  // Populate parent task dropdown (exclude self and tasks that are already subtasks of this task)
+  const parentSel = document.getElementById('taskParent');
+  if (parentSel) {
+    const options = Object.entries(window._tasksData||{}).filter(([k])=>k!==editKey).map(([k,x])=>`<option value="${k}"${t.parentTask===k?' selected':''}>${esc((x.title||'').slice(0,60))}</option>`);
+    parentSel.innerHTML = '<option value="">— None (top-level task) —</option>' + options.join('');
+  }
   document.getElementById('taskDeleteBtn').style.display = editKey ? '' : 'none';
   document.getElementById('taskOverlay').style.display = 'flex';
 }
 function closeTaskModal() { document.getElementById('taskOverlay').style.display = 'none'; }
 function saveTask() {
   const title = document.getElementById('taskTitle').value.trim();
-  if (!title) { alert('Task title is required.'); return; }
+  if (!title) { alert('Task title required.'); return; }
   const key = document.getElementById('taskKey').value || hubKey();
   hubSave('tasks', key, {
-    title, status: document.getElementById('taskStatus').value,
-    priority: document.getElementById('taskPriority').value,
-    scopeArea: document.getElementById('taskScopeArea').value,
-    owner: document.getElementById('taskOwner').value.trim(),
-    due: document.getElementById('taskDue').value,
-    notes: document.getElementById('taskNotes').value.trim(),
-    updated: new Date().toISOString()
+    title,
+    status:     document.getElementById('taskStatus').value,
+    priority:   document.getElementById('taskPriority').value,
+    department: document.getElementById('taskDept').value,
+    scopeArea:  document.getElementById('taskScopeArea').value,
+    linkedTo:   document.getElementById('taskLinkedTo').value.trim(),
+    owner:      document.getElementById('taskOwner').value,
+    due:        document.getElementById('taskDue').value,
+    estHours:   document.getElementById('taskEstHours').value,
+    tags:       document.getElementById('taskTags').value.trim(),
+    notes:      document.getElementById('taskNotes').value.trim(),
+    parentTask: document.getElementById('taskParent').value,
+    updated:    new Date().toISOString()
   });
   closeTaskModal();
 }
@@ -3397,16 +3568,16 @@ function quickComplete(key) {
   hubSave('tasks', key, {...t, status:'done', updated: new Date().toISOString()});
 }
 function exportTasksCSV() {
-  const rows = [['Title','Status','Priority','Scope Area','Owner','Due','Notes']];
+  const rows = [['Title','Status','Priority','Department','Scope Area','Assignee','Due','Est Hours','Tags','Notes']];
   Object.values(window._tasksData||{}).forEach(t => {
-    rows.push([t.title,t.status,t.priority,t.scopeArea||'',t.owner||'',t.due||'',t.notes||'']);
+    rows.push([t.title,t.status,t.priority,t.department||'',t.scopeArea||'',t.owner||'',t.due||'',t.estHours||'',t.tags||'',t.notes||'']);
   });
   downloadCSV(rows, 'naig-tasks.csv');
 }
-window.openTaskModal = openTaskModal;
-window.closeTaskModal = closeTaskModal;
-window.saveTask = saveTask;
-window.quickComplete = quickComplete;
+window.openTaskModal   = openTaskModal;
+window.closeTaskModal  = closeTaskModal;
+window.saveTask        = saveTask;
+window.quickComplete   = quickComplete;
 
 /* ══════════════════════════════════════════════════════════
    VENUES
@@ -4766,7 +4937,7 @@ window.addEventListener('load', function() {
     if (window._transportData&& Object.keys(window._transportData).length) window.renderTransport && window.renderTransport();
     if (window._scopeData    && Object.keys(window._scopeData).length)    window.renderScope     && window.renderScope();
     if (window._hotelsData   && Object.keys(window._hotelsData).length)   window.renderHotels    && window.renderHotels();
-    if (window._tasksData    && Object.keys(window._tasksData).length)    window.renderKanban    && window.renderKanban();
+    if (window._tasksData    && Object.keys(window._tasksData).length)    window.renderTasks     && window.renderTasks();
     if (window._docsData     && Object.keys(window._docsData).length)     window.renderDocs      && window.renderDocs();
     window.refreshAthleteBreakdown && window.refreshAthleteBreakdown();
     // Plan: seed if null, render if data present
@@ -5079,55 +5250,91 @@ window.addEventListener('load', function() {
 
 <!-- Task Modal -->
 <div class="overlay" id="taskOverlay" onclick="closeTaskModal()">
- <div class="modal" style="width:420px" onclick="event.stopPropagation()">
- <h3 id="taskModalTitle"> Add Task</h3>
+ <div class="modal modal-scroll" style="width:520px" onclick="event.stopPropagation()">
+ <h3 id="taskModalTitle">Add Task</h3>
  <input type="hidden" id="taskKey">
- <div class="form-group">
- <label>Title</label>
- <input type="text" id="taskTitle" placeholder="Task description…" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+ <div class="form-group" style="grid-column:1/-1">
+ <label>Task Title</label>
+ <input type="text" id="taskTitle" placeholder="What needs to be done?" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
  </div>
  <div class="form-group">
  <label>Status</label>
  <select id="taskStatus" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
- <option value="backlog">Backlog</option>
+ <option value="todo">To Do</option>
  <option value="inprogress">In Progress</option>
+ <option value="blocked">Blocked</option>
  <option value="done">Done</option>
- <option value="onhold">On Hold</option>
  </select>
  </div>
  <div class="form-group">
  <label>Priority</label>
  <select id="taskPriority" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
- <option value="high"> High</option>
- <option value="medium" selected> Medium</option>
- <option value="low"> Low</option>
+ <option value="Urgent">🔴 Urgent</option>
+ <option value="High">🟠 High</option>
+ <option value="Medium" selected>🟡 Medium</option>
+ <option value="Low">🟢 Low</option>
  </select>
  </div>
  <div class="form-group">
- <label>Scope Area / Team</label>
- <select id="taskScopeArea" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
- <option value="">— General / Unassigned —</option>
- <option>Athletes</option><option>Volunteers</option><option>Venues</option>
- <option>Hotels</option><option>Transportation</option><option>Vendors</option>
- <option>Org / Staffing</option><option>Finance</option><option>Technology</option><option>Marketing</option><option>Other</option>
+ <label>Assignee</label>
+ <select id="taskOwner" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ <option value="">— Unassigned —</option>
+ <option>Rizwan Ali</option><option>Azmina Hashim</option><option>Sohail Ali</option>
+ <option>Humera Kabani</option><option>Maleka Surani</option><option>Akil Momin</option>
+ <option>Shehzad Ali</option><option>Raj Thakur</option><option>Kiran Surani</option>
+ <option>Shah</option><option>Anil</option><option>Shahneel Kanji</option><option>Sharez Prasla</option>
  </select>
  </div>
  <div class="form-group">
- <label>Assigned To</label>
- <input type="text" id="taskOwner" placeholder="Name or team" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ <label>Department</label>
+ <select id="taskDept" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ <option value="">— None —</option>
+ <option>Leadership</option><option>F&amp;B</option><option>Hotels &amp; Accommodations</option>
+ <option>Transportation</option><option>Site Logistics</option><option>Equipment &amp; Signage</option>
+ </select>
  </div>
  <div class="form-group">
  <label>Due Date</label>
  <input type="date" id="taskDue" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
  </div>
  <div class="form-group">
+ <label>Est. Hours</label>
+ <input type="number" id="taskEstHours" min="0.5" step="0.5" placeholder="e.g. 4" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group">
+ <label>Scope Area</label>
+ <select id="taskScopeArea" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ <option value="">— General —</option>
+ <option>Athletes</option><option>Volunteers</option><option>Venues</option>
+ <option>Hotels</option><option>Transportation</option><option>Vendors</option>
+ <option>Org / Staffing</option><option>Finance</option><option>Technology</option>
+ <option>Marketing</option><option>Health Board</option><option>CMT</option><option>Other</option>
+ </select>
+ </div>
+ <div class="form-group" style="grid-column:1/-1">
+ <label>Linked To (Sport / Venue / Event)</label>
+ <input type="text" id="taskLinkedTo" placeholder="e.g. RYSE StarCenter · Volleyball" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group" style="grid-column:1/-1">
+ <label>Tags <span style="font-weight:400;color:#94a3b8">(comma-separated)</span></label>
+ <input type="text" id="taskTags" placeholder="e.g. venue, contract, urgent" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group" style="grid-column:1/-1">
+ <label>Parent Task <span style="font-weight:400;color:#94a3b8">(optional — makes this a subtask)</span></label>
+ <select id="taskParent" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ <option value="">— None (top-level task) —</option>
+ </select>
+ </div>
+ <div class="form-group" style="grid-column:1/-1">
  <label>Notes</label>
- <textarea id="taskNotes" placeholder="Additional context…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;resize:vertical;min-height:60px;font-family:inherit;line-height:1.5"></textarea>
+ <textarea id="taskNotes" placeholder="Additional context, blockers, links…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;resize:vertical;min-height:65px;font-family:inherit;line-height:1.5"></textarea>
+ </div>
  </div>
  <div class="modal-actions">
  <button class="btn btn-cancel" onclick="closeTaskModal()">Cancel</button>
  <button class="btn btn-danger" id="taskDeleteBtn" onclick="deleteHubItem('tasks',document.getElementById('taskKey').value,closeTaskModal)" style="display:none">Delete</button>
- <button class="btn btn-primary" onclick="saveTask()">Save</button>
+ <button class="btn btn-primary" onclick="saveTask()">Save Task</button>
  </div>
  </div>
 </div>
