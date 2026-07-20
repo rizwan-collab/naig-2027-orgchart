@@ -3734,16 +3734,38 @@ window.renderHotels = function() {
   if (q) all = all.filter(([,h]) => [h.name,h.address,h.contact,h.notes].join(' ').toLowerCase().includes(q));
   if (statusF) all = all.filter(([,h]) => h.status === statusF);
 
-  // summary strip
-  const totalBlock = Object.values(window._hotelsData||{}).reduce((s,h) => s + (parseInt(h.blockSize)||0), 0);
-  const totalUsed  = Object.values(window._hotelsData||{}).reduce((s,h) => s + (parseInt(h.roomsUsed)||0), 0);
-  const confirmed  = Object.values(window._hotelsData||{}).filter(h => h.status === 'Contract Signed' || h.status === 'Block Confirmed').length;
+  // summary strip — B (financials) + C (status pipeline)
+  const _allH = Object.values(window._hotelsData || {});
+  const _totalHotels = Object.keys(window._hotelsData||{}).length;
+  const totalBlock = _allH.reduce((s,h) => s + (parseInt(h.blockSize)||0), 0);
+  const totalUsed  = _allH.reduce((s,h) => s + (parseInt(h.roomsUsed)||0), 0);
+  // B: rate range + est block cost
+  const _rates = _allH.map(h => parseFloat(h.rate)||0).filter(r => r > 0);
+  const _rateMin = _rates.length ? Math.min(..._rates) : 0;
+  const _rateMax = _rates.length ? Math.max(..._rates) : 0;
+  const _estCost = _allH.reduce((s,h) => {
+    const rooms = parseInt(h.blockSize)||0, rate = parseFloat(h.rate)||0;
+    let nights = 5;
+    if (h.checkIn && h.checkOut) { const d = (new Date(h.checkOut)-new Date(h.checkIn))/86400000; if (d>0) nights=d; }
+    return s + rooms * rate * nights;
+  }, 0);
+  // C: status pipeline
+  const _sc = {};
+  _allH.forEach(h => { _sc[h.status] = (_sc[h.status]||0) + 1; });
+  const confirmed = (_sc['Block Confirmed']||0) + (_sc['Contract Signed']||0);
+  const _fmtM = n => n >= 1000000 ? '$'+(n/1000000).toFixed(1)+'M' : n >= 1000 ? '$'+(n/1000).toFixed(0)+'K' : '$'+Math.round(n);
+  const _rateStr = _rates.length ? (_rateMin===_rateMax ? `$${_rateMin}/nt` : `$${_rateMin}–$${_rateMax}/nt`) : '—';
   const strip = document.getElementById('hotelSummary');
   if (strip) strip.innerHTML =
-    `<span>Hotels: <strong>${Object.keys(window._hotelsData||{}).length}</strong></span>` +
-    `<span>Block Size: <strong>${totalBlock || '—'} rooms</strong></span>` +
-    `<span>Rooms Used: <strong>${totalUsed || '—'}</strong></span>` +
-    `<span>Confirmed: <strong>${confirmed}</strong></span>`;
+    `<span>Hotels: <strong>${_totalHotels}</strong></span>` +
+    `<span>Block: <strong>${totalBlock||'—'} rooms</strong></span>` +
+    `<span>Used: <strong>${totalUsed||'0'}</strong></span>` +
+    `<span>Rates: <strong>${_rateStr}</strong></span>` +
+    (_estCost > 0 ? `<span>Est. Block Cost: <strong>${_fmtM(_estCost)}</strong></span>` : '') +
+    `<span style="border-left:1px solid #d1d5db;padding-left:12px;margin-left:4px">Prospecting: <strong>${_sc['Prospecting']||0}</strong></span>` +
+    `<span>Requested: <strong>${_sc['Block Requested']||0}</strong></span>` +
+    `<span>Confirmed: <strong>${_sc['Block Confirmed']||0}</strong></span>` +
+    `<span>Signed: <strong>${_sc['Contract Signed']||0}</strong></span>`;
 
   updateBadge('hotels', Object.keys(window._hotelsData||{}).length);
 
