@@ -3776,9 +3776,11 @@ window.renderHotels = function() {
   tbody.innerHTML = all.map(([k,h]) => {
     const pct = h.blockSize ? Math.round((parseInt(h.roomsUsed)||0)/parseInt(h.blockSize)*100) : 0;
     const bar = h.blockSize ? `<div style="background:#e5e7eb;border-radius:3px;height:5px;width:60px;display:inline-block;vertical-align:middle;margin-left:4px"><div style="width:${pct}%;background:#2563eb;height:5px;border-radius:3px"></div></div>` : '';
+    const bfChip = h.breakfast === 'Yes' ? `<span style="margin-left:5px;padding:1px 6px;background:#d1fae5;color:#065f46;border-radius:10px;font-size:10px;font-weight:600">🍳 Bfast</span>` : (h.breakfast === 'Negotiating' ? `<span style="margin-left:5px;padding:1px 6px;background:#fef9c3;color:#854d0e;border-radius:10px;font-size:10px">Bfast?</span>` : '');
+    const clusterChip = h.cluster ? `<div style="margin-top:2px;font-size:10px;color:#6366f1;font-weight:500">${esc(h.cluster)}</div>` : '';
     return `<tr onclick="openHotelModal('${k}')" style="cursor:pointer">
- <td><strong>${esc(h.name||'—')}</strong></td>
- <td style="font-size:11px">${esc(h.address||'—')}</td>
+ <td><strong>${esc(h.name||'—')}</strong>${bfChip}${clusterChip}</td>
+ <td style="font-size:11px">${esc(h.address||'—')}${h.distance ? `<div style="color:#64748b;font-size:10px;margin-top:1px">📍 ${esc(h.distance)}</div>` : ''}</td>
  <td style="font-size:11px">${esc(h.blockSize||'—')} ${bar}</td>
  <td style="font-size:11px">${esc(h.roomsUsed||'0')}</td>
  <td style="font-size:11px">${h.rate ? '$'+esc(h.rate)+'/night' : '—'}</td>
@@ -3829,6 +3831,10 @@ function openHotelModal(editKey) {
   document.getElementById('hotelPocEmail').value = h.pocEmail || '';
   document.getElementById('hotelPocPhone').value = h.pocPhone || '';
   document.getElementById('hotelContractLink').value = h.contractLink || '';
+  document.getElementById('hotelCluster').value = h.cluster || '';
+  document.getElementById('hotelDistance').value = h.distance || '';
+  document.getElementById('hotelShuttleLink').value = h.shuttleLink || '';
+  document.getElementById('hotelBreakfast').value = h.breakfast || '';
   document.getElementById('hotelNotes').value = h.notes || '';
   document.getElementById('hotelDeleteBtn').style.display = editKey ? '' : 'none';
   document.getElementById('hotelOverlay').style.display = 'flex';
@@ -3852,6 +3858,10 @@ function saveHotel() {
     pocEmail: document.getElementById('hotelPocEmail').value.trim(),
     pocPhone: document.getElementById('hotelPocPhone').value.trim(),
     contractLink: document.getElementById('hotelContractLink').value.trim(),
+    cluster: document.getElementById('hotelCluster').value.trim(),
+    distance: document.getElementById('hotelDistance').value.trim(),
+    shuttleLink: document.getElementById('hotelShuttleLink').value.trim(),
+    breakfast: document.getElementById('hotelBreakfast').value,
     notes: document.getElementById('hotelNotes').value.trim(),
     updated: new Date().toISOString()
   });
@@ -4666,9 +4676,30 @@ window.addEventListener('load', function() {
  <label>Contract / File Link</label>
  <input type="url" id="hotelContractLink" placeholder="https://drive.google.com/…" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
  </div>
+ <div class="form-group">
+ <label>Cluster / Area</label>
+ <input type="text" id="hotelCluster" placeholder="e.g. South-Central (Primary)" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group">
+ <label>Distance to Venues</label>
+ <input type="text" id="hotelDistance" placeholder="e.g. 8 min / 4.2 mi" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
  <div class="form-group" style="grid-column:1/-1">
- <label>Notes (attrition clause, amenities, shuttle, parking)</label>
- <textarea id="hotelNotes" placeholder="Key contract terms, proximity to venues, shuttle schedule…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;resize:vertical;min-height:55px;font-family:inherit;line-height:1.5"></textarea>
+ <label>Shuttle Schedule Link</label>
+ <input type="url" id="hotelShuttleLink" placeholder="https://docs.google.com/…" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group">
+ <label>Breakfast Included?</label>
+ <select id="hotelBreakfast" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+  <option value="">Unknown</option>
+  <option value="Yes">Yes — Included</option>
+  <option value="No">No</option>
+  <option value="Negotiating">Negotiating</option>
+ </select>
+ </div>
+ <div class="form-group" style="grid-column:1/-1">
+ <label>Notes (attrition clause, amenities, parking)</label>
+ <textarea id="hotelNotes" placeholder="Key contract terms, attrition %, parking, any special terms…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;resize:vertical;min-height:55px;font-family:inherit;line-height:1.5"></textarea>
  </div>
  </div>
  <div class="modal-actions">
