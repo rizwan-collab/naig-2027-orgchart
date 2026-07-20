@@ -37,6 +37,7 @@
   const hotelsRef   = ref(db, 'naig2027/hotels');
   const transportRef = ref(db, 'naig2027/transportation');
   const docsRef      = ref(db, 'naig2027/docs');
+  const planRef      = ref(db, 'naig2027/plan');
 
   // ── expose Firebase to the rest of the page ──
   window._fb = {
@@ -54,6 +55,8 @@
     listenHotels:     (cb) => onValue(hotelsRef,    snap => cb(snap.val())),
     listenTransport:  (cb) => onValue(transportRef, snap => cb(snap.val())),
     listenDocs:       (cb) => onValue(docsRef,      snap => cb(snap.val())),
+    listenPlan:       (cb) => onValue(planRef,      snap => cb(snap.val())),
+    savePlan:         (data) => set(planRef, data),
   };
   // Primitives for global CRUD
   window._dbRef    = (path) => ref(db, path);
@@ -147,6 +150,15 @@
     window._fb.listenDocs((data) => {
       window._docsData = data || {};
       window.renderDocs && window.renderDocs();
+    });
+    window._fb.listenPlan((data) => {
+      if (data) {
+        _planData = data;
+      } else {
+        // Seed defaults on first load
+        initPlanDefaults();
+      }
+      window.renderPlan && window.renderPlan();
     });
   })();
 </script>
@@ -555,6 +567,43 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .dir-region { font-size:.72rem; color:#888; margin-left:4px; }
 .dir-panel-empty { padding:24px; text-align:center; color:#aaa; font-size:.84rem; }
 
+/* ── Project Plan ── */
+.plan-phase-bar { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0 10px; }
+.phase-pill { padding:6px 14px; border-radius:20px; border:1.5px solid #cbd5e1; background:#fff; font-size:12px; font-weight:600; cursor:pointer; color:#475569; transition:all .15s; }
+.phase-pill.active { background:#BF1B2A; border-color:#BF1B2A; color:#fff; }
+.phase-pill:hover:not(.active) { border-color:#BF1B2A; color:#BF1B2A; }
+.plan-progress-wrap { margin:4px 0 10px; }
+.plan-progress-label { display:flex; justify-content:space-between; font-size:12px; color:#64748b; margin-bottom:4px; }
+.plan-layout { display:grid; grid-template-columns:1fr 280px; gap:20px; margin-top:14px; }
+@media(max-width:900px){ .plan-layout { grid-template-columns:1fr; } }
+.plan-milestones-col { display:flex; flex-direction:column; gap:12px; }
+.plan-phase-group { background:#fff; border-radius:10px; border:1px solid #e2e8f0; overflow:hidden; }
+.plan-phase-group-hdr { background:#1a3a5c; color:#fff; padding:8px 14px; font-size:12px; font-weight:700; letter-spacing:.5px; display:flex; justify-content:space-between; align-items:center; }
+.plan-milestone-row { display:flex; align-items:flex-start; gap:12px; padding:10px 14px; border-bottom:1px solid #f1f5f9; cursor:pointer; transition:background .12s; }
+.plan-milestone-row:last-child { border-bottom:none; }
+.plan-milestone-row:hover { background:#f8fafc; }
+.plan-ms-status { width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; margin-top:1px; }
+.plan-ms-body { flex:1; min-width:0; }
+.plan-ms-title { font-size:13px; font-weight:600; color:#1e293b; }
+.plan-ms-meta { font-size:11px; color:#94a3b8; margin-top:2px; display:flex; gap:10px; flex-wrap:wrap; }
+.plan-ms-dept { background:#e0e7ef; color:#1a3a5c; border-radius:4px; padding:1px 6px; font-size:10px; font-weight:600; }
+.plan-ms-due-badge { padding:1px 6px; border-radius:4px; font-size:10px; font-weight:600; }
+.due-ok { background:#dcfce7; color:#166534; }
+.due-soon { background:#fef9c3; color:#713f12; }
+.due-overdue { background:#fee2e2; color:#991b1b; }
+.plan-dept-col { }
+.plan-dept-hdr { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:#1a3a5c; margin-bottom:8px; display:flex; align-items:center; }
+.plan-dept-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.dept-tile { background:#fff; border:1.5px solid #e2e8f0; border-radius:8px; padding:7px 9px; cursor:pointer; transition:all .15s; }
+.dept-tile:hover { border-color:#BF1B2A; }
+.dept-tile-name { font-size:11px; font-weight:600; color:#1e293b; }
+.dept-tile-status { font-size:10px; margin-top:2px; display:flex; align-items:center; gap:4px; }
+.dept-dot { width:7px; height:7px; border-radius:50%; display:inline-block; }
+.dept-dot.on-track { background:#22c55e; }
+.dept-dot.at-risk { background:#f59e0b; }
+.dept-dot.behind { background:#ef4444; }
+.dept-dot.done { background:#6366f1; }
+.dept-dot.not-started { background:#cbd5e1; }
 /* ── Transport sub-nav ── */
 .transport-subnav { display:flex; gap:0; border-bottom:2px solid #e0e7ef; margin-bottom:16px; overflow-x:auto; flex-wrap:nowrap; }
 .tnav-btn { background:none; border:none; padding:9px 15px; font-size:.8rem; font-weight:600; cursor:pointer; color:#64748b; border-bottom:3px solid transparent; margin-bottom:-2px; white-space:nowrap; transition:all .15s; border-radius:4px 4px 0 0; }
@@ -633,6 +682,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 <!-- Tab Navigation -->
 <div class="tab-nav">
  <button class="tab-btn active" id="taborg" onclick="switchTab('orgchart')">Org Chart</button>
+ <button class="tab-btn" id="tabplan" onclick="switchTab('plan')">Project Plan <span class="tab-badge" id="badge-plan"></span></button>
  <button class="tab-btn" id="tabtasks" onclick="switchTab('tasks')">Tasks <span class="tab-badge" id="badge-tasks">0</span></button>
  <button class="tab-btn" id="tabvenues" onclick="switchTab('venues')">Venues <span class="tab-badge" id="badge-venues">0</span></button>
  <button class="tab-btn" id="tabvendors" onclick="switchTab('vendors')">Vendors <span class="tab-badge" id="badge-vendors">0</span></button>
@@ -721,6 +771,112 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 <!-- ══════════ HUB SECTIONS ══════════ -->
 
 <!-- Tasks — Kanban Board -->
+<!-- ══ Project Plan ══ -->
+<div class="hub-section" id="sectionPlan">
+ <div class="hub-toolbar">
+  <div>
+   <div class="hub-title">📋 Project Plan — NAIG 2027</div>
+   <div class="hub-subtitle">Milestone tracker across all 5 phases · sourced from Drive structure (16 departments) · Firebase-synced</div>
+  </div>
+  <div class="section-actions">
+   <button class="btn btn-light" onclick="exportPlanCSV()">⬇ Export CSV</button>
+   <button class="btn btn-primary" onclick="openPlanModal()">+ Add Milestone</button>
+  </div>
+ </div>
+
+ <!-- Phase filter pills -->
+ <div class="plan-phase-bar" id="planPhaseBar">
+  <button class="phase-pill active" data-phase="all" onclick="filterPlanPhase('all',this)">All Phases</button>
+  <button class="phase-pill" data-phase="foundation" onclick="filterPlanPhase('foundation',this)">🏗 Foundation</button>
+  <button class="phase-pill" data-phase="registration" onclick="filterPlanPhase('registration',this)">📝 Registration</button>
+  <button class="phase-pill" data-phase="pregames" onclick="filterPlanPhase('pregames',this)">⚙️ Pre-Games</button>
+  <button class="phase-pill" data-phase="gamesweek" onclick="filterPlanPhase('gamesweek',this)">🏅 Games Week</button>
+  <button class="phase-pill" data-phase="postgames" onclick="filterPlanPhase('postgames',this)">📦 Post-Games</button>
+ </div>
+
+ <!-- Progress bar -->
+ <div class="plan-progress-wrap">
+  <div class="plan-progress-label"><span id="planProgressLabel">Loading…</span><span id="planProgressPct" style="font-weight:700;color:#BF1B2A"></span></div>
+  <div class="task-progress"><div class="task-progress-fill" id="planProgressFill" style="width:0%"></div></div>
+ </div>
+
+ <!-- Status summary strip -->
+ <div class="summary-strip" id="planSummaryStrip"></div>
+
+ <!-- Two-column layout: milestones left, dept status right -->
+ <div class="plan-layout">
+  <!-- Milestones -->
+  <div class="plan-milestones-col" id="planMilestonesCol">
+   <div class="hub-empty">Loading milestones…</div>
+  </div>
+
+  <!-- Department Status Grid -->
+  <div class="plan-dept-col">
+   <div class="plan-dept-hdr">Department Health <button class="btn" style="font-size:10px;padding:2px 8px;margin-left:8px;background:#f1f5f9;color:#334155;border:1px solid #cbd5e1" onclick="renderDeptStatus()">Refresh</button></div>
+   <div class="plan-dept-grid" id="deptStatusGrid">
+    <div class="hub-empty">Loading…</div>
+   </div>
+  </div>
+ </div>
+</div>
+
+<!-- Plan Modal -->
+<div class="overlay" id="planOverlay" style="display:none">
+ <div class="modal" style="width:480px;max-width:95vw">
+  <h3 id="planModalTitle">➕ Add Milestone</h3>
+  <input type="hidden" id="planEditKey">
+  <div class="form-group">
+   <label>Phase</label>
+   <select id="planPhase" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+    <option value="foundation">🏗 Foundation (Jul 2026 – Dec 2026)</option>
+    <option value="registration">📝 Registration (Jan – Apr 2027)</option>
+    <option value="pregames">⚙️ Pre-Games (May – Jun 2027)</option>
+    <option value="gamesweek">🏅 Games Week (Jul 2027)</option>
+    <option value="postgames">📦 Post-Games (Aug 2027+)</option>
+   </select>
+  </div>
+  <div class="form-group">
+   <label>Milestone Title</label>
+   <input type="text" id="planTitle" placeholder="e.g. Venue contracts signed" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+  </div>
+  <div class="form-group">
+   <label>Department / Owner</label>
+   <select id="planDept" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+    <option value="">— Select Department —</option>
+    <option>Dance</option><option>ELT / Policies</option><option>Finance</option>
+    <option>HR</option><option>Logistics</option><option>Marketing</option>
+    <option>Memorabilia</option><option>Presentations</option><option>Project Plan</option>
+    <option>Regional Tool Kits</option><option>Registration</option><option>Sites</option>
+    <option>Sports</option><option>Technology</option><option>Venue / Legal</option>
+    <option>YSB Leadership</option><option>Cross-functional</option>
+   </select>
+  </div>
+  <div class="form-group">
+   <label>Due Date</label>
+   <input type="date" id="planDue" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+  </div>
+  <div class="form-group">
+   <label>Status</label>
+   <select id="planStatus" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+    <option value="not-started">⚪ Not Started</option>
+    <option value="in-progress">🔵 In Progress</option>
+    <option value="done">✅ Done</option>
+    <option value="at-risk">🟡 At Risk</option>
+    <option value="blocked">🔴 Blocked</option>
+   </select>
+  </div>
+  <div class="form-group">
+   <label>Notes</label>
+   <textarea id="planNotes" placeholder="Optional notes, blockers, links…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;resize:vertical;min-height:70px;font-family:inherit"></textarea>
+  </div>
+  <div class="modal-actions">
+   <button class="btn btn-cancel" onclick="closePlanModal()">Cancel</button>
+   <button class="btn" style="background:#e74c3c;color:#fff;margin-right:auto" id="planDeleteBtn" onclick="deletePlanMilestone()" style="display:none">Delete</button>
+   <button class="btn btn-primary" onclick="savePlanMilestone()">Save</button>
+  </div>
+ </div>
+</div>
+
 <div class="hub-section" id="sectionTasks">
  <div class="hub-toolbar">
  <div>
@@ -2628,11 +2784,264 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /* ══════════════════════════════════════════════════════════
+   HUB — Project Plan
+══════════════════════════════════════════════════════════ */
+let _planData = {};
+let _planPhaseFilter = 'all';
+
+const PLAN_PHASES = {
+  foundation:   { label:'🏗 Foundation',   dates:'Jul 2026 – Dec 2026', color:'#1a3a5c' },
+  registration: { label:'📝 Registration', dates:'Jan – Apr 2027',      color:'#0369a1' },
+  pregames:     { label:'⚙️ Pre-Games',    dates:'May – Jun 2027',      color:'#7c3aed' },
+  gamesweek:    { label:'🏅 Games Week',   dates:'Jul 2027',            color:'#BF1B2A' },
+  postgames:    { label:'📦 Post-Games',   dates:'Aug 2027+',           color:'#059669' },
+};
+
+const DEPT_STATUS_DEFAULTS = [
+  'Dance','ELT / Policies','Finance','HR','Logistics','Marketing',
+  'Memorabilia','Presentations','Project Plan','Regional Tool Kits',
+  'Registration','Sites','Sports','Technology','Venue / Legal','YSB Leadership'
+];
+
+const DEFAULT_MILESTONES = [
+  { phase:'foundation',   title:'NAIG Hub launched',                    dept:'Technology',      due:'2026-07-15', status:'done',        notes:'Live at GitHub Pages' },
+  { phase:'foundation',   title:'Sport directors appointed (14 sports)', dept:'Sports',          due:'2026-09-01', status:'in-progress', notes:'' },
+  { phase:'foundation',   title:'Venue contracts signed',               dept:'Venue / Legal',   due:'2026-10-01', status:'in-progress', notes:'Picklr, McKinney Courts, Texomo TBD' },
+  { phase:'foundation',   title:'Klubsoft registration system configured',dept:'Registration',  due:'2026-10-15', status:'not-started', notes:'' },
+  { phase:'foundation',   title:'Technology scope doc finalized',        dept:'Technology',      due:'2026-11-01', status:'not-started', notes:'' },
+  { phase:'foundation',   title:'Budget approved by ELT',               dept:'Finance',         due:'2026-12-01', status:'not-started', notes:'' },
+  { phase:'foundation',   title:'Volunteer team structure finalized',    dept:'HR',              due:'2026-12-15', status:'not-started', notes:'' },
+  { phase:'registration', title:'Athlete registration opens',           dept:'Registration',    due:'2027-01-15', status:'not-started', notes:'' },
+  { phase:'registration', title:'Volunteer registration opens',         dept:'HR',              due:'2027-02-01', status:'not-started', notes:'' },
+  { phase:'registration', title:'Hotel blocks confirmed',               dept:'Logistics',       due:'2027-02-15', status:'not-started', notes:'' },
+  { phase:'registration', title:'Transportation contracts signed',       dept:'Logistics',       due:'2027-03-01', status:'not-started', notes:'' },
+  { phase:'registration', title:'Marketing campaign launches',          dept:'Marketing',       due:'2027-02-01', status:'not-started', notes:'' },
+  { phase:'registration', title:'Athlete registration closes',          dept:'Registration',    due:'2027-04-30', status:'not-started', notes:'' },
+  { phase:'pregames',     title:'Volunteer training complete',          dept:'HR',              due:'2027-05-15', status:'not-started', notes:'' },
+  { phase:'pregames',     title:'Shuttle routes finalized',             dept:'Logistics',       due:'2027-05-15', status:'not-started', notes:'' },
+  { phase:'pregames',     title:'Athlete credential packages sent',     dept:'Registration',    due:'2027-06-01', status:'not-started', notes:'' },
+  { phase:'pregames',     title:'Opening ceremony venue confirmed',     dept:'Sites',           due:'2027-05-01', status:'not-started', notes:'' },
+  { phase:'pregames',     title:'Technology systems smoke tested',      dept:'Technology',      due:'2027-06-15', status:'not-started', notes:'' },
+  { phase:'pregames',     title:'Memorabilia production complete',      dept:'Memorabilia',     due:'2027-06-01', status:'not-started', notes:'' },
+  { phase:'gamesweek',    title:'Games begin — Competition Day 1',      dept:'Sports',          due:'2027-07-01', status:'not-started', notes:'' },
+  { phase:'gamesweek',    title:'Opening ceremony',                     dept:'YSB Leadership',  due:'2027-07-01', status:'not-started', notes:'' },
+  { phase:'gamesweek',    title:'Competition concludes',                dept:'Sports',          due:'2027-07-07', status:'not-started', notes:'' },
+  { phase:'gamesweek',    title:'Closing ceremony & awards',            dept:'YSB Leadership',  due:'2027-07-07', status:'not-started', notes:'' },
+  { phase:'postgames',    title:'Financial reconciliation complete',    dept:'Finance',         due:'2027-08-15', status:'not-started', notes:'' },
+  { phase:'postgames',    title:'Debrief sessions — all departments',   dept:'ELT / Policies',  due:'2027-08-01', status:'not-started', notes:'' },
+  { phase:'postgames',    title:'Archive to Google Drive complete',     dept:'Project Plan',    due:'2027-09-01', status:'not-started', notes:'' },
+  { phase:'postgames',    title:'Final report submitted to NAIG board', dept:'YSB Leadership',  due:'2027-09-15', status:'not-started', notes:'' },
+];
+
+function initPlanDefaults() {
+  if (Object.keys(_planData.milestones || {}).length > 0) return; // already seeded
+  const milestones = {};
+  DEFAULT_MILESTONES.forEach(m => {
+    const k = 'k' + Date.now() + Math.random().toString(36).slice(2,6);
+    milestones[k] = { ...m, createdAt: Date.now() };
+  });
+  const deptStatus = {};
+  DEPT_STATUS_DEFAULTS.forEach(d => { deptStatus[d] = { status:'not-started', notes:'' }; });
+  const payload = { milestones, deptStatus };
+  _planData = payload;
+  window._fb.savePlan(payload);
+}
+
+function renderPlan() {
+  const milestones = _planData.milestones || {};
+  const all = Object.entries(milestones).map(([k,v]) => ({ key:k, ...v }));
+  const filtered = _planPhaseFilter === 'all' ? all : all.filter(m => m.phase === _planPhaseFilter);
+
+  // Progress
+  const total = all.length;
+  const done  = all.filter(m => m.status === 'done').length;
+  const pct   = total ? Math.round(done / total * 100) : 0;
+  const lbl = document.getElementById('planProgressLabel');
+  if (lbl) lbl.textContent = `${done} of ${total} milestones complete`;
+  const pctEl = document.getElementById('planProgressPct');
+  if (pctEl) pctEl.textContent = ` ${pct}%`;
+  const fill = document.getElementById('planProgressFill');
+  if (fill) fill.style.width = pct + '%';
+
+  // Summary strip
+  const strip = document.getElementById('planSummaryStrip');
+  if (strip) {
+    const counts = { done:0, 'in-progress':0, 'at-risk':0, blocked:0, 'not-started':0 };
+    all.forEach(m => { counts[m.status] = (counts[m.status]||0)+1; });
+    strip.innerHTML = [
+      { k:'done', label:'Done', icon:'✅', col:'#22c55e' },
+      { k:'in-progress', label:'In Progress', icon:'🔵', col:'#3b82f6' },
+      { k:'at-risk', label:'At Risk', icon:'🟡', col:'#f59e0b' },
+      { k:'blocked', label:'Blocked', icon:'🔴', col:'#ef4444' },
+      { k:'not-started', label:'Not Started', icon:'⚪', col:'#94a3b8' },
+    ].map(s => `<div class="summary-item"><span style="color:${s.col};font-size:15px">${s.icon}</span><span class="summary-count">${counts[s.k]||0}</span><span class="summary-label">${s.label}</span></div>`).join('');
+  }
+
+  // Group by phase
+  const col = document.getElementById('planMilestonesCol');
+  if (!col) return;
+
+  const phases = _planPhaseFilter === 'all'
+    ? Object.keys(PLAN_PHASES)
+    : [_planPhaseFilter];
+
+  col.innerHTML = '';
+  phases.forEach(ph => {
+    const phMs = filtered.filter(m => m.phase === ph).sort((a,b) => (a.due||'').localeCompare(b.due||''));
+    if (phMs.length === 0 && _planPhaseFilter !== 'all') return;
+    const info = PLAN_PHASES[ph];
+    const grp = document.createElement('div');
+    grp.className = 'plan-phase-group';
+    const doneCount = phMs.filter(m => m.status === 'done').length;
+    grp.innerHTML = `<div class="plan-phase-group-hdr" style="background:${info.color}">
+      <span>${info.label} <span style="font-size:10px;opacity:.75;margin-left:6px">${info.dates}</span></span>
+      <span style="font-size:11px;opacity:.85">${doneCount}/${phMs.length} done</span>
+    </div>`;
+    if (phMs.length === 0) {
+      grp.innerHTML += `<div style="padding:12px 14px;color:#94a3b8;font-size:12px">No milestones in this phase — <a href="#" onclick="openPlanModal('${ph}');return false">add one</a></div>`;
+    } else {
+      phMs.forEach(m => {
+        const statusMap = { 'done':'✅','in-progress':'🔵','at-risk':'🟡','blocked':'🔴','not-started':'⚪' };
+        const icon = statusMap[m.status] || '⚪';
+        const today = new Date().toISOString().slice(0,10);
+        let dueBadge = '';
+        if (m.due) {
+          const diff = Math.ceil((new Date(m.due) - new Date(today)) / 86400000);
+          if (m.status !== 'done') {
+            if (diff < 0)       dueBadge = `<span class="plan-ms-due-badge due-overdue">⚠ ${Math.abs(diff)}d overdue</span>`;
+            else if (diff <= 14) dueBadge = `<span class="plan-ms-due-badge due-soon">⏰ ${diff}d left</span>`;
+            else                  dueBadge = `<span class="plan-ms-due-badge" style="background:#f1f5f9;color:#64748b">📅 ${m.due}</span>`;
+          } else {
+            dueBadge = `<span class="plan-ms-due-badge" style="background:#dcfce7;color:#166534">✅ ${m.due}</span>`;
+          }
+        }
+        const row = document.createElement('div');
+        row.className = 'plan-milestone-row';
+        row.onclick = () => openPlanModal(ph, m.key);
+        row.innerHTML = `
+          <div class="plan-ms-status">${icon}</div>
+          <div class="plan-ms-body">
+            <div class="plan-ms-title">${m.title}</div>
+            <div class="plan-ms-meta">
+              ${m.dept ? `<span class="plan-ms-dept">${m.dept}</span>` : ''}
+              ${dueBadge}
+              ${m.notes ? `<span style="color:#94a3b8;font-size:10px;font-style:italic">${m.notes.substring(0,60)}</span>` : ''}
+            </div>
+          </div>`;
+        grp.appendChild(row);
+      });
+    }
+    col.appendChild(grp);
+  });
+
+  renderDeptStatus();
+}
+
+function renderDeptStatus() {
+  const grid = document.getElementById('deptStatusGrid');
+  if (!grid) return;
+  const deptData = _planData.deptStatus || {};
+  grid.innerHTML = DEPT_STATUS_DEFAULTS.map(dept => {
+    const d = deptData[dept] || { status:'not-started' };
+    const dotClass = d.status.replace(/\s+/g,'-') || 'not-started';
+    const labels = { 'not-started':'Not Started','on-track':'On Track','at-risk':'At Risk','behind':'Behind','done':'Done' };
+    const label = labels[d.status] || d.status;
+    return `<div class="dept-tile" onclick="openDeptModal('${dept.replace(/'/,''')}')" title="${d.notes||''}">
+      <div class="dept-tile-name">${dept}</div>
+      <div class="dept-tile-status"><span class="dept-dot ${dotClass}"></span><span style="color:#64748b">${label}</span></div>
+    </div>`;
+  }).join('');
+}
+
+function filterPlanPhase(phase, btn) {
+  _planPhaseFilter = phase;
+  document.querySelectorAll('.phase-pill').forEach(p => p.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderPlan();
+}
+
+function openPlanModal(phase, key) {
+  const m = key && _planData.milestones ? _planData.milestones[key] : null;
+  document.getElementById('planModalTitle').textContent = m ? '✏️ Edit Milestone' : '➕ Add Milestone';
+  document.getElementById('planEditKey').value = key || '';
+  document.getElementById('planPhase').value   = m ? m.phase : (phase || 'foundation');
+  document.getElementById('planTitle').value   = m ? m.title : '';
+  document.getElementById('planDept').value    = m ? m.dept  : '';
+  document.getElementById('planDue').value     = m ? m.due   : '';
+  document.getElementById('planStatus').value  = m ? m.status: 'not-started';
+  document.getElementById('planNotes').value   = m ? m.notes : '';
+  const delBtn = document.getElementById('planDeleteBtn');
+  if (delBtn) delBtn.style.display = m ? 'inline-block' : 'none';
+  document.getElementById('planOverlay').style.display = 'flex';
+}
+
+function closePlanModal() {
+  document.getElementById('planOverlay').style.display = 'none';
+}
+
+function savePlanMilestone() {
+  const key    = document.getElementById('planEditKey').value || ('k' + Date.now() + Math.random().toString(36).slice(2,6));
+  const phase  = document.getElementById('planPhase').value;
+  const title  = document.getElementById('planTitle').value.trim();
+  const dept   = document.getElementById('planDept').value;
+  const due    = document.getElementById('planDue').value;
+  const status = document.getElementById('planStatus').value;
+  const notes  = document.getElementById('planNotes').value.trim();
+  if (!title) { alert('Please enter a milestone title.'); return; }
+  if (!_planData.milestones) _planData.milestones = {};
+  _planData.milestones[key] = { phase, title, dept, due, status, notes, updatedAt: Date.now() };
+  window._fb.savePlan(_planData);
+  closePlanModal();
+}
+
+function deletePlanMilestone() {
+  const key = document.getElementById('planEditKey').value;
+  if (!key || !_planData.milestones) return;
+  if (!confirm('Delete this milestone?')) return;
+  delete _planData.milestones[key];
+  window._fb.savePlan(_planData);
+  closePlanModal();
+}
+
+function openDeptModal(dept) {
+  const d = (_planData.deptStatus || {})[dept] || { status:'not-started', notes:'' };
+  const status = prompt(`Department: ${dept}\n\nStatus (on-track / at-risk / behind / done / not-started):`, d.status);
+  if (status === null) return;
+  const notes  = prompt('Notes (optional):', d.notes || '');
+  if (notes === null) return;
+  if (!_planData.deptStatus) _planData.deptStatus = {};
+  _planData.deptStatus[dept] = { status: status.trim().toLowerCase().replace(/\s+/g,'-') || 'not-started', notes: notes||'' };
+  window._fb.savePlan(_planData);
+}
+
+function exportPlanCSV() {
+  const ms = _planData.milestones || {};
+  const rows = [['Phase','Title','Department','Due Date','Status','Notes']];
+  Object.values(ms).forEach(m => {
+    rows.push([m.phase, m.title, m.dept, m.due, m.status, (m.notes||'').replace(/,/g,' ')]);
+  });
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'NAIG2027_ProjectPlan.csv';
+  a.click();
+}
+
+window.openPlanModal    = openPlanModal;
+window.closePlanModal   = closePlanModal;
+window.savePlanMilestone= savePlanMilestone;
+window.deletePlanMilestone = deletePlanMilestone;
+window.filterPlanPhase  = filterPlanPhase;
+window.renderDeptStatus = renderDeptStatus;
+window.openDeptModal    = openDeptModal;
+window.exportPlanCSV    = exportPlanCSV;
+
+/* ══════════════════════════════════════════════════════════
    HUB — Tab Switcher
 ══════════════════════════════════════════════════════════ */
 function switchTab(tab) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  const tabMap = { orgchart:'taborg', tasks:'tabtasks', venues:'tabvenues', vendors:'tabvendors',
+  const tabMap = { orgchart:'taborg', plan:'tabplan', tasks:'tabtasks', venues:'tabvenues', vendors:'tabvendors',
     hotels:'tabhotels', transport:'tabtransport', docs:'tabdocs', scope:'tabscope' };
   const activeBtn = document.getElementById(tabMap[tab]);
   if (activeBtn) activeBtn.classList.add('active');
@@ -2648,7 +3057,7 @@ function switchTab(tab) {
   if (orgBtns) orgBtns.style.display = (tab === 'orgchart') ? '' : 'none';
 
   // Hub sections
-  const hubSections = ['sectionTasks','sectionVenues','sectionVendors','sectionHotels',
+  const hubSections = ['sectionPlan','sectionTasks','sectionVenues','sectionVendors','sectionHotels',
     'sectionTransport','sectionDocs','sectionScope'];
   hubSections.forEach(id => {
     const el = document.getElementById(id);
@@ -2656,7 +3065,7 @@ function switchTab(tab) {
   });
 
   const sectionMap = {
-    tasks:'sectionTasks', venues:'sectionVenues', vendors:'sectionVendors',
+    plan:'sectionPlan', tasks:'sectionTasks', venues:'sectionVenues', vendors:'sectionVendors',
     hotels:'sectionHotels', transport:'sectionTransport', docs:'sectionDocs', scope:'sectionScope'
   };
   if (sectionMap[tab]) {
