@@ -797,7 +797,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <div class="hub-toolbar">
  <div>
  <div class="hub-title"> Venue Directory</div>
- <div class="hub-subtitle">5 primary venues · 4 backup sites — DFW, Texas. All In Conversation. Track/Dance + Chess TBD.</div>
+ <div class="hub-subtitle">6 primary venues · 4 backup sites — DFW, Texas. All In Conversation. Track &amp; Chess TBD.</div>
  </div>
  <div class="section-actions">
  <button class="btn btn-light" onclick="exportVenuesCSV()">⬇ CSV</button>
@@ -908,7 +908,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 
  <div class="t-cards">
  <div class="t-card navy"><div class="t-card-icon"></div><div class="t-card-label">HQ Hub</div><div class="t-card-value">Carrollton, TX</div><div class="t-card-sub">2500 Dickerson Pkwy · All routes start here</div></div>
- <div class="t-card"><div class="t-card-icon"></div><div class="t-card-label">Total Venue Sites</div><div class="t-card-value">5 Primary</div><div class="t-card-sub">RYSE · Northlake · Gateway · Texomo · Picklr McKinney</div></div>
+ <div class="t-card"><div class="t-card-icon"></div><div class="t-card-label">Total Venue Sites</div><div class="t-card-value">6 Primary</div><div class="t-card-sub">RYSE · Northlake · Gateway · Texomo · Picklr · McKinney Courts</div></div>
  <div class="t-card green"><div class="t-card-icon"></div><div class="t-card-label">Airports Served</div><div class="t-card-value">DFW + DAL</div><div class="t-card-sub">DFW ~45 min · DAL ~35 min from hub</div></div>
  <div class="t-card amber"><div class="t-card-icon"></div><div class="t-card-label">Athletes</div><div class="t-card-value">2,200+</div><div class="t-card-sub">+450–600 spectators · +750–1,000 volunteers</div></div>
  <div class="t-card"><div class="t-card-icon"></div><div class="t-card-label">Arrivals</div><div class="t-card-value">Sep 4–5, 2027</div><div class="t-card-sub">Airport runs DFW + DAL</div></div>
@@ -928,14 +928,16 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <div>
  <div class="t-cluster-label">⬆ North Cluster</div>
  <div class="t-venue-node">RYSE Energy StarCenter<br><small>Farmers Branch · VB/Throwball</small></div>
- <div class="t-venue-node">Children's Health StarCenter<br><small>Northlake · Bad/BB/TT/Tennis</small></div>
- <div class="t-venue-node">Picklr McKinney<br><small>Pickleball/Tennis</small></div>
+ <div class="t-venue-node">Children's Health StarCenter<br><small>Northlake · Bad/BB/TT</small></div>
+ <div class="t-venue-node">Picklr<br><small>Pickleball/Dance</small></div>
+ <div class="t-venue-node">McKinney Courts<br><small>Tennis/Pickleball</small></div>
  </div>
  <div>
  <div class="t-cluster-label">⬇ South Cluster</div>
  <div class="t-venue-node">GatewayPark Soccer Fields<br><small>Fort Worth · Soccer/Flag FB</small></div>
  <div class="t-venue-node">Texomo Cricket Ground<br><small>Cricket</small></div>
- <div class="t-venue-node pending">Track/Dance TBD</div>
+ <div class="t-venue-node pending">Track TBD</div>
+ <div class="t-venue-node pending">Chess TBD</div>
  </div>
  </div>
  </div>
@@ -1050,10 +1052,11 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <thead><tr><th>Venue</th><th>Address</th><th>Sport</th><th>Cluster</th><th>Drive from Hub</th></tr></thead>
  <tbody>
  <tr><td>RYSE Energy StarCenter — Farmers Branch</td><td>2400 Pike St, Farmers Branch, TX 75234</td><td>Volleyball, Throwball</td><td>South-Central</td><td>~17 min</td></tr>
- <tr><td>Children's Health StarCenter — Northlake</td><td>13850 Chadwick Pkwy, Northlake, TX 76262</td><td>Badminton, Basketball, Tennis, Table Tennis</td><td>North</td><td>~15 min</td></tr>
+ <tr><td>Children's Health StarCenter — Northlake</td><td>13850 Chadwick Pkwy, Northlake, TX 76262</td><td>Badminton, Basketball, Table Tennis</td><td>North</td><td>~15 min</td></tr>
  <tr><td>GatewayPark Soccer Fields — Fort Worth</td><td>4321 E 1st St, Fort Worth, TX 76111</td><td>Soccer 11v11, Soccer 7v7, Flag Football</td><td>West</td><td>~33 min</td></tr>
  <tr><td>Texomo Cricket Ground</td><td>TBD</td><td>Cricket</td><td>TBD</td><td>TBD</td></tr>
- <tr><td>Picklr McKinney</td><td>McKinney, TX (address TBD)</td><td>Pickleball, Tennis</td><td>North</td><td>TBD</td></tr>
+ <tr><td>Picklr</td><td>DFW Area (address TBD)</td><td>Pickleball, Dance</td><td>TBD</td><td>TBD</td></tr>
+<tr><td>McKinney Courts</td><td>McKinney, TX (address TBD)</td><td>Tennis, Pickleball</td><td>North</td><td>TBD</td></tr>
  <tr style="color:#888"><td>Lewisville Badminton Center (backup)</td><td>2801 Rockbrook Dr, Lewisville, TX 75067</td><td>Badminton, TT — backup</td><td>Central-North</td><td>~12 min</td></tr>
  <tr style="color:#888"><td>Town of Little Elm — Soccer Site 1 (backup)</td><td>704 W Eldorado Pkwy, Little Elm, TX 75068</td><td>Soccer — backup</td><td>North</td><td>~20 min</td></tr>
  </tbody>
@@ -1415,12 +1418,15 @@ const DEFAULT_DATA = {
       ],
       children: [
         { id: 'site-pmo',     name: 'TBD',  role: 'Site Logistics PMO / Coordinator', tier: 't3-tbd', status: 'tbd', region: 'usa', children: [] },
-        { id: 'venue-star',   name: 'Anil', role: 'Venue Lead — The Star',            tier: 't3',     status: 'confirmed', region: 'usa', children: [] },
-        { id: 'venue-ryse',   name: 'Shah', role: 'Venue Lead — Ryse',                tier: 't3',     status: 'confirmed', region: 'usa', children: [] },
-        { id: 'venue-fw',     name: 'TBD',  role: 'Venue Lead — Fort Worth',          tier: 't3-tbd', status: 'tbd', region: 'usa', children: [] },
-        { id: 'venue-pick',   name: 'TBD',  role: 'Venue Lead — Pickler Universe',    tier: 't3-tbd', status: 'tbd', region: 'usa', children: [] },
-        { id: 'venue-cricket',name: 'TBD',  role: 'Venue Lead — Cricket OKC',         tier: 't3-tbd', status: 'tbd', region: 'usa', children: [] },
-        { id: 'venue-hotel',  name: 'TBD',  role: 'Venue Lead — Hotel Conference',    tier: 't3-tbd', status: 'tbd', region: 'usa', children: [] }
+        { id: 'venue-ryse',     name: 'Shah', role: 'Venue Lead — RYSE Energy StarCenter, Farmers Branch',    tier: 't3',     status: 'confirmed', region: 'usa', children: [] },
+        { id: 'venue-northlake',name: 'TBD',  role: "Venue Lead — Children's Health StarCenter, Northlake",    tier: 't3-tbd', status: 'tbd', region: 'usa', children: [] },
+        { id: 'venue-fw',       name: 'TBD',  role: 'Venue Lead — GatewayPark Soccer Fields, Fort Worth',      tier: 't3-tbd', status: 'tbd', region: 'usa', children: [] },
+        { id: 'venue-cricket',  name: 'TBD',  role: 'Venue Lead — Texomo Cricket Ground',                      tier: 't3-tbd', status: 'tbd', region: 'usa', children: [] },
+        { id: 'venue-pick',     name: 'TBD',  role: 'Venue Lead — Picklr (Pickleball / Dance)',                tier: 't3-tbd', status: 'tbd', region: 'usa', children: [] },
+        { id: 'venue-mckinney', name: 'TBD',  role: 'Venue Lead — McKinney Courts (Tennis / Pickleball)',      tier: 't3-tbd', status: 'tbd', region: 'usa', children: [] },
+        { id: 'venue-track',    name: 'TBD',  role: 'Venue Lead — Track & Field (TBD)',                        tier: 't3-tbd', status: 'tbd', region: 'usa', children: [] },
+        { id: 'venue-hotel',    name: 'TBD',  role: 'Venue Lead — Hotel Conference',                           tier: 't3-tbd', status: 'tbd', region: 'usa', children: [] },
+        { id: 'venue-anil',     name: 'Anil', role: 'Venue Co-Lead — TBD Assignment',                         tier: 't3-tbd', status: 'tbd', region: 'usa', children: [] }
       ]
     },
     { id: 'equipment', name: 'Shahneel Kanji', role: 'Equipment & Signage Lead', tier: 't2',
@@ -2789,9 +2795,9 @@ window.seedInitialTasks = function() {
     [k()]: { title:'Volunteer management system setup', status:'backlog', priority:'medium', owner:'', scopeArea:'Technology', due:'2027-02-01', notes:'Track 750–1,000 volunteers. Role assignment, shift scheduling, communication.' },
     [k()]: { title:'Event app / mobile guide for athletes', status:'backlog', priority:'low', owner:'', scopeArea:'Technology', due:'2027-06-01', notes:'Schedule, maps, results, transport info for athletes.' },
     // ── Venues ──
-    [k()]: { title:'Finalize venue shortlist — all sports', status:'inprogress', priority:'high', owner:'', scopeArea:'Venues', due:'2026-09-01', notes:'Primary (In Conversation): RYSE Farmers Branch (VB/Throwball), CH StarCenter Northlake (Bad/BB/TT/Tennis), GatewayPark Fort Worth (Soccer/Flag FB), Texomo Cricket Ground, Picklr McKinney (Pickleball/Tennis). Backups: Lewisville Badminton, Little Elm Soccer, Russell Creek (Cricket), Prairie View (Cricket). TBD: Track/Dance, Chess.' },
+    [k()]: { title:'Finalize venue shortlist — all sports', status:'inprogress', priority:'high', owner:'', scopeArea:'Venues', due:'2026-09-01', notes:'Primary (In Conversation): RYSE Farmers Branch (VB/Throwball), CH StarCenter Northlake (Bad/BB/TT), GatewayPark Fort Worth (Soccer/Flag FB), Texomo Cricket Ground, Picklr (Pickleball/Dance), McKinney Courts (Tennis/Pickleball). Backups: Lewisville Badminton, Little Elm Soccer, Russell Creek (Cricket), Prairie View (Cricket). TBD: Track, Chess.' },
     [k()]: { title:'Confirm venue details — RYSE Energy StarCenter, Farmers Branch', status:'backlog', priority:'high', owner:'Alishah Momin', scopeArea:'Venues', due:'2026-08-31', notes:'2400 Pike St, Farmers Branch. Contact: Lee Wisener 972-880-5281. Confirm court count (est 16), floor type, AV, parking.' },
-    [k()]: { title:"Confirm venue details — Children's Health StarCenter, Northlake", status:'backlog', priority:'high', owner:'Karim Hemani', scopeArea:'Venues', due:'2026-08-31', notes:'13850 Chadwick Pkwy, Northlake. Contact: Lee Wisener 972-880-5281. Sports: Badminton, Basketball, Tennis, Table Tennis. Confirm court count (est 8+), TT table space, floor type, parking.' },
+    [k()]: { title:"Confirm venue details — Children's Health StarCenter, Northlake", status:'backlog', priority:'high', owner:'Karim Hemani', scopeArea:'Venues', due:'2026-08-31', notes:'13850 Chadwick Pkwy, Northlake. Contact: Lee Wisener 972-880-5281. Sports: Badminton, Basketball, Table Tennis (Tennis moved to McKinney Courts). Confirm court count (est 8+), TT table space, floor type, parking.' },
     [k()]: { title:'Site visit — Town of Little Elm Soccer Site 1', status:'backlog', priority:'high', owner:'', scopeArea:'Venues', due:'2026-10-01', notes:'704 W Eldorado Pkwy, Little Elm, TX 75068. Contact: Ellie Peters 214-618-3103. North cluster. Confirm # of fields, turf/grass mix, locker rooms, insurance requirements.' },
     [k()]: { title:'Site visit — GatewayPark Soccer Fields, Fort Worth', status:'backlog', priority:'medium', owner:'', scopeArea:'Venues', due:'2026-11-01', notes:'4321 E 1st St, Fort Worth, TX 76111. Contact: Samuel Robbie 817-925-2459. West cluster. Confirm Soccer Site 2 + Flag Football suitability. Farthest venue — dedicated shuttle loop required.' },
     [k()]: { title:'Source cricket venue — DFW area (target WBE 40)', status:'backlog', priority:'high', owner:'', scopeArea:'Venues', due:'2026-10-01', notes:'Need 22-yard hardball pitch + tapeball outfield. Target WBE 40 sign. Check South Asian community grounds in DFW.' },
@@ -3298,16 +3304,16 @@ window.seedInitialVenues = function() {
   const k = hubKey;
   const seed = {
     [k()]: { name:'RYSE Energy StarCenter — Farmers Branch', type:'Arena', cluster:'South-Central', location:'Farmers Branch, TX', address:'2400 Pike St, Farmers Branch, TX 75234', status:'In Conversation', pipelineStatus:'In Conversation', sports:'Volleyball, Throwball', contact:'Lee Wisener', phone:'972-880-5281', email:'LWisener@dallasstars.com', siteLead:'TBD', notes:'Primary VB + Throwball venue. ~16 courts est — pending site walk. Same Dallas Stars operator as Northlake.', driveTime:'17 min from Carrollton HQ', updated:new Date().toISOString() },
-    [k()]: { name:"Children's Health StarCenter — Northlake", type:'Arena', cluster:'North', location:'Northlake, TX', address:'13850 Chadwick Pkwy, Northlake, TX 76262', status:'In Conversation', pipelineStatus:'In Conversation', sports:'Badminton, Basketball, Tennis, Table Tennis', contact:'Lee Wisener', phone:'972-880-5281', email:'LWisener@dallasstars.com', siteLead:'TBD', notes:'Primary venue for Badminton, Basketball, Tennis, Table Tennis. ~8 courts est. Same Dallas Stars operator as Farmers Branch. Lewisville Badminton Center = backup.', driveTime:'15 min from Carrollton HQ', updated:new Date().toISOString() },
+    [k()]: { name:"Children's Health StarCenter — Northlake", type:'Arena', cluster:'North', location:'Northlake, TX', address:'13850 Chadwick Pkwy, Northlake, TX 76262', status:'In Conversation', pipelineStatus:'In Conversation', sports:'Badminton, Basketball, Table Tennis', contact:'Lee Wisener', phone:'972-880-5281', email:'LWisener@dallasstars.com', siteLead:'TBD', notes:'Primary venue for Badminton, Basketball, Table Tennis. ~8 courts est. Same Dallas Stars operator as Farmers Branch. Lewisville Badminton Center = backup. Tennis moved to McKinney Courts.', driveTime:'15 min from Carrollton HQ', updated:new Date().toISOString() },
     [k()]: { name:'GatewayPark Soccer Fields — Fort Worth', type:'Multi-sport Park', cluster:'West', location:'Fort Worth, TX', address:'4321 E 1st St, Fort Worth, TX 76111', status:'In Conversation', pipelineStatus:'In Conversation', sports:'Soccer 11v11, Soccer 7v7, Flag Football', contact:'Samuel Robbie', phone:'817-925-2459', email:'Robbie.Samuel@fortworthtexas.gov', siteLead:'TBD', notes:'ALL soccer (11v11 + 7v7) + Flag Football. Farthest venue — 33 min from Carrollton HQ. Dedicated shuttle loop required. Little Elm = backup.', driveTime:'33 min from Carrollton HQ', updated:new Date().toISOString() },
     [k()]: { name:'Texomo Cricket Ground', type:'Cricket Ground', cluster:'TBD', location:'DFW Area', address:'TBD', status:'In Conversation', pipelineStatus:'In Conversation', sports:'Cricket', contact:'TBD', siteLead:'TBD', notes:'PRIMARY cricket venue. Need 22-yard hardball pitch + tapeball outfield. Backups: Russell Creek, Prairie View.', driveTime:'TBD', updated:new Date().toISOString() },
-    [k()]: { name:'Picklr McKinney', type:'Pickleball / Tennis Center', cluster:'North', location:'McKinney, TX', address:'TBD', status:'In Conversation', pipelineStatus:'In Conversation', sports:'Pickleball, Tennis', contact:'TBD', siteLead:'TBD', notes:'In play for Pickleball + Tennis courts. Confirm court count + availability for NAIG 2027 dates.', driveTime:'TBD', updated:new Date().toISOString() },
+    [k()]: { name:'Picklr', type:'Pickleball / Event Center', cluster:'North', location:'DFW Area, TX', address:'TBD', status:'In Conversation', pipelineStatus:'In Conversation', sports:'Pickleball, Dance', contact:'TBD', siteLead:'TBD', notes:'Primary for Pickleball + Dance. Possibly Chess TBD. Confirm court count + performance space availability for NAIG 2027 dates.', driveTime:'TBD', updated:new Date().toISOString() },
+    [k()]: { name:'McKinney Courts', type:'Tennis / Multi-Sport Courts', cluster:'North', location:'McKinney, TX', address:'TBD', status:'In Conversation', pipelineStatus:'In Conversation', sports:'Tennis, Pickleball', contact:'TBD', siteLead:'TBD', notes:'Primary for Tennis. Pickleball also in play. Possibly Chess TBD. Confirm court count + availability for NAIG 2027 dates.', driveTime:'TBD', updated:new Date().toISOString() },
     [k()]: { name:'Lewisville Badminton Center', type:'Badminton Center', cluster:'Central-North', location:'Lewisville, TX', address:'2801 Rockbrook Dr, Lewisville, TX 75067', status:'In Works', pipelineStatus:'In Conversation', sports:'Badminton, Table Tennis (Backup)', contact:'Cin Abidin', phone:'949-436-8849', email:'info@lewisvillebadmintoncenter.com', siteLead:'TBD', notes:'BACKUP site for Badminton + TT. Primary is CH StarCenter Northlake. 28 courts available. 12 min from Carrollton HQ.', driveTime:'12 min from Carrollton HQ', updated:new Date().toISOString() },
     [k()]: { name:'Town of Little Elm — Soccer Site 1', type:'Soccer Park', cluster:'North', location:'Little Elm, TX', address:'704 W Eldorado Pkwy, Little Elm, TX 75068', status:'In Works', pipelineStatus:'In Conversation', sports:'Soccer (Backup)', contact:'Ellie Peters', phone:'214-618-3103', email:'Ellie.Peters@littleelm.gov', siteLead:'TBD', notes:'BACKUP soccer site. Primary is GatewayPark Fort Worth. Grass + turf fields. 20 min from Carrollton HQ.', driveTime:'20 min from Carrollton HQ', updated:new Date().toISOString() },
     [k()]: { name:'Russell Creek — Cricket Backup', type:'Field / Outdoor', cluster:'TBD', location:'DFW Area', address:'TBD', status:'In Works', sports:'Cricket (Backup)', contact:'TBD', siteLead:'TBD', notes:'Backup cricket site. Primary: Texomo Cricket Ground.', driveTime:'TBD', updated:new Date().toISOString() },
     [k()]: { name:'Prairie View — Cricket Backup', type:'Field / Outdoor', cluster:'TBD', location:'DFW Area', address:'TBD', status:'In Works', sports:'Cricket (Backup)', contact:'TBD', siteLead:'TBD', notes:'Backup cricket site. Primary: Texomo Cricket Ground.', driveTime:'TBD', updated:new Date().toISOString() },
-    [k()]: { name:'Track & Dance Venue — TBD', type:'Other', capacity:'TBD', location:'DFW Area — TBD', address:'TBD', status:'In Works', sports:'Track & Field, Dance', contact:'TBD', notes:'Target WBE 40. Needs 400m track + stage/performance space.', updated:new Date().toISOString() },
-    [k()]: { name:'Track & Dance Venue — TBD', type:'Track / Performance', capacity:'TBD', location:'DFW Area — TBD', address:'TBD', status:'In Works', sports:'Track & Field, Dance', contact:'TBD', notes:'Target WBE 40. Need IAAF 400m track + performance stage for dance.', updated:new Date().toISOString() },
+    [k()]: { name:'Track & Field Venue — TBD', type:'Track / Stadium', capacity:'TBD', location:'DFW Area — TBD', address:'TBD', status:'In Works', sports:'Track & Field', contact:'TBD', notes:'Target WBE 40. Needs 400m track. PROSPECT: Carroll ISD (in exploration). Need additional venue options — reach out to more DFW-area school districts and parks. Dance moved to Picklr.', updated:new Date().toISOString() },
   };
   window._dbSet(window._dbRef('naig2027/venues'), seed);
 };
@@ -3517,7 +3523,7 @@ const venueShuttleData = (function() {
     // North cluster — morning runs every 60 min starting 07:00–11:00
     let t = '07:00';
     while (t < '12:00') {
-      rows.push({ day, cluster:'North/Central', depart:t, route:'Hub → RYSE Energy StarCenter (Farmers Branch, VB/Throwball) → Children\'s Health StarCenter (Northlake, Bad/BB/TT/Tennis)', vehicle:'55-pax Coach + 28-pax Mini', ret:addMin(t,90) });
+      rows.push({ day, cluster:'North/Central', depart:t, route:'Hub → RYSE Energy StarCenter (Farmers Branch, VB/Throwball) → Children\'s Health StarCenter (Northlake, Bad/BB/TT)', vehicle:'55-pax Coach + 28-pax Mini', ret:addMin(t,90) });
       t = addMin(t, 60);
     }
     // South cluster — afternoon runs every 60 min 12:00–15:00
@@ -3712,7 +3718,7 @@ window.seedInitialScope = function() {
     [hubKey()]: { category:'Spectators', event:'Est. Daily Attendance', count:'450–600', notes:'~30% of athlete count. Varies by sport and event day.' },
     [hubKey()]: { category:'Volunteers', event:'Total Required', count:'750–1,000', notes:'50% ratio vs athletes. Covers logistics, sport, medical, F&B, tech-AV, security.' },
     [hubKey()]: { category:'Volunteers', event:'Logistics-Specific', count:'150–200', notes:'Transportation, venue ops, athlete services, equipment.' },
-    [hubKey()]: { category:'Venues', event:'Competition Sites', count:'5 primary + 4 backup', notes:'Primary (In Conversation): RYSE Farmers Branch (VB/Throwball), CH StarCenter Northlake (Bad/BB/TT/Tennis), GatewayPark Fort Worth (Soccer 11v11/7v7/Flag FB), Texomo Cricket Ground, Picklr McKinney (Pickleball/Tennis). Backups: Lewisville Badminton Center, Little Elm Soccer Site 1, Russell Creek (Cricket), Prairie View (Cricket). Track/Dance + Chess still TBD.' },
+    [hubKey()]: { category:'Venues', event:'Competition Sites', count:'6 primary + 4 backup', notes:'Primary (In Conversation): RYSE Farmers Branch (VB/Throwball), CH StarCenter Northlake (Bad/BB/TT), GatewayPark Fort Worth (Soccer 11v11/7v7/Flag FB), Texomo Cricket Ground, Picklr (Pickleball/Dance), McKinney Courts (Tennis/Pickleball). Backups: Lewisville Badminton, Little Elm Soccer, Russell Creek (Cricket), Prairie View (Cricket). Track + Chess TBD.' },
     [hubKey()]: { category:'Sports', event:'Confirmed Roster', count:'13', notes:'Soccer, Basketball, Volleyball, Cricket, Throwball, Flag Football, Dance, Badminton, Table Tennis, Pickleball, Tennis, Track & Field, Chess. Min 3 regions required per sport.' },
     [hubKey()]: { category:'Hotels', event:'Room-Night Target', count:'400–600', notes:'3–5 properties within 5 mi of HQ (Carrollton, TX). Target $89–109/night + breakfast. All RFP Pending.' },
     [hubKey()]: { category:'Event Weekend', event:'Preferred Dates', count:'Labor Day 2027', notes:'Not yet confirmed. Preferred for school calendar alignment + Canadian RST schedule.' },
@@ -3744,15 +3750,15 @@ window.refreshAthleteBreakdown = function() {
     { sport:'Soccer 11v11 + 7v7', type:'Team', venue:'GatewayPark Soccer Fields — Fort Worth', est:'~70–140', days:'Fri–Sun', notes:'All soccer at Gateway. Boys/Girls U18 + Open + Women\'s. Little Elm = backup site.' },
     { sport:'Flag Football', type:'Team', venue:'GatewayPark Soccer Fields — Fort Worth', est:'~28–56', days:'Sat–Sun', notes:'Shares GatewayPark with Soccer. Open + Women\'s.' },
     { sport:'Basketball', type:'Team', venue:"Children's Health StarCenter — Northlake", est:'~70–140', days:'Fri–Sun', notes:'~8 courts est. Boys/Girls U18 + Open + Women\'s.' },
-    { sport:'Badminton', type:'Individual', venue:"Children's Health StarCenter — Northlake", est:'~56–112', days:'Fri–Sun', notes:'Co-located with Basketball/Tennis/TT. U18 + Open + Legends 45+. Lewisville Badminton = backup site.' },
+    { sport:'Badminton', type:'Individual', venue:"Children's Health StarCenter — Northlake", est:'~56–112', days:'Fri–Sun', notes:'Co-located with Basketball/TT. U18 + Open + Legends 45+. Lewisville Badminton = backup site.' },
     { sport:'Table Tennis', type:'Individual', venue:"Children's Health StarCenter — Northlake", est:'~56–112', days:'Fri–Sun', notes:'20+ tables needed. Co-located with Badminton. U18 + Open + Legends 45+.' },
-    { sport:'Tennis', type:'Individual', venue:"Children's Health StarCenter — Northlake", est:'~28–56', days:'Fri–Sun', notes:'Courts at Northlake. Picklr McKinney also in play. U18 + Open.' },
+    { sport:'Tennis', type:'Individual', venue:'McKinney Courts', est:'~28–56', days:'Fri–Sun', notes:'McKinney Courts primary. Picklr also in play. U18 + Open.' },
     { sport:"Volleyball (Int'l)", type:'Team', venue:'RYSE Energy StarCenter — Farmers Branch', est:'~70–140', days:'Fri–Sun', notes:'~16 courts est. Boys/Girls U18 + Open + Women\'s.' },
     { sport:'Throwball', type:'Team', venue:'RYSE Energy StarCenter — Farmers Branch', est:'~14–28', days:'Sat–Sun', notes:'Shares VB courts. Women\'s only.' },
     { sport:'Cricket', type:'Team', venue:'Texomo Cricket Ground (primary) · Russell Creek + Prairie View (backup)', est:'~28–56', days:'Fri–Sun', notes:'Hardball 22-yd pitch + Tapeball Women\'s. Primary: Texomo. Backups: Russell Creek, Prairie View.' },
-    { sport:'Pickleball', type:'Individual', venue:'Picklr McKinney (in play)', est:'~28–56', days:'Fri–Sun', notes:'Picklr McKinney courts. In Conversation. U18 + Open + Legends 45+.' },
-    { sport:'Track & Field', type:'Individual', venue:'Track/Dance Venue — TBD', est:'~56–112', days:'Fri–Sat', notes:'U18 + Open.' },
-    { sport:'Dance', type:'Team', venue:'Track/Dance Venue — TBD', est:'~56–112', days:'Sat–Sun', notes:'Needs stage/performance space. Boys/Girls U18 + Open.' },
+    { sport:'Pickleball', type:'Individual', venue:'Picklr / McKinney Courts (TBD)', est:'~28–56', days:'Fri–Sun', notes:'Picklr (primary in play) + McKinney Courts also in play. TBD final split. U18 + Open + Legends 45+.' },
+    { sport:'Track & Field', type:'Individual', venue:'Track Venue — TBD (Carroll ISD prospect)', est:'~56–112', days:'Fri–Sat', notes:'U18 + Open. Carroll ISD in exploration — need additional venue options.' },
+    { sport:'Dance', type:'Team', venue:'Picklr', est:'~56–112', days:'Sat–Sun', notes:'Picklr venue (performance space TBD at site). Boys/Girls U18 + Open.' },
     { sport:'Chess', type:'Individual', venue:'TBD', est:'~28–56', days:'Sat', notes:'Low space needs — tables + chairs only. Mixed divisions.' },
   ];
   tbody.innerHTML = sports.map(s => `<tr>
