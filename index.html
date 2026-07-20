@@ -108,16 +108,28 @@
     });
     // ── Hub: Venues ──
     window._fb.listenVenues((data) => {
-      // Migration removed Jul 19 2026 — seed data is current, auto-wipe no longer needed
+      // Migration Jul 20 2026: wipe pre-Jul-19 seed data ("Evaluating" status = old venues)
+      if (data && Object.values(data).some(v => v.status === 'Evaluating')) {
+        window._dbSet(window._dbRef('naig2027/venues'), null);
+        return; // Will re-fire with null → seedInitialVenues runs
+      }
       window._venuesData = data || {};
       window.renderVenues && window.renderVenues();
       window.refreshAthleteBreakdown && window.refreshAthleteBreakdown();
+      window.renderBudget && window.renderBudget();
       if (!data) window.seedInitialVenues && window.seedInitialVenues();
     });
     // ── Hub: Vendors ──
     window._fb.listenVendors((data) => {
-      window._vendorsData = data || {};
-      window.renderVendors && window.renderVendors();
+      if (!data) {
+        window._vendorsData = {};
+        window.initVendorDefaults && window.initVendorDefaults();
+        // listener re-fires after seed write — render happens then
+      } else {
+        window._vendorsData = data;
+        window.renderVendors && window.renderVendors();
+        window.renderBudget && window.renderBudget();
+      }
     });
     // ── Hub: Scope ──
     window._fb.listenScope((data) => {
@@ -148,15 +160,29 @@
     });
     // ── Hub: Documents ──
     window._fb.listenDocs((data) => {
-      window._docsData = data || {};
-      window.renderDocs && window.renderDocs();
+      if (!data) {
+        window._docsData = {};
+        window.initDocDefaults && window.initDocDefaults();
+      } else {
+        window._docsData = data;
+        window.renderDocs && window.renderDocs();
+      }
     });
     window._fb.listenPlan((data) => {
+      // Migration: if plan node exists but has no milestones (stale empty write), wipe and re-seed
+      if (data && Object.keys(data.milestones || {}).length === 0) {
+        window._dbSet(window._dbRef('naig2027/plan'), null);
+        return;
+      }
       if (data) {
-        _planData = data;
+        window._planData = data;
+        // Bridge: sync Script 2's let _planData via exposed setter
+        window._setPlanData && window._setPlanData(data);
       } else {
-        // Seed defaults on first load
-        initPlanDefaults();
+        // null — reset local state so initPlanDefaults doesn't early-return, then seed
+        window._planData = null;
+        window._setPlanData && window._setPlanData({});
+        window.initPlanDefaults && window.initPlanDefaults();
       }
       window.renderPlan && window.renderPlan();
     });
@@ -689,6 +715,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <button class="tab-btn" id="tabhotels" onclick="switchTab('hotels')">Hotels <span class="tab-badge" id="badge-hotels">0</span></button>
  <button class="tab-btn" id="tabtransport" onclick="switchTab('transport')">Transportation <span class="tab-badge" id="badge-transport">0</span></button>
  <button class="tab-btn" id="tabdocs" onclick="switchTab('docs')">Documents <span class="tab-badge" id="badge-docs">0</span></button>
+ <button class="tab-btn" id="tabbudget" onclick="switchTab('budget')">Budget</button>
  <button class="tab-btn" id="tabscope" onclick="switchTab('scope')">Scope</button>
 </div>
 
@@ -1254,6 +1281,36 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  </tr></thead>
  <tbody id="docsTbody"><tr><td colspan="9" class="hub-empty">No documents yet. Click <strong>+ Add Document</strong> to start.</td></tr></tbody>
  </table>
+</div>
+
+<!-- Budget -->
+<div class="hub-section" id="sectionBudget">
+  <div class="hub-toolbar">
+    <div>
+      <div class="hub-title">&#128200; Budget Tracker</div>
+      <div class="hub-subtitle">Running logistics budget — committed, invoiced, and paid across venues and vendors. Cost data flows automatically from venue and vendor records.</div>
+    </div>
+    <button class="btn btn-light" onclick="exportBudgetCSV()">&#11015; CSV</button>
+  </div>
+  <div id="budgetKPIs" class="summary-strip" style="gap:12px;margin-bottom:16px"></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+    <div style="padding:14px 16px;background:white;border-radius:10px;border:1px solid #e2eaf3;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+      <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#2d6a9f;margin-bottom:10px">&#127968; Venue Budget Snapshot</div>
+      <div id="budgetVenueBody" style="font-size:.82rem;color:#555">Loading&#8230;</div>
+    </div>
+    <div style="padding:14px 16px;background:white;border-radius:10px;border:1px solid #e2eaf3;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+      <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#2d6a9f;margin-bottom:10px">&#128230; Vendor Budget Snapshot</div>
+      <div id="budgetVendorBody" style="font-size:.82rem;color:#555">Loading&#8230;</div>
+    </div>
+  </div>
+  <div style="font-size:.82rem;font-weight:700;color:#1a3a5c;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Category Breakdown</div>
+  <table class="hub-table" id="budgetTable">
+    <thead><tr>
+      <th>Category</th><th>Source</th><th>Items</th>
+      <th>Committed</th><th>Invoiced</th><th>Paid</th><th>Outstanding</th>
+    </tr></thead>
+    <tbody id="budgetTbody"><tr><td colspan="7" class="hub-empty">Loading budget data&#8230;</td></tr></tbody>
+  </table>
 </div>
 
 <!-- Scope / Working Assumptions -->
@@ -2788,6 +2845,8 @@ document.addEventListener('DOMContentLoaded', () => {
 ══════════════════════════════════════════════════════════ */
 let _planData = {};
 let _planPhaseFilter = 'all';
+// Bridge: allows Script 1 (ES module) to update this let variable
+window._setPlanData = function(d) { _planData = d; };
 
 const PLAN_PHASES = {
   foundation:   { label:'🏗 Foundation',   dates:'Jul 2026 – Dec 2026', color:'#1a3a5c' },
@@ -2802,6 +2861,8 @@ const DEPT_STATUS_DEFAULTS = [
   'Memorabilia','Presentations','Project Plan','Regional Tool Kits',
   'Registration','Sites','Sports','Technology','Venue / Legal','YSB Leadership'
 ];
+// Firebase keys can't contain . # $ / [ ] — sanitize dept display names to safe keys
+function deptKey(d) { return d.replace(/[.#$\/\[\]]/g,'_'); }
 
 const DEFAULT_MILESTONES = [
   { phase:'foundation',   title:'NAIG Hub launched',                    dept:'Technology',      due:'2026-07-15', status:'done',        notes:'Live at GitHub Pages' },
@@ -2841,7 +2902,7 @@ function initPlanDefaults() {
     milestones[k] = { ...m, createdAt: Date.now() };
   });
   const deptStatus = {};
-  DEPT_STATUS_DEFAULTS.forEach(d => { deptStatus[d] = { status:'not-started', notes:'' }; });
+  DEPT_STATUS_DEFAULTS.forEach(d => { deptStatus[deptKey(d)] = { status:'not-started', notes:'' }; });
   const payload = { milestones, deptStatus };
   _planData = payload;
   window._fb.savePlan(payload);
@@ -2855,6 +2916,7 @@ function renderPlan() {
   // Progress
   const total = all.length;
   const done  = all.filter(m => m.status === 'done').length;
+  updateBadge('plan', total);
   const pct   = total ? Math.round(done / total * 100) : 0;
   const lbl = document.getElementById('planProgressLabel');
   if (lbl) lbl.textContent = `${done} of ${total} milestones complete`;
@@ -2942,11 +3004,11 @@ function renderDeptStatus() {
   if (!grid) return;
   const deptData = _planData.deptStatus || {};
   grid.innerHTML = DEPT_STATUS_DEFAULTS.map(dept => {
-    const d = deptData[dept] || { status:'not-started' };
+    const d = deptData[deptKey(dept)] || { status:'not-started' };
     const dotClass = d.status.replace(/\s+/g,'-') || 'not-started';
     const labels = { 'not-started':'Not Started','on-track':'On Track','at-risk':'At Risk','behind':'Behind','done':'Done' };
     const label = labels[d.status] || d.status;
-    return `<div class="dept-tile" onclick="openDeptModal('${dept.replace(/'/,''')}')" title="${d.notes||''}">
+    return `<div class="dept-tile" onclick="openDeptModal(this.dataset.dept)" data-dept="${dept}" title="${d.notes||''}">
       <div class="dept-tile-name">${dept}</div>
       <div class="dept-tile-status"><span class="dept-dot ${dotClass}"></span><span style="color:#64748b">${label}</span></div>
     </div>`;
@@ -3004,13 +3066,14 @@ function deletePlanMilestone() {
 }
 
 function openDeptModal(dept) {
-  const d = (_planData.deptStatus || {})[dept] || { status:'not-started', notes:'' };
+  const dk = deptKey(dept);
+  const d = (_planData.deptStatus || {})[dk] || { status:'not-started', notes:'' };
   const status = prompt(`Department: ${dept}\n\nStatus (on-track / at-risk / behind / done / not-started):`, d.status);
   if (status === null) return;
   const notes  = prompt('Notes (optional):', d.notes || '');
   if (notes === null) return;
   if (!_planData.deptStatus) _planData.deptStatus = {};
-  _planData.deptStatus[dept] = { status: status.trim().toLowerCase().replace(/\s+/g,'-') || 'not-started', notes: notes||'' };
+  _planData.deptStatus[dk] = { status: status.trim().toLowerCase().replace(/\s+/g,'-') || 'not-started', notes: notes||'' };
   window._fb.savePlan(_planData);
 }
 
@@ -3058,7 +3121,7 @@ function switchTab(tab) {
 
   // Hub sections
   const hubSections = ['sectionPlan','sectionTasks','sectionVenues','sectionVendors','sectionHotels',
-    'sectionTransport','sectionDocs','sectionScope'];
+    'sectionTransport','sectionDocs','sectionBudget','sectionScope'];
   hubSections.forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.style.display = 'none'; el.classList.remove('active'); }
@@ -3066,12 +3129,13 @@ function switchTab(tab) {
 
   const sectionMap = {
     plan:'sectionPlan', tasks:'sectionTasks', venues:'sectionVenues', vendors:'sectionVendors',
-    hotels:'sectionHotels', transport:'sectionTransport', docs:'sectionDocs', scope:'sectionScope'
+    hotels:'sectionHotels', transport:'sectionTransport', docs:'sectionDocs', budget:'sectionBudget', scope:'sectionScope'
   };
   if (sectionMap[tab]) {
     const el = document.getElementById(sectionMap[tab]);
     if (el) { el.style.display = 'block'; el.classList.add('active'); }
   }
+  if (tab === 'budget') { window.renderBudget && window.renderBudget(); }
 }
 window.switchTab = switchTab;
 
@@ -3317,15 +3381,24 @@ window.renderVenues = function() {
   const items = all.filter(([,v]) => !search || JSON.stringify(v).toLowerCase().includes(search));
 
   const confirmed = items.filter(([,v]) => ['Confirmed','Signed','Walk Done','Ops Ready'].includes(v.status));
-  const inWorks   = items.filter(([,v]) => ['In Works','In Conversation','Identified','Outreach Sent','LOI Sent','Contract Review','Exploring','Shortlisted','Negotiating','Site Visit Scheduled'].includes(v.status));
+  const inWorks   = items.filter(([,v]) => ['In Works','In Conversation','Identified','Outreach Sent','LOI Sent','Contract Review','Exploring','Shortlisted','Negotiating','Site Visit Scheduled','Evaluating','Prospect'].includes(v.status));
   const closed    = items.filter(([,v]) => ['Dropped','Closed','Cancelled','Not Available'].includes(v.status));
+
+  // Financial snapshot
+  const parseNum = s => parseFloat(String(s||'0').replace(/[^0-9.]/g,'')) || 0;
+  const fmtN = n => n ? '$' + n.toLocaleString('en-US',{maximumFractionDigits:0}) : null;
+  let totalCommitted=0, totalInvoiced=0, totalPaid=0;
+  all.forEach(([,v]) => { totalCommitted+=parseNum(v.rentalFee); totalInvoiced+=parseNum(v.invoiced); totalPaid+=parseNum(v.paid); });
 
   const strip = document.getElementById('venueSummary');
   if (strip) strip.innerHTML =
     `<div class="sum-chip"><strong>${all.length}</strong><span>Total</span></div>` +
     `<div class="sum-chip" style="color:#155724"><strong>${confirmed.length}</strong><span>Confirmed</span></div>` +
     `<div class="sum-chip" style="color:#856404"><strong>${inWorks.length}</strong><span>In Works</span></div>` +
-    (closed.length ? `<div class="sum-chip" style="color:#6c757d"><strong>${closed.length}</strong><span>Closed</span></div>` : '');
+    (closed.length ? `<div class="sum-chip" style="color:#6c757d"><strong>${closed.length}</strong><span>Closed</span></div>` : '') +
+    (totalCommitted ? `<div class="sum-chip" style="border-left:1px solid #d0dae4;margin-left:4px;padding-left:12px;color:#1a3a5c"><strong>${fmtN(totalCommitted)}</strong><span>Committed</span></div>` : '') +
+    (totalInvoiced  ? `<div class="sum-chip" style="color:#856404"><strong>${fmtN(totalInvoiced)}</strong><span>Invoiced</span></div>` : '') +
+    (totalPaid      ? `<div class="sum-chip" style="color:#155724"><strong>${fmtN(totalPaid)}</strong><span>Paid</span></div>` : '');
 
   updateBadge('venues', all.length);
 
@@ -3432,6 +3505,8 @@ function openVenueModal(editKey) {
   // Financials
   document.getElementById('venueRentalFee').value = v.rentalFee || '';
   document.getElementById('venueDeposit').value = v.deposit || '';
+  document.getElementById('venueInvoiced').value = v.invoiced || '';
+  document.getElementById('venuePaid').value = v.paid || '';
   document.getElementById('venueContractStatus').value = v.contractStatus || 'Not Started';
   document.getElementById('venuePOC').value = v.poc || '';
   // Custom Q&A
@@ -3469,6 +3544,8 @@ function saveVenue() {
     emergContact: document.getElementById('venueEmergContact').value.trim(),
     rentalFee: document.getElementById('venueRentalFee').value.trim(),
     deposit: document.getElementById('venueDeposit').value.trim(),
+    invoiced: document.getElementById('venueInvoiced').value.trim(),
+    paid: document.getElementById('venuePaid').value.trim(),
     contractStatus: document.getElementById('venueContractStatus').value,
     poc: document.getElementById('venuePOC').value.trim(),
     customQA: _venueCustomQA.length ? JSON.stringify(_venueCustomQA) : '',
@@ -3560,6 +3637,44 @@ window.renderVendors = function() {
  <td><button class="btn btn-cancel" style="padding:3px 8px;font-size:10px" onclick="event.stopPropagation();deleteHubItem('vendors','${k}',window.renderVendors)">×</button></td>
  </tr>`).join('');
 };
+
+function initVendorDefaults() {
+  function vk() { return 'v' + Date.now() + '_' + Math.random().toString(36).slice(2,5); }
+  const now = Date.now();
+  const vendors = {};
+  const add = (name, category, notes) => {
+    vendors[vk()] = {
+      name, category, contractStatus: 'RFP Not Started',
+      pocName:'', pocTitle:'', pocPhone:'', pocEmail:'',
+      contractLink:'', cost:'', paymentTerms:'Net 30',
+      invoiced:'', paid:'', expiry:'', notes, createdAt: now
+    };
+  };
+  add('TBD — Charter Bus / Shuttle Company', 'Transportation',
+    'Airport transfers (DFW/DAL → hotels), hotel-to-venue shuttles, inter-venue game-day loops. Fleet target: 2×55-pax coach, 2×28-pax mini, 3×12-pax van, 1 ADA van. DFW-area vendors only — restart RFP.');
+  add('TBD — Halal Catering Company', 'Catering / F&B',
+    'Athlete meals + spectator concessions at 6 DFW venues. Must accommodate halal, vegetarian, vegan, allergy-restricted diets. Serving 2,200+ athletes + 450–600 spectators. Multi-site logistics required.');
+  add('TBD — AV & Production Company', 'AV / Production',
+    'PA systems, scoreboard displays, opening/closing ceremony production, livestream. Need DFW vendor with multi-site sports event experience. Must cover 6 venues simultaneously on event weekend.');
+  add('TBD — Security Firm', 'Security',
+    'Licensed crowd management security at all 6 venues + hotel. Est. 50–100 staff at peak sessions. DFW-area firm preferred. Requires venue-specific security plans and coordination with local PD.');
+  add('TBD — Medical / EMS Provider', 'Medical',
+    'EMT/paramedic teams at each venue, AED coverage, first aid stations, event medical director on call. Coordinate with DFW hospitals (Parkland, UT Southwestern, Cook Children\'s). One team per venue minimum.');
+  add('TBD — Print & Signage Vendor', 'Printing / Signage',
+    'Venue wayfinding banners, athlete bib numbers, lanyards, accreditation badges, event programs, sponsor signage. Volume: 2,200 athlete packets + 6 venue sign packages. DFW print shop preferred.');
+  add('TBD — Technology / Scoring Platform', 'Technology',
+    'Live scoring, results display, bracket management, athlete registration. Must handle 15+ sports across 6 venues simultaneously. Explore SportsEngine, PlayMetrics, or Sports Central custom integration.');
+  add('TBD — Event Insurance Provider', 'Other',
+    'General liability (event + all venues) + athlete accident insurance. Target quotes: K&K Insurance, Philadelphia Insurance, sports event specialists. Must be placed by Dec 2026 to satisfy venue contracts.');
+  add('TBD — Flooring & Sports Surfaces', 'Other',
+    'Portable sports court flooring for indoor venues (volleyball, basketball). Previous Houston vendor outreach no longer applicable — restart RFP for DFW-area sports flooring vendors.');
+
+  window._vendorsData = vendors;
+  if (window._dbRef && window._dbSet) {
+    window._dbSet(window._dbRef('naig2027/vendors'), vendors);
+  }
+}
+window.initVendorDefaults = initVendorDefaults;
 
 function openVendorModal(editKey) {
   const v = editKey ? (window._vendorsData[editKey] || {}) : {};
@@ -3998,7 +4113,7 @@ window.renderDocs = function() {
   if (!tbody) return;
   const q = (document.getElementById('docSearch')?.value || '').toLowerCase();
   const typeF = document.getElementById('docTypeFilter')?.value || '';
-  const statusF = '';
+  const statusF = document.getElementById('docStatusFilter')?.value || '';
   const areaF = document.getElementById('docAreaFilter')?.value || '';
   let all = Object.entries(window._docsData || {});
   if (q) all = all.filter(([,d]) => [d.name,d.owner,d.notes].join(' ').toLowerCase().includes(q));
@@ -4047,17 +4162,52 @@ window.renderDocs = function() {
   }).join('');
 };
 
+/* ── Doc status flow (type-aware tag rail) ── */
+const _docStatusFlows = {
+  'Venue Contract':   ['Not Started','Outreach Sent','Proposal Received','Negotiating','Sent for Signature','Executed'],
+  'Hotel Agreement':  ['Not Started','RFP Sent','Proposals Received','Negotiating','Contract Sent','Signed'],
+  'Vendor Contract':  ['Not Started','RFP Sent','Proposal Received','Under Review','Sent for Signature','Executed'],
+  'Permit / License': ['Not Started','Application Submitted','Under Review','Approved'],
+  'Insurance':        ['Not Started','Quote Requested','Quote Received','Bound / Active'],
+  'MOU / LOI':        ['Not Started','Draft Sent','Under Review','Signed'],
+  'Planning':         ['Not Started','In Progress','Complete'],
+  'Other':            ['Not Started','In Progress','Complete'],
+};
+function updateDocStatusFlow(forcedStatus) {
+  const type = document.getElementById('docType')?.value;
+  const stages = _docStatusFlows[type] || _docStatusFlows['Other'];
+  const saved = forcedStatus || document.getElementById('docStatus')?.value || 'Not Started';
+  const active = stages.includes(saved) ? saved : stages[0];
+  if (document.getElementById('docStatus')) document.getElementById('docStatus').value = active;
+  const flow = document.getElementById('docStatusFlow');
+  if (!flow) return;
+  flow.innerHTML = stages.map((s,i) => {
+    const isActive = s === active;
+    return (i>0?`<span style="color:#ccc;font-size:.7rem;align-self:center">&#8250;</span>`:'') +
+      `<span onclick="selectDocStatus('${s.replace(/'/g,"\\'")}')" style="cursor:pointer;padding:5px 11px;border-radius:20px;font-size:.78rem;font-weight:600;border:1.5px solid ${isActive?'#1a3a5c':'#d0dae4'};background:${isActive?'#1a3a5c':'white'};color:${isActive?'white':'#555'};transition:all .15s;white-space:nowrap">${s}</span>`;
+  }).join('');
+}
+function selectDocStatus(s) {
+  if (document.getElementById('docStatus')) document.getElementById('docStatus').value = s;
+  updateDocStatusFlow(s);
+}
+window.updateDocStatusFlow = updateDocStatusFlow;
+window.selectDocStatus = selectDocStatus;
+
 function openDocModal(editKey) {
   const d = editKey ? (window._docsData[editKey] || {}) : {};
   document.getElementById('docModalTitle').textContent = editKey ? 'Edit Document' : 'Add Document / Link';
   document.getElementById('docKey').value = editKey || '';
   document.getElementById('docName').value = d.name || '';
-  document.getElementById('docType').value = d.type || 'Planning';
-  document.getElementById('docTeam').value = d.team || d.area || '';
+  document.getElementById('docType').value = d.type || 'Venue Contract';
+  document.getElementById('docArea').value = d.area || d.team || '';
+  document.getElementById('docStatus').value = d.status || 'Not Started';
+  document.getElementById('docOwner').value = d.owner || d.uploader || '';
+  document.getElementById('docExpiry').value = d.expiry || '';
   document.getElementById('docLink').value = d.link || '';
-  document.getElementById('docUploader').value = d.uploader || d.owner || '';
   document.getElementById('docNotes').value = d.notes || '';
   document.getElementById('docDeleteBtn').style.display = editKey ? '' : 'none';
+  updateDocStatusFlow(d.status || 'Not Started');
   document.getElementById('docOverlay').style.display = 'flex';
 }
 function closeDocModal() { document.getElementById('docOverlay').style.display = 'none'; }
@@ -4068,9 +4218,11 @@ function saveDoc() {
   hubSave('docs', key, {
     name,
     type: document.getElementById('docType').value,
-    team: document.getElementById('docTeam').value,
+    area: document.getElementById('docArea').value,
+    status: document.getElementById('docStatus').value,
+    owner: document.getElementById('docOwner').value.trim(),
+    expiry: document.getElementById('docExpiry').value,
     link: document.getElementById('docLink').value.trim(),
-    uploader: document.getElementById('docUploader').value.trim(),
     notes: document.getElementById('docNotes').value.trim(),
     updated: new Date().toISOString()
   });
@@ -4079,6 +4231,196 @@ function saveDoc() {
 window.openDocModal = openDocModal;
 window.closeDocModal = closeDocModal;
 window.saveDoc = saveDoc;
+
+/* ── initDocDefaults — seeds all documents on first load ── */
+function initDocDefaults() {
+  const now = Date.now();
+  function dk() { return 'd' + now + '_' + Math.random().toString(36).slice(2,6); }
+  function doc(name, type, area, status, notes, link, expiry) {
+    return { name, type, area, status: status||'Not Started', owner:'', expiry: expiry||'', link: link||'', notes: notes||'', createdAt: now, updated: new Date().toISOString() };
+  }
+  const docs = {};
+  // A — Venue Contracts
+  docs[dk()] = doc('Venue Contract — RYSE Energy StarCenter, Farmers Branch','Venue Contract','Venues','Outreach Sent','VB/Throwball venue. Lead: Alishah Momin. In conversation.');
+  docs[dk()] = doc('Venue Contract — CH StarCenter, Northlake','Venue Contract','Venues','Outreach Sent','Badminton, Basketball, Table Tennis. Lead: Karim Hemani.');
+  docs[dk()] = doc('Venue Contract — Gateway Park Soccer Fields, Fort Worth','Venue Contract','Venues','Outreach Sent','Soccer 11v11/7v7, Flag Football. Lead: Nadeem Ali.');
+  docs[dk()] = doc('Venue Contract — Texomo Cricket Ground','Venue Contract','Venues','Not Started','Cricket. Primary hardball pitch + tapeball. Address TBD.');
+  docs[dk()] = doc('Venue Contract — Picklr (DFW)','Venue Contract','Venues','Not Started','Pickleball + Dance. DFW location TBD.');
+  docs[dk()] = doc('Venue Contract — McKinney Courts','Venue Contract','Venues','Not Started','Tennis + Pickleball. McKinney, TX.');
+  docs[dk()] = doc('Venue Contract — Track & Field Venue (TBD)','Venue Contract','Venues','Not Started','Track & Field. Carroll ISD in exploration.');
+  docs[dk()] = doc('Venue Agreement — Chess Venue (TBD)','Venue Contract','Venues','Not Started','Chess — tables + chairs only. Hotel ballroom or Picklr possible.');
+  // B — Hotel Block Agreements
+  docs[dk()] = doc('Hotel Block Agreement — TBD Hotel 1','Hotel Agreement','Hotels','Not Started','~150–200 rooms within 5 mi of HQ. Target: $89–109/night + breakfast.');
+  docs[dk()] = doc('Hotel Block Agreement — TBD Hotel 2','Hotel Agreement','Hotels','Not Started','~150–200 rooms near venues. Target: $89–109/night.');
+  docs[dk()] = doc('Hotel Block Agreement — TBD Hotel 3','Hotel Agreement','Hotels','Not Started','Backup block. ~100 rooms. Rate TBD.');
+  // C — Vendor Contracts / RFPs
+  docs[dk()] = doc('RFP / Contract — Charter Bus & Shuttle Company','Vendor Contract','Transportation','RFP Sent','Airport transfers + venue shuttles. Fleet: 2x55-pax, 2x28-pax, 3x12-pax, 1 ADA.');
+  docs[dk()] = doc('RFP / Contract — Halal Catering','Vendor Contract','Catering / F&B','Not Started','Multi-venue catering. Halal + veg + vegan + allergen-free required. 2,200+ athletes.');
+  docs[dk()] = doc('RFP / Contract — AV & Production','Vendor Contract','AV / Production','Not Started','PA, scoreboards, ceremony production, livestream across all venues.');
+  docs[dk()] = doc('RFP / Contract — Security Firm','Vendor Contract','Security','Not Started','50–100 staff at peak. All venues + hotel. Licensed crowd management.');
+  docs[dk()] = doc('RFP / Contract — Medical / EMS Provider','Vendor Contract','Medical','Not Started','EMT/paramedic teams per venue. AED coverage. Min 1 team per venue.');
+  docs[dk()] = doc('RFP / Contract — Print & Signage','Vendor Contract','General','Not Started','2,200 athlete packets + venue sign packages. Bibs, banners, badges.');
+  docs[dk()] = doc('RFP / Contract — Technology / Scoring Platform','Vendor Contract','Technology','Not Started','Live scoring, results, bracket mgmt for 15+ sports.');
+  docs[dk()] = doc('RFP / Contract — Event Insurance Policy','Insurance','Insurance','Not Started','General liability (all venues) + athlete accident. Place by Dec 2026.','','2026-12-31');
+  docs[dk()] = doc('RFP / Contract — Flooring & Sports Surfaces','Vendor Contract','Venues','Not Started','Portable sports court flooring for indoor venues (VB, BB).');
+  // D — Master Tracker
+  docs[dk()] = doc('NAIG Logistics Master Tracker (Spreadsheet)','Planning','General','In Progress','Master logistics spreadsheet — venue data, scope, contacts. Updated Jul 2026.','https://docs.google.com/spreadsheets/d/1DL8r1kZbaQmOl0wmiVAWw_rc_S82yzF0bHZxfjPC_2Y/edit');
+  // E — Permits & Insurance
+  docs[dk()] = doc('Event Liability Insurance — NAIG 2027','Insurance','Insurance','Not Started','General event liability + athlete accident. Required by venue contracts. Place by Dec 2026.','','2026-12-31');
+  docs[dk()] = doc('City Permits — DFW Municipalities','Permit / License','Permits','Not Started','Special event permits from Fort Worth, Farmers Branch, McKinney, Northlake. Apply Q1 2027.','','2027-07-01');
+  docs[dk()] = doc('EMS / Medical Event Agreement','Vendor Contract','Medical','Not Started','Coordinate with DFW hospitals: Parkland, UT Southwestern, Cook Children\'s.');
+  // F — GRB Proposal reference
+  docs[dk()] = doc('GRB Convention Center — Hall Proposal (Juan Bradford, Apr 24)','Planning','Venues','Proposal Received','A3+B3 pricing received Apr 24. GRB likely not primary venue — file for reference.');
+  window._docsData = docs;
+  if (window._dbRef && window._dbSet) {
+    window._dbSet(window._dbRef('naig2027/docs'), docs)
+      .then(() => { window.renderDocs && window.renderDocs(); })
+      .catch(e => console.warn('initDocDefaults write error:', e));
+  } else {
+    window.renderDocs && window.renderDocs();
+  }
+}
+window.initDocDefaults = initDocDefaults;
+
+/* ══════════════════════════════════════════════════════════
+   BUDGET TAB
+══════════════════════════════════════════════════════════ */
+window.renderBudget = function() {
+  const parse = s => parseFloat(String(s||'0').replace(/[^0-9.]/g,'')) || 0;
+  const fmt   = n => n ? '$' + n.toLocaleString('en-US',{maximumFractionDigits:0}) : '—';
+
+  // Aggregate venues
+  let venueC=0, venueI=0, venueP=0, venueCount=0;
+  const venueRows = [];
+  Object.values(window._venuesData||{}).forEach(v => {
+    const c=parse(v.rentalFee), i=parse(v.invoiced), p=parse(v.paid);
+    venueC+=c; venueI+=i; venueP+=p;
+    if (c||i||p) { venueCount++; venueRows.push({name:v.name||'TBD',c,i,p}); }
+  });
+
+  // Aggregate vendors by category
+  const vendorCats = {};
+  Object.values(window._vendorsData||{}).forEach(v => {
+    const cat = v.category||'Other';
+    if (!vendorCats[cat]) vendorCats[cat]={c:0,i:0,p:0,n:0};
+    vendorCats[cat].c+=parse(v.cost); vendorCats[cat].i+=parse(v.invoiced); vendorCats[cat].p+=parse(v.paid); vendorCats[cat].n++;
+  });
+
+  // Grand totals
+  let grandC=venueC, grandI=venueI, grandP=venueP;
+  Object.values(vendorCats).forEach(d=>{ grandC+=d.c; grandI+=d.i; grandP+=d.p; });
+  const grandOut = Math.max(0, grandC - grandP);
+
+  // KPI strip
+  const kpi = document.getElementById('budgetKPIs');
+  if (kpi) kpi.innerHTML =
+    `<div class="sum-chip" style="font-size:.92rem"><strong>${fmt(grandC)}</strong><span>Total Committed</span></div>` +
+    `<div class="sum-chip" style="font-size:.92rem;color:#856404"><strong>${fmt(grandI)}</strong><span>Invoiced</span></div>` +
+    `<div class="sum-chip" style="font-size:.92rem;color:#155724"><strong>${fmt(grandP)}</strong><span>Paid</span></div>` +
+    `<div class="sum-chip" style="font-size:.92rem;color:#721c24"><strong>${fmt(grandOut)}</strong><span>Outstanding</span></div>`;
+
+  // Venue snapshot card
+  const vSnap = document.getElementById('budgetVenueBody');
+  if (vSnap) {
+    if (!venueRows.length) {
+      vSnap.innerHTML = '<div style="color:#aaa;font-size:.8rem">No venue financial data yet — enter contract values in each venue\'s Financials tab.</div>';
+    } else {
+      vSnap.innerHTML = venueRows.map(r =>
+        `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f4f8">
+          <span style="font-weight:600;color:#1a3a5c;font-size:.8rem">${esc(r.name)}</span>
+          <span style="color:#666;font-size:.79rem">${r.c?fmt(r.c):'—'}</span>
+        </div>`
+      ).join('') +
+      `<div style="display:flex;justify-content:space-between;margin-top:8px;padding-top:6px;border-top:2px solid #e2eaf3">
+        <strong style="font-size:.82rem">Total</strong>
+        <strong style="color:#1a3a5c;font-size:.82rem">${fmt(venueC)||'—'}</strong>
+      </div>`;
+    }
+  }
+
+  // Vendor snapshot card
+  const vdSnap = document.getElementById('budgetVendorBody');
+  if (vdSnap) {
+    const catEntries = Object.entries(vendorCats).sort(([a],[b])=>a.localeCompare(b));
+    if (!catEntries.length) {
+      vdSnap.innerHTML = '<div style="color:#aaa;font-size:.8rem">No vendor financial data yet — enter contract values in each vendor record.</div>';
+    } else {
+      let vdTotal=0;
+      vdSnap.innerHTML = catEntries.map(([cat,d]) => {
+        vdTotal+=d.c;
+        return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f4f8">
+          <span style="font-weight:600;color:#1a3a5c;font-size:.8rem">${esc(cat)}</span>
+          <span style="color:#666;font-size:.79rem">${d.c?fmt(d.c):'—'}</span>
+        </div>`;
+      }).join('') +
+      `<div style="display:flex;justify-content:space-between;margin-top:8px;padding-top:6px;border-top:2px solid #e2eaf3">
+        <strong style="font-size:.82rem">Total</strong>
+        <strong style="color:#1a3a5c;font-size:.82rem">${fmt(vdTotal)||'—'}</strong>
+      </div>`;
+    }
+  }
+
+  // Category breakdown table
+  const tbody = document.getElementById('budgetTbody');
+  if (!tbody) return;
+  const rows = [];
+
+  if (venueC||venueI||venueP) {
+    const out = Math.max(0,venueC-venueP);
+    rows.push(`<tr>
+      <td><strong>Venues</strong></td>
+      <td style="font-size:11px;color:#888">Venue Records</td>
+      <td style="font-size:11px">${venueCount}</td>
+      <td style="font-weight:600;color:#1a3a5c">${fmt(venueC)}</td>
+      <td style="font-size:11px">${fmt(venueI)}</td>
+      <td style="color:#155724;font-size:11px">${fmt(venueP)}</td>
+      <td style="${out?'color:#721c24':'color:#aaa'};font-size:11px">${out?fmt(out):'—'}</td>
+    </tr>`);
+  }
+
+  Object.entries(vendorCats).sort(([a],[b])=>a.localeCompare(b)).forEach(([cat,d]) => {
+    const out = Math.max(0,d.c-d.p);
+    rows.push(`<tr>
+      <td><strong>${esc(cat)}</strong></td>
+      <td style="font-size:11px;color:#888">Vendor Records</td>
+      <td style="font-size:11px">${d.n}</td>
+      <td style="font-weight:600;color:#1a3a5c">${fmt(d.c)}</td>
+      <td style="font-size:11px">${fmt(d.i)}</td>
+      <td style="color:#155724;font-size:11px">${fmt(d.p)}</td>
+      <td style="${out?'color:#721c24':'color:#aaa'};font-size:11px">${out?fmt(out):'—'}</td>
+    </tr>`);
+  });
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="hub-empty">No financial data yet — enter contract values in venue and vendor records.</td></tr>`;
+  } else {
+    rows.push(`<tr style="background:#f0f5fb;font-weight:700;border-top:2px solid #2d6a9f">
+      <td>TOTAL</td><td></td><td></td>
+      <td style="color:#1a3a5c">${fmt(grandC)}</td>
+      <td>${fmt(grandI)}</td>
+      <td style="color:#155724">${fmt(grandP)}</td>
+      <td style="${grandOut?'color:#721c24':'color:#aaa'}">${grandOut?fmt(grandOut):'—'}</td>
+    </tr>`);
+    tbody.innerHTML = rows.join('');
+  }
+};
+
+function exportBudgetCSV() {
+  const parse = s => parseFloat(String(s||'0').replace(/[^0-9.]/g,'')) || 0;
+  const rows = [['Category','Source','Items','Committed','Invoiced','Paid','Outstanding']];
+  let venueC=0,venueI=0,venueP=0,venueN=0;
+  Object.values(window._venuesData||{}).forEach(v=>{ venueC+=parse(v.rentalFee); venueI+=parse(v.invoiced); venueP+=parse(v.paid); venueN++; });
+  if (venueN) rows.push(['Venues','Venue Records',venueN,venueC,venueI,venueP,Math.max(0,venueC-venueP)]);
+  const cats={};
+  Object.values(window._vendorsData||{}).forEach(v=>{ const cat=v.category||'Other'; if(!cats[cat])cats[cat]={c:0,i:0,p:0,n:0}; cats[cat].c+=parse(v.cost);cats[cat].i+=parse(v.invoiced);cats[cat].p+=parse(v.paid);cats[cat].n++; });
+  Object.entries(cats).forEach(([cat,d])=>rows.push([cat,'Vendor Records',d.n,d.c,d.i,d.p,Math.max(0,d.c-d.p)]));
+  if (typeof downloadCSV==='function') downloadCSV(rows,'naig-budget-'+new Date().toISOString().slice(0,10)+'.csv');
+  else {
+    const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv); a.download='naig-budget.csv'; a.click();
+  }
+}
+window.exportBudgetCSV = exportBudgetCSV;
 
 /* ══════════════════════════════════════════════════════════
    SCOPE / Working Assumptions
@@ -4189,6 +4531,28 @@ setTimeout(() => { window.refreshAthleteBreakdown && window.refreshAthleteBreakd
 
 /* Helper: escape HTML */
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+/* ── Post-load render safety net ──────────────────────────────────────────
+   Firebase module (Script 1) and regular scripts (Script 2) load in different
+   phases. This guarantees all renders fire after both are fully initialized,
+   even if Firebase callbacks fired before render functions were defined.    */
+window.addEventListener('load', function() {
+  setTimeout(function() {
+    if (window._venuesData   && Object.keys(window._venuesData).length)   window.renderVenues    && window.renderVenues();
+    if (window._transportData&& Object.keys(window._transportData).length) window.renderTransport && window.renderTransport();
+    if (window._scopeData    && Object.keys(window._scopeData).length)    window.renderScope     && window.renderScope();
+    if (window._hotelsData   && Object.keys(window._hotelsData).length)   window.renderHotels    && window.renderHotels();
+    if (window._tasksData    && Object.keys(window._tasksData).length)    window.renderKanban    && window.renderKanban();
+    if (window._docsData     && Object.keys(window._docsData).length)     window.renderDocs      && window.renderDocs();
+    window.refreshAthleteBreakdown && window.refreshAthleteBreakdown();
+    // Plan: seed if null, render if data present
+    if (!window._planData) {
+      window.initPlanDefaults && window.initPlanDefaults();
+    } else {
+      window.renderPlan && window.renderPlan();
+    }
+  }, 1500); // Wait 1.5s for Firebase to connect + deliver initial snapshots
+});
 </script>
 
 <!-- ══════════ HUB MODALS ══════════ -->
@@ -4333,42 +4697,60 @@ function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
 
 <!-- Document Modal -->
 <div class="overlay" id="docOverlay" onclick="closeDocModal()">
- <div class="modal" style="width:440px" onclick="event.stopPropagation()">
+ <div class="modal" style="width:480px;max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">
  <h3 id="docModalTitle">Add Document / Link</h3>
  <input type="hidden" id="docKey">
  <div class="form-group">
  <label>Document / File Name</label>
- <input type="text" id="docName" placeholder="e.g. Venue Contract — Kay Bailey" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ <input type="text" id="docName" placeholder="e.g. Venue Contract — RYSE Farmers Branch" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
  </div>
  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
  <div class="form-group">
- <label>Type</label>
- <select id="docType" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
- <option>Planning</option><option>Contract</option><option>MOU / LOI</option><option>Budget</option>
- <option>Invoice</option><option>Permit</option><option>Insurance</option><option>Report</option><option>Other</option>
+ <label>Document Type</label>
+ <select id="docType" onchange="updateDocStatusFlow()" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ <option value="Venue Contract">Venue Contract</option>
+ <option value="Hotel Agreement">Hotel Agreement</option>
+ <option value="Vendor Contract">Vendor Contract / RFP</option>
+ <option value="Permit / License">Permit / License</option>
+ <option value="Insurance">Insurance Policy</option>
+ <option value="MOU / LOI">MOU / LOI</option>
+ <option value="Planning">Planning / General</option>
+ <option value="Other">Other</option>
  </select>
  </div>
  <div class="form-group">
- <label>Team / Area</label>
- <select id="docTeam" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
- <option value="">Select team…</option>
- <option>Venues</option><option>Hotels</option><option>Transportation</option><option>Volunteer</option>
- <option>Catering</option><option>AV / Production</option><option>Security</option><option>Medical</option>
- <option>Finance</option><option>Comms</option><option>General</option>
+ <label>Area</label>
+ <select id="docArea" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ <option value="">Select area&#8230;</option>
+ <option>Venues</option><option>Hotels</option><option>Transportation</option>
+ <option>Catering / F&amp;B</option><option>AV / Production</option><option>Security</option>
+ <option>Medical</option><option>Technology</option><option>Insurance</option>
+ <option>Permits</option><option>Finance</option><option>General</option>
  </select>
  </div>
  </div>
  <div class="form-group">
- <label>Link (Google Drive, Dropbox, OneDrive…)</label>
- <input type="url" id="docLink" placeholder="https://drive.google.com/…" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ <label>Status</label>
+ <div id="docStatusFlow" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 0;min-height:36px"></div>
+ <input type="hidden" id="docStatus" value="Not Started">
+ </div>
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+ <div class="form-group">
+ <label>Owner / Lead</label>
+ <input type="text" id="docOwner" placeholder="Name or team" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
  </div>
  <div class="form-group">
- <label>Uploaded By</label>
- <input type="text" id="docUploader" placeholder="Your name or team" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ <label>Expiry / Deadline</label>
+ <input type="date" id="docExpiry" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ </div>
+ <div class="form-group">
+ <label>Drive / File Link</label>
+ <input type="url" id="docLink" placeholder="https://drive.google.com/&#8230;" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
  </div>
  <div class="form-group">
  <label>Notes</label>
- <textarea id="docNotes" placeholder="Brief description, status, or key terms…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;resize:vertical;min-height:50px;font-family:inherit;line-height:1.5"></textarea>
+ <textarea id="docNotes" placeholder="Key terms, deadlines, or context&#8230;" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;resize:vertical;min-height:50px;font-family:inherit;line-height:1.5"></textarea>
  </div>
  <div class="modal-actions">
  <button class="btn btn-cancel" onclick="closeDocModal()">Cancel</button>
@@ -4559,14 +4941,23 @@ function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
 
  <!-- Panel: Financials -->
  <div class="vmodal-panel" id="vp-financials">
+ <div style="font-size:.75rem;color:#2d6a9f;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Enter values as numbers (e.g. 5000). Budget tab reads these automatically.</div>
  <div class="venue-form-grid">
  <div class="form-group">
- <label>Rental Fee</label>
- <input type="text" id="venueRentalFee" placeholder="e.g. $5,000 / day" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ <label>Contract Value / Rental Fee ($)</label>
+ <input type="text" id="venueRentalFee" placeholder="e.g. 5000" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
  </div>
  <div class="form-group">
- <label>Deposit Required</label>
- <input type="text" id="venueDeposit" placeholder="e.g. $1,000 due MM/DD" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ <label>Deposit Required ($)</label>
+ <input type="text" id="venueDeposit" placeholder="e.g. 1000" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group">
+ <label>Amount Invoiced ($)</label>
+ <input type="text" id="venueInvoiced" placeholder="e.g. 2500" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group">
+ <label>Amount Paid ($)</label>
+ <input type="text" id="venuePaid" placeholder="e.g. 1000" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
  </div>
  <div class="form-group">
  <label>Contract Status</label>
@@ -4576,7 +4967,7 @@ function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
  </select>
  </div>
  <div class="form-group">
- <label>Point of Contact (Finance)</label>
+ <label>Finance Contact</label>
  <input type="text" id="venuePOC" placeholder="Finance / invoicing contact" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
  </div>
  </div>
