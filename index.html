@@ -105,18 +105,7 @@
     });
     // ── Hub: Venues ──
     window._fb.listenVenues((data) => {
-      // Auto-migration v2: wipe and reseed if old venue names detected
-      if (data) {
-        const vals = Object.values(data);
-        if (vals.some(v =>
-          v.name === 'RYSE StarCenter' || v.name === 'CH StarCenter Northlake' || v.name === 'Gateway Park — Fort Worth' ||
-          v.name === 'RYSE Energy StarCenter' || v.name === "Children's Health StarCenter" || v.name === 'GatewayPark Soccer Fields' ||
-          v.name === 'Little Elm Soccer Park'
-        )) {
-          window._dbSet(window._dbRef('naig2027/venues'), null);
-          return;
-        }
-      }
+      // Migration removed Jul 19 2026 — seed data is current, auto-wipe no longer needed
       window._venuesData = data || {};
       window.renderVenues && window.renderVenues();
       window.refreshAthleteBreakdown && window.refreshAthleteBreakdown();
