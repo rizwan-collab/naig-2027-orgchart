@@ -3790,6 +3790,28 @@ window.renderHotels = function() {
   }).join('');
 };
 
+const _hotelStatusFlow = ['Prospecting','Block Requested','Block Confirmed','Contract Sent','Contract Signed','Cancelled'];
+function updateHotelStatusFlow(forcedStatus) {
+  const cur = forcedStatus || document.getElementById('hotelStatus').value || 'Prospecting';
+  document.getElementById('hotelStatus').value = cur;
+  const rail = document.getElementById('hotelStatusFlow');
+  if (!rail) return;
+  rail.innerHTML = _hotelStatusFlow.map(s => {
+    const active = s === cur;
+    const cancelled = s === 'Cancelled';
+    const bg = active ? (cancelled ? '#fee2e2' : '#dbeafe') : '#f1f5f9';
+    const border = active ? (cancelled ? '#fca5a5' : '#93c5fd') : '#e2e8f0';
+    const color = active ? (cancelled ? '#dc2626' : '#1d4ed8') : '#64748b';
+    const fw = active ? '700' : '400';
+    return `<span onclick="selectHotelStatus('${s}')" style="cursor:pointer;padding:4px 10px;border-radius:20px;font-size:12px;border:1.5px solid ${border};background:${bg};color:${color};font-weight:${fw}">${s}</span>`;
+  }).join('');
+}
+function selectHotelStatus(s) {
+  document.getElementById('hotelStatus').value = s;
+  updateHotelStatusFlow(s);
+}
+window.selectHotelStatus = selectHotelStatus;
+
 function openHotelModal(editKey) {
   const h = editKey ? (window._hotelsData[editKey] || {}) : {};
   document.getElementById('hotelModalTitle').textContent = editKey ? 'Edit Hotel' : 'Add Hotel';
@@ -3799,7 +3821,7 @@ function openHotelModal(editKey) {
   document.getElementById('hotelBlockSize').value = h.blockSize || '';
   document.getElementById('hotelRoomsUsed').value = h.roomsUsed || '';
   document.getElementById('hotelRate').value = h.rate || '';
-  document.getElementById('hotelStatus').value = h.status || 'Prospecting';
+  updateHotelStatusFlow(h.status || 'Prospecting');
   document.getElementById('hotelCheckIn').value = h.checkIn || '';
   document.getElementById('hotelCheckOut').value = h.checkOut || '';
   document.getElementById('hotelPocName').value = h.pocName || h.contact || '';
@@ -4608,12 +4630,10 @@ window.addEventListener('load', function() {
  <label>Rate Per Night ($)</label>
  <input type="text" id="hotelRate" placeholder="e.g. 159" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
  </div>
- <div class="form-group">
+ <div class="form-group" style="grid-column:1/-1">
  <label>Contract Status</label>
- <select id="hotelStatus" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
- <option>Prospecting</option><option>Block Requested</option><option>Block Confirmed</option>
- <option>Contract Sent</option><option>Contract Signed</option><option>Cancelled</option>
- </select>
+ <input type="hidden" id="hotelStatus" value="Prospecting">
+ <div id="hotelStatusFlow" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 0;min-height:36px"></div>
  </div>
  <div class="form-group">
  <label>Check-In Date</label>
