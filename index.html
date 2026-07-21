@@ -3949,7 +3949,7 @@ window.renderVendors = function() {
   const catF = document.getElementById('vendorCatFilter')?.value || '';
   const statusF = document.getElementById('vendorStatusFilter')?.value || '';
   let all = Object.entries(window._vendorsData || {});
-  if (q) all = all.filter(([,v]) => [v.name,v.category,v.contact,v.notes].join(' ').toLowerCase().includes(q));
+  if (q) all = all.filter(([,v]) => [v.name,v.category,v.pocName,v.pocEmail,v.notes].join(' ').toLowerCase().includes(q));
   if (catF) all = all.filter(([,v]) => v.category === catF);
   if (statusF) all = all.filter(([,v]) => v.contractStatus === statusF);
 
@@ -3980,7 +3980,7 @@ window.renderVendors = function() {
  <tr onclick="openVendorModal('${k}')" style="cursor:pointer">
  <td><strong>${esc(v.name||'—')}</strong></td>
  <td style="font-size:11px">${esc(v.category||'—')}</td>
- <td style="font-size:11px">${esc(v.contact||'—')}</td>
+ <td style="font-size:11px">${esc(v.pocName||'—')}</td>
  <td>${contractBadge(v.contractStatus)}</td>
  <td style="font-size:11px">${esc(v.cost||'—')}</td>
  <td style="font-size:11px">${esc(v.invoiced||'—')}</td>
@@ -4034,7 +4034,11 @@ function openVendorModal(editKey) {
   document.getElementById('vendorKey').value = editKey || '';
   document.getElementById('vendorName').value = v.name || '';
   document.getElementById('vendorCategory').value = v.category || 'Transportation';
-  document.getElementById('vendorContact').value = v.contact || '';
+  document.getElementById('vendorPocName').value = v.pocName || '';
+  document.getElementById('vendorPocTitle').value = v.pocTitle || '';
+  document.getElementById('vendorPocEmail').value = v.pocEmail || '';
+  document.getElementById('vendorPocPhone').value = v.pocPhone || '';
+  document.getElementById('vendorContractLink').value = v.contractLink || '';
   document.getElementById('vendorContractStatus').value = v.contractStatus || 'Not Started';
   document.getElementById('vendorCost').value = v.cost || '';
   document.getElementById('vendorPaymentTerms').value = v.paymentTerms || 'Net 30';
@@ -4083,7 +4087,7 @@ window.renderHotels = function() {
   const q = (document.getElementById('hotelSearch')?.value || '').toLowerCase();
   const statusF = document.getElementById('hotelStatusFilter')?.value || '';
   let all = Object.entries(window._hotelsData || {});
-  if (q) all = all.filter(([,h]) => [h.name,h.address,h.contact,h.notes].join(' ').toLowerCase().includes(q));
+  if (q) all = all.filter(([,h]) => [h.name,h.address,h.pocName,h.pocEmail,h.notes].join(' ').toLowerCase().includes(q));
   if (statusF) all = all.filter(([,h]) => h.status === statusF);
 
   // summary strip — B (financials) + C (status pipeline)
