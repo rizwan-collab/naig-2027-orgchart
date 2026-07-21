@@ -119,7 +119,7 @@
       }
       window._venuesData = data || {};
       window.renderVenues && window.renderVenues();
-      window.refreshAthleteBreakdown && window.refreshAthleteBreakdown();
+      window.renderScope && window.renderScope(); // refresh scope status chart
       window.renderBudget && window.renderBudget();
       if (!data) window.seedInitialVenues && window.seedInitialVenues();
     });
@@ -147,7 +147,7 @@
       }
       window._scopeData = data || {};
       window.renderScope && window.renderScope();
-      window.refreshAthleteBreakdown && window.refreshAthleteBreakdown();
+      window.renderScope && window.renderScope(); // refresh scope status chart
       if (!data) window.seedInitialScope && window.seedInitialScope();
     });
     // ── Hub: Hotels ──
@@ -1411,30 +1411,76 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 
 <!-- Scope / Working Assumptions -->
 <div class="hub-section" id="sectionScope">
+ <!-- Toolbar -->
  <div class="hub-toolbar">
- <div>
- <div class="hub-title">Scope &amp; Working Assumptions</div>
- <div class="hub-subtitle">Headcount targets, ratios, and logistics assumptions — sourced from NAIG_Logistics_Master (Jul 2026). Click any tile to edit.</div>
+  <div>
+   <div class="hub-title">Sports Scope — NAIG 2027</div>
+   <div class="hub-subtitle">Dallas, TX · March 25–29, 2027 · 14 Sports · ~2,200 Athletes · 14 Provinces</div>
+  </div>
+  <div style="display:flex;gap:8px">
+   <button class="btn" style="font-size:11px;padding:4px 12px;background:#f1f5f9;color:#334155;border:1px solid #cbd5e1" onclick="exportScopeCSV()">⬇ Export CSV</button>
+   <button class="btn btn-primary" onclick="openSportModal()">+ Add Sport</button>
+  </div>
  </div>
- <button class="btn btn-primary" onclick="openScopeModal()">+ Add Assumption</button>
+
+ <!-- KPI Strip -->
+ <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1.8fr;gap:12px;margin-bottom:20px">
+  <div style="background:#1E3A8A;border-radius:10px;padding:14px 16px;color:#fff">
+   <div style="font-size:24px;font-weight:800;line-height:1">14</div>
+   <div style="font-size:11px;opacity:.75;margin-top:4px;text-transform:uppercase;letter-spacing:.5px">Sports</div>
+  </div>
+  <div style="background:#0e7490;border-radius:10px;padding:14px 16px;color:#fff">
+   <div style="font-size:24px;font-weight:800;line-height:1">~2,200</div>
+   <div style="font-size:11px;opacity:.75;margin-top:4px;text-transform:uppercase;letter-spacing:.5px">Athletes (Est.)</div>
+  </div>
+  <div style="background:#7c3aed;border-radius:10px;padding:14px 16px;color:#fff">
+   <div style="font-size:24px;font-weight:800;line-height:1">14</div>
+   <div style="font-size:11px;opacity:.75;margin-top:4px;text-transform:uppercase;letter-spacing:.5px">Provinces</div>
+  </div>
+  <div style="background:#b45309;border-radius:10px;padding:14px 16px;color:#fff">
+   <div style="font-size:24px;font-weight:800;line-height:1">750–1K</div>
+   <div style="font-size:11px;opacity:.75;margin-top:4px;text-transform:uppercase;letter-spacing:.5px">Volunteers</div>
+  </div>
+  <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">
+   <div style="font-size:11px;font-weight:700;color:#1a3a5c;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Sports by Status</div>
+   <div id="scopeStatusChart" style="display:flex;flex-direction:column;gap:6px"></div>
+  </div>
  </div>
- <div class="scope-grid" id="scopeGrid">
- <div class="hub-empty" style="grid-column:1/-1">Loading scope data…</div>
+
+ <!-- Filters -->
+ <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+  <input id="scopeSearch" type="text" placeholder="Search sports…" oninput="window.renderScope()" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;width:180px">
+  <select id="scopeFilterCat" onchange="window.renderScope()" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+   <option value="">All Categories</option>
+   <option>Team</option>
+   <option>Individual</option>
+  </select>
+  <select id="scopeFilterStatus" onchange="window.renderScope()" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+   <option value="">All Statuses</option>
+   <option>Confirmed</option>
+   <option>Planning</option>
+   <option>TBD</option>
+  </select>
  </div>
- <div style="margin-top:24px">
- <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
- <div>
-   <div style="font-size:.85rem;font-weight:700;color:#1a3a5c;text-transform:uppercase;letter-spacing:.6px">Athlete Breakdown by Sport</div>
-   <div style="font-size:11px;color:#94a3b8;margin-top:2px">13 sports — sourced from NAIG_Logistics_Master (Jul 2026). Per-sport counts TBD per RST-14.</div>
- </div>
- <button class="btn" style="font-size:11px;padding:4px 10px;background:#f1f5f9;color:#334155;border:1px solid #cbd5e1" onclick="refreshAthleteBreakdown()">Refresh</button>
- </div>
- <table class="hub-table">
- <thead><tr>
- <th>Sport</th><th>Athletes (Est.)</th><th>Venue</th><th>Session Days</th><th>Notes</th>
- </tr></thead>
- <tbody id="athleteTbody"><tr><td colspan="5" class="hub-empty">Loaded from venues — click Refresh to update from Scope tiles.</td></tr></tbody>
- </table>
+
+ <!-- Sports Table -->
+ <div style="overflow-x:auto">
+  <table class="hub-table">
+   <thead><tr>
+    <th>Sport</th>
+    <th>Category</th>
+    <th>Participants (Est.)</th>
+    <th>Gender Divisions</th>
+    <th>Teams / Divs</th>
+    <th>Session Dates</th>
+    <th>Venue</th>
+    <th>Sport Lead</th>
+    <th>Lead POC</th>
+    <th>Status</th>
+    <th>Notes</th>
+   </tr></thead>
+   <tbody id="scopeTbody"><tr><td colspan="11" class="hub-empty">Loading sports data…</td></tr></tbody>
+  </table>
  </div>
 </div>
 
@@ -3276,6 +3322,48 @@ function switchTaskView(v) {
 window.switchTaskView = switchTaskView;
 
 const _ASSIGNEES = ['Rizwan Ali','Azmina Hashim','Sohail Ali','Humera Kabani','Maleka Surani','Akil Momin','Shehzad Ali','Raj Thakur','Kiran Surani','Shah','Anil','Shahneel Kanji','Sharez Prasla'];
+const _ASSIGNEE_EMAILS = {
+  'Rizwan Ali':     'rizwan@swagprint.com',
+  'Azmina Hashim':  '',
+  'Sohail Ali':     '',
+  'Humera Kabani':  '',
+  'Maleka Surani':  '',
+  'Akil Momin':     '',
+  'Shehzad Ali':    '',
+  'Raj Thakur':     '',
+  'Kiran Surani':   '',
+  'Shah':           '',
+  'Anil':           '',
+  'Shahneel Kanji': '',
+  'Sharez Prasla':  ''
+};
+// Returns owners as array — handles both new {owners:[]} and legacy {owner:''} schema
+function taskOwners(t) {
+  if (Array.isArray(t.owners) && t.owners.length) return t.owners;
+  if (typeof t.owners === 'string' && t.owners) return t.owners.split(',').map(s=>s.trim()).filter(Boolean);
+  return t.owner ? [t.owner] : [];
+}
+// Pill picker helpers
+function _renderOwnerPills(selected) {
+  const c = document.getElementById('taskOwnerPills');
+  if (!c) return;
+  c.innerHTML = _ASSIGNEES.map(name => {
+    const on = selected.includes(name);
+    return `<span onclick="_toggleOwnerPill('${name}')"
+      style="padding:4px 10px;border-radius:12px;font-size:12px;cursor:pointer;user-select:none;
+      border:1px solid ${on?'#1E3A8A':'#cbd5e1'};
+      background:${on?'#1E3A8A':'#f8fafc'};
+      color:${on?'#fff':'#475569'};
+      font-weight:${on?600:400};transition:all .12s">${esc(name)}</span>`;
+  }).join('');
+}
+function _toggleOwnerPill(name) {
+  const h = document.getElementById('taskOwnerHidden');
+  let cur = h.value ? h.value.split(',').map(s=>s.trim()).filter(Boolean) : [];
+  cur = cur.includes(name) ? cur.filter(x=>x!==name) : [...cur, name];
+  h.value = cur.join(',');
+  _renderOwnerPills(cur);
+}
 const _DEPTS = ['Leadership','F&B','Hotels & Accommodations','Transportation','Site Logistics','Equipment & Signage'];
 const _PRI_ORDER = {Urgent:0, High:1, Medium:2, Low:3};
 const _PRI_ICON  = {Urgent:'🔴', High:'🟠', Medium:'🟡', Low:'🟢'};
@@ -3298,7 +3386,7 @@ function _taskFiltered() {
     if (stF && (t.status||'todo') !== stF) return false;
     if (priF && (t.priority||'Medium') !== priF) return false;
     if (dptF && (t.department||'') !== dptF) return false;
-    if (ownF && (t.owner||'') !== ownF) return false;
+    if (ownF && !taskOwners(t).includes(ownF)) return false;
     return true;
   });
 }
@@ -3327,7 +3415,7 @@ function _updateTaskSummary(all) {
   // Per-person workload chips
   const wl = {};
   Object.values(window._tasksData||{}).forEach(t => {
-    if (t.owner && t.status !== 'done') wl[t.owner] = (wl[t.owner]||0)+1;
+    if (t.status !== 'done') taskOwners(t).forEach(o => { wl[o] = (wl[o]||0)+1; });
   });
   const wlStrip = document.getElementById('taskWorkloadStrip');
   if (wlStrip) wlStrip.innerHTML = Object.entries(wl).sort((a,b)=>b[1]-a[1]).map(([name,cnt]) =>
@@ -3360,7 +3448,7 @@ function renderTaskTable() {
  </td>
  <td style="padding:8px 10px"><span style="padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:${sc.bg};color:${sc.color}">${_STATUS_LABEL[st]||st}</span></td>
  <td style="padding:8px 10px;font-size:12px">${_PRI_ICON[pri]||''} ${pri}</td>
- <td style="padding:8px 10px;font-size:12px">${esc(t.owner||'—')}</td>
+ <td style="padding:8px 10px;font-size:12px">${taskOwners(t).length ? taskOwners(t).map(o=>`<span style="display:inline-block;padding:1px 7px;margin:1px;border-radius:10px;background:#e0e7ff;color:#3730a3;font-size:11px">${esc(o)}</span>`).join('') : '—'}</td>
  <td style="padding:8px 10px;font-size:11px;color:#64748b">${esc(t.department||'—')}</td>
  <td style="padding:8px 10px;font-size:11px${ovd?' color:#dc2626;font-weight:600':''}">${t.due||'—'}${ovd?' ⚠️':''}</td>
  <td style="padding:8px 10px;font-size:11px;color:#64748b">${esc(t.scopeArea||'—')}</td>
@@ -3394,7 +3482,7 @@ window.renderKanban = function() {
  <div class="task-card-meta">
    ${t.department?`<span class="t-tag">${esc(t.department)}</span>`:''}
    <span class="t-tag">${_PRI_ICON[pri]||''} ${pri}</span>
-   ${t.owner?`<span class="t-tag"> ${esc(t.owner)}</span>`:''}
+   ${taskOwners(t).map(o=>`<span class="t-tag"> ${esc(o)}</span>`).join('')}
    ${t.due?`<span class="t-tag${isOverdue?' overdue-badge':''}">${t.due}${isOverdue?' ⚠️':''}</span>`:''}
  </div>
  ${t.notes?`<div class="task-card-notes">${esc(t.notes)}</div>`:''}
@@ -3411,9 +3499,12 @@ function renderGrouped() {
   const all = _taskFiltered();
   const groups = {};
   all.forEach(([k,t]) => {
-    const person = t.owner || '(Unassigned)';
-    if (!groups[person]) groups[person] = [];
-    groups[person].push([k,t]);
+    const owners = taskOwners(t);
+    const persons = owners.length ? owners : ['(Unassigned)'];
+    persons.forEach(person => {
+      if (!groups[person]) groups[person] = [];
+      groups[person].push([k,t]);
+    });
   });
   // Sort each group by priority
   Object.values(groups).forEach(g => g.sort((a,b)=>(_PRI_ORDER[a[1].priority||'Medium']||2)-(_PRI_ORDER[b[1].priority||'Medium']||2)));
@@ -3526,7 +3617,9 @@ function openTaskModal(defaultStatus, editKey) {
   document.getElementById('taskDept').value = t.department || '';
   document.getElementById('taskScopeArea').value = t.scopeArea || '';
   document.getElementById('taskLinkedTo').value = t.linkedTo || '';
-  document.getElementById('taskOwner').value = t.owner || '';
+  const _curOwners = taskOwners(t);
+  document.getElementById('taskOwnerHidden').value = _curOwners.join(',');
+  _renderOwnerPills(_curOwners);
   document.getElementById('taskDue').value = t.due || '';
   document.getElementById('taskEstHours').value = t.estHours || '';
   document.getElementById('taskTags').value = t.tags || '';
@@ -3544,7 +3637,14 @@ function closeTaskModal() { document.getElementById('taskOverlay').style.display
 function saveTask() {
   const title = document.getElementById('taskTitle').value.trim();
   if (!title) { alert('Task title required.'); return; }
-  const key = document.getElementById('taskKey').value || hubKey();
+  const editKey   = document.getElementById('taskKey').value;
+  const key       = editKey || hubKey();
+  const newOwners = document.getElementById('taskOwnerHidden').value
+    ? document.getElementById('taskOwnerHidden').value.split(',').map(s=>s.trim()).filter(Boolean)
+    : [];
+  // Detect newly-added assignees for email notification
+  const oldOwners = editKey ? taskOwners(window._tasksData[editKey] || {}) : [];
+  const newlyAdded = newOwners.filter(o => !oldOwners.includes(o));
   hubSave('tasks', key, {
     title,
     status:     document.getElementById('taskStatus').value,
@@ -3552,7 +3652,8 @@ function saveTask() {
     department: document.getElementById('taskDept').value,
     scopeArea:  document.getElementById('taskScopeArea').value,
     linkedTo:   document.getElementById('taskLinkedTo').value.trim(),
-    owner:      document.getElementById('taskOwner').value,
+    owners:     newOwners,
+    owner:      newOwners[0] || '',  // keep legacy field for any older reads
     due:        document.getElementById('taskDue').value,
     estHours:   document.getElementById('taskEstHours').value,
     tags:       document.getElementById('taskTags').value.trim(),
@@ -3560,6 +3661,32 @@ function saveTask() {
     parentTask: document.getElementById('taskParent').value,
     updated:    new Date().toISOString()
   });
+  // Send assignment email for newly-added people
+  if (newlyAdded.length) {
+    const emails = newlyAdded.map(o => _ASSIGNEE_EMAILS[o]).filter(Boolean);
+    const status   = document.getElementById('taskStatus').value;
+    const priority = document.getElementById('taskPriority').value;
+    const due      = document.getElementById('taskDue').value || 'TBD';
+    const notes    = document.getElementById('taskNotes').value.trim() || '—';
+    const subject  = encodeURIComponent(`[NAIG 2027] Task Assigned: ${title}`);
+    const body     = encodeURIComponent(
+      `Hi,\n\nYou've been assigned a task on the NAIG 2027 Sports Central hub.\n\n` +
+      `Task: ${title}\nStatus: ${status}\nPriority: ${priority}\nDue: ${due}\nNotes: ${notes}\n\n` +
+      `View the hub: https://rizwan-io.github.io/naig-2027-orgchart/\n\n— NAIG 2027 Logistics Team`
+    );
+    if (emails.length) {
+      window.open(`mailto:${emails.join(',')}?subject=${subject}&body=${body}`, '_blank');
+    } else {
+      // No emails stored — show a reminder banner briefly
+      const banner = document.createElement('div');
+      banner.textContent = `📧 Assigned to: ${newlyAdded.join(', ')} — add their emails to send notifications.`;
+      Object.assign(banner.style, { position:'fixed', bottom:'24px', left:'50%', transform:'translateX(-50%)',
+        background:'#1E3A8A', color:'#fff', padding:'10px 20px', borderRadius:'8px',
+        fontSize:'12px', zIndex:9999, boxShadow:'0 4px 16px rgba(0,0,0,.2)' });
+      document.body.appendChild(banner);
+      setTimeout(() => banner.remove(), 4000);
+    }
+  }
   closeTaskModal();
 }
 function quickComplete(key) {
@@ -3570,7 +3697,7 @@ function quickComplete(key) {
 function exportTasksCSV() {
   const rows = [['Title','Status','Priority','Department','Scope Area','Assignee','Due','Est Hours','Tags','Notes']];
   Object.values(window._tasksData||{}).forEach(t => {
-    rows.push([t.title,t.status,t.priority,t.department||'',t.scopeArea||'',t.owner||'',t.due||'',t.estHours||'',t.tags||'',t.notes||'']);
+    rows.push([t.title,t.status,t.priority,t.department||'',t.scopeArea||'',taskOwners(t).join('; '),t.due||'',t.estHours||'',t.tags||'',t.notes||'']);
   });
   downloadCSV(rows, 'naig-tasks.csv');
 }
@@ -4822,107 +4949,154 @@ window.exportBudgetCSV = exportBudgetCSV;
 ══════════════════════════════════════════════════════════ */
 window._scopeData = {};
 
+const _SCOPE_STATUS_COLORS = {
+  'Confirmed': { bg:'#d1fae5', color:'#065f46' },
+  'Planning':  { bg:'#fef3c7', color:'#92400e' },
+  'TBD':       { bg:'#f1f5f9', color:'#475569'  }
+};
+
+function _renderScopeStatusChart() {
+  const el = document.getElementById('scopeStatusChart');
+  if (!el) return;
+  const items = Object.values(window._scopeData || {});
+  const total = items.length || 1;
+  const counts = { Confirmed:0, Planning:0, TBD:0 };
+  items.forEach(s => {
+    const st = s.status || 'TBD';
+    if (counts[st] !== undefined) counts[st]++; else counts.TBD++;
+  });
+  el.innerHTML = Object.entries(counts).map(([st, n]) => {
+    const pct = Math.round(n / total * 100);
+    const c = _SCOPE_STATUS_COLORS[st] || _SCOPE_STATUS_COLORS.TBD;
+    return `<div style="display:flex;align-items:center;gap:6px;font-size:11px">
+      <div style="width:64px;color:#64748b">${st}</div>
+      <div style="flex:1;background:#e2e8f0;border-radius:3px;height:7px">
+        <div style="width:${pct}%;background:${c.color};border-radius:3px;height:7px;transition:width .3s"></div>
+      </div>
+      <div style="font-weight:700;color:${c.color};min-width:16px;text-align:right">${n}</div>
+    </div>`;
+  }).join('');
+}
+
 window.renderScope = function() {
-  const grid = document.getElementById('scopeGrid');
-  if (!grid) return;
-  const items = Object.entries(window._scopeData || {});
+  _renderScopeStatusChart();
+  const tbody = document.getElementById('scopeTbody');
+  if (!tbody) return;
+  const search     = (document.getElementById('scopeSearch')?.value || '').toLowerCase();
+  const filterCat  = document.getElementById('scopeFilterCat')?.value  || '';
+  const filterStat = document.getElementById('scopeFilterStatus')?.value || '';
+  let items = Object.entries(window._scopeData || {});
+  if (search)     items = items.filter(([,s]) => (s.sport+s.venue+s.sportLead+s.notes).toLowerCase().includes(search));
+  if (filterCat)  items = items.filter(([,s]) => s.category === filterCat);
+  if (filterStat) items = items.filter(([,s]) => (s.status || 'TBD') === filterStat);
   if (!items.length) {
-    grid.innerHTML = '<div class="hub-empty" style="grid-column:1/-1">No assumptions yet. Click <strong>+ Add Assumption</strong> to start.</div>';
+    tbody.innerHTML = '<tr><td colspan="11" class="hub-empty">No sports match filters.</td></tr>';
     return;
   }
-  const catColors = {
-    'Athletes':'#1E3A8A','Spectators':'#0e7490','Volunteers':'#7c3aed',
-    'Venues':'#b45309','Sports':'#15803d','Hotels':'#c2410c',
-    'Transportation':'#1e40af','Event Weekend':'#831843','Location':'#065f46',
-    'Divisions':'#6b21a8'
-  };
-  grid.innerHTML = items.map(([k,s]) => {
-    const color = catColors[s.category] || '#1E3A8A';
-    return `<div class="scope-card" onclick="openScopeModal('${k}')" style="border-top-color:${color}">
- <div class="scope-card-edit">edit</div>
- <div class="scope-card-cat" style="color:${color}">${esc(s.category||'General')}</div>
-      ${s.event ? `<div class="scope-card-event">${esc(s.event)}</div>` : ''}
- <div class="scope-card-count">${esc(s.count||'—')}</div>
-      ${s.notes ? `<div class="scope-card-notes">${esc(s.notes)}</div>` : ''}
- </div>`;
+  const catOrder = { Team:0, Individual:1 };
+  items.sort((a, b) =>
+    (catOrder[a[1].category] ?? 2) - (catOrder[b[1].category] ?? 2) ||
+    (a[1].sport || '').localeCompare(b[1].sport || '')
+  );
+  tbody.innerHTML = items.map(([k, s]) => {
+    const sc = _SCOPE_STATUS_COLORS[s.status] || _SCOPE_STATUS_COLORS.TBD;
+    const catBg = s.category === 'Team' ? '#1E3A8A' : '#7c3aed';
+    return `<tr style="cursor:pointer" onclick="openSportModal('${k}')">
+      <td><strong>${esc(s.sport || '—')}</strong></td>
+      <td><span style="background:${catBg}18;color:${catBg};padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600">${esc(s.category || '—')}</span></td>
+      <td style="font-weight:600;color:#1a3a5c">${esc(s.participants || '—')}</td>
+      <td style="font-size:11px">${esc(s.genderDivisions || '—')}</td>
+      <td style="font-size:11px;text-align:center">${esc(s.numTeams || '—')}</td>
+      <td style="font-size:11px;white-space:nowrap">${esc(s.sessionDates || '—')}</td>
+      <td style="font-size:11px">${esc(s.venue || '—')}</td>
+      <td style="font-size:12px;font-weight:600">${esc(s.sportLead || '—')}</td>
+      <td style="font-size:11px">${s.leadPOC ? esc(s.leadPOC) : '—'}</td>
+      <td><span style="background:${sc.bg};color:${sc.color};padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap">${esc(s.status || 'TBD')}</span></td>
+      <td style="font-size:11px;color:#666;max-width:180px">${esc(s.notes || '')}</td>
+    </tr>`;
   }).join('');
 };
 
 window.seedInitialScope = function() {
+  function sk() { return 'sport_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7); }
   const seed = {
-    [hubKey()]: { category:'Athletes', event:'All Divisions', count:'2,200+', notes:'14 regions (7 USA + 7 Canada). Youth/U18: ~400–500 | Open 18+: ~1,300–1,500 | Legends 45+: included in Open count. Per-sport counts in progress (RST-14).' },
-    [hubKey()]: { category:'Spectators', event:'Est. Daily Attendance', count:'450–600', notes:'~30% of athlete count. Varies by sport and event day.' },
-    [hubKey()]: { category:'Volunteers', event:'Total Required', count:'750–1,000', notes:'50% ratio vs athletes. Covers logistics, sport, medical, F&B, tech-AV, security.' },
-    [hubKey()]: { category:'Volunteers', event:'Logistics-Specific', count:'150–200', notes:'Transportation, venue ops, athlete services, equipment.' },
-    [hubKey()]: { category:'Venues', event:'Competition Sites', count:'6 primary + 4 backup', notes:'Primary (In Conversation): RYSE Farmers Branch (VB/Throwball), CH StarCenter Northlake (Bad/BB/TT), GatewayPark Fort Worth (Soccer 11v11/7v7/Flag FB), Texomo Cricket Ground, Picklr (Pickleball/Dance), McKinney Courts (Tennis/Pickleball). Backups: Lewisville Badminton, Little Elm Soccer, Russell Creek (Cricket), Prairie View (Cricket). Track + Chess TBD.' },
-    [hubKey()]: { category:'Sports', event:'Confirmed Roster', count:'13', notes:'Soccer, Basketball, Volleyball, Cricket, Throwball, Flag Football, Dance, Badminton, Table Tennis, Pickleball, Tennis, Track & Field, Chess. Min 3 regions required per sport.' },
-    [hubKey()]: { category:'Hotels', event:'Room-Night Target', count:'400–600', notes:'3–5 properties within 5 mi of HQ (Carrollton, TX). Target $89–109/night + breakfast. All RFP Pending.' },
-    [hubKey()]: { category:'Event Weekend', event:'Preferred Dates', count:'Labor Day 2027', notes:'Not yet confirmed. Preferred for school calendar alignment + Canadian RST schedule.' },
-    [hubKey()]: { category:'Location', event:'Host City', count:'DFW, Texas', notes:'Dallas–Fort Worth metro confirmed. HQ/Logistics Hub: 2500 Dickerson Pkwy, Carrollton, TX 75006.' },
-    [hubKey()]: { category:'Transportation', event:'Bus/Shuttle Runs (est.)', count:'TBD', notes:'DFW airport arrivals/departures + athlete hotel loops (every 30 min game days) + dedicated Fort Worth shuttle (42 min from Little Elm). Finalize once all venues confirmed.' },
-    [hubKey()]: { category:'Divisions', event:'Age Categories', count:'3', notes:'Youth/U18 (ages 15–17, born Jan 1 2009–Dec 31 2011), Open (18+, born on/before Dec 31 2008), Legends 45+ (born on/before Dec 31 1981 — separate category within Open).' },
+    [sk()]: { sport:"Volleyball (Int'l)", category:'Team', participants:'~70–140', genderDivisions:"Women's Open · Men's Open · U18 Girls · U18 Boys", numTeams:'TBD', sessionDates:'Mar 26–28, 2027', venue:'RYSE Energy StarCenter, Farmers Branch', sportLead:'TBD', leadPOC:'', status:'Planning', notes:"~16 courts est. Shares RYSE with Throwball." },
+    [sk()]: { sport:'Throwball', category:'Team', participants:'~14–28', genderDivisions:"Women's Open", numTeams:'TBD', sessionDates:'Mar 27–28, 2027', venue:'RYSE Energy StarCenter, Farmers Branch', sportLead:'TBD', leadPOC:'', status:'Planning', notes:"Women's only. Shares RYSE with Volleyball." },
+    [sk()]: { sport:'Basketball', category:'Team', participants:'~70–140', genderDivisions:"Women's Open · Men's Open · U18 Girls · U18 Boys", numTeams:'TBD', sessionDates:'Mar 26–28, 2027', venue:"Children's Health StarCenter, Northlake", sportLead:'TBD', leadPOC:'', status:'Planning', notes:'~8 courts est. Co-located with Badminton & Table Tennis.' },
+    [sk()]: { sport:'Badminton', category:'Individual', participants:'~56–112', genderDivisions:'Mixed Open · U18 · Legends 45+', numTeams:'TBD', sessionDates:'Mar 26–28, 2027', venue:"Children's Health StarCenter, Northlake", sportLead:'TBD', leadPOC:'', status:'Planning', notes:'Co-located with Basketball & Table Tennis. Lewisville Badminton = backup site.' },
+    [sk()]: { sport:'Table Tennis', category:'Individual', participants:'~56–112', genderDivisions:'Mixed Open · U18 · Legends 45+', numTeams:'TBD', sessionDates:'Mar 26–28, 2027', venue:"Children's Health StarCenter, Northlake", sportLead:'TBD', leadPOC:'', status:'Planning', notes:'20+ tables needed. Co-located with Badminton & Basketball.' },
+    [sk()]: { sport:'Soccer 11v11', category:'Team', participants:'~42–84', genderDivisions:"Men's Open · Women's Open · U18 Boys · U18 Girls", numTeams:'TBD', sessionDates:'Mar 25–28, 2027', venue:'GatewayPark Soccer Fields, Fort Worth', sportLead:'TBD', leadPOC:'', status:'Planning', notes:'Little Elm = backup site. Shares GatewayPark with Soccer 7v7 & Flag Football.' },
+    [sk()]: { sport:'Soccer 7v7', category:'Team', participants:'~28–56', genderDivisions:'Mixed Open · U18', numTeams:'TBD', sessionDates:'Mar 25–28, 2027', venue:'GatewayPark Soccer Fields, Fort Worth', sportLead:'TBD', leadPOC:'', status:'Planning', notes:'Shares GatewayPark with Soccer 11v11 & Flag Football.' },
+    [sk()]: { sport:'Flag Football', category:'Team', participants:'~28–56', genderDivisions:"Mixed Open · Women's", numTeams:'TBD', sessionDates:'Mar 27–28, 2027', venue:'GatewayPark Soccer Fields, Fort Worth', sportLead:'TBD', leadPOC:'', status:'Planning', notes:'Shares GatewayPark with Soccer.' },
+    [sk()]: { sport:'Cricket', category:'Team', participants:'~28–56', genderDivisions:"Hardball Mixed · Tapeball Women's", numTeams:'TBD', sessionDates:'Mar 25–28, 2027', venue:'Texomo Cricket Ground (primary) · Russell Creek & Prairie View (backup)', sportLead:'TBD', leadPOC:'', status:'Planning', notes:'Hardball 22-yd pitch + Tapeball. Backups: Russell Creek, Prairie View.' },
+    [sk()]: { sport:'Pickleball', category:'Individual', participants:'~28–56', genderDivisions:'Mixed Open · U18 · Legends 45+', numTeams:'TBD', sessionDates:'Mar 26–28, 2027', venue:'Picklr / McKinney Courts (TBD)', sportLead:'TBD', leadPOC:'', status:'TBD', notes:'Final venue split between Picklr and McKinney TBD.' },
+    [sk()]: { sport:'Dance', category:'Team', participants:'~56–112', genderDivisions:'U18 Girls · U18 Boys · Open', numTeams:'TBD', sessionDates:'Mar 27–28, 2027', venue:'Picklr', sportLead:'TBD', leadPOC:'', status:'Planning', notes:'Performance space at Picklr TBD at site visit.' },
+    [sk()]: { sport:'Tennis', category:'Individual', participants:'~28–56', genderDivisions:'Mixed Open · U18', numTeams:'TBD', sessionDates:'Mar 26–28, 2027', venue:'McKinney Courts', sportLead:'TBD', leadPOC:'', status:'Planning', notes:'McKinney Courts primary.' },
+    [sk()]: { sport:'Track & Field', category:'Individual', participants:'~56–112', genderDivisions:'Mixed Open · U18', numTeams:'TBD', sessionDates:'Mar 25–27, 2027', venue:'TBD (Carroll ISD prospect)', sportLead:'TBD', leadPOC:'', status:'TBD', notes:'Carroll ISD in exploration — need additional venue options.' },
+    [sk()]: { sport:'Chess', category:'Individual', participants:'~28–56', genderDivisions:'Mixed Open', numTeams:'TBD', sessionDates:'Mar 27, 2027', venue:'TBD', sportLead:'TBD', leadPOC:'', status:'TBD', notes:'Low space needs — tables + chairs only.' },
   };
   window._dbSet(window._dbRef('naig2027/scope'), seed);
 };
 
-function openScopeModal(editKey) {
+function openSportModal(editKey) {
   const s = editKey ? (window._scopeData[editKey] || {}) : {};
-  document.getElementById('scopeModalTitle').textContent = editKey ? ' Edit Assumption' : ' Add Assumption';
-  document.getElementById('scopeKey').value = editKey || '';
-  document.getElementById('scopeCategory').value = s.category || '';
-  document.getElementById('scopeEvent').value = s.event || '';
-  document.getElementById('scopeCount').value = s.count || '';
-  document.getElementById('scopeNotes').value = s.notes || '';
-  document.getElementById('scopeDeleteBtn').style.display = editKey ? '' : 'none';
-  document.getElementById('scopeOverlay').style.display = 'flex';
+  document.getElementById('sportModalTitle').textContent = editKey ? 'Edit Sport' : 'Add Sport';
+  document.getElementById('sportKey').value          = editKey || '';
+  document.getElementById('sportName').value         = s.sport           || '';
+  document.getElementById('sportCategory').value     = s.category        || 'Team';
+  document.getElementById('sportParticipants').value = s.participants     || '';
+  document.getElementById('sportGenderDivs').value   = s.genderDivisions  || '';
+  document.getElementById('sportNumTeams').value     = s.numTeams         || '';
+  document.getElementById('sportSessionDates').value = s.sessionDates     || '';
+  document.getElementById('sportVenue').value        = s.venue            || '';
+  document.getElementById('sportLead').value         = s.sportLead        || '';
+  document.getElementById('sportLeadPOC').value      = s.leadPOC          || '';
+  document.getElementById('sportStatus').value       = s.status           || 'Planning';
+  document.getElementById('sportNotes').value        = s.notes            || '';
+  document.getElementById('sportDeleteBtn').style.display = editKey ? '' : 'none';
+  document.getElementById('sportOverlay').style.display = 'flex';
 }
-function closeScopeModal() { document.getElementById('scopeOverlay').style.display = 'none'; }
-window.refreshAthleteBreakdown = function() {
-  const tbody = document.getElementById('athleteTbody');
-  if (!tbody) return;
-  // Real NAIG 2027 sport data — sourced from NAIG_Logistics_Master (Jul 2026)
-  // Per-sport athlete counts: TBD (RST-14 open action item — 7 USA + 7 CAN regions, 1 team/individual per region per category)
-  const sports = [
-    { sport:'Soccer 11v11 + 7v7', type:'Team', venue:'GatewayPark Soccer Fields — Fort Worth', est:'~70–140', days:'Fri–Sun', notes:'All soccer at Gateway. Boys/Girls U18 + Open + Women\'s. Little Elm = backup site.' },
-    { sport:'Flag Football', type:'Team', venue:'GatewayPark Soccer Fields — Fort Worth', est:'~28–56', days:'Sat–Sun', notes:'Shares GatewayPark with Soccer. Open + Women\'s.' },
-    { sport:'Basketball', type:'Team', venue:"Children's Health StarCenter — Northlake", est:'~70–140', days:'Fri–Sun', notes:'~8 courts est. Boys/Girls U18 + Open + Women\'s.' },
-    { sport:'Badminton', type:'Individual', venue:"Children's Health StarCenter — Northlake", est:'~56–112', days:'Fri–Sun', notes:'Co-located with Basketball/TT. U18 + Open + Legends 45+. Lewisville Badminton = backup site.' },
-    { sport:'Table Tennis', type:'Individual', venue:"Children's Health StarCenter — Northlake", est:'~56–112', days:'Fri–Sun', notes:'20+ tables needed. Co-located with Badminton. U18 + Open + Legends 45+.' },
-    { sport:'Tennis', type:'Individual', venue:'McKinney Courts', est:'~28–56', days:'Fri–Sun', notes:'McKinney Courts primary. Picklr also in play. U18 + Open.' },
-    { sport:"Volleyball (Int'l)", type:'Team', venue:'RYSE Energy StarCenter — Farmers Branch', est:'~70–140', days:'Fri–Sun', notes:'~16 courts est. Boys/Girls U18 + Open + Women\'s.' },
-    { sport:'Throwball', type:'Team', venue:'RYSE Energy StarCenter — Farmers Branch', est:'~14–28', days:'Sat–Sun', notes:'Shares VB courts. Women\'s only.' },
-    { sport:'Cricket', type:'Team', venue:'Texomo Cricket Ground (primary) · Russell Creek + Prairie View (backup)', est:'~28–56', days:'Fri–Sun', notes:'Hardball 22-yd pitch + Tapeball Women\'s. Primary: Texomo. Backups: Russell Creek, Prairie View.' },
-    { sport:'Pickleball', type:'Individual', venue:'Picklr / McKinney Courts (TBD)', est:'~28–56', days:'Fri–Sun', notes:'Picklr (primary in play) + McKinney Courts also in play. TBD final split. U18 + Open + Legends 45+.' },
-    { sport:'Track & Field', type:'Individual', venue:'Track Venue — TBD (Carroll ISD prospect)', est:'~56–112', days:'Fri–Sat', notes:'U18 + Open. Carroll ISD in exploration — need additional venue options.' },
-    { sport:'Dance', type:'Team', venue:'Picklr', est:'~56–112', days:'Sat–Sun', notes:'Picklr venue (performance space TBD at site). Boys/Girls U18 + Open.' },
-    { sport:'Chess', type:'Individual', venue:'TBD', est:'~28–56', days:'Sat', notes:'Low space needs — tables + chairs only. Mixed divisions.' },
-  ];
-  tbody.innerHTML = sports.map(s => `<tr>
-    <td><strong>${esc(s.sport)}</strong> <span style="font-size:10px;color:#94a3b8;margin-left:4px">${esc(s.type)}</span></td>
-    <td style="font-weight:600;color:#1a3a5c">${esc(s.est)}</td>
-    <td style="font-size:11px">${esc(s.venue)}</td>
-    <td style="font-size:11px">${esc(s.days)}</td>
-    <td style="font-size:11px;color:#666">${esc(s.notes)}</td>
-  </tr>`).join('');
-};
-function saveScope() {
-  const cat = document.getElementById('scopeCategory').value.trim();
-  if (!cat) { alert('Category required.'); return; }
-  const key = document.getElementById('scopeKey').value || hubKey();
+function closeSportModal() { document.getElementById('sportOverlay').style.display = 'none'; }
+function saveSport() {
+  const sport = document.getElementById('sportName').value.trim();
+  if (!sport) { alert('Sport name required.'); return; }
+  const key = document.getElementById('sportKey').value ||
+    ('sport_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7));
   hubSave('scope', key, {
-    category: cat,
-    event: document.getElementById('scopeEvent').value.trim(),
-    count: document.getElementById('scopeCount').value.trim(),
-    notes: document.getElementById('scopeNotes').value.trim(),
-    updated: new Date().toISOString()
+    sport,
+    category:       document.getElementById('sportCategory').value,
+    participants:   document.getElementById('sportParticipants').value.trim(),
+    genderDivisions:document.getElementById('sportGenderDivs').value.trim(),
+    numTeams:       document.getElementById('sportNumTeams').value.trim(),
+    sessionDates:   document.getElementById('sportSessionDates').value.trim(),
+    venue:          document.getElementById('sportVenue').value.trim(),
+    sportLead:      document.getElementById('sportLead').value.trim(),
+    leadPOC:        document.getElementById('sportLeadPOC').value.trim(),
+    status:         document.getElementById('sportStatus').value,
+    notes:          document.getElementById('sportNotes').value.trim(),
+    updated:        new Date().toISOString()
   });
-  closeScopeModal();
+  closeSportModal();
 }
-window.openScopeModal = openScopeModal;
-window.closeScopeModal = closeScopeModal;
-window.saveScope = saveScope;
-// Auto-populate athlete breakdown on page load (data comes from Drive — hardcoded per RST plan)
-setTimeout(() => { window.refreshAthleteBreakdown && window.refreshAthleteBreakdown(); }, 600);
+function exportScopeCSV() {
+  const rows = [['Sport','Category','Participants','Gender Divisions','Teams/Divisions','Session Dates','Venue','Sport Lead','Lead POC','Status','Notes']];
+  Object.values(window._scopeData || {}).forEach(s => {
+    rows.push([s.sport,s.category,s.participants,s.genderDivisions,s.numTeams,s.sessionDates,s.venue,s.sportLead,s.leadPOC,s.status,s.notes]
+      .map(v => `"${String(v || '').replace(/"/g, '""')}"`));
+  });
+  const blob = new Blob([rows.map(r => r.join(',')).join('\n')], { type:'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'naig2027-sports.csv';
+  a.click();
+}
+window.openSportModal  = openSportModal;
+window.closeSportModal = closeSportModal;
+window.saveSport       = saveSport;
+window.exportScopeCSV  = exportScopeCSV;
+// Backward-compat aliases (Firebase listener uses openScopeModal)
+window.openScopeModal  = openSportModal;
+window.closeScopeModal = closeSportModal;
 
 /* Helper: escape HTML */
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -4939,7 +5113,7 @@ window.addEventListener('load', function() {
     if (window._hotelsData   && Object.keys(window._hotelsData).length)   window.renderHotels    && window.renderHotels();
     if (window._tasksData    && Object.keys(window._tasksData).length)    window.renderTasks     && window.renderTasks();
     if (window._docsData     && Object.keys(window._docsData).length)     window.renderDocs      && window.renderDocs();
-    window.refreshAthleteBreakdown && window.refreshAthleteBreakdown();
+    window.renderScope && window.renderScope(); // refresh scope status chart
     // Plan: seed if null, render if data present
     if (!window._planData) {
       window.initPlanDefaults && window.initPlanDefaults();
@@ -5276,15 +5450,10 @@ window.addEventListener('load', function() {
  <option value="Low">🟢 Low</option>
  </select>
  </div>
- <div class="form-group">
- <label>Assignee</label>
- <select id="taskOwner" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
- <option value="">— Unassigned —</option>
- <option>Rizwan Ali</option><option>Azmina Hashim</option><option>Sohail Ali</option>
- <option>Humera Kabani</option><option>Maleka Surani</option><option>Akil Momin</option>
- <option>Shehzad Ali</option><option>Raj Thakur</option><option>Kiran Surani</option>
- <option>Shah</option><option>Anil</option><option>Shahneel Kanji</option><option>Sharez Prasla</option>
- </select>
+ <div class="form-group" style="grid-column:1/-1">
+ <label>Assignees <span style="font-weight:400;color:#94a3b8;font-size:11px">(tap to select — multiple allowed)</span></label>
+ <div id="taskOwnerPills" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 6px;border:1px solid #e2e8f0;border-radius:6px;min-height:38px;background:#fafbfc"></div>
+ <input type="hidden" id="taskOwnerHidden">
  </div>
  <div class="form-group">
  <label>Department</label>
@@ -5613,31 +5782,69 @@ window.addEventListener('load', function() {
 </div>
 
 <!-- Scope Modal -->
-<div class="overlay" id="scopeOverlay" onclick="closeScopeModal()">
- <div class="modal" style="width:420px" onclick="event.stopPropagation()">
- <h3 id="scopeModalTitle"> Add / Edit Assumption</h3>
- <input type="hidden" id="scopeKey">
- <div class="form-group">
- <label>Category</label>
- <input type="text" id="scopeCategory" placeholder="e.g. Athletes, Hotels, Volunteers" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
- </div>
- <div class="form-group">
- <label>Event / Item</label>
- <input type="text" id="scopeEvent" placeholder="e.g. Opening Ceremony, Basketball" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
- </div>
- <div class="form-group">
- <label>Count / Target</label>
- <input type="text" id="scopeCount" placeholder="e.g. 1,500–2,000 or 400" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
- </div>
- <div class="form-group">
- <label>Notes / Basis</label>
- <textarea id="scopeNotes" placeholder="Assumptions, ratios, source…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;resize:vertical;min-height:60px;font-family:inherit;line-height:1.5"></textarea>
- </div>
- <div class="modal-actions">
- <button class="btn btn-cancel" onclick="closeScopeModal()">Cancel</button>
- <button class="btn btn-danger" id="scopeDeleteBtn" onclick="deleteHubItem('scope',document.getElementById('scopeKey').value,closeScopeModal)" style="display:none">Delete</button>
- <button class="btn btn-primary" onclick="saveScope()">Save</button>
- </div>
+<!-- Sport Modal -->
+<div class="overlay" id="sportOverlay" onclick="closeSportModal()">
+ <div class="modal modal-scroll" style="width:580px" onclick="event.stopPropagation()">
+  <h3 id="sportModalTitle">Add Sport</h3>
+  <input type="hidden" id="sportKey">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+   <div class="form-group" style="grid-column:1/-1">
+    <label>Sport Name</label>
+    <input type="text" id="sportName" placeholder="e.g. Volleyball (Intl)" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+   </div>
+   <div class="form-group">
+    <label>Category</label>
+    <select id="sportCategory" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+     <option value="Team">Team</option>
+     <option value="Individual">Individual</option>
+    </select>
+   </div>
+   <div class="form-group">
+    <label>Status</label>
+    <select id="sportStatus" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+     <option value="Confirmed">Confirmed</option>
+     <option value="Planning" selected>Planning</option>
+     <option value="TBD">TBD</option>
+    </select>
+   </div>
+   <div class="form-group">
+    <label>Participants (Est.)</label>
+    <input type="text" id="sportParticipants" placeholder="e.g. ~70–140" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+   </div>
+   <div class="form-group">
+    <label># Teams / Divisions</label>
+    <input type="text" id="sportNumTeams" placeholder="e.g. 14 or TBD" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+   </div>
+   <div class="form-group" style="grid-column:1/-1">
+    <label>Gender Divisions</label>
+    <input type="text" id="sportGenderDivs" placeholder="e.g. Women's Open · Men's Open · U18 Girls" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+   </div>
+   <div class="form-group">
+    <label>Session Dates</label>
+    <input type="text" id="sportSessionDates" placeholder="e.g. Mar 26–28, 2027" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+   </div>
+   <div class="form-group">
+    <label>Sport Lead</label>
+    <input type="text" id="sportLead" placeholder="Name or TBD" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+   </div>
+   <div class="form-group" style="grid-column:1/-1">
+    <label>Venue</label>
+    <input type="text" id="sportVenue" placeholder="Primary venue name" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+   </div>
+   <div class="form-group" style="grid-column:1/-1">
+    <label>Sport Lead POC (phone / email)</label>
+    <input type="text" id="sportLeadPOC" placeholder="e.g. +1 (214) 555-0100 · name@email.com" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+   </div>
+   <div class="form-group" style="grid-column:1/-1">
+    <label>Notes</label>
+    <textarea id="sportNotes" placeholder="Any additional notes, assumptions, or constraints…" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;resize:vertical;min-height:64px;font-family:inherit;line-height:1.5"></textarea>
+   </div>
+  </div>
+  <div class="modal-actions">
+   <button class="btn btn-cancel" onclick="closeSportModal()">Cancel</button>
+   <button class="btn btn-danger" id="sportDeleteBtn" onclick="deleteHubItem('scope',document.getElementById('sportKey').value,closeSportModal)" style="display:none">Delete</button>
+   <button class="btn btn-primary" onclick="saveSport()">Save Sport</button>
+  </div>
  </div>
 </div>
 
