@@ -2401,14 +2401,13 @@ function saveEdit() {
   if (newParentId && newParentId !== '') {
     const nodeToMove = findNode(editingId, window._orgData);
     if (nodeToMove) {
-      // Update node props first (already done above via findNode ref)
-      // Remove from current position
-      removeFromTree(editingId, window._orgData);
-      // Add to new parent
+      // Verify new parent exists BEFORE removing node from tree
       const newParent = findNode(newParentId, window._orgData);
       if (newParent) {
+        removeFromTree(editingId, window._orgData);
         if (!newParent.children) newParent.children = [];
         newParent.children.push(nodeToMove);
+        newParent.expanded = true;  // expand new parent so moved node is visible
         nodeToMove.expanded = true;
       }
     }
