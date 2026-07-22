@@ -251,6 +251,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .legend-dot { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
 
 .canvas { padding: 20px; overflow: auto; }
+#canvasInner { transform-origin: top left; transition: transform 0.12s ease; display: inline-block; min-width: 100%; }
 
 /* ── Nodes ── */
 .node {
@@ -713,6 +714,11 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <span id="orgBtns" style="display:inline-flex;gap:8px;align-items:center">
  <button class="btn btn-light" onclick="expandAll()">Expand All</button>
  <button class="btn btn-light" onclick="collapseAll()">Collapse All</button>
+ <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,0.12);border-radius:6px;padding:2px 6px">
+   <button class="btn btn-light" onclick="zoomOut()" style="padding:3px 9px;font-size:16px;line-height:1;font-weight:700" title="Zoom out (Ctrl+Scroll)">−</button>
+   <span id="zoomPct" style="font-size:12px;font-weight:700;color:#fff;min-width:38px;text-align:center;cursor:pointer" onclick="zoomReset()" title="Click to reset to 100%">100%</span>
+   <button class="btn btn-light" onclick="zoomIn()" style="padding:3px 9px;font-size:16px;line-height:1;font-weight:700" title="Zoom in (Ctrl+Scroll)">+</button>
+ </span>
  <button class="btn btn-accent" onclick="exportJSON()">⬇ Export JSON</button>
  </span>
  </div>
@@ -772,7 +778,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  </div>
 </div>
 
-<div class="canvas" id="canvas"></div>
+<div class="canvas" id="canvas"><div id="canvasInner"></div></div>
 
 <div class="history-bar" id="historyBar">
  <strong>Recent edits:</strong>
@@ -1795,6 +1801,25 @@ const OUT_OF_SCOPE = [
 // ══════════════════════════════════════════════
 window._orgData = JSON.parse(localStorage.getItem('naig_org') || 'null') || JSON.parse(JSON.stringify(DEFAULT_DATA));
 let editingId  = null;
+
+// ── ZOOM ──────────────────────────────────────────────────────────────────────
+let _zoom = 1.0;
+function _applyZoom() {
+  const inner = document.getElementById('canvasInner');
+  if (inner) inner.style.transform = `scale(${_zoom})`;
+  const pct = document.getElementById('zoomPct');
+  if (pct) pct.textContent = Math.round(_zoom * 100) + '%';
+}
+function zoomIn()    { _zoom = Math.min(parseFloat((_zoom + 0.1).toFixed(1)), 2.5); _applyZoom(); }
+function zoomOut()   { _zoom = Math.max(parseFloat((_zoom - 0.1).toFixed(1)), 0.3); _applyZoom(); }
+function zoomReset() { _zoom = 1.0; _applyZoom(); }
+// Mouse-wheel zoom (Ctrl/Cmd + scroll)
+document.addEventListener('wheel', function(e) {
+  if ((e.ctrlKey || e.metaKey) && document.getElementById('canvas')?.contains(e.target)) {
+    e.preventDefault();
+    if (e.deltaY < 0) zoomIn(); else zoomOut();
+  }
+}, { passive: false });
 let historyLog = [];
 
 // ══════════════════════════════════════════════
@@ -2031,7 +2056,7 @@ window._renderAll = function() {
 
 
   html += `</div>`;
-  document.getElementById('canvas').innerHTML = html;
+  document.getElementById('canvasInner').innerHTML = html;
   updateStats();
 };
 
