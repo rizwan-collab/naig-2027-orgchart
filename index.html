@@ -3784,6 +3784,20 @@ window.renderVenues = function() {
     const poc = v.primaryContact
       ? `<div class="vc-poc">${esc(v.primaryContact)}${v.primaryPhone?' · '+esc(v.primaryPhone):''}${v.primaryEmail?' · '+esc(v.primaryEmail):''}</div>`
       : '';
+    const statusColors = {
+      'Confirmed':'#155724;background:#d4edda','Signed':'#155724;background:#d4edda',
+      'Walk Done':'#155724;background:#d4edda','Ops Ready':'#155724;background:#d4edda',
+      'In Works':'#856404;background:#fff3cd','In Conversation':'#856404;background:#fff3cd',
+      'Identified':'#856404;background:#fff3cd','Outreach Sent':'#856404;background:#fff3cd',
+      'LOI Sent':'#856404;background:#fff3cd','Contract Review':'#0c5460;background:#d1ecf1',
+      'Exploring':'#856404;background:#fff3cd','Shortlisted':'#856404;background:#fff3cd',
+      'Negotiating':'#0c5460;background:#d1ecf1','Site Visit Scheduled':'#0c5460;background:#d1ecf1',
+      'Prospect':'#856404;background:#fff3cd',
+      'Dropped':'#6c757d;background:#e9ecef','Closed':'#6c757d;background:#e9ecef',
+      'Cancelled':'#6c757d;background:#e9ecef','Not Available':'#6c757d;background:#e9ecef'
+    };
+    const sc = statusColors[v.status] || '##495057;background:#e9ecef';
+    const statusBadge = v.status ? `<span style="display:inline-block;font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;color:${sc};letter-spacing:0.02em">${esc(v.status)}</span>` : '';
     return `<div class="venue-card${dim?' venue-card-dim':''}" onclick="openVenueModal('${k}')">
       <div class="vc-header">
         <div>
@@ -3792,6 +3806,7 @@ window.renderVenues = function() {
         </div>
         <button class="btn btn-cancel" style="padding:2px 7px;font-size:10px;flex-shrink:0" onclick="event.stopPropagation();deleteHubItem('venues','${k}',window.renderVenues)">×</button>
       </div>
+      ${statusBadge}
       ${v.sports?`<div class="vc-sports">${esc(v.sports)}</div>`:''}
       ${poc}
       ${v.notes?`<div class="vc-notes">${esc(v.notes.slice(0,120))}${v.notes.length>120?'…':''}</div>`:''}
