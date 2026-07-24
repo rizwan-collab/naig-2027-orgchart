@@ -509,7 +509,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .hub-table tr:last-child td { border-bottom:none; }
 .hub-table tbody tr:hover td { background:#f8fafc; cursor:pointer; }
 .hub-empty { text-align:center; padding:40px; color:#aaa; font-size:13px; }
-.hbadge { display:inline-block; padding:2px 9px; border-radius:9px; font-size:10px; font-weight:600; }
+.hbadge { display:inline-block; padding:2px 9px; border-radius:10px; font-size:10px; font-weight:600; }
 .hbadge-green  { background:#d1fae5; color:#065f46; }
 .hbadge-yellow { background:#fef3c7; color:#92400e; }
 .hbadge-grey   { background:#f3f4f6; color:#6b7280; }
@@ -529,7 +529,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .scope-card-notes { font-size:10px; color:#888; margin-top:8px; line-height:1.5; border-top:1px solid #f1f5f9; padding-top:8px; }
 
 /* ── Tab count badges ── */
-.tab-badge { background:rgba(255,255,255,0.25); border-radius:9px; padding:0px 6px;
+.tab-badge { background:rgba(255,255,255,0.25); border-radius:10px; padding:0px 6px;
   font-size:10px; font-weight:700; margin-left:5px; }
 .tab-btn.active .tab-badge { background:rgba(191,27,42,0.35); }
 
@@ -552,7 +552,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 
 /* ── Overdue badge ── */
 .overdue-badge { background:#fee2e2; color:#991b1b; font-size:9px; font-weight:700;
-  padding:1px 5px; border-radius:4px; text-transform:uppercase; letter-spacing:0.5px; }
+  padding:1px 5px; border-radius:8px; text-transform:uppercase; letter-spacing:0.5px; }
 .task-card.is-overdue { border-left-color:#dc2626 !important; }
 .task-card.is-overdue .task-card-title { color:#991b1b; }
 
@@ -588,7 +588,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .dir-panel-close { background:rgba(255,255,255,.15); border:none; color:#fff; border-radius:6px; padding:3px 10px; cursor:pointer; font-size:.8rem; font-weight:700; }
 .dir-panel-close:hover { background:rgba(255,255,255,.25); }
 .dir-panel-search { padding:10px 14px; border-bottom:1px solid #f0f4f8; flex-shrink:0; }
-.dir-panel-search input { width:100%; border:1.5px solid #d0dae4; border-radius:7px; padding:7px 12px; font-size:.83rem; outline:none; box-sizing:border-box; }
+.dir-panel-search input { width:100%; border:1.5px solid #d0dae4; border-radius:8px; padding:7px 12px; font-size:.83rem; outline:none; box-sizing:border-box; }
 .dir-panel-search input:focus { border-color:#1a3a5c; }
 .dir-panel-list { flex:1; overflow-y:auto; }
 .dir-grp-label { background:#f4f7fb; padding:5px 14px; font-size:.7rem; font-weight:700; text-transform:uppercase; color:#666; letter-spacing:.5px; position:sticky; top:0; z-index:1; border-bottom:1px solid #e8edf2; }
@@ -626,8 +626,8 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .plan-ms-body { flex:1; min-width:0; }
 .plan-ms-title { font-size:13px; font-weight:600; color:#1e293b; }
 .plan-ms-meta { font-size:11px; color:#94a3b8; margin-top:2px; display:flex; gap:10px; flex-wrap:wrap; }
-.plan-ms-dept { background:#e0e7ef; color:#1a3a5c; border-radius:4px; padding:1px 6px; font-size:10px; font-weight:600; }
-.plan-ms-due-badge { padding:1px 6px; border-radius:4px; font-size:10px; font-weight:600; }
+.plan-ms-dept { background:#e0e7ef; color:#1a3a5c; border-radius:8px; padding:1px 6px; font-size:10px; font-weight:600; }
+.plan-ms-due-badge { padding:1px 6px; border-radius:8px; font-size:10px; font-weight:600; }
 .due-ok { background:#dcfce7; color:#166534; }
 .due-soon { background:#fef9c3; color:#713f12; }
 .due-overdue { background:#fee2e2; color:#991b1b; }
@@ -646,7 +646,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .dept-dot.not-started { background:#cbd5e1; }
 /* ── Transport sub-nav ── */
 .transport-subnav { display:flex; gap:0; border-bottom:2px solid #e0e7ef; margin-bottom:16px; overflow-x:auto; flex-wrap:nowrap; }
-.tnav-btn { background:none; border:none; padding:9px 15px; font-size:.8rem; font-weight:600; cursor:pointer; color:#64748b; border-bottom:3px solid transparent; margin-bottom:-2px; white-space:nowrap; transition:all .15s; border-radius:4px 4px 0 0; }
+.tnav-btn { background:none; border:none; padding:9px 15px; font-size:.8rem; font-weight:600; cursor:pointer; color:#64748b; border-bottom:3px solid transparent; margin-bottom:-2px; white-space:nowrap; transition:all .15s; border-radius:6px 6px 0 0; }
 .tnav-btn:hover { color:#1a3a5c; background:#f0f4f8; }
 .tnav-btn.active { color:#1a3a5c; border-bottom:3px solid #1a3a5c; background:#f0f4f8; }
 .transport-subpanel { }
@@ -659,31 +659,31 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 /* route visual */
 .t-route-map { background:#fff; border-radius:8px; padding:16px; margin-bottom:16px; box-shadow:0 2px 8px rgba(0,0,0,.06); }
 .t-hub-node { background:#1a3a5c; color:#fff; border-radius:10px; padding:9px 18px; font-weight:700; font-size:.84rem; text-align:center; display:inline-block; min-width:135px; }
-.t-venue-node { background:#2D6A9F; color:#fff; border-radius:7px; padding:7px 12px; font-size:.76rem; font-weight:600; text-align:center; display:inline-block; min-width:120px; margin-bottom:8px; }
+.t-venue-node { background:#2D6A9F; color:#fff; border-radius:8px; padding:7px 12px; font-size:.76rem; font-weight:600; text-align:center; display:inline-block; min-width:120px; margin-bottom:8px; }
 .t-venue-node.pending { background:#6c757d; }
 .t-cluster-label { font-size:.7rem; font-weight:700; color:#F5A623; text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
 /* alerts */
-.t-alert { border-radius:7px; padding:9px 13px; font-size:.81rem; margin-bottom:12px; display:flex; gap:10px; align-items:flex-start; }
+.t-alert { border-radius:8px; padding:9px 13px; font-size:.81rem; margin-bottom:12px; display:flex; gap:10px; align-items:flex-start; }
 .t-alert-info { background:#e3f2fd; border-left:4px solid #2196f3; color:#1565c0; }
 .t-alert-warn { background:#fff3cd; border-left:4px solid #F5A623; color:#856404; }
 .t-alert-success { background:#d4edda; border-left:4px solid #2C7A5C; color:#155724; }
 /* schedule */
 .t-sched-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
 @media(max-width:700px) { .t-sched-grid { grid-template-columns:1fr; } }
-.t-sched-block { border-radius:7px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.08); }
+.t-sched-block { border-radius:8px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.08); }
 .t-sched-hdr { padding:8px 13px; font-weight:700; font-size:.82rem; color:#fff; }
 .t-sched-item { display:flex; align-items:center; gap:10px; padding:7px 13px; border-bottom:1px solid #f0f4f8; font-size:.79rem; }
 .t-sched-item:last-child { border-bottom:none; }
 .t-sched-time { font-weight:700; color:#1a3a5c; min-width:44px; } .t-sched-route { flex:1; } .t-sched-vehicle { color:#666; font-size:.74rem; }
 /* contacts */
 .t-contact-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:10px; }
-.t-contact-card { background:#fff; border-radius:7px; padding:12px; box-shadow:0 1px 4px rgba(0,0,0,.06); border-top:4px solid #2D6A9F; }
+.t-contact-card { background:#fff; border-radius:8px; padding:12px; box-shadow:0 1px 4px rgba(0,0,0,.06); border-top:4px solid #2D6A9F; }
 .t-contact-name { font-weight:700; font-size:.84rem; color:#1a3a5c; } .t-contact-role { font-size:.73rem; color:#666; margin-top:2px; margin-bottom:6px; }
 .t-pill { display:inline-block; padding:2px 8px; border-radius:20px; font-size:.71rem; font-weight:700; }
 .t-pill-green { background:#d4edda; color:#155724; } .t-pill-amber { background:#fff3cd; color:#856404; }
 .t-pill-gray { background:#e2e8f0; color:#4a5568; } .t-pill-blue { background:#cce5ff; color:#004085; }
 .t-arr td { background:#e8f5e9!important; } .t-dep td { background:#fff8e1!important; }
-.t-section-hdr { background:#1a3a5c; color:#fff; padding:9px 13px; border-radius:5px 5px 0 0; font-weight:700; font-size:.87rem; }
+.t-section-hdr { background:#1a3a5c; color:#fff; padding:9px 13px; border-radius:6px 6px 0 0; font-weight:700; font-size:.87rem; }
 .t-section-body { background:#fff; border-radius:0 0 5px 5px; box-shadow:0 2px 8px rgba(0,0,0,.05); margin-bottom:16px; overflow:hidden; }
 
 /* ── Venue modal tabs ── */
@@ -694,7 +694,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .venue-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; }
 @media(max-width:500px) { .venue-form-grid { grid-template-columns:1fr; } }
 .custom-q-row { display:flex; gap:8px; margin-bottom:6px; align-items:center; }
-.custom-q-row input { flex:1; border:1px solid #ddd; border-radius:5px; padding:5px 8px; font-size:.8rem; }
+.custom-q-row input { flex:1; border:1px solid #ddd; border-radius:8px; padding:5px 8px; font-size:.8rem; }
 .custom-q-list { border:1px solid #e0e7ef; border-radius:6px; overflow:hidden; margin-bottom:8px; }
 .custom-q-item { display:flex; align-items:center; gap:8px; padding:7px 10px; border-bottom:1px solid #f0f4f8; font-size:.81rem; }
 .custom-q-item:last-child { border-bottom:none; }
@@ -1258,13 +1258,13 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <!-- Panel: Airport Shuttles -->
  <div class="transport-subpanel" id="tpanel-airport" style="display:none">
  <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
- <select id="airportDayFilter" onchange="filterAirport()" style="border:1.5px solid #d0dae4;border-radius:7px;padding:6px 10px;font-size:.81rem">
+ <select id="airportDayFilter" onchange="filterAirport()" style="border:1.5px solid #d0dae4;border-radius:8px;padding:6px 10px;font-size:.81rem">
  <option value="">All Days</option>
  <option value="Sep 4">Sep 4 — Arrivals</option>
  <option value="Sep 5">Sep 5 — Late Arrivals</option>
  <option value="Sep 8">Sep 8 — Departures</option>
  </select>
- <select id="airportPortFilter" onchange="filterAirport()" style="border:1.5px solid #d0dae4;border-radius:7px;padding:6px 10px;font-size:.81rem">
+ <select id="airportPortFilter" onchange="filterAirport()" style="border:1.5px solid #d0dae4;border-radius:8px;padding:6px 10px;font-size:.81rem">
  <option value="">Both Airports</option>
  <option value="DFW">DFW Airport</option>
  <option value="DAL">DAL Airport</option>
@@ -1281,13 +1281,13 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <!-- Panel: Venue Shuttles -->
  <div class="transport-subpanel" id="tpanel-venue" style="display:none">
  <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
- <select id="venueDayFilter" onchange="filterVenueShuttle()" style="border:1.5px solid #d0dae4;border-radius:7px;padding:6px 10px;font-size:.81rem">
+ <select id="venueDayFilter" onchange="filterVenueShuttle()" style="border:1.5px solid #d0dae4;border-radius:8px;padding:6px 10px;font-size:.81rem">
  <option value="">All Game Days</option>
  <option value="Sep 5">Sep 5</option>
  <option value="Sep 6">Sep 6</option>
  <option value="Sep 7">Sep 7</option>
  </select>
- <select id="venueClusterFilter" onchange="filterVenueShuttle()" style="border:1.5px solid #d0dae4;border-radius:7px;padding:6px 10px;font-size:.81rem">
+ <select id="venueClusterFilter" onchange="filterVenueShuttle()" style="border:1.5px solid #d0dae4;border-radius:8px;padding:6px 10px;font-size:.81rem">
  <option value="">Both Clusters</option>
  <option value="North">North Cluster</option>
  <option value="South">South Cluster</option>
@@ -4660,7 +4660,7 @@ function renderTransportFAQ() {
   const el = document.getElementById('tFaqContainer');
   if (!el) return;
   el.innerHTML = tFaqList.map((item, i) => `
- <div style="border:1px solid #e0e7ef;border-radius:7px;margin-bottom:8px;overflow:hidden">
+ <div style="border:1px solid #e0e7ef;border-radius:8px;margin-bottom:8px;overflow:hidden">
  <button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.faq-arrow').textContent=this.nextElementSibling.style.display==='none'?'▸':'▾'"
         style="width:100%;text-align:left;background:#f8fafc;border:none;padding:11px 14px;cursor:pointer;font-size:.83rem;font-weight:700;color:#1a3a5c;display:flex;gap:10px;align-items:center">
  <span class="faq-arrow">▸</span><span>${item.q}</span>
@@ -5714,7 +5714,7 @@ window.addEventListener('load', function() {
  <div class="vmodal-panel" id="vp-customqa">
  <p style="font-size:.81rem;color:#555;margin:0 0 10px">Add any custom questions or details specific to this venue — e.g. "Does venue provide tables?", "Number of change rooms", etc.</p>
  <div class="custom-q-list" id="customQList"><div style="padding:8px 10px;color:#aaa;font-size:.79rem">No custom questions yet.</div></div>
- <div style="margin-top:10px;background:#f8fafc;border-radius:7px;padding:10px;border:1px solid #e0e7ef">
+ <div style="margin-top:10px;background:#f8fafc;border-radius:8px;padding:10px;border:1px solid #e0e7ef">
  <p style="font-size:.78rem;font-weight:700;margin:0 0 7px;color:#1a3a5c">+ Add Question / Detail</p>
  <div class="custom-q-row">
  <input type="text" id="newQLabel" placeholder="Question or label (e.g. Tables available?)" style="flex:2">
