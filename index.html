@@ -690,7 +690,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .vmodal-tabs { display:flex; gap:0; border-bottom:2px solid #e0e7ef; margin:0 -10px 14px -10px; padding:0 10px; overflow-x:auto; }
 .vmodal-tab { background:none; border:none; padding:8px 12px; font-size:.78rem; font-weight:600; cursor:pointer; color:#64748b; border-bottom:2px solid transparent; margin-bottom:-2px; white-space:nowrap; }
 .vmodal-tab.active { color:#1a3a5c; border-bottom:2px solid #1a3a5c; }
-.vmodal-panel { display:none; } .vmodal-panel.active { display:block; }
+.vmodal-panel { display:none; } .vmodal-panel.active { display:block; flex:1; overflow-y:auto; padding:4px 2px; }
 .venue-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; }
 @media(max-width:500px) { .venue-form-grid { grid-template-columns:1fr; } }
 .custom-q-row { display:flex; gap:8px; margin-bottom:6px; align-items:center; }
@@ -869,7 +869,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 
 <!-- Plan Modal -->
 <div class="overlay" id="planOverlay" style="display:none">
- <div class="modal" style="width:480px;max-width:95vw">
+ <div class="modal modal-scroll" style="width:480px;max-width:95vw">
   <h3 id="planModalTitle">➕ Add Milestone</h3>
   <input type="hidden" id="planEditKey">
   <div class="form-group">
@@ -1493,7 +1493,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 
 <!-- R&R Add Item Modal -->
 <div class="overlay" id="rnrOverlay">
- <div class="modal" style="width:400px">
+ <div class="modal modal-scroll" style="width:400px">
  <h3 id="rnrModalTitle"> Add Responsibility</h3>
  <input type="hidden" id="rnrVid">
  <input type="hidden" id="rnrRoleKey">
@@ -1605,7 +1605,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 
 <!-- Add Member Modal -->
 <div class="overlay" id="addOverlay">
- <div class="modal" style="width:400px">
+ <div class="modal modal-scroll" style="width:400px">
  <h3> Add Team Member</h3>
  <div class="modal-section">Position Info</div>
  <div class="form-group">
@@ -5734,7 +5734,7 @@ window.addEventListener('load', function() {
 
 <!-- Vendor Modal -->
 <div class="overlay" id="vendorOverlay" onclick="closeVendorModal()">
- <div class="modal" style="width:420px" onclick="event.stopPropagation()">
+ <div class="modal modal-scroll" style="width:420px" onclick="event.stopPropagation()">
  <h3 id="vendorModalTitle"> Add Vendor</h3>
  <input type="hidden" id="vendorKey">
  <div class="form-group">
