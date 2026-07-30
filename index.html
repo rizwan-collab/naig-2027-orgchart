@@ -469,7 +469,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 /* ══════════════════════════════════════════
    HUB SECTIONS
 ══════════════════════════════════════════ */
-.hub-section { display:none; padding:18px 22px; background:#f4f7fb; min-height:65vh; }
+.hub-section { display:none; padding:18px 22px; background:#f4f7fb; min-height:65vh; overflow-x:auto; }
 .hub-section.active { display:block; }
 .hub-toolbar { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; flex-wrap:wrap; gap:10px; }
 .hub-title { font-size:15px; font-weight:700; color:#1a3a5c; margin-bottom:2px; }
@@ -693,6 +693,29 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .vmodal-panel { display:none; } .vmodal-panel.active { display:block; flex:1; overflow-y:auto; padding:4px 2px; }
 .venue-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; }
 @media(max-width:500px) { .venue-form-grid { grid-template-columns:1fr; } }
+
+/* ══════════════════════════════════════════
+   MOBILE RESPONSIVE (phones, <=640px)
+══════════════════════════════════════════ */
+@media(max-width:640px) {
+  .header { padding: 10px 12px; gap: 6px; }
+  .header-left h1 { font-size: 15px; }
+  .header-left .sub { font-size: 9px; }
+  .header-right { gap: 4px; }
+  .header-right .btn { font-size: 10px; padding: 4px 8px; }
+  .sync-status { font-size: 9px; padding: 3px 7px; }
+  .tab-nav { padding: 0 8px; }
+  .tab-btn { padding: 8px 12px; font-size: 11px; }
+  .stats-bar { flex-wrap: wrap; }
+  .stat-card { flex: 1 1 33.33%; min-width: 0; border-bottom: 1px solid #e8eef5; }
+  .stat-num { font-size: 20px; }
+  .stat-label { font-size: 9px; }
+  .hub-section { padding: 12px 10px; }
+  .hub-toolbar { flex-direction: column; align-items: stretch; }
+  .hub-filters { flex-direction: column; align-items: stretch; }
+  .hub-search { min-width: 0; }
+}
+
 .custom-q-row { display:flex; gap:8px; margin-bottom:6px; align-items:center; }
 .custom-q-row input { flex:1; border:1px solid #ddd; border-radius:8px; padding:5px 8px; font-size:.8rem; }
 .custom-q-list { border:1px solid #e0e7ef; border-radius:6px; overflow:hidden; margin-bottom:8px; }
