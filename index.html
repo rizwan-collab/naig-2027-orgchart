@@ -211,6 +211,8 @@
       window.renderTeamSwitcher && window.renderTeamSwitcher();
       const savedTeam = localStorage.getItem('naig_active_team') || 'logistics';
       window.applyTeamScope && window.applyTeamScope(window._teams[savedTeam] ? savedTeam : 'logistics');
+      const teamsOv = document.getElementById('teamsOverlay');
+      if (teamsOv && teamsOv.classList.contains('active')) { window.renderManageTeamsList && window.renderManageTeamsList(); }
     });
     window._fb.listenCustomModules((data) => {
       window._customModulesData = data || {};
