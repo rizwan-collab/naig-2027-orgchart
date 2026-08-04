@@ -889,10 +889,10 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
   <input class="hub-search" id="prospectSearch" placeholder=" Search prospects…" oninput="renderProspects()">
   <select class="hub-filter-select" id="prospectStatusFilter" onchange="renderProspects()">
    <option value="">All Statuses</option>
-   <option value="prospect">Prospect — Not Yet Contacted</option>
-   <option value="contacted">Contacted — Awaiting Response</option>
-   <option value="ready">Ready — Nomex Next</option>
-   <option value="declined">Declined — Not Available</option>
+   <option value="prospect">Prospect</option>
+   <option value="contacted">Contacted</option>
+   <option value="ready">Confirmed</option>
+   <option value="declined">Declined</option>
   </select>
  </div>
  <div id="prospectsTableWrap">
@@ -1841,10 +1841,10 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <div class="form-group">
  <label>Status</label>
  <select id="pStatus">
- <option value="prospect"> Prospect — Not Yet Contacted</option>
- <option value="contacted"> Contacted — Awaiting Response</option>
- <option value="ready"> Ready — Nomex Next</option>
- <option value="declined"> Declined — Not Available</option>
+ <option value="prospect"> Prospect</option>
+ <option value="contacted"> Contacted</option>
+ <option value="ready"> Confirmed</option>
+ <option value="declined"> Declined</option>
  </select>
  </div>
  <div class="form-group">
@@ -3158,8 +3158,7 @@ function pStatusBadge(s) {
   if (s === 'contacted-denied')   return '<span class="badge badge-contacted" style="background:#fef0f0;color:#c0392b;border-color:#e8a0a0">Contacted - Denied</span>';
   if (s === 'approved-onboarding')return '<span class="badge badge-confirmed" style="background:#e8f4fd;color:#1a4a7a;border-color:#7ab3d9">Approved - Pending Onboarding</span>';
   if (s === 'declined')  return '<span class="badge" style="background:#fef0f0;color:#c0392b;border:1px solid #e8a0a0">Declined</span>';
-  // legacy
-  if (s === 'ready')     return '<span class="badge badge-ready">Approved</span>';
+  if (s === 'ready')     return '<span class="badge badge-confirmed" style="background:#d4edda;color:#155724;border:1px solid #a8d9c0">Confirmed</span>';
   if (s === 'contacted') return '<span class="badge badge-contacted">Contacted</span>';
   return '<span class="badge badge-prospect">Prospect</span>';
 }
