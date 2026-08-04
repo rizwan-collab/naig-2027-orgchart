@@ -299,7 +299,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 
 .node-role  { font-size: 10px; opacity: 0.72; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px; }
 .node-name  { font-size: 13px; font-weight: 700; line-height: 1.3; }
-.node-badges { margin-top: 4px; display: flex; gap: 3px; justify-content: center; flex-wrap: wrap; }
+.node-badges { margin-top: 4px; display: flex; gap: 3px; justify-content: center; align-items: center; flex-wrap: wrap; }
 
 .badge { display: inline-block; font-size: 9px; padding: 1px 5px; border-radius: 10px; font-weight: 600; }
 .badge-confirmed           { background: #d4edda; color: #155724; }
@@ -885,6 +885,16 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <span id="prospectToggleIcon" style="font-size:16px;color:#2d6a9f;font-weight:700">▼</span>
  </div>
  <div class="prospects-body" id="prospectsBody">
+ <div class="hub-filters" style="padding:0 0 10px 0">
+  <input class="hub-search" id="prospectSearch" placeholder=" Search prospects…" oninput="renderProspects()">
+  <select class="hub-filter-select" id="prospectStatusFilter" onchange="renderProspects()">
+   <option value="">All Statuses</option>
+   <option value="prospect">Prospect — Not Yet Contacted</option>
+   <option value="contacted">Contacted — Awaiting Response</option>
+   <option value="ready">Ready — Nomex Next</option>
+   <option value="declined">Declined — Not Available</option>
+  </select>
+ </div>
  <div id="prospectsTableWrap">
  <p style="color:#aaa;font-size:12px;font-style:italic;margin:0">No prospects added yet. Click <strong>+ Add Prospect</strong> to build your pipeline.</p>
  </div>
@@ -1834,6 +1844,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <option value="prospect"> Prospect — Not Yet Contacted</option>
  <option value="contacted"> Contacted — Awaiting Response</option>
  <option value="ready"> Ready — Nomex Next</option>
+ <option value="declined"> Declined — Not Available</option>
  </select>
  </div>
  <div class="form-group">
@@ -2668,17 +2679,37 @@ function findParentNode(childId, node) {
   }
   return null;
 }
+let _coLeadBannerCtx = null;
 function maybeConvertToCoLeads(parent, currentNode) {
   if (!parent || !currentNode || !currentNode.role || !/deputy/i.test(currentNode.role)) return;
   const siblings = [...(parent.children || []), ...(parent.coLeads || [])];
   const existingDeputy = siblings.find(s => s.id !== currentNode.id && /deputy/i.test(s.role || ''));
   if (!existingDeputy) return;
-  const ok = confirm(`"${existingDeputy.name || 'TBD'}" is already listed as Deputy Lead here.\n\nMultiple deputies under the same lead are usually modeled as Co-Leads instead. Rename both "${existingDeputy.role}" and "${currentNode.role}" to Co-Lead?`);
-  if (ok) {
+  // Non-blocking suggestion only — both people keep the role you entered (e.g. both "Deputy Lead").
+  // Nothing here blocks the save. You choose if/when to convert to Co-Lead.
+  _coLeadBannerCtx = { existingId: existingDeputy.id, currentId: currentNode.id };
+  const text = document.getElementById('coLeadBannerText');
+  if (text) text.textContent = `"${existingDeputy.name || 'TBD'}" and "${currentNode.name || 'TBD'}" are both ${currentNode.role} here. That's saved as-is — click below only if you'd rather label them Co-Leads instead.`;
+  const banner = document.getElementById('coLeadBanner');
+  if (banner) banner.style.display = 'block';
+}
+function dismissCoLeadBanner() {
+  _coLeadBannerCtx = null;
+  const banner = document.getElementById('coLeadBanner');
+  if (banner) banner.style.display = 'none';
+}
+function convertBannerToCoLead() {
+  if (!_coLeadBannerCtx) return;
+  const existingNode = findNode(_coLeadBannerCtx.existingId, window._orgData);
+  const currentNode  = findNode(_coLeadBannerCtx.currentId, window._orgData);
+  if (existingNode && currentNode) {
     const toCoLead = r => r.replace(/deputy\s*lead/i, 'Co-Lead').replace(/\bdeputy\b/i, 'Co-Lead');
-    existingDeputy.role = toCoLead(existingDeputy.role);
-    currentNode.role = toCoLead(currentNode.role);
+    existingNode.role = toCoLead(existingNode.role);
+    currentNode.role  = toCoLead(currentNode.role);
+    saveToCloud();
+    window._renderAll();
   }
+  dismissCoLeadBanner();
 }
 
 
@@ -3126,6 +3157,7 @@ function pStatusBadge(s) {
   if (s === 'prospect-approved')  return '<span class="badge badge-ready" style="background:#eaf6f0;color:#1a6640;border-color:#a0d8b8">Prospect - Approved</span>';
   if (s === 'contacted-denied')   return '<span class="badge badge-contacted" style="background:#fef0f0;color:#c0392b;border-color:#e8a0a0">Contacted - Denied</span>';
   if (s === 'approved-onboarding')return '<span class="badge badge-confirmed" style="background:#e8f4fd;color:#1a4a7a;border-color:#7ab3d9">Approved - Pending Onboarding</span>';
+  if (s === 'declined')  return '<span class="badge" style="background:#fef0f0;color:#c0392b;border:1px solid #e8a0a0">Declined</span>';
   // legacy
   if (s === 'ready')     return '<span class="badge badge-ready">Approved</span>';
   if (s === 'contacted') return '<span class="badge badge-contacted">Contacted</span>';
@@ -3133,11 +3165,20 @@ function pStatusBadge(s) {
 }
 
 function renderProspects() {
-  const list = window._prospects;
-  document.getElementById('prospectCount').textContent = `${list.length} prospect${list.length!==1?'s':''}`;
+  const all = window._prospects || [];
+  document.getElementById('prospectCount').textContent = `${all.length} prospect${all.length!==1?'s':''}`;
+  const q = (document.getElementById('prospectSearch')?.value || '').toLowerCase();
+  const statusF = document.getElementById('prospectStatusFilter')?.value || '';
+  let list = all;
+  if (q) list = list.filter(p => [p.name,p.email,p.city,p.vertical,p.role,p.notes].join(' ').toLowerCase().includes(q));
+  if (statusF) list = list.filter(p => p.status === statusF);
   const wrap = document.getElementById('prospectsTableWrap');
-  if (!list.length) {
+  if (!all.length) {
     wrap.innerHTML = `<p style="color:#aaa;font-size:12px;font-style:italic;margin:0">No prospects added yet. Click <strong>+ Add Prospect</strong> to build your pipeline.</p>`;
+    return;
+  }
+  if (!list.length) {
+    wrap.innerHTML = `<p style="color:#aaa;font-size:12px;font-style:italic;margin:0">No prospects match this search/filter.</p>`;
     return;
   }
   wrap.innerHTML = `
@@ -6341,5 +6382,12 @@ window.addEventListener('load', function() {
  </div>
 </div>
 
+<div id="coLeadBanner" style="display:none;position:fixed;bottom:20px;right:20px;z-index:9999;background:#1a3a5c;color:#fff;padding:14px 16px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.3);max-width:320px;font-size:12px;line-height:1.5">
+ <div id="coLeadBannerText" style="margin-bottom:10px"></div>
+ <div style="display:flex;gap:8px;justify-content:flex-end">
+  <button class="btn btn-light" style="font-size:11px;padding:4px 10px" onclick="dismissCoLeadBanner()">Keep as-is</button>
+  <button class="btn btn-accent" style="font-size:11px;padding:4px 10px" onclick="convertBannerToCoLead()">Rename to Co-Lead</button>
+ </div>
+</div>
 </body>
 </html>
