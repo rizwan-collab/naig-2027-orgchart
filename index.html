@@ -3222,8 +3222,8 @@ document.getElementById('syncStatus').textContent = ' Connecting to cloud…';
 // Close add overlay on background click
 document.addEventListener('DOMContentLoaded', () => {
   const addOv = document.getElementById('addOverlay');
-  if (addOv) addOv.addEventListener('click', e => { if (e.target === addOv) closeAdd();   renderIdentityBadge();
-});
+  if (addOv) addOv.addEventListener('click', e => { if (e.target === addOv) closeAdd(); });
+  renderIdentityBadge();
 });
 
 /* ══════════════════════════════════════════════════════════
