@@ -1569,7 +1569,8 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  </div>
  <div class="form-group">
  <label>Role</label>
- <input type="text" id="editRole" placeholder="Role title">
+ <select id="editRole" onchange="toggleRoleCustom('edit')" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px"></select>
+ <input type="text" id="editRoleCustom" placeholder="Type new role title" style="display:none;margin-top:6px;width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
  </div>
  <div class="form-group">
  <label>Status</label>
@@ -1602,8 +1603,21 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <input type="tel" id="editPhone" placeholder="+1 (555) 000-0000">
  </div>
  <div class="form-group">
- <label>Region / City</label>
- <input type="text" id="editCity" placeholder="e.g. Southwest, Dallas TX">
+ <label>Region</label>
+ <select id="editArea" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ <option value="">— Select Region —</option>
+ <option value="Southwest">Southwest</option>
+ <option value="Southeast">Southeast</option>
+ <option value="Northeast">Northeast</option>
+ <option value="Florida">Florida</option>
+ <option value="West">West</option>
+ <option value="Midwest">Midwest</option>
+ <option value="Central">Central</option>
+ </select>
+ </div>
+ <div class="form-group">
+ <label>City, State</label>
+ <input type="text" id="editCityState" placeholder="e.g. Dallas, TX">
  </div>
  <div class="modal-section">Notes</div>
  <div class="form-group">
@@ -1638,7 +1652,8 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  </div>
  <div class="form-group">
  <label>Role <span style="color:#c0392b">*</span></label>
- <input type="text" id="addRole" placeholder="e.g. Deputy Lead, PMO / Coordinator">
+ <select id="addRole" onchange="toggleRoleCustom('add')" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px"></select>
+ <input type="text" id="addRoleCustom" placeholder="Type new role title" style="display:none;margin-top:6px;width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
  </div>
  <div class="form-group">
  <label>Status</label>
@@ -1667,8 +1682,21 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <input type="tel" id="addPhone" placeholder="+1 (555) 000-0000">
  </div>
  <div class="form-group">
- <label>Region / City</label>
- <input type="text" id="addCity" placeholder="e.g. Southwest, Dallas TX">
+ <label>Region</label>
+ <select id="addArea" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ <option value="">— Select Region —</option>
+ <option value="Southwest">Southwest</option>
+ <option value="Southeast">Southeast</option>
+ <option value="Northeast">Northeast</option>
+ <option value="Florida">Florida</option>
+ <option value="West">West</option>
+ <option value="Midwest">Midwest</option>
+ <option value="Central">Central</option>
+ </select>
+ </div>
+ <div class="form-group">
+ <label>City, State</label>
+ <input type="text" id="addCityState" placeholder="e.g. Dallas, TX">
  </div>
  <div id="addParentInfo" style="font-size:12px;color:#666;background:#f5f7fa;padding:8px 12px;border-radius:6px;margin-bottom:12px"></div>
  <div class="modal-actions">
@@ -2247,9 +2275,10 @@ function openPersonFromDir(id) {
   if (node.region) rows += `<div class="dir-row"><div class="dir-icon"></div><div class="dir-val">${rl[node.region]||node.region}</div></div>`;
   if (node.email)  rows += `<div class="dir-row"><div class="dir-icon"></div><div class="dir-val"><a href="mailto:${node.email}">${node.email}</a></div></div>`;
   if (node.phone)  rows += `<div class="dir-row"><div class="dir-icon"></div><div class="dir-val"><a href="tel:${node.phone}">${node.phone}</a></div></div>`;
+  if (node.area)   rows += `<div class="dir-row"><div class="dir-icon"></div><div class="dir-val">${node.area}</div></div>`;
   if (node.city)   rows += `<div class="dir-row"><div class="dir-icon"></div><div class="dir-val">${node.city}</div></div>`;
   if (node.notes)  rows += `<div class="dir-row"><div class="dir-icon"></div><div class="dir-val">${node.notes}</div></div>`;
-  if (!node.email && !node.phone && !node.city && !node.notes)
+  if (!node.email && !node.phone && !node.city && !node.area && !node.notes)
     rows += `<div class="dir-row"><div class="dir-val dir-empty">No contact info yet — click Edit to add</div></div>`;
   const photoWrap = document.getElementById('dirPhotoWrap');
   if (photoWrap) {
@@ -2274,17 +2303,92 @@ function closeOrgDir() {
 }
 function setAll(n, v) { n.expanded = v; (n.children||[]).forEach(c=>setAll(c,v)); }
 
+// ── ROLE DROPDOWN (keeps title naming consistent across the org) ───────────
+function getAllRoleOptions() {
+  const roles = new Set();
+  function walk(n) {
+    if (n && n.role) roles.add(n.role);
+    (n.children || []).forEach(walk);
+    (n.coLeads  || []).forEach(walk);
+  }
+  if (window._orgData) walk(window._orgData);
+  return [...roles].sort();
+}
+function populateRoleSelect(prefix, currentValue) {
+  const sel = document.getElementById(prefix + 'Role');
+  const custom = document.getElementById(prefix + 'RoleCustom');
+  const roles = getAllRoleOptions();
+  sel.innerHTML = '<option value="">— Select a role —</option>' +
+    roles.map(r => `<option value="${r.replace(/"/g,'&quot;')}">${r}</option>`).join('') +
+    '<option value="__custom__"> Custom / New Role…</option>';
+  if (currentValue && roles.includes(currentValue)) {
+    sel.value = currentValue;
+    custom.style.display = 'none';
+    custom.value = '';
+  } else if (currentValue) {
+    sel.value = '__custom__';
+    custom.style.display = '';
+    custom.value = currentValue;
+  } else {
+    sel.value = '';
+    custom.style.display = 'none';
+    custom.value = '';
+  }
+}
+function toggleRoleCustom(prefix) {
+  const sel = document.getElementById(prefix + 'Role');
+  const custom = document.getElementById(prefix + 'RoleCustom');
+  const isCustom = sel.value === '__custom__';
+  custom.style.display = isCustom ? '' : 'none';
+  if (isCustom) custom.focus();
+}
+function getRoleValue(prefix) {
+  const sel = document.getElementById(prefix + 'Role');
+  const custom = document.getElementById(prefix + 'RoleCustom');
+  if (sel.value === '__custom__') return custom.value.trim();
+  return sel.value;
+}
+
+// ── MULTIPLE-DEPUTY DETECTION → offer Co-Lead rename ────────────────────────
+function findParentNode(childId, node) {
+  for (const c of (node.children || [])) {
+    if (c.id === childId) return node;
+    const r = findParentNode(childId, c);
+    if (r) return r;
+  }
+  for (const c of (node.coLeads || [])) {
+    if (c.id === childId) return node;
+    const r = findParentNode(childId, c);
+    if (r) return r;
+  }
+  return null;
+}
+function maybeConvertToCoLeads(parent, currentNode) {
+  if (!parent || !currentNode || !currentNode.role || !/deputy/i.test(currentNode.role)) return;
+  const siblings = [...(parent.children || []), ...(parent.coLeads || [])];
+  const existingDeputy = siblings.find(s => s.id !== currentNode.id && /deputy/i.test(s.role || ''));
+  if (!existingDeputy) return;
+  const ok = confirm(`"${existingDeputy.name || 'TBD'}" is already listed as Deputy Lead here.\n\nMultiple deputies under the same lead are usually modeled as Co-Leads instead. Rename both "${existingDeputy.role}" and "${currentNode.role}" to Co-Lead?`);
+  if (ok) {
+    const toCoLead = r => r.replace(/deputy\s*lead/i, 'Co-Lead').replace(/\bdeputy\b/i, 'Co-Lead');
+    existingDeputy.role = toCoLead(existingDeputy.role);
+    currentNode.role = toCoLead(currentNode.role);
+  }
+}
+
+
 function openEdit(id) {
   const n = findNode(id, window._orgData);
   if (!n) return;
   editingId = id;
   document.getElementById('editName').value   = n.name   || '';
-  document.getElementById('editRole').value   = n.role   || '';
+  populateRoleSelect('edit', n.role || '');
   document.getElementById('editStatus').value = n.status === 'tbd' || n.status === 'tbc' ? 'pending-approval' : (n.status || 'pending-approval');
   document.getElementById('editRegion').value = n.region || '';
   document.getElementById('editEmail').value  = n.email  || '';
   document.getElementById('editPhone').value  = n.phone  || '';
-  document.getElementById('editCity').value   = n.city   || '';
+  document.getElementById('editArea').value = n.area || '';
+  document.getElementById('editCityState').value = n.city || '';
   document.getElementById('editNotes').value  = n.notes  || '';
   document.getElementById('editVenue').value  = n.venue  || '';
   // Populate parent dropdown (exclude self and descendants)
@@ -2355,9 +2459,10 @@ function openDir(id) {
   if (n.region) rows += `<div class="dir-row"><div class="dir-icon"></div><div class="dir-val">${regionLabel[n.region] || n.region}</div></div>`;
   if (n.email)  rows += `<div class="dir-row"><div class="dir-icon"></div><div class="dir-val"><a href="mailto:${n.email}">${n.email}</a></div></div>`;
   if (n.phone)  rows += `<div class="dir-row"><div class="dir-icon"></div><div class="dir-val"><a href="tel:${n.phone}">${n.phone}</a></div></div>`;
+  if (n.area)   rows += `<div class="dir-row"><div class="dir-icon"></div><div class="dir-val">${n.area}</div></div>`;
   if (n.city)   rows += `<div class="dir-row"><div class="dir-icon"></div><div class="dir-val">${n.city}</div></div>`;
   if (n.notes)  rows += `<div class="dir-row"><div class="dir-icon"></div><div class="dir-val">${n.notes}</div></div>`;
-  if (!n.email && !n.phone && !n.city && !n.notes)
+  if (!n.email && !n.phone && !n.city && !n.area && !n.notes)
     rows += `<div class="dir-row"><div class="dir-val dir-empty">No contact info yet — click Edit to add</div></div>`;
 
   document.getElementById('dirBody').innerHTML = rows;
@@ -2428,12 +2533,13 @@ function saveEdit() {
   if (!n) return;
   const oldName = n.name;
   n.name   = document.getElementById('editName').value.trim() || n.name;
-  n.role   = document.getElementById('editRole').value.trim() || n.role;
+  n.role   = getRoleValue('edit') || n.role;
   n.status = document.getElementById('editStatus').value;
   n.region = document.getElementById('editRegion').value;
   n.email  = document.getElementById('editEmail').value.trim();
   n.phone  = document.getElementById('editPhone').value.trim();
-  n.city   = document.getElementById('editCity').value.trim();
+  n.area   = document.getElementById('editArea').value;
+  n.city   = document.getElementById('editCityState').value.trim();
   const photoVal = document.getElementById('editPhotoData').value;
   if (photoVal) n.photo = photoVal;
   n.notes  = document.getElementById('editNotes').value.trim();
@@ -2464,6 +2570,9 @@ function saveEdit() {
     }
   }
 
+  const editParentNode = (newParentId && newParentId !== '') ? findNode(newParentId, window._orgData) : findParentNode(editingId, window._orgData);
+  maybeConvertToCoLeads(editParentNode, n);
+
   closeEdit();
   saveToCloud();
   window._renderAll();
@@ -2480,12 +2589,13 @@ function openAddChild(parentId, event) {
   addingParentId = parentId;
   const parent = findNode(parentId, window._orgData);
   document.getElementById('addName').value   = '';
-  document.getElementById('addRole').value   = '';
+  populateRoleSelect('add', '');
   document.getElementById('addStatus').value = 'pending-approval';
   document.getElementById('addRegion').value = 'usa';
   document.getElementById('addEmail').value  = '';
   document.getElementById('addPhone').value  = '';
-  document.getElementById('addCity').value   = '';
+  document.getElementById('addArea').value = '';
+  document.getElementById('addCityState').value = '';
   const info = document.getElementById('addParentInfo');
   if (parent) info.textContent = ' Reports to: ' + (parent.name || 'TBD') + ' — ' + parent.role;
   document.getElementById('addOverlay').classList.add('active');
@@ -2498,7 +2608,7 @@ function closeAdd() {
 }
 
 function saveNewNode() {
-  const role = document.getElementById('addRole').value.trim();
+  const role = getRoleValue('add');
   if (!role) { alert('Role is required — enter a role title.'); return; }
   const name   = document.getElementById('addName').value.trim();
   const status = document.getElementById('addStatus').value;
@@ -2519,7 +2629,8 @@ function saveNewNode() {
     region:   region,
     email:    document.getElementById('addEmail').value.trim(),
     phone:    document.getElementById('addPhone').value.trim(),
-    city:     document.getElementById('addCity').value.trim(),
+    area:     document.getElementById('addArea').value,
+    city:     document.getElementById('addCityState').value.trim(),
     expanded: true,
     children: []
   };
@@ -2527,6 +2638,8 @@ function saveNewNode() {
   if (!parent.children) parent.children = [];
   parent.children.push(newNode);
   parent.expanded = true;
+
+  maybeConvertToCoLeads(parent, newNode);
 
   closeAdd();
   saveToCloud();
