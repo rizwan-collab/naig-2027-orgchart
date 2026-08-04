@@ -735,6 +735,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  </div>
  <div class="header-right">
  <span class="sync-status" id="syncStatus"> Connecting…</span>
+ <span class="sync-status" id="identityBadge" onclick="openIdentityPicker()" style="cursor:pointer"> Identify yourself</span>
  <span id="orgBtns" style="display:inline-flex;gap:8px;align-items:center">
  <button class="btn btn-light" onclick="expandAll()">Expand All</button>
  <button class="btn btn-light" onclick="collapseAll()">Collapse All</button>
@@ -786,6 +787,24 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 </div>
 
 <!-- Directory Modal -->
+<!-- Identity Picker Modal -->
+<div class="overlay" id="identityOverlay">
+ <div class="modal modal-scroll" style="width:380px">
+  <h3>Who are you?</h3>
+  <div class="modal-section">Match yourself to the org chart</div>
+  <div class="form-group">
+   <label>Search your name</label>
+   <input type="text" id="identitySearch" placeholder="Start typing your name…" oninput="renderIdentityMatches()" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+  </div>
+  <div id="identityMatches" style="max-height:220px;overflow-y:auto;border:1px solid #eee;border-radius:6px;margin-bottom:6px"></div>
+  <div style="font-size:11px;color:#888;margin:10px 0 4px">Don't see your name, or just visiting?</div>
+  <div class="modal-actions" style="justify-content:space-between">
+   <button class="btn btn-cancel" onclick="setViewerIdentity()">Continue as Viewer</button>
+   <button class="btn btn-cancel" onclick="closeIdentityPicker()">Cancel</button>
+  </div>
+ </div>
+</div>
+
 <div class="overlay" id="dirOverlay" onclick="closeDirModal()">
  <div class="dir-modal" onclick="event.stopPropagation()">
  <div class="dir-header">
@@ -2350,6 +2369,67 @@ function getRoleValue(prefix) {
 }
 
 // ── MULTIPLE-DEPUTY DETECTION → offer Co-Lead rename ────────────────────────
+// ── IDENTITY (matched against org chart) — label only, no access restriction yet ──
+const NAIG_VERTICALS = {
+  fb: 'F&B', hotels: 'Hotels & Accommodations', transport: 'Transportation',
+  site: 'Site Logistics', equipment: 'Equipment & Signage'
+};
+function inferVertical(nodeId) {
+  function findPath(node, targetId, path) {
+    const p = path.concat([node]);
+    if (node.id === targetId) return p;
+    for (const c of (node.children || [])) { const r = findPath(c, targetId, p); if (r) return r; }
+    for (const c of (node.coLeads || [])) { const r = findPath(c, targetId, p); if (r) return r; }
+    return null;
+  }
+  const path = window._orgData ? findPath(window._orgData, nodeId, []) : null;
+  if (!path) return 'Leadership';
+  for (const n of path) { if (NAIG_VERTICALS[n.id]) return NAIG_VERTICALS[n.id]; }
+  return 'Leadership';
+}
+function openIdentityPicker() {
+  document.getElementById('identitySearch').value = '';
+  document.getElementById('identityMatches').innerHTML = '';
+  document.getElementById('identityOverlay').classList.add('active');
+  setTimeout(() => document.getElementById('identitySearch').focus(), 100);
+}
+function closeIdentityPicker() {
+  document.getElementById('identityOverlay').classList.remove('active');
+}
+function renderIdentityMatches() {
+  const q = document.getElementById('identitySearch').value.trim().toLowerCase();
+  const box = document.getElementById('identityMatches');
+  if (!q) { box.innerHTML = ''; return; }
+  const all = getAllFlatNodes().filter(n => n.name && n.name !== 'TBD' && n.name.toLowerCase().includes(q));
+  if (!all.length) { box.innerHTML = '<div style="padding:8px 10px;color:#999;font-size:12px">No matches in the org chart</div>'; return; }
+  box.innerHTML = all.slice(0, 8).map(n =>
+    `<div style="padding:8px 10px;cursor:pointer;border-bottom:1px solid #f0f4f8" onmouseover="this.style.background='#f5f8fc'" onmouseout="this.style.background=''" onclick="setIdentity('${n.id}')">${n.name} <span style="color:#888;font-size:11px">— ${n.role}</span></div>`
+  ).join('');
+}
+function setIdentity(nodeId) {
+  const node = findNode(nodeId, window._orgData);
+  const level = nodeId === 'rizwan' ? 'Super Admin' : 'Admin';
+  const vertical = nodeId === 'rizwan' ? 'All Verticals' : inferVertical(nodeId);
+  const identity = { id: nodeId, name: node ? node.name : 'Unknown', vertical, level };
+  localStorage.setItem('naig_identity', JSON.stringify(identity));
+  renderIdentityBadge();
+  closeIdentityPicker();
+}
+function setViewerIdentity() {
+  localStorage.setItem('naig_identity', JSON.stringify({ id: null, name: null, vertical: null, level: 'View User' }));
+  renderIdentityBadge();
+  closeIdentityPicker();
+}
+function renderIdentityBadge() {
+  const badge = document.getElementById('identityBadge');
+  if (!badge) return;
+  const raw = localStorage.getItem('naig_identity');
+  if (!raw) { badge.textContent = ' Identify yourself'; return; }
+  const idn = JSON.parse(raw);
+  if (idn.level === 'View User') { badge.textContent = ' View User'; return; }
+  badge.textContent = ' ' + idn.name + ' · ' + idn.level + (idn.vertical ? ' (' + idn.vertical + ')' : '');
+}
+
 function findParentNode(childId, node) {
   for (const c of (node.children || [])) {
     if (c.id === childId) return node;
@@ -3142,7 +3222,8 @@ document.getElementById('syncStatus').textContent = ' Connecting to cloud…';
 // Close add overlay on background click
 document.addEventListener('DOMContentLoaded', () => {
   const addOv = document.getElementById('addOverlay');
-  if (addOv) addOv.addEventListener('click', e => { if (e.target === addOv) closeAdd(); });
+  if (addOv) addOv.addEventListener('click', e => { if (e.target === addOv) closeAdd();   renderIdentityBadge();
+});
 });
 
 /* ══════════════════════════════════════════════════════════
