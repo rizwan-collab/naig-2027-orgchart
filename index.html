@@ -40,6 +40,8 @@
   const driversRef   = ref(db, 'naig2027/drivers');
   const docsRef      = ref(db, 'naig2027/docs');
   const planRef      = ref(db, 'naig2027/plan');
+  const teamsRef         = ref(db, 'naig2027/teams');
+  const customModulesRef = ref(db, 'naig2027/customModules');
 
   // ── expose Firebase to the rest of the page ──
   window._fb = {
@@ -61,6 +63,8 @@
     listenDocs:       (cb) => onValue(docsRef,      snap => cb(snap.val())),
     listenPlan:       (cb) => onValue(planRef,      snap => cb(snap.val())),
     savePlan:         (data) => set(planRef, data),
+    listenTeams:         (cb) => onValue(teamsRef,         snap => cb(snap.val())),
+    listenCustomModules: (cb) => onValue(customModulesRef, snap => cb(snap.val())),
   };
   // Primitives for global CRUD
   window._dbRef    = (path) => ref(db, path);
@@ -198,6 +202,25 @@
         window.initPlanDefaults && window.initPlanDefaults();
       }
       window.renderPlan && window.renderPlan();
+    });
+
+    // ── Teams / per-team module scoping (foundation only) ──
+    window._fb.listenTeams((data) => {
+      window._teams = data || {};
+      if (!data) { window.seedDefaultTeams && window.seedDefaultTeams(); return; }
+      window.renderTeamSwitcher && window.renderTeamSwitcher();
+      const savedTeam = localStorage.getItem('naig_active_team') || 'logistics';
+      window.applyTeamScope && window.applyTeamScope(window._teams[savedTeam] ? savedTeam : 'logistics');
+    });
+    window._fb.listenCustomModules((data) => {
+      window._customModulesData = data || {};
+      if (window._teams) {
+        Object.keys(window._teams).forEach(teamId => {
+          Object.keys((window._teams[teamId] || {}).custom || {}).forEach(modId => {
+            window.renderCustomModuleRows && window.renderCustomModuleRows(teamId, modId);
+          });
+        });
+      }
     });
   })();
 </script>
@@ -736,6 +759,8 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <div class="header-right">
  <span class="sync-status" id="syncStatus"> Connecting…</span>
  <span class="sync-status" id="identityBadge" onclick="openIdentityPicker()" style="cursor:pointer"> Identify yourself</span>
+ <select id="teamSwitcher" class="sync-status" onchange="applyTeamScope(this.value)" style="cursor:pointer;border:none;font-family:inherit"></select>
+ <span class="sync-status" onclick="openManageTeams()" style="cursor:pointer"> Manage Teams</span>
  <span id="orgBtns" style="display:inline-flex;gap:8px;align-items:center">
  <button class="btn btn-light" onclick="expandAll()">Expand All</button>
  <button class="btn btn-light" onclick="collapseAll()">Collapse All</button>
@@ -801,6 +826,25 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
   <div class="modal-actions" style="justify-content:space-between">
    <button class="btn btn-cancel" onclick="setViewerIdentity()">Continue as Viewer</button>
    <button class="btn btn-cancel" onclick="closeIdentityPicker()">Cancel</button>
+  </div>
+ </div>
+</div>
+
+<!-- Manage Teams Modal -->
+<div class="overlay" id="teamsOverlay">
+ <div class="modal modal-scroll" style="width:480px">
+  <h3>Manage Teams</h3>
+  <div class="modal-section">Pick which tabs each team sees. Custom tabs let a team track their own simple list beyond the shared modules.</div>
+  <div id="teamsList" style="margin:10px 0"></div>
+  <div class="form-group">
+   <label>New team name</label>
+   <div style="display:flex;gap:8px">
+    <input type="text" id="newTeamName" placeholder="e.g. Sports" style="flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+    <button class="btn btn-primary" onclick="createTeam()">+ Create Team</button>
+   </div>
+  </div>
+  <div class="modal-actions">
+   <button class="btn btn-cancel" onclick="closeManageTeams()">Close</button>
   </div>
  </div>
 </div>
@@ -1533,6 +1577,8 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
   </table>
  </div>
 </div>
+
+<div id="customSectionsContainer"></div>
 
 <!-- R&R Add Item Modal -->
 <div class="overlay" id="rnrOverlay">
@@ -2428,6 +2474,183 @@ function renderIdentityBadge() {
   const idn = JSON.parse(raw);
   if (idn.level === 'View User') { badge.textContent = ' View User'; return; }
   badge.textContent = ' ' + idn.name + ' · ' + idn.level + (idn.vertical ? ' (' + idn.vertical + ')' : '');
+}
+
+// ── TEAMS / PER-TEAM MODULE SCOPING (foundation only — no Sports data seeded yet) ──
+const BASE_PICKABLE_MODULES = { orgchart:'Org Chart', tasks:'Tasks', vendors:'Vendors', docs:'Documents', budget:'Budget', scope:'Scope' };
+const TAB_ID_MAP = { orgchart:'taborg', plan:'tabplan', tasks:'tabtasks', venues:'tabvenues', vendors:'tabvendors',
+  hotels:'tabhotels', transport:'tabtransport', docs:'tabdocs', budget:'tabbudget', scope:'tabscope' };
+
+function seedDefaultTeams() {
+  if (window._teams && Object.keys(window._teams).length) return;
+  const seed = { logistics: { id:'logistics', name:'Logistics',
+    modules:['orgchart','plan','tasks','venues','vendors','hotels','transport','docs','budget','scope'], custom:{} } };
+  window._dbSet(window._dbRef('naig2027/teams'), seed);
+}
+
+function renderTeamSwitcher() {
+  const sel = document.getElementById('teamSwitcher');
+  if (!sel || !window._teams) return;
+  const activeId = window._activeTeamId || localStorage.getItem('naig_active_team') || 'logistics';
+  sel.innerHTML = Object.values(window._teams).map(t =>
+    `<option value="${t.id}" ${t.id===activeId?'selected':''}>${t.name}</option>`).join('');
+}
+
+function applyTeamScope(teamId) {
+  const team = (window._teams || {})[teamId];
+  if (!team) return;
+  window._activeTeamId = teamId;
+  localStorage.setItem('naig_active_team', teamId);
+  const sel = document.getElementById('teamSwitcher');
+  if (sel && sel.value !== teamId) sel.value = teamId;
+
+  Object.keys(TAB_ID_MAP).forEach(key => {
+    const btn = document.getElementById(TAB_ID_MAP[key]);
+    if (btn) btn.style.display = (team.modules || []).includes(key) ? '' : 'none';
+  });
+
+  document.querySelectorAll('.tab-btn[data-custom="1"]').forEach(b => b.remove());
+  document.querySelectorAll('.custom-section[data-custom="1"]').forEach(s => s.remove());
+  const container = document.getElementById('customSectionsContainer');
+  const nav = document.querySelector('.tab-nav');
+  Object.values(team.custom || {}).forEach(mod => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn'; btn.setAttribute('data-custom', '1');
+    btn.id = 'tabcustom_' + mod.id;
+    btn.textContent = mod.name;
+    btn.onclick = () => switchTab('custom_' + mod.id);
+    if (nav) nav.appendChild(btn);
+
+    const sec = document.createElement('div');
+    sec.className = 'hub-section custom-section'; sec.setAttribute('data-custom', '1');
+    sec.id = 'sectioncustom_' + mod.id;
+    sec.dataset.team = teamId;
+    sec.innerHTML = renderCustomModuleHTML(teamId, mod);
+    if (container) container.appendChild(sec);
+  });
+
+  const currentBtn = document.querySelector('.tab-btn.active');
+  if (!currentBtn || currentBtn.style.display === 'none') {
+    const firstVisible = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.style.display !== 'none');
+    if (firstVisible) firstVisible.click();
+  }
+}
+
+function renderCustomModuleHTML(teamId, mod) {
+  const teamName = (window._teams[teamId] || {}).name || '';
+  return `
+   <div class="hub-toolbar">
+    <div><div class="hub-title">${mod.name}</div><div class="hub-subtitle">Custom module — ${teamName}</div></div>
+    <button class="btn btn-primary" onclick="openCustomRow('${teamId}','${mod.id}')">+ Add Item</button>
+   </div>
+   <div style="overflow-x:auto">
+    <table class="hub-table">
+     <thead><tr><th>Name</th><th>Status</th><th>Notes</th><th></th></tr></thead>
+     <tbody id="customTbody_${mod.id}"><tr><td colspan="4" class="hub-empty">Loading…</td></tr></tbody>
+    </table>
+   </div>`;
+}
+
+function renderCustomModuleRows(teamId, moduleId) {
+  const tbody = document.getElementById('customTbody_' + moduleId);
+  if (!tbody) return;
+  const rows = ((window._customModulesData || {})[teamId] || {})[moduleId] || {};
+  const entries = Object.entries(rows);
+  if (!entries.length) { tbody.innerHTML = '<tr><td colspan="4" class="hub-empty">No items yet — click + Add Item</td></tr>'; return; }
+  tbody.innerHTML = entries.map(([id, r]) => `
+    <tr><td>${r.name || ''}</td><td>${r.status || ''}</td><td>${r.notes || ''}</td>
+    <td><button class="btn btn-light" style="padding:3px 7px;font-size:10px;background:#fff0f0;color:#c0392b;border:1px solid #e8a0a0" onclick="deleteCustomRow('${teamId}','${moduleId}','${id}')">×</button></td></tr>`).join('');
+}
+
+function openCustomRow(teamId, moduleId) {
+  const name = prompt('Item name:');
+  if (!name) return;
+  const status = prompt('Status (optional):') || '';
+  const notes = prompt('Notes (optional):') || '';
+  const id = 'k' + Date.now() + Math.random().toString(36).slice(2, 6);
+  window._dbSet(window._dbRef('naig2027/customModules/' + teamId + '/' + moduleId + '/' + id), { name, status, notes });
+}
+function deleteCustomRow(teamId, moduleId, id) {
+  if (!confirm('Delete this item?')) return;
+  window._dbRemove(window._dbRef('naig2027/customModules/' + teamId + '/' + moduleId + '/' + id));
+}
+
+// ── Manage Teams admin modal ──
+function openManageTeams() {
+  renderManageTeamsList();
+  document.getElementById('teamsOverlay').classList.add('active');
+}
+function closeManageTeams() { document.getElementById('teamsOverlay').classList.remove('active'); }
+
+function renderManageTeamsList() {
+  const box = document.getElementById('teamsList');
+  if (!box || !window._teams) return;
+  box.innerHTML = Object.values(window._teams).map(t => `
+    <div style="border:1px solid #e0e8f0;border-radius:8px;padding:10px 12px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <strong>${t.name}</strong>
+        ${t.id !== 'logistics' ? `<span class="custom-q-del" onclick="deleteTeam('${t.id}')" title="Delete team">× Delete</span>` : '<span style="font-size:10px;color:#888">default</span>'}
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+        ${Object.entries(BASE_PICKABLE_MODULES).map(([key, label]) => `
+          <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="checkbox" ${(t.modules || []).includes(key) ? 'checked' : ''} onchange="toggleTeamModule('${t.id}','${key}',this.checked)"> ${label}
+          </label>`).join('')}
+      </div>
+      <div style="font-size:11px;color:#888;margin-bottom:4px">Custom tabs:</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+        ${Object.values(t.custom || {}).map(m => `<span style="background:#f1f5f9;border-radius:12px;padding:3px 10px;font-size:11px;display:inline-flex;align-items:center;gap:6px">${m.name} <span style="cursor:pointer;color:#c00" onclick="deleteCustomModule('${t.id}','${m.id}')">×</span></span>`).join('') || '<span style="font-size:11px;color:#bbb">none</span>'}
+      </div>
+      <button class="btn" style="font-size:11px;padding:4px 10px;background:#f1f5f9;color:#334155;border:1px solid #cbd5e1" onclick="addCustomModule('${t.id}')">+ Add Custom Tab</button>
+    </div>`).join('');
+}
+
+function createTeam() {
+  const nameInput = document.getElementById('newTeamName');
+  const name = nameInput.value.trim();
+  if (!name) return;
+  const id = 'team' + Date.now();
+  const teams = JSON.parse(JSON.stringify(window._teams || {}));
+  teams[id] = { id, name, modules: ['orgchart', 'tasks'], custom: {} };
+  window._dbSet(window._dbRef('naig2027/teams'), teams);
+  nameInput.value = '';
+}
+
+function toggleTeamModule(teamId, key, checked) {
+  const teams = JSON.parse(JSON.stringify(window._teams || {}));
+  const t = teams[teamId]; if (!t) return;
+  t.modules = t.modules || [];
+  if (checked && !t.modules.includes(key)) t.modules.push(key);
+  if (!checked) t.modules = t.modules.filter(m => m !== key);
+  window._dbSet(window._dbRef('naig2027/teams'), teams);
+}
+
+function deleteTeam(teamId) {
+  if (teamId === 'logistics') return;
+  if (!confirm('Delete this team and its module selections? (Custom module data stays in the database.)')) return;
+  const teams = JSON.parse(JSON.stringify(window._teams || {}));
+  delete teams[teamId];
+  window._dbSet(window._dbRef('naig2027/teams'), teams);
+  if (window._activeTeamId === teamId) applyTeamScope('logistics');
+}
+
+function addCustomModule(teamId) {
+  const name = prompt('Custom tab name (e.g. "Equipment Checklist"):');
+  if (!name) return;
+  const id = 'm' + Date.now();
+  const teams = JSON.parse(JSON.stringify(window._teams || {}));
+  const t = teams[teamId]; if (!t) return;
+  t.custom = t.custom || {};
+  t.custom[id] = { id, name };
+  window._dbSet(window._dbRef('naig2027/teams'), teams);
+}
+
+function deleteCustomModule(teamId, moduleId) {
+  if (!confirm('Delete this custom tab? (Its data stays in the database.)')) return;
+  const teams = JSON.parse(JSON.stringify(window._teams || {}));
+  const t = teams[teamId]; if (!t) return;
+  if (t.custom) delete t.custom[moduleId];
+  window._dbSet(window._dbRef('naig2027/teams'), teams);
 }
 
 function findParentNode(childId, node) {
@@ -3490,9 +3713,10 @@ window.exportPlanCSV    = exportPlanCSV;
 ══════════════════════════════════════════════════════════ */
 function switchTab(tab) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  const isCustom = typeof tab === 'string' && tab.indexOf('custom_') === 0;
   const tabMap = { orgchart:'taborg', plan:'tabplan', tasks:'tabtasks', venues:'tabvenues', vendors:'tabvendors',
     hotels:'tabhotels', transport:'tabtransport', docs:'tabdocs', scope:'tabscope' };
-  const activeBtn = document.getElementById(tabMap[tab]);
+  const activeBtn = isCustom ? document.getElementById('tabcustom_' + tab.slice(7)) : document.getElementById(tabMap[tab]);
   if (activeBtn) activeBtn.classList.add('active');
 
   // Org-only elements (hide on all hub tabs)
@@ -3512,12 +3736,16 @@ function switchTab(tab) {
     const el = document.getElementById(id);
     if (el) { el.style.display = 'none'; el.classList.remove('active'); }
   });
+  document.querySelectorAll('.custom-section').forEach(el => { el.style.display = 'none'; el.classList.remove('active'); });
 
   const sectionMap = {
     plan:'sectionPlan', tasks:'sectionTasks', venues:'sectionVenues', vendors:'sectionVendors',
     hotels:'sectionHotels', transport:'sectionTransport', docs:'sectionDocs', budget:'sectionBudget', scope:'sectionScope'
   };
-  if (sectionMap[tab]) {
+  if (isCustom) {
+    const el = document.getElementById('sectioncustom_' + tab.slice(7));
+    if (el) { el.style.display = 'block'; el.classList.add('active'); window.renderCustomModuleRows && window.renderCustomModuleRows(el.dataset.team, tab.slice(7)); }
+  } else if (sectionMap[tab]) {
     const el = document.getElementById(sectionMap[tab]);
     if (el) { el.style.display = 'block'; el.classList.add('active'); }
   }
