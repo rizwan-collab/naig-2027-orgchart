@@ -307,6 +307,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .badge-pending-acceptance  { background: #f0e8ff; color: #5a2d9f; }
 .badge-usa       { background: #cce5ff; color: #004085; }
 .badge-ca        { background: #d4edda; color: #155724; }
+.badge-declined  { background: #fef0f0; color: #c0392b; }
 
 .toggle-btn {
   position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%);
@@ -1652,9 +1653,10 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <div class="form-group">
  <label>Status</label>
  <select id="editStatus">
+ <option value="prospect">Prospect</option>
+ <option value="contacted">Contacted</option>
  <option value="confirmed">Confirmed</option>
- <option value="pending-approval">Pending Approval</option>
- <option value="pending-acceptance">Pending Acceptance</option>
+ <option value="declined">Declined</option>
  </select>
  </div>
  <div class="form-group" id="venueFieldWrap">
@@ -1735,9 +1737,10 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <div class="form-group">
  <label>Status</label>
  <select id="addStatus">
+ <option value="prospect" selected>Prospect</option>
+ <option value="contacted">Contacted</option>
  <option value="confirmed">Confirmed</option>
- <option value="pending-approval" selected>Pending Approval</option>
- <option value="pending-acceptance">Pending Acceptance</option>
+ <option value="declined">Declined</option>
  </select>
  </div>
  <div class="form-group">
@@ -1964,14 +1967,15 @@ function findNode(id, node) {
   return null;
 }
 
-function statusBadge(s) {
-  if (s === 'confirmed')          return '<span class="badge badge-confirmed" title="Click to change status">Confirmed</span>';
-  if (s === 'pending-approval' || s === 'tbd') return '<span class="badge badge-pending-approval" title="Click to change status">Pending Approval</span>';
-  if (s === 'pending-acceptance' || s === 'tbc') return '<span class="badge badge-pending-acceptance" title="Click to change status">Pending Acceptance</span>';
+function orgStatusBadge(s) {
+  if (s === 'confirmed') return '<span class="badge badge-confirmed" title="Click to change status">Confirmed</span>';
+  if (s === 'contacted' || s === 'pending-acceptance' || s === 'tbc') return '<span class="badge badge-contacted" title="Click to change status">Contacted</span>';
+  if (s === 'declined')  return '<span class="badge badge-declined" title="Click to change status">Declined</span>';
   if (s === 'ontrack')   return '<span class="badge" style="background:#e8f8f0;color:#2c7a5c;border:1px solid #a8d9c0;cursor:pointer" title="Click to change status">On Track</span>';
   if (s === 'atrisk')    return '<span class="badge" style="background:#fff8e8;color:#b7770d;border:1px solid #f0d080;cursor:pointer" title="Click to change status">At Risk</span>';
   if (s === 'behind')    return '<span class="badge" style="background:#fef0f0;color:#c0392b;border:1px solid #e8a0a0;cursor:pointer" title="Click to change status">Behind</span>';
-  return '<span class="badge badge-pending-approval" title="Click to change status">Pending Approval</span>';
+  // prospect / pending-approval / tbd / default — role or person not yet confirmed
+  return '<span class="badge badge-prospect" title="Click to change status">Prospect</span>';
 }
 function regionBadge(r) {
   if (r === 'usa')  return '<span class="badge badge-usa">USA</span>';
@@ -1996,7 +2000,7 @@ function renderNode(n) {
  <div class="node-name">${nameHtml}</div>
  <div class="node-badges">
  <div class="node-status-wrap" onclick="event.stopPropagation();toggleStatusDrop('${n.id}',event)">
-          ${statusBadge(n.status)}
+          ${orgStatusBadge(n.status)}
  <div class="status-drop" id="sdrop-${n.id}">${buildStatusDrop(n.id,n.status)}</div>
  </div>
         ${regionBadge(n.region)}
@@ -2048,7 +2052,7 @@ function renderCoGroup(v) {
  <div class="node-name">${cl.name}</div>
  <div class="node-badges">
  <div class="node-status-wrap" onclick="event.stopPropagation();toggleStatusDrop('${cl.id}',event)">
-          ${statusBadge(cl.status)}
+          ${orgStatusBadge(cl.status)}
  <div class="status-drop" id="sdrop-${cl.id}">${buildStatusDrop(cl.id,cl.status)}</div>
  </div>
         ${regionBadge(cl.region)}
@@ -2076,7 +2080,7 @@ function renderCoGroup(v) {
  <div class="node-name">${c.name}</div>
  <div class="node-badges">
  <div class="node-status-wrap" onclick="event.stopPropagation();toggleStatusDrop('${c.id}',event)">
-                ${statusBadge(c.status)}
+                ${orgStatusBadge(c.status)}
  <div class="status-drop" id="sdrop-${c.id}">${buildStatusDrop(c.id,c.status)}</div>
  </div>
               ${regionBadge(c.region)}
@@ -2107,7 +2111,7 @@ window._renderAll = function() {
  <div class="node-name" style="font-size:16px">${root.name}</div>
  <div class="node-badges">
  <div class="node-status-wrap" onclick="event.stopPropagation();toggleStatusDrop('${root.id}',event)">
-          ${statusBadge(root.status)}
+          ${orgStatusBadge(root.status)}
  <div class="status-drop" id="sdrop-${root.id}">${buildStatusDrop(root.id,root.status)}</div>
  </div>
         ${regionBadge(root.region)}
@@ -2131,7 +2135,7 @@ window._renderAll = function() {
  <div class="node node-${c.tier}" id="node-${c.id}" onclick="openEdit('${c.id}')">
  <div class="node-role">${c.role}</div>
  <div class="node-name">${c.name}</div>
- <div class="node-badges">${statusBadge(c.status)} ${regionBadge(c.region)}</div>
+ <div class="node-badges">${orgStatusBadge(c.status)} ${regionBadge(c.region)}</div>
           ${c.dashed ? '<div style="font-size:9px;opacity:0.65;margin-top:2px">- - dashed line - -</div>' : ''}
  </div>
  </div>`;
@@ -2154,7 +2158,7 @@ window._renderAll = function() {
  <div class="node node-${v.tier}" id="node-${v.id}" onclick="openEdit('${v.id}')" style="position:relative">
  <div class="node-role">${v.role}</div>
  <div class="node-name">${nameHtml}</div>
- <div class="node-badges">${statusBadge(v.status)} ${regionBadge(v.region)}</div>
+ <div class="node-badges">${orgStatusBadge(v.status)} ${regionBadge(v.region)}</div>
           ${contactChips(v)}
           ${hasV ? `<button class="toggle-btn" onclick="toggleNode(event,'${v.id}')">${v.expanded?'−':'+'}</button>` : ''}
  </div>
@@ -2169,7 +2173,7 @@ window._renderAll = function() {
  <div class="node node-${c.tier}" id="node-${c.id}" onclick="openEdit('${c.id}')">
  <div class="node-role">${c.role}</div>
  <div class="node-name">${c.name}</div>
- <div class="node-badges">${statusBadge(c.status)} ${regionBadge(c.region)}</div>
+ <div class="node-badges">${orgStatusBadge(c.status)} ${regionBadge(c.region)}</div>
                 ${contactChips(c)}
  </div>
  <button class="add-child-btn-dark" onclick="openAddChild('${c.id}',event)">+ Add Person</button>
@@ -2270,7 +2274,7 @@ function renderOrgDir() {
   const mode = _orgDirMode;
   if (!window._orgData) { list.innerHTML = '<div class="dir-panel-empty">Org data not loaded yet.</div>'; return; }
 
-  const PENDING_STATUSES = ['tbd','tbc','pending-approval','pending-acceptance'];
+  const PENDING_STATUSES = ['tbd','tbc','pending-approval','pending-acceptance','prospect','contacted'];
   let all = collectAllNodes(window._orgData);
 
   // Filter by search
@@ -2347,7 +2351,7 @@ function openPersonFromDir(id) {
   if (!node) return;
   // Populate modal directly from the node we already have (avoids re-lookup by id failing on id-less nodes)
   _dirId = node.id || null;
-  const sl = { confirmed:' Confirmed','pending-approval':' Pending Approval','pending-acceptance':' Pending Acceptance',tbd:' Pending Approval',tbc:' Pending Acceptance'};
+  const sl = { confirmed:' Confirmed', contacted:' Contacted', prospect:' Prospect', declined:' Declined', 'pending-approval':' Prospect','pending-acceptance':' Contacted',tbd:' Prospect',tbc:' Contacted'};
   const rl = { usa:' USA', ca:' Canada', both:' Both' };
   let rows = `<div class="dir-row"><div class="dir-icon"></div><div class="dir-val">${sl[node.status]||node.status||'—'}</div></div>`;
   if (node.region) rows += `<div class="dir-row"><div class="dir-icon"></div><div class="dir-val">${rl[node.region]||node.region}</div></div>`;
@@ -2719,7 +2723,7 @@ function openEdit(id) {
   editingId = id;
   document.getElementById('editName').value   = n.name   || '';
   populateRoleSelect('edit', n.role || '');
-  document.getElementById('editStatus').value = n.status === 'tbd' || n.status === 'tbc' ? 'pending-approval' : (n.status || 'pending-approval');
+  document.getElementById('editStatus').value = (n.status === 'tbd' || n.status === 'pending-approval') ? 'prospect' : (n.status === 'tbc' || n.status === 'pending-acceptance') ? 'contacted' : (n.status || 'prospect');
   document.getElementById('editRegion').value = n.region || '';
   document.getElementById('editEmail').value  = n.email  || '';
   document.getElementById('editPhone').value  = n.phone  || '';
@@ -2787,7 +2791,7 @@ function openDir(id) {
   document.getElementById('dirName').textContent = n.name || 'TBD';
   document.getElementById('dirVenue').textContent = n.venue ? ' ' + n.venue : '';
 
-  const statusLabel = { confirmed: ' Confirmed', 'pending-approval': ' Pending Approval', 'pending-acceptance': ' Pending Acceptance', tbd: ' Pending Approval', tbc: ' Pending Acceptance' };
+  const statusLabel = { confirmed: ' Confirmed', contacted: ' Contacted', prospect: ' Prospect', declined: ' Declined', 'pending-approval': ' Prospect', 'pending-acceptance': ' Contacted', tbd: ' Prospect', tbc: ' Contacted' };
   const regionLabel = { usa: ' USA', ca: ' Canada', both: ' Both' };
 
   let rows = '';
@@ -2832,7 +2836,7 @@ function countNodes(node, depth) {
   walk(node, 0);
 
   allNodes.forEach(({ node: n }) => {
-    const isPending = ['tbd','tbc','pending-approval','pending-acceptance'].includes(n.status);
+    const isPending = ['tbd','tbc','pending-approval','pending-acceptance','prospect','contacted'].includes(n.status);
     if (!isPending && n.name && n.name.toLowerCase() !== 'tbd' && n.name.toLowerCase() !== 'tbc') people++;
     else if (isPending || !n.name || n.name.toLowerCase() === 'tbd') pending++;
     const hasKids = (n.children || []).length > 0 || (n.coLeads || []).length > 0;
@@ -2926,7 +2930,7 @@ function openAddChild(parentId, event) {
   const parent = findNode(parentId, window._orgData);
   document.getElementById('addName').value   = '';
   populateRoleSelect('add', '');
-  document.getElementById('addStatus').value = 'pending-approval';
+  document.getElementById('addStatus').value = 'prospect';
   document.getElementById('addRegion').value = 'usa';
   document.getElementById('addEmail').value  = '';
   document.getElementById('addPhone').value  = '';
@@ -3230,19 +3234,20 @@ function exportProspectsCSV() {
 //  INLINE STATUS DROPDOWN
 // ══════════════════════════════════════════════
 const STATUS_OPTIONS = [
-  { value: 'confirmed',          label: ' Confirmed' },
-  { value: 'pending-approval',   label: ' Pending Approval' },
-  { value: 'pending-acceptance', label: ' Pending Acceptance' },
-  { value: 'ontrack',            label: ' On Track' },
-  { value: 'atrisk',             label: ' At Risk' },
-  { value: 'behind',             label: ' Behind' },
+  { value: 'prospect',  label: ' Prospect' },
+  { value: 'contacted', label: ' Contacted' },
+  { value: 'confirmed', label: ' Confirmed' },
+  { value: 'declined',  label: ' Declined' },
+  { value: 'ontrack',   label: ' On Track' },
+  { value: 'atrisk',    label: ' At Risk' },
+  { value: 'behind',    label: ' Behind' },
 ];
 
 function buildStatusDrop(id, currentStatus) {
   const sep = '<div class="status-drop-sep"></div>';
   return STATUS_OPTIONS.map((opt, i) => {
     const active = opt.value === currentStatus ? ' active' : '';
-    const divider = i === 3 ? sep : '';
+    const divider = i === 4 ? sep : '';
     return `${divider}<div class="status-drop-item${active}" onclick="setNodeStatus('${id}','${opt.value}',event)">${opt.label}</div>`;
   }).join('');
 }
