@@ -321,6 +321,15 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .v-line { width: 2px; background: #7ab3d9; margin: 0 auto; }
 .h-line { height: 2px; background: #7ab3d9; }
 
+.reorder-zone { width: 12px; min-height: 60px; align-self: stretch; border-radius: 6px; transition: background 0.12s; }
+.reorder-zone.drag-over { background: rgba(45,106,159,0.3); }
+.node.org-node.dragging { opacity: 0.35; }
+.node.org-node.drop-target { outline: 3px solid #f5a623; outline-offset: 2px; }
+@keyframes searchPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(245,166,35,0.75); } 50% { box-shadow: 0 0 0 9px rgba(245,166,35,0); } }
+.search-pulse { animation: searchPulse 0.65s ease-in-out 3; }
+#orgSearchWrap { position: relative; display: inline-block; }
+#orgSearchResults { position:absolute; top:100%; left:0; background:white; border:1px solid #ddd; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,0.18); z-index:60; min-width:220px; max-height:260px; overflow-y:auto; display:none; margin-top:4px; }
+
 /* ── Edit modal ── */
 .overlay {
   display: none; position: fixed; inset: 0;
@@ -765,7 +774,12 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <select id="teamSwitcher" class="sync-status" onchange="applyTeamScope(this.value)" style="cursor:pointer;border:none;font-family:inherit"></select>
  <span class="sync-status" onclick="openManageTeams()" style="cursor:pointer"> Manage Teams</span>
  <span id="orgBtns" style="display:inline-flex;gap:8px;align-items:center">
+ <span id="orgSearchWrap">
+  <input type="text" id="orgSearchBox" placeholder=" Find a person…" oninput="orgSearchInput()" style="font-size:11px;padding:5px 8px;border-radius:6px;border:none;width:140px">
+  <div id="orgSearchResults"></div>
+ </span>
  <button class="btn btn-light" onclick="expandAll()">Expand All</button>
+ <button class="btn btn-light" onclick="collapseToTopLevel()">Collapse to Top</button>
  <button class="btn btn-light" onclick="collapseAll()">Collapse All</button>
  <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,0.12);border-radius:6px;padding:2px 6px">
    <button class="btn btn-light" onclick="zoomOut()" style="padding:3px 9px;font-size:16px;line-height:1;font-weight:700" title="Zoom out (Ctrl+Scroll)">−</button>
@@ -1987,15 +2001,40 @@ function regionBadge(r) {
 // ══════════════════════════════════════════════
 //  RENDER
 // ══════════════════════════════════════════════
-function renderNode(n) {
-  const has = n.children && n.children.length > 0;
-  const nameHtml = n.name.includes('/')
-    ? n.name.split('/').map(x => x.trim()).join('<br>&amp; ')
-    : n.name;
+// ══════════════════════════════════════════════
+//  RENDER (unified recursive engine — any node can have children,
+//  drag-and-drop reparent + reorder built in at every level)
+// ══════════════════════════════════════════════
+function orgStatusColor(s) {
+  if (s === 'confirmed') return '#28a745';
+  if (s === 'contacted' || s === 'pending-acceptance' || s === 'tbc') return '#f5a623';
+  if (s === 'declined')  return '#c0392b';
+  if (s === 'ontrack')   return '#2c7a5c';
+  if (s === 'atrisk')    return '#b7770d';
+  if (s === 'behind')    return '#c0392b';
+  return '#7ab3d9'; // prospect / pending-approval / tbd / default
+}
 
+function renderReorderZone(parentId, beforeId) {
+  return `<div class="reorder-zone" ondragover="onReorderDragOver(event,this)" ondragleave="onReorderDragLeave(event,this)" ondrop="onReorderDrop(event,'${parentId}','${beforeId||''}')"></div>`;
+}
+
+function renderOrgNode(n, opts) {
+  opts = opts || {};
+  const connectorHeight = opts.connectorHeight != null ? opts.connectorHeight : 16;
+  const dashedConnector = n.dashed ? 'border-left:2px dashed #7ab3d9;width:0;background:transparent' : '';
+  const has = n.children && n.children.length > 0;
+  const nameHtml = (n.name || 'TBD').includes('/')
+    ? n.name.split('/').map(x => x.trim()).join('<br>&amp; ')
+    : (n.name || 'TBD');
+  const addBtnClass = opts.dark ? 'add-child-btn-dark' : 'add-child-btn';
   return `
  <div style="display:flex;flex-direction:column;align-items:center">
- <div class="node node-${n.tier}" id="node-${n.id}" onclick="openDir('${n.id}')">
+ <div class="v-line" style="height:${connectorHeight}px;${dashedConnector}"></div>
+ <div class="node node-${n.tier} org-node" id="node-${n.id}" data-node-id="${n.id}"
+   draggable="true" ondragstart="onNodeDragStart(event,'${n.id}')" ondragover="onNodeDragOver(event,'${n.id}')"
+   ondragleave="onNodeDragLeave(event)" ondrop="onNodeDrop(event,'${n.id}')" ondragend="onNodeDragEnd(event)"
+   onclick="openDir('${n.id}')" style="position:relative;border-left-width:4px;border-left-style:solid;border-left-color:${orgStatusColor(n.status)}">
  <div class="node-role">${n.role}${n.venue ? '<br><span style="font-size:9px;opacity:0.85;font-style:italic"> ' + n.venue + '</span>' : ''}</div>
  <div class="node-name">${nameHtml}</div>
  <div class="node-badges">
@@ -2005,29 +2044,17 @@ function renderNode(n) {
  </div>
         ${regionBadge(n.region)}
  </div>
+      ${contactChips(n)}
       ${n.dashed ? '<div style="font-size:9px;opacity:0.65;margin-top:2px">- - dashed line - -</div>' : ''}
       ${has ? `<button class="toggle-btn" onclick="toggleNode(event,'${n.id}')">${n.expanded?'−':'+'}</button>` : ''}
  </div>
- <button class="add-child-btn" onclick="openAddChild('${n.id}',event)">+ Add Person</button>
+ <button class="${addBtnClass}" onclick="openAddChild('${n.id}',event)">+ Add Person</button>
     ${has ? `
  <div id="ch-${n.id}" ${n.expanded?'':'style="display:none"'}>
- <div class="v-line" style="height:20px"></div>
- <div style="display:flex;justify-content:center;align-items:flex-start">
-        ${n.children.map((c,i,arr) => {
-          const only = arr.length === 1;
-          const first = i === 0, last = i === arr.length-1;
-          return `
- <div style="display:flex;flex-direction:column;align-items:center">
- <div style="display:flex;align-items:flex-start;width:100%">
-              ${!only && !first ? '<div class="h-line" style="flex:1;align-self:flex-start;margin-top:0;height:2px"></div>' : (!only ? '<div style="flex:1"></div>' : '')}
- <div style="display:flex;flex-direction:column;align-items:center">
  <div class="v-line" style="height:16px"></div>
-                ${renderNode(c)}
- </div>
-              ${!only && !last ? '<div class="h-line" style="flex:1;align-self:flex-start;margin-top:0;height:2px"></div>' : (!only ? '<div style="flex:1"></div>' : '')}
- </div>
- </div>`;
-        }).join('')}
+ <div class="node-children-row" data-parent-id="${n.id}" style="display:flex;justify-content:center;align-items:flex-start;flex-wrap:wrap">
+        ${renderReorderZone(n.id, n.children[0] ? n.children[0].id : '')}
+        ${n.children.map((c,i) => renderOrgNode(c, {dark:true, connectorHeight:14}) + renderReorderZone(n.id, n.children[i+1] ? n.children[i+1].id : '')).join('')}
  </div>
  </div>` : ''}
  </div>`;
@@ -2037,61 +2064,16 @@ function renderNode(n) {
 //  CO-LEAD GROUP RENDERER (Site Logistics)
 // ══════════════════════════════════════════════
 function renderCoGroup(v) {
-  const hasChildren = v.children && v.children.length > 0;
   let h = `<div style="display:flex;flex-direction:column;align-items:center">`;
   h += `<div class="v-line" style="height:20px"></div>`;
   h += `<div style="font-size:9px;color:#2d6a9f;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:6px">${v.role} — Co-Leads</div>`;
-
-  // Two co-lead boxes joined by a horizontal connector
-  h += `<div style="display:flex;align-items:center">`;
+  h += `<div class="node-children-row" data-parent-id="${v.id}" style="display:flex;align-items:flex-start;gap:0">`;
+  h += renderReorderZone(v.id, (v.coLeads||[])[0] ? v.coLeads[0].id : '');
   (v.coLeads || []).forEach((cl, i) => {
-    if (i > 0) h += `<div class="h-line" style="width:22px"></div>`;
-    h += `
- <div class="node node-t2" id="node-${cl.id}" onclick="openEdit('${cl.id}')" style="min-height:90px">
- <div class="node-role">${cl.role}</div>
- <div class="node-name">${cl.name}</div>
- <div class="node-badges">
- <div class="node-status-wrap" onclick="event.stopPropagation();toggleStatusDrop('${cl.id}',event)">
-          ${orgStatusBadge(cl.status)}
- <div class="status-drop" id="sdrop-${cl.id}">${buildStatusDrop(cl.id,cl.status)}</div>
- </div>
-        ${regionBadge(cl.region)}
- </div>
-      ${contactChips(cl)}
- </div>`;
+    h += renderOrgNode(cl, {connectorHeight:0}) ;
+    h += renderReorderZone(v.id, (v.coLeads||[])[i+1] ? v.coLeads[i+1].id : '');
   });
-  h += `</div>`; // co-leads row
-
-  // Expand/collapse + children
-  if (hasChildren) {
-    h += `
- <button style="margin-top:6px;background:white;border:2px solid #2d6a9f;border-radius:50%;
-      width:20px;height:20px;font-size:12px;line-height:16px;cursor:pointer;text-align:center;
-      box-shadow:0 2px 4px rgba(0,0,0,0.15);color:#2d6a9f;font-weight:700;"
-      onclick="toggleNode(event,'${v.id}')">${v.expanded ? '−' : '+'}</button>
- <div id="ch-${v.id}" ${v.expanded ? '' : 'style="display:none"'}>
- <div class="v-line" style="height:14px"></div>
- <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;align-items:flex-start">
-        ${(v.children || []).map(c => `
- <div style="display:flex;flex-direction:column;align-items:center">
- <div class="v-line" style="height:14px"></div>
- <div class="node node-${c.tier}" id="node-${c.id}" onclick="openEdit('${c.id}')">
- <div class="node-role">${c.role}</div>
- <div class="node-name">${c.name}</div>
- <div class="node-badges">
- <div class="node-status-wrap" onclick="event.stopPropagation();toggleStatusDrop('${c.id}',event)">
-                ${orgStatusBadge(c.status)}
- <div class="status-drop" id="sdrop-${c.id}">${buildStatusDrop(c.id,c.status)}</div>
- </div>
-              ${regionBadge(c.region)}
- </div>
-            ${contactChips(c)}
- </div>
- </div>`).join('')}
- </div>
- </div>`;
-  }
-
+  h += `</div>`;
   h += `</div>`;
   return h;
 }
@@ -2103,10 +2085,12 @@ window._renderAll = function() {
 
   let html = `<div style="display:flex;flex-direction:column;align-items:center;min-width:1200px;padding-bottom:40px">`;
 
-  // Root
+  // Root (drop target so people can be moved to report directly to the top; not itself draggable)
   html += `
  <div style="display:flex;flex-direction:column;align-items:center">
- <div class="node node-t1" id="node-${root.id}" onclick="openDir('${root.id}')" style="position:relative">
+ <div class="node node-t1 org-node" id="node-${root.id}" data-node-id="${root.id}"
+   ondragover="onNodeDragOver(event,'${root.id}')" ondragleave="onNodeDragLeave(event)" ondrop="onNodeDrop(event,'${root.id}')"
+   onclick="openDir('${root.id}')" style="position:relative;border-left-width:4px;border-left-style:solid;border-left-color:${orgStatusColor(root.status)}">
  <div class="node-role">${root.role}</div>
  <div class="node-name" style="font-size:16px">${root.name}</div>
  <div class="node-badges">
@@ -2127,18 +2111,10 @@ window._renderAll = function() {
 
     // Support row
     html += `<div style="text-align:center;font-size:10px;color:#2d6a9f;font-weight:700;letter-spacing:1px;margin-bottom:4px;text-transform:uppercase">— Leadership Support —</div>`;
-    html += `<div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:4px">`;
-    support.forEach(c => {
-      html += `
- <div style="display:flex;flex-direction:column;align-items:center">
- <div class="v-line" style="height:16px;${c.dashed?'border-left:2px dashed #7ab3d9;width:0;background:transparent':''}"></div>
- <div class="node node-${c.tier}" id="node-${c.id}" onclick="openEdit('${c.id}')">
- <div class="node-role">${c.role}</div>
- <div class="node-name">${c.name}</div>
- <div class="node-badges">${orgStatusBadge(c.status)} ${regionBadge(c.region)}</div>
-          ${c.dashed ? '<div style="font-size:9px;opacity:0.65;margin-top:2px">- - dashed line - -</div>' : ''}
- </div>
- </div>`;
+    html += `<div class="node-children-row" data-parent-id="${root.id}" style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:4px;align-items:flex-start">`;
+    html += renderReorderZone(root.id, support[0] ? support[0].id : '');
+    support.forEach((c,i) => {
+      html += renderOrgNode(c, {connectorHeight:16}) + renderReorderZone(root.id, support[i+1] ? support[i+1].id : '');
     });
     html += `</div>`;
 
@@ -2146,50 +2122,18 @@ window._renderAll = function() {
     html += `<div class="v-line" style="height:16px"></div>`;
     html += `<div style="text-align:center;font-size:10px;color:#1a3a5c;font-weight:700;letter-spacing:1px;margin-bottom:0;text-transform:uppercase">— Tier 2 Verticals —</div>`;
     html += `<div class="h-line" style="width:100%;max-width:1100px;margin:0 auto"></div>`;
-    html += `<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;align-items:flex-start">`;
-
-    verticals.forEach(v => {
-      if (v.type === 'cogroup') { html += renderCoGroup(v); return; }
-      const hasV = v.children && v.children.length > 0;
-      const nameHtml = (v.name||'').includes('/') ? v.name.split('/').map(x=>x.trim()).join('<br>&amp; ') : (v.name||'');
-      html += `
- <div style="display:flex;flex-direction:column;align-items:center">
- <div class="v-line" style="height:20px"></div>
- <div class="node node-${v.tier}" id="node-${v.id}" onclick="openEdit('${v.id}')" style="position:relative">
- <div class="node-role">${v.role}</div>
- <div class="node-name">${nameHtml}</div>
- <div class="node-badges">${orgStatusBadge(v.status)} ${regionBadge(v.region)}</div>
-          ${contactChips(v)}
-          ${hasV ? `<button class="toggle-btn" onclick="toggleNode(event,'${v.id}')">${v.expanded?'−':'+'}</button>` : ''}
- </div>
- <button class="add-child-btn" onclick="openAddChild('${v.id}',event)">+ Add Person</button>
-        ${hasV ? `
- <div id="ch-${v.id}" ${v.expanded?'':'style="display:none"'}>
- <div class="v-line" style="height:20px"></div>
- <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-            ${v.children.map(c => `
- <div style="display:flex;flex-direction:column;align-items:center">
- <div class="v-line" style="height:14px"></div>
- <div class="node node-${c.tier}" id="node-${c.id}" onclick="openEdit('${c.id}')">
- <div class="node-role">${c.role}</div>
- <div class="node-name">${c.name}</div>
- <div class="node-badges">${orgStatusBadge(c.status)} ${regionBadge(c.region)}</div>
-                ${contactChips(c)}
- </div>
- <button class="add-child-btn-dark" onclick="openAddChild('${c.id}',event)">+ Add Person</button>
- </div>`).join('')}
- </div>
- </div>` : ''}
- </div>`;
+    html += `<div class="node-children-row" data-parent-id="${root.id}" style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;align-items:flex-start">`;
+    html += renderReorderZone(root.id, verticals[0] ? verticals[0].id : '');
+    verticals.forEach((v,i) => {
+      if (v.type === 'cogroup') { html += renderCoGroup(v); }
+      else { html += renderOrgNode(v, {connectorHeight:20}); }
+      html += renderReorderZone(root.id, verticals[i+1] ? verticals[i+1].id : '');
     });
-
     html += `</div>`; // verticals row
     html += `</div>`; // ch-root
   }
 
   html += `</div>`; // root col
-
-
   html += `</div>`;
   document.getElementById('canvasInner').innerHTML = html;
   updateStats();
@@ -2211,6 +2155,143 @@ function toggleNode(e, id) {
 
 function expandAll()  { setAll(window._orgData, true);  window._renderAll(); }
 function collapseAll(){ setAll(window._orgData, false); window._renderAll(); }
+function collapseToTopLevel() {
+  function walk(n, depth) {
+    n.expanded = depth < 1;
+    (n.children || []).forEach(c => walk(c, depth + 1));
+    (n.coLeads  || []).forEach(c => { c.expanded = false; });
+  }
+  walk(window._orgData, 0);
+  window._renderAll();
+}
+window.collapseToTopLevel = collapseToTopLevel;
+
+// ── Drag-and-drop: reparent + reorder ──
+let _dragNodeId = null;
+
+function isDescendantOf(ancestorId, nodeId) {
+  if (ancestorId === nodeId) return true;
+  const anc = findNode(ancestorId, window._orgData);
+  if (!anc) return false;
+  return getDescendantIds(anc).has(nodeId);
+}
+
+function onNodeDragStart(e, id) {
+  _dragNodeId = id;
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', id); } catch (err) {}
+  const el = document.getElementById('node-' + id);
+  if (el) el.classList.add('dragging');
+}
+function onNodeDragOver(e, targetId) {
+  if (!_dragNodeId || _dragNodeId === targetId) return;
+  if (isDescendantOf(_dragNodeId, targetId)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const el = document.getElementById('node-' + targetId);
+  if (el) el.classList.add('drop-target');
+}
+function onNodeDragLeave(e) {
+  if (e.currentTarget) e.currentTarget.classList.remove('drop-target');
+}
+function onNodeDrop(e, targetId) {
+  e.preventDefault();
+  e.stopPropagation();
+  const el = document.getElementById('node-' + targetId);
+  if (el) el.classList.remove('drop-target');
+  if (!_dragNodeId || _dragNodeId === targetId) { _dragNodeId = null; return; }
+  if (isDescendantOf(_dragNodeId, targetId)) { alert("Can't move someone under their own report."); _dragNodeId = null; return; }
+  const dragged   = findNode(_dragNodeId, window._orgData);
+  const newParent = findNode(targetId, window._orgData);
+  if (!dragged || !newParent) { _dragNodeId = null; return; }
+  removeFromTree(_dragNodeId, window._orgData);
+  if (!newParent.children) newParent.children = [];
+  newParent.children.push(dragged);
+  newParent.expanded = true;
+  maybeConvertToCoLeads(newParent, dragged);
+  saveToCloud();
+  window._renderAll();
+  _dragNodeId = null;
+}
+function onNodeDragEnd() {
+  document.querySelectorAll('.node.dragging').forEach(el => el.classList.remove('dragging'));
+  document.querySelectorAll('.node.drop-target').forEach(el => el.classList.remove('drop-target'));
+  document.querySelectorAll('.reorder-zone.drag-over').forEach(el => el.classList.remove('drag-over'));
+  _dragNodeId = null;
+}
+function onReorderDragOver(e, el) {
+  if (!_dragNodeId) return;
+  e.preventDefault();
+  e.stopPropagation();
+  el.classList.add('drag-over');
+}
+function onReorderDragLeave(e, el) { el.classList.remove('drag-over'); }
+function onReorderDrop(e, parentId, beforeId) {
+  e.preventDefault();
+  e.stopPropagation();
+  document.querySelectorAll('.reorder-zone.drag-over').forEach(el => el.classList.remove('drag-over'));
+  if (!_dragNodeId) { return; }
+  if (_dragNodeId === parentId || _dragNodeId === beforeId) { _dragNodeId = null; return; }
+  if (isDescendantOf(_dragNodeId, parentId)) { alert("Can't move someone under their own report."); _dragNodeId = null; return; }
+  const parent  = findNode(parentId, window._orgData);
+  const dragged = findNode(_dragNodeId, window._orgData);
+  if (!parent || !dragged) { _dragNodeId = null; return; }
+  const isCoLeadParent = parent.type === 'cogroup';
+  removeFromTree(_dragNodeId, window._orgData);
+  const arr = isCoLeadParent ? (parent.coLeads = parent.coLeads || []) : (parent.children = parent.children || []);
+  let insertAt = arr.length;
+  if (beforeId) {
+    const idx = arr.findIndex(c => c.id === beforeId);
+    if (idx >= 0) insertAt = idx;
+  }
+  arr.splice(insertAt, 0, dragged);
+  parent.expanded = true;
+  if (!isCoLeadParent) maybeConvertToCoLeads(parent, dragged);
+  saveToCloud();
+  window._renderAll();
+  _dragNodeId = null;
+}
+window.onNodeDragStart = onNodeDragStart; window.onNodeDragOver = onNodeDragOver;
+window.onNodeDragLeave = onNodeDragLeave; window.onNodeDrop = onNodeDrop; window.onNodeDragEnd = onNodeDragEnd;
+window.onReorderDragOver = onReorderDragOver; window.onReorderDragLeave = onReorderDragLeave; window.onReorderDrop = onReorderDrop;
+
+// ── Search-to-focus ──
+function orgSearchInput() {
+  const q = document.getElementById('orgSearchBox').value.trim().toLowerCase();
+  const box = document.getElementById('orgSearchResults');
+  if (!q) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  const all = getAllFlatNodes().filter(n => n.name && n.name.toLowerCase() !== 'tbd' && n.name.toLowerCase().includes(q));
+  if (!all.length) {
+    box.innerHTML = '<div style="padding:8px 10px;color:#999;font-size:12px">No matches</div>';
+  } else {
+    box.innerHTML = all.slice(0, 8).map(n =>
+      `<div style="padding:7px 10px;cursor:pointer;font-size:12px;border-bottom:1px solid #f0f4f8" onmouseover="this.style.background='#f5f8fc'" onmouseout="this.style.background=''" onclick="focusOrgNode('${n.id}')">${n.name} <span style="color:#888">— ${n.role}</span></div>`
+    ).join('');
+  }
+  box.style.display = 'block';
+}
+function focusOrgNode(id) {
+  let cur = id;
+  let parent = findParentNode(cur, window._orgData);
+  while (parent) { parent.expanded = true; cur = parent.id; parent = findParentNode(cur, window._orgData); }
+  window._orgData.expanded = true;
+  window._renderAll();
+  const box = document.getElementById('orgSearchResults');
+  if (box) box.style.display = 'none';
+  const input = document.getElementById('orgSearchBox');
+  if (input) input.value = '';
+  setTimeout(() => {
+    const el = document.getElementById('node-' + id);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+      el.classList.add('search-pulse');
+      setTimeout(() => el.classList.remove('search-pulse'), 1900);
+    }
+  }, 80);
+}
+window.orgSearchInput = orgSearchInput;
+window.focusOrgNode = focusOrgNode;
+
 
 // ── Stat tile click — opens inline people directory panel ──
 let _orgDirMode = null;
