@@ -1724,6 +1724,12 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <option value="">— Keep current position —</option>
  </select>
  </div>
+ <div class="form-group" id="editSupportWrap" style="display:none">
+ <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400">
+ <input type="checkbox" id="editSupportToggle" style="width:16px;height:16px;margin:0">
+ Leadership Support (shows in the Leadership Support row instead of Tier 2 Verticals)
+ </label>
+ </div>
  <div class="modal-actions" style="justify-content:space-between">
  <button class="btn btn-danger" id="deleteBtn" onclick="deleteNode(editingId)">Delete</button>
  <div style="display:flex;gap:8px">
@@ -1793,6 +1799,12 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <input type="text" id="addCityState" placeholder="e.g. Dallas, TX">
  </div>
  <div id="addParentInfo" style="font-size:12px;color:#666;background:#f5f7fa;padding:8px 12px;border-radius:6px;margin-bottom:12px"></div>
+ <div class="form-group" id="addSupportWrap" style="display:none">
+ <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400">
+ <input type="checkbox" id="addSupportToggle" style="width:16px;height:16px;margin:0">
+ Leadership Support (shows in the Leadership Support row instead of Tier 2 Verticals)
+ </label>
+ </div>
  <div class="modal-actions">
  <button class="btn btn-cancel" onclick="closeAdd()">Cancel</button>
  <button class="btn btn-primary" onclick="saveNewNode()">Add to Org Chart</button>
@@ -2840,6 +2852,11 @@ function openEdit(id) {
   }
   // Hide delete btn for root
   document.getElementById('deleteBtn').style.display = id === window._orgData.id ? 'none' : '';
+  // Leadership Support toggle — only relevant for direct reports of the root
+  const curParent = findParentNode(id, window._orgData);
+  const isRootChildNow = !!(curParent && curParent.id === window._orgData.id);
+  document.getElementById('editSupportWrap').style.display = isRootChildNow ? '' : 'none';
+  document.getElementById('editSupportToggle').checked = (n.tier === 'pmo' || n.tier === 'deputy');
   document.getElementById('overlay').classList.add('active');
 }
 
@@ -2994,6 +3011,16 @@ function saveEdit() {
   const editParentNode = (newParentId && newParentId !== '') ? findNode(newParentId, window._orgData) : findParentNode(editingId, window._orgData);
   maybeConvertToCoLeads(editParentNode, n);
 
+  // Leadership Support tier — only applies to direct reports of the root
+  if (editParentNode && editParentNode.id === window._orgData.id) {
+    const wantSupport = document.getElementById('editSupportToggle').checked;
+    if (wantSupport) {
+      n.tier = (n.tier === 'pmo') ? 'pmo' : 'deputy';
+    } else if (n.tier === 'pmo' || n.tier === 'deputy') {
+      n.tier = (n.name && n.name.toLowerCase() !== 'tbd') ? 't2' : 't2-tbd';
+    }
+  }
+
   closeEdit();
   saveToCloud();
   window._renderAll();
@@ -3019,6 +3046,9 @@ function openAddChild(parentId, event) {
   document.getElementById('addCityState').value = '';
   const info = document.getElementById('addParentInfo');
   if (parent) info.textContent = ' Reports to: ' + (parent.name || 'TBD') + ' — ' + parent.role;
+  const isRootChildAdd = parentId === window._orgData.id;
+  document.getElementById('addSupportWrap').style.display = isRootChildAdd ? '' : 'none';
+  document.getElementById('addSupportToggle').checked = false;
   document.getElementById('addOverlay').classList.add('active');
   setTimeout(() => document.getElementById('addRole').focus(), 100);
 }
@@ -3039,7 +3069,11 @@ function saveNewNode() {
 
   // Determine tier
   const depth = getNodeDepth(addingParentId);
-  const tier  = (name && status === 'confirmed') ? (depth >= 1 ? 't3' : 't2') : (depth >= 1 ? 't3-tbd' : 't2-tbd');
+  let tier  = (name && status === 'confirmed') ? (depth >= 1 ? 't3' : 't2') : (depth >= 1 ? 't3-tbd' : 't2-tbd');
+  const addSupportEl = document.getElementById('addSupportToggle');
+  if (addingParentId === window._orgData.id && addSupportEl && addSupportEl.checked) {
+    tier = 'deputy';
+  }
 
   const newNode = {
     id:       'n' + Date.now(),
