@@ -318,13 +318,15 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 }
 .toggle-btn:hover { background: #2d6a9f; color: white; }
 
-.v-line { width: 2px; background: #7ab3d9; margin: 0 auto; }
-.h-line { height: 2px; background: #7ab3d9; }
+.v-line { width: 2px; background: #a9c8e0; margin: 0 auto; }
+.h-line { height: 2px; background: #a9c8e0; border-radius: 1px; }
 
-.reorder-zone { width: 12px; min-height: 60px; align-self: stretch; border-radius: 6px; transition: background 0.12s; }
-.reorder-zone.drag-over { background: rgba(45,106,159,0.3); }
+.node-col { display: flex; flex-direction: column; align-items: center; }
+.org-node { touch-action: none; }
 .node.org-node.dragging { opacity: 0.35; }
 .node.org-node.drop-target { outline: 3px solid #f5a623; outline-offset: 2px; }
+.drag-ghost { pointer-events: none; z-index: 9999; opacity: 0.92; transform: rotate(1.5deg) scale(1.03); box-shadow: 0 10px 26px rgba(0,0,0,0.35) !important; }
+#dragInsertLine { position: fixed; width: 4px; background: #f5a623; border-radius: 2px; z-index: 9998; display: none; box-shadow: 0 0 0 3px rgba(245,166,35,0.22); pointer-events: none; }
 @keyframes searchPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(245,166,35,0.75); } 50% { box-shadow: 0 0 0 9px rgba(245,166,35,0); } }
 .search-pulse { animation: searchPulse 0.65s ease-in-out 3; }
 #orgSearchWrap { position: relative; display: inline-block; }
@@ -1799,6 +1801,28 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <input type="text" id="addCityState" placeholder="e.g. Dallas, TX">
  </div>
  <div id="addParentInfo" style="font-size:12px;color:#666;background:#f5f7fa;padding:8px 12px;border-radius:6px;margin-bottom:12px"></div>
+ <div class="form-group" id="addColeadWrap">
+ <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400">
+ <input type="checkbox" id="addColeadToggle" onchange="toggleAddColeadFields()" style="width:16px;height:16px;margin:0">
+ Co-led by two people (shared role instead of one person)
+ </label>
+ <div id="addColeadFields" style="display:none;margin-top:8px;padding:10px;background:#f5f7fa;border-radius:6px">
+ <label style="font-size:11px;color:#666;display:block;margin-bottom:4px">Second person</label>
+ <input type="text" id="addColeadName" placeholder="Full name or leave blank for TBD" style="width:100%;padding:6px 9px;border:1px solid #ddd;border-radius:6px;font-size:12px;margin-bottom:6px;box-sizing:border-box">
+ <select id="addColeadStatus" style="width:100%;padding:6px 9px;border:1px solid #ddd;border-radius:6px;font-size:12px;margin-bottom:6px;box-sizing:border-box">
+ <option value="prospect" selected>Prospect</option>
+ <option value="contacted">Contacted</option>
+ <option value="confirmed">Confirmed</option>
+ <option value="declined">Declined</option>
+ </select>
+ <select id="addColeadRegion" style="width:100%;padding:6px 9px;border:1px solid #ddd;border-radius:6px;font-size:12px;box-sizing:border-box">
+ <option value="usa">USA</option>
+ <option value="ca">Canada</option>
+ <option value="both">Both</option>
+ <option value="">None</option>
+ </select>
+ </div>
+ </div>
  <div class="form-group" id="addSupportWrap" style="display:none">
  <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400">
  <input type="checkbox" id="addSupportToggle" style="width:16px;height:16px;margin:0">
@@ -2027,8 +2051,17 @@ function orgStatusColor(s) {
   return '#7ab3d9'; // prospect / pending-approval / tbd / default
 }
 
-function renderReorderZone(parentId, beforeId) {
-  return `<div class="reorder-zone" ondragover="onReorderDragOver(event,this)" ondragleave="onReorderDragLeave(event,this)" ondrop="onReorderDrop(event,'${parentId}','${beforeId||''}')"></div>`;
+// A children row: shared horizontal bus line above (when 2+ items) + each item's own short stub.
+function renderChildrenRow(parentId, slot, itemsHtml, itemCount, opts) {
+  opts = opts || {};
+  const maxW = opts.maxWidth || 900;
+  const gap  = opts.gap != null ? opts.gap : 10;
+  let h = `<div class="v-line" style="height:${opts.connectorHeight != null ? opts.connectorHeight : 16}px"></div>`;
+  if (itemCount > 1) h += `<div class="h-line" style="width:100%;max-width:${maxW}px;margin:0 auto"></div>`;
+  h += `<div class="node-children-row" data-parent-id="${parentId}" data-slot="${slot}" style="display:flex;gap:${gap}px;justify-content:center;flex-wrap:wrap;align-items:flex-start${opts.marginBottom ? ';margin-bottom:' + opts.marginBottom + 'px' : ''}">`;
+  h += itemsHtml;
+  h += `</div>`;
+  return h;
 }
 
 function renderOrgNode(n, opts) {
@@ -2041,11 +2074,10 @@ function renderOrgNode(n, opts) {
     : (n.name || 'TBD');
   const addBtnClass = opts.dark ? 'add-child-btn-dark' : 'add-child-btn';
   return `
- <div style="display:flex;flex-direction:column;align-items:center">
+ <div class="node-col">
  <div class="v-line" style="height:${connectorHeight}px;${dashedConnector}"></div>
  <div class="node node-${n.tier} org-node" id="node-${n.id}" data-node-id="${n.id}"
-   draggable="true" ondragstart="onNodeDragStart(event,'${n.id}')" ondragover="onNodeDragOver(event,'${n.id}')"
-   ondragleave="onNodeDragLeave(event)" ondrop="onNodeDrop(event,'${n.id}')" ondragend="onNodeDragEnd(event)"
+   onpointerdown="onCardPointerDown(event,'${n.id}')"
    onclick="openDir('${n.id}')" style="position:relative;border-left-width:4px;border-left-style:solid;border-left-color:${orgStatusColor(n.status)}">
  <div class="node-role">${n.role}${n.venue ? '<br><span style="font-size:9px;opacity:0.85;font-style:italic"> ' + n.venue + '</span>' : ''}</div>
  <div class="node-name">${nameHtml}</div>
@@ -2063,29 +2095,28 @@ function renderOrgNode(n, opts) {
  <button class="${addBtnClass}" onclick="openAddChild('${n.id}',event)">+ Add Person</button>
     ${has ? `
  <div id="ch-${n.id}" ${n.expanded?'':'style="display:none"'}>
- <div class="v-line" style="height:16px"></div>
- <div class="node-children-row" data-parent-id="${n.id}" style="display:flex;justify-content:center;align-items:flex-start;flex-wrap:wrap">
-        ${renderReorderZone(n.id, n.children[0] ? n.children[0].id : '')}
-        ${n.children.map((c,i) => renderOrgNode(c, {dark:true, connectorHeight:14}) + renderReorderZone(n.id, n.children[i+1] ? n.children[i+1].id : '')).join('')}
- </div>
+    ${renderChildrenRow(n.id, 'children', n.children.map(c => renderOrgNode(c, {dark:true, connectorHeight:14})).join(''), n.children.length, {connectorHeight:16})}
  </div>` : ''}
  </div>`;
 }
 
 // ══════════════════════════════════════════════
-//  CO-LEAD GROUP RENDERER (Site Logistics)
+//  CO-LEAD GROUP RENDERER (two peers sharing one role, e.g. Site Logistics)
 // ══════════════════════════════════════════════
 function renderCoGroup(v) {
-  let h = `<div style="display:flex;flex-direction:column;align-items:center">`;
+  const has = v.children && v.children.length > 0;
+  let h = `<div class="node-col">`;
   h += `<div class="v-line" style="height:20px"></div>`;
   h += `<div style="font-size:9px;color:#2d6a9f;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:6px">${v.role} — Co-Leads</div>`;
-  h += `<div class="node-children-row" data-parent-id="${v.id}" style="display:flex;align-items:flex-start;gap:0">`;
-  h += renderReorderZone(v.id, (v.coLeads||[])[0] ? v.coLeads[0].id : '');
-  (v.coLeads || []).forEach((cl, i) => {
-    h += renderOrgNode(cl, {connectorHeight:0}) ;
-    h += renderReorderZone(v.id, (v.coLeads||[])[i+1] ? v.coLeads[i+1].id : '');
-  });
+  h += `<div class="node-children-row" data-parent-id="${v.id}" data-slot="colead" style="display:flex;align-items:flex-start;gap:10px">`;
+  h += (v.coLeads || []).map(cl => renderOrgNode(cl, {connectorHeight:0})).join('');
   h += `</div>`;
+  h += `<button class="add-child-btn" style="width:auto;margin-top:4px;font-size:10px" onclick="openAddChild('${v.id}',event)">+ Add Person</button>`;
+  if (has) {
+    h += `<div id="ch-${v.id}" ${v.expanded === false ? 'style="display:none"' : ''}>`;
+    h += renderChildrenRow(v.id, 'children', v.children.map(c => renderOrgNode(c, {dark:true, connectorHeight:14})).join(''), v.children.length, {connectorHeight:16});
+    h += `</div>`;
+  }
   h += `</div>`;
   return h;
 }
@@ -2099,9 +2130,8 @@ window._renderAll = function() {
 
   // Root (drop target so people can be moved to report directly to the top; not itself draggable)
   html += `
- <div style="display:flex;flex-direction:column;align-items:center">
+ <div class="node-col">
  <div class="node node-t1 org-node" id="node-${root.id}" data-node-id="${root.id}"
-   ondragover="onNodeDragOver(event,'${root.id}')" ondragleave="onNodeDragLeave(event)" ondrop="onNodeDrop(event,'${root.id}')"
    onclick="openDir('${root.id}')" style="position:relative;border-left-width:4px;border-left-style:solid;border-left-color:${orgStatusColor(root.status)}">
  <div class="node-role">${root.role}</div>
  <div class="node-name" style="font-size:16px">${root.name}</div>
@@ -2114,7 +2144,9 @@ window._renderAll = function() {
  </div>
  <button class="toggle-btn" onclick="toggleNode(event,'${root.id}')">${root.expanded?'−':'+'}</button>
  </div>
- <button class="add-child-btn" style="width:auto;margin-top:4px;font-size:10px" onclick="openAddChild('${root.id}',event)">+ Add Person</button>
+ <div style="display:flex;gap:6px;margin-top:4px">
+ <button class="add-child-btn" style="width:auto;font-size:10px" onclick="openAddChild('${root.id}',event)">+ Add Person</button>
+ </div>
     `;
 
   if (root.expanded) {
@@ -2123,25 +2155,13 @@ window._renderAll = function() {
 
     // Support row
     html += `<div style="text-align:center;font-size:10px;color:#2d6a9f;font-weight:700;letter-spacing:1px;margin-bottom:4px;text-transform:uppercase">— Leadership Support —</div>`;
-    html += `<div class="node-children-row" data-parent-id="${root.id}" style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:4px;align-items:flex-start">`;
-    html += renderReorderZone(root.id, support[0] ? support[0].id : '');
-    support.forEach((c,i) => {
-      html += renderOrgNode(c, {connectorHeight:16}) + renderReorderZone(root.id, support[i+1] ? support[i+1].id : '');
-    });
-    html += `</div>`;
+    html += renderChildrenRow(root.id, 'children', support.map(c => renderOrgNode(c, {connectorHeight:16})).join(''), support.length, {connectorHeight:0, maxWidth:900, gap:14, marginBottom:4});
 
     // Connector to T2
     html += `<div class="v-line" style="height:16px"></div>`;
     html += `<div style="text-align:center;font-size:10px;color:#1a3a5c;font-weight:700;letter-spacing:1px;margin-bottom:0;text-transform:uppercase">— Tier 2 Verticals —</div>`;
-    html += `<div class="h-line" style="width:100%;max-width:1100px;margin:0 auto"></div>`;
-    html += `<div class="node-children-row" data-parent-id="${root.id}" style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;align-items:flex-start">`;
-    html += renderReorderZone(root.id, verticals[0] ? verticals[0].id : '');
-    verticals.forEach((v,i) => {
-      if (v.type === 'cogroup') { html += renderCoGroup(v); }
-      else { html += renderOrgNode(v, {connectorHeight:20}); }
-      html += renderReorderZone(root.id, verticals[i+1] ? verticals[i+1].id : '');
-    });
-    html += `</div>`; // verticals row
+    const verticalsHtml = verticals.map(v => v.type === 'cogroup' ? renderCoGroup(v) : renderOrgNode(v, {connectorHeight:20})).join('');
+    html += renderChildrenRow(root.id, 'children', verticalsHtml, verticals.length, {connectorHeight:0, maxWidth:1100, gap:10});
     html += `</div>`; // ch-root
   }
 
@@ -2178,8 +2198,8 @@ function collapseToTopLevel() {
 }
 window.collapseToTopLevel = collapseToTopLevel;
 
-// ── Drag-and-drop: reparent + reorder ──
-let _dragNodeId = null;
+// ── Drag-and-drop: reparent + reorder (Pointer Events — works with mouse, touch, and pen) ──
+let _ptr = null;
 
 function isDescendantOf(ancestorId, nodeId) {
   if (ancestorId === nodeId) return true;
@@ -2188,69 +2208,162 @@ function isDescendantOf(ancestorId, nodeId) {
   return getDescendantIds(anc).has(nodeId);
 }
 
-function onNodeDragStart(e, id) {
-  _dragNodeId = id;
-  e.dataTransfer.effectAllowed = 'move';
-  try { e.dataTransfer.setData('text/plain', id); } catch (err) {}
-  const el = document.getElementById('node-' + id);
-  if (el) el.classList.add('dragging');
+function onCardPointerDown(e, id) {
+  if (id === window._orgData.id) return; // root isn't draggable
+  if (e.target.closest('button, input, select, textarea, a, .status-drop')) return;
+  const card = document.getElementById('node-' + id);
+  if (!card) return;
+  _ptr = { id, startX: e.clientX, startY: e.clientY, dragging: false, card, pointerId: e.pointerId };
+  try { card.setPointerCapture(e.pointerId); } catch (err) {}
+  card.addEventListener('pointermove', _onPtrMove);
+  card.addEventListener('pointerup', _onPtrUp);
+  card.addEventListener('pointercancel', _onPtrUp);
 }
-function onNodeDragOver(e, targetId) {
-  if (!_dragNodeId || _dragNodeId === targetId) return;
-  if (isDescendantOf(_dragNodeId, targetId)) return;
+
+function _startDragVisual() {
+  _ptr.dragging = true;
+  _ptr.card.classList.add('dragging');
+  const rect = _ptr.card.getBoundingClientRect();
+  const ghost = _ptr.card.cloneNode(true);
+  ghost.removeAttribute('id');
+  ghost.className = _ptr.card.className + ' drag-ghost';
+  ghost.style.position = 'fixed';
+  ghost.style.left = rect.left + 'px';
+  ghost.style.top = rect.top + 'px';
+  ghost.style.width = rect.width + 'px';
+  ghost.style.margin = '0';
+  document.body.appendChild(ghost);
+  _ptr.ghost = ghost;
+  _ptr.offX = _ptr.startX - rect.left;
+  _ptr.offY = _ptr.startY - rect.top;
+  let line = document.getElementById('dragInsertLine');
+  if (!line) {
+    line = document.createElement('div');
+    line.id = 'dragInsertLine';
+    document.body.appendChild(line);
+  }
+  line.style.display = 'none';
+  _ptr.insertLine = line;
+}
+
+function computeReorderTarget(rowEl, clientX, clientY) {
+  const parentId = rowEl.dataset.parentId;
+  const slot = rowEl.dataset.slot || 'children';
+  const cols = Array.from(rowEl.querySelectorAll(':scope > .node-col'));
+  const cards = cols.map(col => {
+    const cardEl = col.querySelector(':scope > .org-node');
+    return cardEl ? { id: cardEl.dataset.nodeId, rect: cardEl.getBoundingClientRect() } : null;
+  }).filter(c => c && c.id && c.id !== _ptr.id);
+  if (!cards.length) {
+    const rowRect = rowEl.getBoundingClientRect();
+    return { parentId, slot, beforeId: '', anchorRect: rowRect, isBefore: true };
+  }
+  let nearest = null, nearestDist = Infinity, nearestIdx = -1;
+  cards.forEach((c, i) => {
+    const cx = c.rect.left + c.rect.width / 2, cy = c.rect.top + c.rect.height / 2;
+    const d = Math.hypot(clientX - cx, clientY - cy);
+    if (d < nearestDist) { nearestDist = d; nearest = c; nearestIdx = i; }
+  });
+  const isBefore = clientX < (nearest.rect.left + nearest.rect.width / 2);
+  const beforeId = isBefore ? nearest.id : (cards[nearestIdx + 1] ? cards[nearestIdx + 1].id : '');
+  return { parentId, slot, beforeId, anchorRect: nearest.rect, isBefore };
+}
+
+function positionInsertLine(target) {
+  const line = _ptr.insertLine;
+  const r = target.anchorRect;
+  const x = target.isBefore ? r.left - 6 : r.right + 4;
+  line.style.left = x + 'px';
+  line.style.top = r.top + 'px';
+  line.style.height = r.height + 'px';
+  line.style.display = 'block';
+}
+
+function _onPtrMove(e) {
+  if (!_ptr) return;
+  const dx = e.clientX - _ptr.startX, dy = e.clientY - _ptr.startY;
+  if (!_ptr.dragging) {
+    if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+    _startDragVisual();
+  }
   e.preventDefault();
-  e.stopPropagation();
-  const el = document.getElementById('node-' + targetId);
-  if (el) el.classList.add('drop-target');
+  _ptr.ghost.style.left = (e.clientX - _ptr.offX) + 'px';
+  _ptr.ghost.style.top  = (e.clientY - _ptr.offY) + 'px';
+
+  document.querySelectorAll('.node.org-node.drop-target').forEach(el => el.classList.remove('drop-target'));
+  _ptr.reparentTarget = null;
+  _ptr.reorderTarget = null;
+  _ptr.insertLine.style.display = 'none';
+
+  _ptr.ghost.style.display = 'none';
+  const elAt = document.elementFromPoint(e.clientX, e.clientY);
+  _ptr.ghost.style.display = '';
+  if (!elAt) return;
+
+  const cardEl = elAt.closest('.node.org-node');
+  if (cardEl && cardEl.dataset.nodeId && cardEl.dataset.nodeId !== _ptr.id && !isDescendantOf(_ptr.id, cardEl.dataset.nodeId)) {
+    cardEl.classList.add('drop-target');
+    _ptr.reparentTarget = cardEl.dataset.nodeId;
+    return;
+  }
+
+  const rowEl = elAt.closest('.node-children-row');
+  if (rowEl && !isDescendantOf(_ptr.id, rowEl.dataset.parentId)) {
+    const target = computeReorderTarget(rowEl, e.clientX, e.clientY);
+    _ptr.reorderTarget = target;
+    positionInsertLine(target);
+  }
 }
-function onNodeDragLeave(e) {
-  if (e.currentTarget) e.currentTarget.classList.remove('drop-target');
+
+function _onPtrUp(e) {
+  if (!_ptr) return;
+  _ptr.card.removeEventListener('pointermove', _onPtrMove);
+  _ptr.card.removeEventListener('pointerup', _onPtrUp);
+  _ptr.card.removeEventListener('pointercancel', _onPtrUp);
+  try { _ptr.card.releasePointerCapture(_ptr.pointerId); } catch (err) {}
+  _ptr.card.classList.remove('dragging');
+  if (_ptr.ghost) _ptr.ghost.remove();
+  if (_ptr.insertLine) _ptr.insertLine.style.display = 'none';
+  document.querySelectorAll('.node.org-node.drop-target').forEach(el => el.classList.remove('drop-target'));
+
+  const wasDragging = _ptr.dragging;
+  const dragId = _ptr.id;
+  const reparentTarget = _ptr.reparentTarget;
+  const reorderTarget = _ptr.reorderTarget;
+  _ptr = null;
+
+  if (!wasDragging) return;
+  if (reparentTarget) {
+    performReparent(dragId, reparentTarget);
+  } else if (reorderTarget) {
+    performReorder(dragId, reorderTarget.parentId, reorderTarget.beforeId, reorderTarget.slot);
+  }
 }
-function onNodeDrop(e, targetId) {
-  e.preventDefault();
-  e.stopPropagation();
-  const el = document.getElementById('node-' + targetId);
-  if (el) el.classList.remove('drop-target');
-  if (!_dragNodeId || _dragNodeId === targetId) { _dragNodeId = null; return; }
-  if (isDescendantOf(_dragNodeId, targetId)) { alert("Can't move someone under their own report."); _dragNodeId = null; return; }
-  const dragged   = findNode(_dragNodeId, window._orgData);
+
+function performReparent(dragId, targetId) {
+  if (!dragId || dragId === targetId) return;
+  if (isDescendantOf(dragId, targetId)) { alert("Can't move someone under their own report."); return; }
+  const dragged   = findNode(dragId, window._orgData);
   const newParent = findNode(targetId, window._orgData);
-  if (!dragged || !newParent) { _dragNodeId = null; return; }
-  removeFromTree(_dragNodeId, window._orgData);
+  if (!dragged || !newParent) return;
+  removeFromTree(dragId, window._orgData);
   if (!newParent.children) newParent.children = [];
   newParent.children.push(dragged);
   newParent.expanded = true;
   maybeConvertToCoLeads(newParent, dragged);
   saveToCloud();
   window._renderAll();
-  _dragNodeId = null;
 }
-function onNodeDragEnd() {
-  document.querySelectorAll('.node.dragging').forEach(el => el.classList.remove('dragging'));
-  document.querySelectorAll('.node.drop-target').forEach(el => el.classList.remove('drop-target'));
-  document.querySelectorAll('.reorder-zone.drag-over').forEach(el => el.classList.remove('drag-over'));
-  _dragNodeId = null;
-}
-function onReorderDragOver(e, el) {
-  if (!_dragNodeId) return;
-  e.preventDefault();
-  e.stopPropagation();
-  el.classList.add('drag-over');
-}
-function onReorderDragLeave(e, el) { el.classList.remove('drag-over'); }
-function onReorderDrop(e, parentId, beforeId) {
-  e.preventDefault();
-  e.stopPropagation();
-  document.querySelectorAll('.reorder-zone.drag-over').forEach(el => el.classList.remove('drag-over'));
-  if (!_dragNodeId) { return; }
-  if (_dragNodeId === parentId || _dragNodeId === beforeId) { _dragNodeId = null; return; }
-  if (isDescendantOf(_dragNodeId, parentId)) { alert("Can't move someone under their own report."); _dragNodeId = null; return; }
+
+function performReorder(dragId, parentId, beforeId, slot) {
+  if (!dragId || dragId === parentId || dragId === beforeId) return;
+  if (isDescendantOf(dragId, parentId)) { alert("Can't move someone under their own report."); return; }
   const parent  = findNode(parentId, window._orgData);
-  const dragged = findNode(_dragNodeId, window._orgData);
-  if (!parent || !dragged) { _dragNodeId = null; return; }
-  const isCoLeadParent = parent.type === 'cogroup';
-  removeFromTree(_dragNodeId, window._orgData);
-  const arr = isCoLeadParent ? (parent.coLeads = parent.coLeads || []) : (parent.children = parent.children || []);
+  const dragged = findNode(dragId, window._orgData);
+  if (!parent || !dragged) return;
+  const useColeads = slot === 'colead' || (slot !== 'children' && parent.type === 'cogroup');
+  removeFromTree(dragId, window._orgData);
+  const arr = useColeads ? (parent.coLeads = parent.coLeads || []) : (parent.children = parent.children || []);
   let insertAt = arr.length;
   if (beforeId) {
     const idx = arr.findIndex(c => c.id === beforeId);
@@ -2258,14 +2371,10 @@ function onReorderDrop(e, parentId, beforeId) {
   }
   arr.splice(insertAt, 0, dragged);
   parent.expanded = true;
-  if (!isCoLeadParent) maybeConvertToCoLeads(parent, dragged);
+  if (!useColeads) maybeConvertToCoLeads(parent, dragged);
   saveToCloud();
   window._renderAll();
-  _dragNodeId = null;
 }
-window.onNodeDragStart = onNodeDragStart; window.onNodeDragOver = onNodeDragOver;
-window.onNodeDragLeave = onNodeDragLeave; window.onNodeDrop = onNodeDrop; window.onNodeDragEnd = onNodeDragEnd;
-window.onReorderDragOver = onReorderDragOver; window.onReorderDragLeave = onReorderDragLeave; window.onReorderDrop = onReorderDrop;
 
 // ── Search-to-focus ──
 function orgSearchInput() {
@@ -3049,6 +3158,11 @@ function openAddChild(parentId, event) {
   const isRootChildAdd = parentId === window._orgData.id;
   document.getElementById('addSupportWrap').style.display = isRootChildAdd ? '' : 'none';
   document.getElementById('addSupportToggle').checked = false;
+  document.getElementById('addColeadToggle').checked = false;
+  document.getElementById('addColeadFields').style.display = 'none';
+  document.getElementById('addColeadName').value = '';
+  document.getElementById('addColeadStatus').value = 'prospect';
+  document.getElementById('addColeadRegion').value = 'usa';
   document.getElementById('addOverlay').classList.add('active');
   setTimeout(() => document.getElementById('addRole').focus(), 100);
 }
@@ -3056,6 +3170,11 @@ function openAddChild(parentId, event) {
 function closeAdd() {
   addingParentId = null;
   document.getElementById('addOverlay').classList.remove('active');
+}
+
+function toggleAddColeadFields() {
+  const on = document.getElementById('addColeadToggle').checked;
+  document.getElementById('addColeadFields').style.display = on ? '' : 'none';
 }
 
 function saveNewNode() {
@@ -3075,26 +3194,48 @@ function saveNewNode() {
     tier = 'deputy';
   }
 
-  const newNode = {
-    id:       'n' + Date.now(),
-    name:     name || 'TBD',
-    role:     role,
-    tier:     tier,
-    status:   status,
-    region:   region,
-    email:    document.getElementById('addEmail').value.trim(),
-    phone:    document.getElementById('addPhone').value.trim(),
-    area:     document.getElementById('addArea').value,
-    city:     document.getElementById('addCityState').value.trim(),
-    expanded: true,
-    children: []
-  };
+  const isColead = document.getElementById('addColeadToggle') && document.getElementById('addColeadToggle').checked;
+  let newNode;
+  if (isColead) {
+    const name2   = document.getElementById('addColeadName').value.trim();
+    const status2 = document.getElementById('addColeadStatus').value;
+    const region2 = document.getElementById('addColeadRegion').value;
+    const coLeadRole = /co-?lead/i.test(role) ? role : (role.replace(/\s*Lead\s*$/i, '').trim() + ' Co-Lead');
+    const stamp = Date.now();
+    newNode = {
+      id:       'n' + stamp,
+      type:     'cogroup',
+      role:     role,
+      tier:     tier,
+      expanded: true,
+      coLeads: [
+        { id: 'n' + stamp + 'a', name: name  || 'TBD', role: coLeadRole, status: status,  region: region },
+        { id: 'n' + stamp + 'b', name: name2 || 'TBD', role: coLeadRole, status: status2, region: region2 }
+      ],
+      children: []
+    };
+  } else {
+    newNode = {
+      id:       'n' + Date.now(),
+      name:     name || 'TBD',
+      role:     role,
+      tier:     tier,
+      status:   status,
+      region:   region,
+      email:    document.getElementById('addEmail').value.trim(),
+      phone:    document.getElementById('addPhone').value.trim(),
+      area:     document.getElementById('addArea').value,
+      city:     document.getElementById('addCityState').value.trim(),
+      expanded: true,
+      children: []
+    };
+  }
 
   if (!parent.children) parent.children = [];
   parent.children.push(newNode);
   parent.expanded = true;
 
-  maybeConvertToCoLeads(parent, newNode);
+  if (!isColead) maybeConvertToCoLeads(parent, newNode);
 
   closeAdd();
   saveToCloud();
