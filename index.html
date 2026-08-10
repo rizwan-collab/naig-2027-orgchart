@@ -2111,7 +2111,10 @@ function renderCoGroup(v) {
   h += `<div class="node-children-row" data-parent-id="${v.id}" data-slot="colead" style="display:flex;align-items:flex-start;gap:10px">`;
   h += (v.coLeads || []).map(cl => renderOrgNode(cl, {connectorHeight:0})).join('');
   h += `</div>`;
-  h += `<button class="add-child-btn" style="width:auto;margin-top:4px;font-size:10px" onclick="openAddChild('${v.id}',event)">+ Add Person</button>`;
+  h += `<div style="display:flex;gap:6px;margin-top:4px;justify-content:center">`;
+  h += `<button class="add-child-btn" style="width:auto;font-size:10px" onclick="openAddChild('${v.id}',event)">+ Add Person</button>`;
+  if (has) h += `<button class="add-child-btn" style="width:auto;font-size:10px" onclick="toggleCoGroupChildren(event,'${v.id}')">${v.expanded === false ? '+ Show' : '\u2212 Hide'} ${v.children.length} report${v.children.length===1?'':'s'}</button>`;
+  h += `</div>`;
   if (has) {
     h += `<div id="ch-${v.id}" ${v.expanded === false ? 'style="display:none"' : ''}>`;
     h += renderChildrenRow(v.id, 'children', v.children.map(c => renderOrgNode(c, {dark:true, connectorHeight:14})).join(''), v.children.length, {connectorHeight:16});
@@ -2183,6 +2186,18 @@ function toggleNode(e, id) {
   const btn = e.currentTarget;
   if (ch) ch.style.display = node.expanded ? '' : 'none';
   if (btn) btn.textContent = node.expanded ? '−' : '+';
+}
+
+function toggleCoGroupChildren(e, id) {
+  e.stopPropagation();
+  const node = findNode(id, window._orgData);
+  if (!node) return;
+  node.expanded = !node.expanded;
+  const ch = document.getElementById('ch-' + id);
+  if (ch) ch.style.display = node.expanded ? '' : 'none';
+  const btn = e.currentTarget;
+  const count = (node.children || []).length;
+  if (btn) btn.textContent = (node.expanded ? '\u2212 Hide ' : '+ Show ') + count + (count === 1 ? ' report' : ' reports');
 }
 
 function expandAll()  { setAll(window._orgData, true);  window._renderAll(); }
