@@ -3749,22 +3749,6 @@ function renderRnr() {
 
   grid.innerHTML = RNR_VERTICALS.map(vDef => {
     const vData  = getRnrV(vDef.id);
-    const lNode  = findNode(vDef.leadId, window._orgData);
-    const leadName = vDef.coLeadId
-      ? `${lNode ? lNode.name : 'TBD'} + ${(findNode(vDef.coLeadId, window._orgData)||{}).name || 'TBD'}`
-      : (lNode ? lNode.name : 'TBD');
-
-    // Try to find deputy + PMO from org data
-    const vNode    = findNode(vDef.leadId, window._orgData);
-    const children = vNode ? (vNode.children || []) : [];
-    const deputyNode = children.find(c => (c.role||'').toLowerCase().includes('deputy'));
-    const pmoNode    = children.find(c => (c.role||'').toLowerCase().includes('pmo') || (c.role||'').toLowerCase().includes('coord'));
-
-    const rolePersonNames = {
-      lead:   leadName,
-      deputy: deputyNode ? deputyNode.name : 'TBD',
-      pmo:    pmoNode    ? pmoNode.name    : 'TBD'
-    };
 
     const roleHtml = RNR_ROLES.map(role => {
       const items = vData.roles[role.key] || [];
@@ -3772,8 +3756,8 @@ function renderRnr() {
       return `
  <div class="rnr-role-section">
  <div class="rnr-role-label">
- <span class="rnr-pill" style="background:${role.bg}">${role.label} — ${rolePersonNames[role.key]}</span>
- <button class="rnr-add-btn" onclick="openRnr('${vDef.id}','${role.key}','${vDef.label.replace(/'/g,"\\'")}','${role.label} — ${rolePersonNames[role.key].replace(/'/g,"\\'")}')" >+ Add</button>
+ <span class="rnr-pill" style="background:${role.bg}">${role.label}</span>
+ <button class="rnr-add-btn" onclick="openRnr('${vDef.id}','${role.key}','${vDef.label.replace(/'/g,"\\'")}','${role.label}')" >+ Add</button>
  </div>
         ${items.length === 0
           ? `<div class="rnr-empty">No responsibilities yet — click <strong>+ Add</strong> to define this role</div>`
@@ -3794,7 +3778,6 @@ function renderRnr() {
  <div class="rnr-card-header" style="background:${vDef.color}">
  <div>
  <div class="rnr-card-title">${vDef.label}</div>
- <div class="rnr-card-lead">Lead: ${leadName}</div>
  </div>
  <span style="font-size:10px;background:rgba(255,255,255,0.2);padding:2px 9px;border-radius:10px;font-weight:700">${count} item${count!==1?'s':''}</span>
  </div>
@@ -3853,25 +3836,15 @@ function deleteRnrItem(vid, role, idx) {
 }
 
 function exportRnrCSV() {
-  const rows = [['Vertical', 'Role', 'Person', 'Responsibility', 'Priority']];
+  const rows = [['Vertical', 'Role', 'Responsibility', 'Priority']];
   RNR_VERTICALS.forEach(vDef => {
     const vData = getRnrV(vDef.id);
-    const lNode = findNode(vDef.leadId, window._orgData);
-    const vNode = lNode;
-    const ch    = vNode ? (vNode.children || []) : [];
-    const persons = {
-      lead:   vDef.coLeadId
-        ? `${lNode?.name||'TBD'} + ${findNode(vDef.coLeadId, window._orgData)?.name||'TBD'}`
-        : (lNode?.name || 'TBD'),
-      deputy: (ch.find(c=>(c.role||'').toLowerCase().includes('deputy'))?.name) || 'TBD',
-      pmo:    (ch.find(c=>(c.role||'').toLowerCase().includes('pmo')||c.role?.toLowerCase().includes('coord'))?.name) || 'TBD'
-    };
     ['lead','deputy','pmo'].forEach(rk => {
       (vData.roles[rk]||[]).forEach(item => {
-        rows.push([vDef.label, rk, persons[rk], item.text, item.priority]);
+        rows.push([vDef.label, rk, item.text, item.priority]);
       });
       if (!(vData.roles[rk]||[]).length) {
-        rows.push([vDef.label, rk, persons[rk], '(none entered)', '']);
+        rows.push([vDef.label, rk, '(none entered)', '']);
       }
     });
   });
