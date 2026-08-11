@@ -84,9 +84,11 @@
         window._orgData = cloudData;
         window._renderAll && window._renderAll();
         showSyncStatus(' Live — synced from cloud');
+        window._onboardToken && window.renderOnboardView && window.renderOnboardView();
       } else {
         window._renderAll && window._renderAll();
         showSyncStatus(' Connected — push Save to sync');
+        window._onboardToken && window.renderOnboardView && window.renderOnboardView();
       }
     });
 
@@ -106,6 +108,7 @@
       if (cloudData) {
         window._rnrData = cloudData;
         window.renderRnr && window.renderRnr();
+        window._onboardToken && window.renderOnboardView && window.renderOnboardView();
       }
     });
     // ── Hub: Tasks ──
@@ -153,6 +156,7 @@
       window.renderScope && window.renderScope();
       window.renderScope && window.renderScope(); // refresh scope status chart
       if (!data) window.seedInitialScope && window.seedInitialScope();
+      window._onboardToken && window.renderOnboardView && window.renderOnboardView();
     });
     // ── Hub: Hotels ──
     window._fb.listenHotels((data) => {
@@ -762,9 +766,70 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .custom-q-item:last-child { border-bottom:none; }
 .custom-q-label { flex:1; color:#333; font-weight:600; } .custom-q-answer { color:#1a3a5c; font-size:.79rem; flex:1.5; }
 .custom-q-del { background:none; border:none; color:#c00; cursor:pointer; font-size:.85rem; }
+
+/* ── Onboarding view ── */
+html.onboard-mode #mainHub { display: none !important; }
+html.onboard-mode #onboardScreen { display: block !important; }
+.onboard-screen {
+  min-height: 100vh;
+  background: #f1f5f9;
+  padding: 24px 16px 60px;
+  display: flex;
+  justify-content: center;
+  font-family: inherit;
+}
+.onboard-card {
+  width: 100%;
+  max-width: 640px;
+}
+.ob-hero {
+  background: linear-gradient(135deg, #1a3a5c, #2d6a9f);
+  color: #fff;
+  border-radius: 14px;
+  padding: 24px 22px;
+  margin-bottom: 16px;
+}
+.ob-hero h1 { font-size: 22px; margin: 0 0 4px; }
+.ob-hero .ob-role { font-size: 14px; opacity: 0.9; }
+.ob-hero .ob-sub { font-size: 12px; opacity: 0.75; margin-top: 6px; }
+.ob-section {
+  background: #fff;
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.ob-section h2 {
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #475569;
+  margin: 0 0 12px;
+}
+.ob-stat-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+.ob-stat { background: #f1f5f9; border-radius: 8px; padding: 8px 12px; font-size: 12px; color: #334155; flex: 1; min-width: 110px; }
+.ob-stat b { display: block; font-size: 15px; color: #1a3a5c; }
+.ob-empty { color: #94a3b8; font-size: 13px; font-style: italic; }
+.ob-item { display: flex; gap: 8px; align-items: flex-start; padding: 7px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px; line-height: 1.5; }
+.ob-item:last-child { border-bottom: none; }
+.ob-authority { background: #fef9e7; border: 1px solid #fce9a8; border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-top: 10px; color: #6b5b1f; }
+.ob-form-group { margin-bottom: 12px; }
+.ob-form-group label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 4px; }
+.ob-form-group input, .ob-form-group select { width: 100%; padding: 9px 11px; border: 1px solid #d8dee6; border-radius: 8px; font-size: 14px; font-family: inherit; }
+.ob-save-btn { background: #2c7a5c; color: #fff; border: none; padding: 11px 18px; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; width: 100%; }
+.ob-save-btn:active { background: #235f47; }
+.ob-saved-msg { color: #2c7a5c; font-size: 13px; font-weight: 600; text-align: center; margin-top: 8px; display: none; }
+.ob-notfound { text-align: center; padding: 60px 20px; color: #64748b; }
 </style>
 </head>
 <body>
+<script>if (new URLSearchParams(location.search).get('onboard')) { document.documentElement.classList.add('onboard-mode'); }</script>
+<div id="onboardScreen" class="onboard-screen" style="display:none">
+ <div class="onboard-card">
+  <div id="onboardContent"></div>
+ </div>
+</div>
+<div id="mainHub">
 
 <div class="header">
  <div class="header-left">
@@ -1733,6 +1798,22 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
  <input type="checkbox" id="editSupportToggle" style="width:16px;height:16px;margin:0">
  Leadership Support (shows in the Leadership Support row instead of Tier 2 Verticals)
  </label>
+ </div>
+ <div id="editOnboardSection" style="display:none">
+ <div class="modal-section" style="margin-top:4px">Onboarding Link</div>
+ <div class="form-group" id="editOnboardWrap">
+ <div id="editOnboardNoLink">
+ <button class="btn" style="background:#2c7a5c;color:#fff" onclick="generateOnboardLink()">Generate Onboarding Link</button>
+ <div style="font-size:11px;color:#94a3b8;margin-top:6px">Creates a link you can text or email them \u2014 shows their role, responsibilities, and a form for their own contact info.</div>
+ </div>
+ <div id="editOnboardHasLink" style="display:none">
+ <input type="text" id="editOnboardLinkDisplay" readonly style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:12px;margin-bottom:6px;background:#f8fafc">
+ <div style="display:flex;gap:8px">
+ <button class="btn" style="font-size:12px" onclick="copyOnboardLink()">Copy Link</button>
+ <button class="btn btn-cancel" style="font-size:12px" onclick="generateOnboardLink(true)">Regenerate</button>
+ </div>
+ </div>
+ </div>
  </div>
  <div class="modal-actions" style="justify-content:space-between">
  <button class="btn btn-danger" id="deleteBtn" onclick="deleteNode(editingId)">Delete</button>
@@ -3037,6 +3118,10 @@ function openEdit(id) {
   const isRootChildNow = !!(curParent && curParent.id === window._orgData.id);
   document.getElementById('editSupportWrap').style.display = isRootChildNow ? '' : 'none';
   document.getElementById('editSupportToggle').checked = (n.tier === 'pmo' || n.tier === 'deputy');
+  // Onboarding link — only meaningful once the placeholder has a real name
+  const hasRealName = !!(n.name && n.name.trim() && n.name.trim().toLowerCase() !== 'tbd');
+  document.getElementById('editOnboardSection').style.display = hasRealName ? '' : 'none';
+  if (hasRealName) refreshOnboardLinkUI(n);
   document.getElementById('overlay').classList.add('active');
 }
 
@@ -3812,6 +3897,185 @@ function exportRnrCSV() {
   a.click();
 }
 
+
+// ══════════════════════════════════════════════
+//  ONBOARDING — per-person link
+// ══════════════════════════════════════════════
+
+function genOnboardToken() {
+  return Math.random().toString(36).slice(2, 8) + Math.random().toString(36).slice(2, 6);
+}
+
+function findNodeByOnboardToken(token, node) {
+  if (!node || !token) return null;
+  if (node.onboardToken === token) return node;
+  for (const cl of (node.coLeads || [])) { if (cl.onboardToken === token) return cl; }
+  for (const c of (node.children || [])) { const f = findNodeByOnboardToken(token, c); if (f) return f; }
+  return null;
+}
+
+// Given a node id, figure out which R&R vertical (if any) it belongs to and
+// which role bucket (lead/deputy/pmo) it maps to. Mirrors the lookup logic
+// renderRnr() already uses in the other direction (vertical -> person).
+function findVerticalRoleForNode(nodeId) {
+  for (const vDef of RNR_VERTICALS) {
+    if (nodeId === vDef.leadId) return { vid: vDef.id, roleKey: 'lead' };
+    if (vDef.coLeadId && nodeId === vDef.coLeadId) return { vid: vDef.id, roleKey: 'lead' };
+  }
+  const parent = findParentNode(nodeId, window._orgData);
+  if (!parent) return null;
+  const vDef = RNR_VERTICALS.find(v => v.leadId === parent.id || v.coLeadId === parent.id);
+  if (!vDef) return null;
+  const node = findNode(nodeId, window._orgData);
+  const roleText = (node && node.role || '').toLowerCase();
+  if (roleText.includes('deputy')) return { vid: vDef.id, roleKey: 'deputy' };
+  if (roleText.includes('pmo') || roleText.includes('coord')) return { vid: vDef.id, roleKey: 'pmo' };
+  return null;
+}
+
+// Computes a live "Event Scope" summary directly from the Scope tab data,
+// so it always reflects whatever Rizwan has entered there — nothing hardcoded.
+function computeEventScopeSummary() {
+  const items = Object.values(window._scopeData || {});
+  let lo = 0, hi = 0, minDay = null, maxDay = null, month = null, year = null;
+  const cities = new Set();
+  items.forEach(s => {
+    const nums = (s.participants || '').match(/\d+/g);
+    if (nums && nums.length >= 2) { lo += parseInt(nums[0], 10); hi += parseInt(nums[1], 10); }
+    else if (nums && nums.length === 1) { lo += parseInt(nums[0], 10); hi += parseInt(nums[0], 10); }
+    const dm = (s.sessionDates || '').match(/([A-Za-z]{3})\s+(\d+)(?:[\u2013-](\d+))?,?\s*(\d{4})/);
+    if (dm) {
+      month = month || dm[1]; year = year || dm[4];
+      const d1 = parseInt(dm[2], 10), d2 = dm[3] ? parseInt(dm[3], 10) : d1;
+      if (minDay === null || d1 < minDay) minDay = d1;
+      if (maxDay === null || d2 > maxDay) maxDay = d2;
+    }
+    const venue = s.venue || '';
+    const parts = venue.split(',');
+    if (parts.length > 1) cities.add(parts[1].trim().split('(')[0].trim());
+  });
+  return {
+    sportsCount: items.length,
+    participantsLo: lo,
+    participantsHi: hi,
+    dateRange: (month && minDay !== null) ? `${month} ${minDay}\u2013${maxDay}, ${year}` : 'TBD',
+    cities: Array.from(cities).filter(Boolean).slice(0, 6)
+  };
+}
+
+function renderOnboardView() {
+  if (!window._onboardToken) return;
+  const el = document.getElementById('onboardContent');
+  if (!el) return;
+  const person = findNodeByOnboardToken(window._onboardToken, window._orgData);
+  if (!person) {
+    el.innerHTML = '<div class="ob-notfound"><h2>Link not found</h2><p>This onboarding link isn\'t recognized. Please reach out to Rizwan Ali for a new link.</p></div>';
+    return;
+  }
+  const parent = findParentNode(person.id, window._orgData);
+  const summary = computeEventScopeSummary();
+  const vr = findVerticalRoleForNode(person.id);
+  const vData = vr ? getRnrV(vr.vid) : null;
+  const items = vData ? (vData.roles[vr.roleKey] || []) : [];
+  const vLabel = vr ? (RNR_VERTICALS.find(v => v.id === vr.vid) || {}).label : null;
+
+  let html = '';
+  html += `<div class="ob-hero">
+    <h1>Welcome, ${(person.name || 'TBD')}</h1>
+    <div class="ob-role">${person.role || ''}</div>
+    ${parent ? `<div class="ob-sub">Reports to ${parent.name || 'TBD'}</div>` : ''}
+  </div>`;
+
+  html += `<div class="ob-section">
+    <h2>NAIG 2027 — Event Scope</h2>
+    <div class="ob-stat-row">
+      <div class="ob-stat"><b>${summary.sportsCount}</b>Sports Offered</div>
+      <div class="ob-stat"><b>${summary.participantsLo}\u2013${summary.participantsHi}</b>Est. Participants</div>
+      <div class="ob-stat"><b>${summary.dateRange}</b>Event Dates</div>
+    </div>
+    <p style="font-size:13px;color:#475569;margin:10px 0 0">Dallas\u2013Fort Worth (DFW), Texas${summary.cities.length ? ' \u2014 venues across ' + summary.cities.join(', ') : ''}.</p>
+  </div>`;
+
+  html += `<div class="ob-section">
+    <h2>Your Role &amp; Responsibilities${vLabel ? ' \u2014 ' + vLabel : ''}</h2>
+    ${items.length
+      ? items.map(i => `<div class="ob-item">\u2022 <span>${i.text}</span></div>`).join('')
+      : '<div class="ob-empty">Responsibilities for your role haven\'t been added yet \u2014 check back soon, or ask Rizwan.</div>'}
+    ${vData && vData.authority ? `<div class="ob-authority"><strong>Decision Authority &amp; Scope:</strong> ${vData.authority}</div>` : ''}
+  </div>`;
+
+  html += `<div class="ob-section">
+    <h2>Your Contact Info</h2>
+    <div class="ob-form-group"><label>Name</label><input id="obName" value="${(person.name || '').replace(/"/g,'&quot;')}"></div>
+    <div class="ob-form-group"><label>Email</label><input id="obEmail" type="email" value="${(person.email || '').replace(/"/g,'&quot;')}" placeholder="email@example.com"></div>
+    <div class="ob-form-group"><label>Phone</label><input id="obPhone" type="tel" value="${(person.phone || '').replace(/"/g,'&quot;')}" placeholder="+1 (555) 000-0000"></div>
+    <div class="ob-form-group"><label>City, State</label><input id="obCity" value="${(person.city || '').replace(/"/g,'&quot;')}" placeholder="e.g. Dallas, TX"></div>
+    <div class="ob-form-group"><label>Country</label>
+      <select id="obRegion">
+        <option value="usa" ${person.region === 'usa' ? 'selected' : ''}>USA</option>
+        <option value="ca" ${person.region === 'ca' ? 'selected' : ''}>Canada</option>
+        <option value="both" ${person.region === 'both' ? 'selected' : ''}>Both</option>
+        <option value="" ${!person.region ? 'selected' : ''}>None</option>
+      </select>
+    </div>
+    <button class="ob-save-btn" onclick="saveOnboardContact('${person.id}')">Save My Info</button>
+    <div class="ob-saved-msg" id="obSavedMsg">Saved \u2014 thank you!</div>
+  </div>`;
+
+  el.innerHTML = html;
+}
+
+function saveOnboardContact(personId) {
+  const n = findNode(personId, window._orgData);
+  if (!n) return;
+  n.name   = document.getElementById('obName').value.trim()  || n.name;
+  n.email  = document.getElementById('obEmail').value.trim();
+  n.phone  = document.getElementById('obPhone').value.trim();
+  n.city   = document.getElementById('obCity').value.trim();
+  n.region = document.getElementById('obRegion').value;
+  saveToCloud();
+  const msg = document.getElementById('obSavedMsg');
+  if (msg) {
+    msg.style.display = 'block';
+    setTimeout(() => { msg.style.display = 'none'; }, 3000);
+  }
+}
+
+function refreshOnboardLinkUI(n) {
+  const has = !!n.onboardToken;
+  const noLinkEl  = document.getElementById('editOnboardNoLink');
+  const hasLinkEl = document.getElementById('editOnboardHasLink');
+  if (!noLinkEl || !hasLinkEl) return;
+  noLinkEl.style.display  = has ? 'none' : '';
+  hasLinkEl.style.display = has ? '' : 'none';
+  if (has) {
+    const url = location.origin + location.pathname + '?onboard=' + n.onboardToken;
+    document.getElementById('editOnboardLinkDisplay').value = url;
+  }
+}
+
+function generateOnboardLink(regenerate) {
+  if (!editingId) return;
+  const n = findNode(editingId, window._orgData);
+  if (!n) return;
+  if (!n.onboardToken || regenerate) {
+    n.onboardToken = genOnboardToken();
+    saveToCloud();
+  }
+  refreshOnboardLinkUI(n);
+}
+
+function copyOnboardLink() {
+  const input = document.getElementById('editOnboardLinkDisplay');
+  if (!input) return;
+  input.select();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(input.value).catch(() => {});
+  } else {
+    document.execCommand('copy');
+  }
+}
+
 document.getElementById('rnrOverlay').addEventListener('click', e => { if (e.target.id === 'rnrOverlay') closeRnr(); });
 
 
@@ -3821,9 +4085,11 @@ document.getElementById('prospectOverlay').addEventListener('click', e => { if (
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeEdit(); closeProspect(); closeRnr(); } });
 
 // ── Init ──
+window._onboardToken = new URLSearchParams(location.search).get('onboard') || null;
 window._renderAll();
 renderProspects();
 renderRnr();
+if (window._onboardToken) renderOnboardView();
 // Firebase listener will override local data once it resolves
 document.getElementById('syncStatus').textContent = ' Connecting to cloud…';
 // Close add overlay on background click
@@ -6730,5 +6996,6 @@ window.addEventListener('load', function() {
   <button class="btn btn-accent" style="font-size:11px;padding:4px 10px" onclick="convertBannerToCoLead()">Rename to Co-Lead</button>
  </div>
 </div>
+</div><!-- /mainHub -->
 </body>
 </html>
