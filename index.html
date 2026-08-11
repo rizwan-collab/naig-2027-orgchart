@@ -3643,7 +3643,13 @@ function getRnrV(id) {
   if (!window._rnrData[id]) {
     window._rnrData[id] = { roles: { lead: [], deputy: [], pmo: [] }, authority: '' };
   }
-  return window._rnrData[id];
+  const v = window._rnrData[id];
+  // Defensive normalize: Firebase RTDB strips empty arrays/objects on write, so any
+  // vertical with zero items in every role loses its whole `.roles` key on reload.
+  if (!v.roles || typeof v.roles !== 'object') v.roles = {};
+  ['lead', 'deputy', 'pmo'].forEach(k => { if (!Array.isArray(v.roles[k])) v.roles[k] = []; });
+  if (typeof v.authority !== 'string') v.authority = '';
+  return v;
 }
 
 function prioDot(p) {
