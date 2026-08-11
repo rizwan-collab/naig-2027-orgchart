@@ -1808,10 +1808,12 @@ html.onboard-mode #onboardScreen { display: block !important; }
  </div>
  <div id="editOnboardHasLink" style="display:none">
  <input type="text" id="editOnboardLinkDisplay" readonly style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:12px;margin-bottom:6px;background:#f8fafc">
- <div style="display:flex;gap:8px">
+ <div style="display:flex;gap:8px;flex-wrap:wrap">
  <button class="btn" style="font-size:12px" onclick="copyOnboardLink()">Copy Link</button>
+ <button class="btn" style="font-size:12px;background:#2563eb;color:#fff" id="editOnboardEmailBtn" onclick="emailOnboardLink()">Send via Email</button>
  <button class="btn btn-cancel" style="font-size:12px" onclick="generateOnboardLink(true)">Regenerate</button>
  </div>
+ <div id="editOnboardNoEmail" style="font-size:11px;color:#94a3b8;margin-top:6px;display:none">Add an email address above, then you can send this link directly.</div>
  </div>
  </div>
  </div>
@@ -4051,7 +4053,33 @@ function refreshOnboardLinkUI(n) {
   if (has) {
     const url = location.origin + location.pathname + '?onboard=' + n.onboardToken;
     document.getElementById('editOnboardLinkDisplay').value = url;
+    const hasEmail = !!(n.email && n.email.trim());
+    const emailBtn = document.getElementById('editOnboardEmailBtn');
+    const noEmailMsg = document.getElementById('editOnboardNoEmail');
+    if (emailBtn) { emailBtn.style.display = hasEmail ? '' : 'none'; }
+    if (noEmailMsg) { noEmailMsg.style.display = hasEmail ? 'none' : ''; }
   }
+}
+
+function emailOnboardLink() {
+  if (!editingId) return;
+  const n = findNode(editingId, window._orgData);
+  if (!n || !n.onboardToken) return;
+  if (!n.email || !n.email.trim()) {
+    alert('Add an email address for this person first, then try again.');
+    return;
+  }
+  const url = location.origin + location.pathname + '?onboard=' + n.onboardToken;
+  const firstName = (n.name || '').split(' ')[0] || '';
+  const subject = 'Your NAIG 2027 Onboarding Link';
+  const body = 'Hi ' + firstName + ',\n\n'
+    + 'Here is your personal onboarding link for NAIG 2027 \u2014 it has your role, your responsibilities, and a quick form to confirm your contact info:\n\n'
+    + url + '\n\n'
+    + 'Thanks,\nRizwan';
+  const mailto = 'mailto:' + encodeURIComponent(n.email.trim())
+    + '?subject=' + encodeURIComponent(subject)
+    + '&body=' + encodeURIComponent(body);
+  window.location.href = mailto;
 }
 
 function generateOnboardLink(regenerate) {
