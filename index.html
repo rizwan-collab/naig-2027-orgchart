@@ -42,6 +42,7 @@
   const planRef      = ref(db, 'naig2027/plan');
   const teamsRef         = ref(db, 'naig2027/teams');
   const customModulesRef = ref(db, 'naig2027/customModules');
+  const roleCatalogRef   = ref(db, 'naig2027/roleCatalog');
 
   // ── expose Firebase to the rest of the page ──
   window._fb = {
@@ -65,6 +66,8 @@
     savePlan:         (data) => set(planRef, data),
     listenTeams:         (cb) => onValue(teamsRef,         snap => cb(snap.val())),
     listenCustomModules: (cb) => onValue(customModulesRef, snap => cb(snap.val())),
+    listenRoleCatalog: (cb) => onValue(roleCatalogRef, snap => cb(snap.val())),
+    saveRoleCatalog:   (data) => set(roleCatalogRef, data),
   };
   // Primitives for global CRUD
   window._dbRef    = (path) => ref(db, path);
@@ -227,6 +230,48 @@
           });
         });
       }
+    });
+
+    // ── Role catalog (dropdown of possible roles, extendable, tied to the org chart) ──
+    window._fb.listenRoleCatalog((data) => {
+      if (Array.isArray(data) && data.length) {
+        window._roleCatalog = data.slice().sort();
+      } else {
+        // First run: seed with a standard set of role titles across all verticals
+        window._roleCatalog = [
+      "Logistics Lead",
+      "Senior PMO",
+      "Co-Lead",
+      "Logistics Deputy",
+      "F&B Lead",
+      "F&B Deputy Lead",
+      "F&B PMO / Coordinator",
+      "Hotels & Accommodations Lead",
+      "Hotels & Accommodations Deputy Lead",
+      "Hotels & Accommodations PMO / Coordinator",
+      "Transportation Lead",
+      "Transportation Deputy Lead",
+      "Transportation PMO / Coordinator",
+      "Site Logistics Lead",
+      "Site Logistics Co-Lead",
+      "Site Logistics Deputy Lead",
+      "Site Logistics PMO / Coordinator",
+      "Equipment & Signage Lead",
+      "Equipment & Signage Deputy Lead",
+      "Equipment & Signage PMO / Coordinator",
+      "Venue Lead",
+      "Signage Lead",
+      "Equipment Lead"
+    ];
+        window._fb.saveRoleCatalog(window._roleCatalog);
+      }
+      const rolesOv = document.getElementById('rolesOverlay');
+      if (rolesOv && rolesOv.classList.contains('active')) { window.renderManageRolesList && window.renderManageRolesList(); }
+      // Keep any open Add/Edit role dropdown in sync
+      ['add','edit'].forEach(prefix => {
+        const sel = document.getElementById(prefix + 'Role');
+        if (sel && sel.options.length) { window.populateRoleSelect && window.populateRoleSelect(prefix, window.getRoleValue ? window.getRoleValue(prefix) : ''); }
+      });
     });
   })();
 </script>
@@ -836,6 +881,7 @@ html.onboard-mode #onboardScreen { display: block !important; }
  <span class="sync-status" id="identityBadge" onclick="openIdentityPicker()" style="cursor:pointer"> Identify yourself</span>
  <select id="teamSwitcher" class="sync-status" onchange="applyTeamScope(this.value)" style="cursor:pointer;border:none;font-family:inherit"></select>
  <span class="sync-status" onclick="openManageTeams()" style="cursor:pointer"> Manage Teams</span>
+ <span class="sync-status" onclick="openManageRoles()" style="cursor:pointer"> Manage Roles</span>
  <span id="orgBtns" style="display:inline-flex;gap:8px;align-items:center">
  <span id="orgSearchWrap">
   <input type="text" id="orgSearchBox" placeholder=" Find a person…" oninput="orgSearchInput()" style="font-size:11px;padding:5px 8px;border-radius:6px;border:none;width:140px">
@@ -926,6 +972,25 @@ html.onboard-mode #onboardScreen { display: block !important; }
   </div>
   <div class="modal-actions">
    <button class="btn btn-cancel" onclick="closeManageTeams()">Close</button>
+  </div>
+ </div>
+</div>
+
+<!-- Manage Roles Modal -->
+<div class="overlay" id="rolesOverlay">
+ <div class="modal modal-scroll" style="width:460px">
+  <h3>Manage Roles</h3>
+  <div class="modal-section">These are the role titles offered on the Add/Edit Person dropdown. Add a new one here, or just type a new title on a person and save — it's added automatically for everyone.</div>
+  <div id="rolesList" style="margin:10px 0;display:flex;flex-wrap:wrap;gap:8px"></div>
+  <div class="form-group">
+   <label>New role title</label>
+   <div style="display:flex;gap:8px">
+    <input type="text" id="newRoleName" placeholder="e.g. Site Logistics Deputy Lead" style="flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+    <button class="btn btn-primary" onclick="addRoleToCatalog()">+ Add Role</button>
+   </div>
+  </div>
+  <div class="modal-actions">
+   <button class="btn btn-cancel" onclick="closeManageRoles()">Close</button>
   </div>
  </div>
 </div>
@@ -2736,8 +2801,11 @@ function closeOrgDir() {
 function setAll(n, v) { n.expanded = v; (n.children||[]).forEach(c=>setAll(c,v)); }
 
 // ── ROLE DROPDOWN (keeps title naming consistent across the org) ───────────
+// Options come from the persistent role catalog (naig2027/roleCatalog, extendable via
+// Manage Roles or by typing a new one on Add/Edit Person) UNIONed with whatever role
+// text is currently live on any org node, so nothing ever disappears from the list.
 function getAllRoleOptions() {
-  const roles = new Set();
+  const roles = new Set(window._roleCatalog || []);
   function walk(n) {
     if (n && n.role) roles.add(n.role);
     (n.children || []).forEach(walk);
@@ -2745,6 +2813,16 @@ function getAllRoleOptions() {
   }
   if (window._orgData) walk(window._orgData);
   return [...roles].sort();
+}
+// Adds a brand-new role title to the persistent catalog (no-op if it already exists).
+// Called whenever someone picks "Custom / New Role" and saves a person, so the new
+// title is immediately available to everyone else's dropdown going forward.
+function registerRoleIfNew(role) {
+  if (!role) return;
+  const catalog = window._roleCatalog || [];
+  if (catalog.some(r => r.toLowerCase() === role.toLowerCase())) return;
+  window._roleCatalog = [...catalog, role].sort();
+  if (window._fb) window._fb.saveRoleCatalog(window._roleCatalog);
 }
 function populateRoleSelect(prefix, currentValue) {
   const sel = document.getElementById(prefix + 'Role');
@@ -3001,6 +3079,47 @@ function deleteTeam(teamId) {
   if (window._activeTeamId === teamId) applyTeamScope('logistics');
 }
 
+// ── Manage Roles admin modal (persistent role catalog, tied to the org chart) ──
+function openManageRoles() {
+  renderManageRolesList();
+  document.getElementById('rolesOverlay').classList.add('active');
+}
+function closeManageRoles() { document.getElementById('rolesOverlay').classList.remove('active'); }
+
+function renderManageRolesList() {
+  const box = document.getElementById('rolesList');
+  if (!box) return;
+  const roles = getAllRoleOptions();
+  const inUse = new Set();
+  (function walk(n) { if (n && n.role) inUse.add(n.role); (n.children||[]).forEach(walk); (n.coLeads||[]).forEach(walk); })(window._orgData);
+  box.innerHTML = roles.length ? roles.map(r => `
+    <span style="background:#f1f5f9;border-radius:12px;padding:4px 10px;font-size:12px;display:inline-flex;align-items:center;gap:6px">
+      ${r}${inUse.has(r) ? ' <span style="color:#888;font-size:10px">(in use)</span>' : ''}
+      <span style="cursor:pointer;color:#c00" onclick="deleteRoleFromCatalog('${r.replace(/'/g, "\\'")}')" title="Remove from catalog">×</span>
+    </span>`).join('') : '<span style="font-size:12px;color:#bbb">No roles yet — add one below.</span>';
+}
+
+function addRoleToCatalog() {
+  const input = document.getElementById('newRoleName');
+  const role = input.value.trim();
+  if (!role) return;
+  registerRoleIfNew(role);
+  input.value = '';
+  renderManageRolesList();
+}
+
+function deleteRoleFromCatalog(role) {
+  const inUseByNode = (function walk(n) {
+    if (!n) return false;
+    if (n.role === role) return true;
+    return (n.children||[]).some(walk) || (n.coLeads||[]).some(walk);
+  })(window._orgData);
+  if (inUseByNode && !confirm(`"${role}" is currently assigned to someone in the org chart. Remove it from the role catalog anyway? (Their title on the org chart won't change.)`)) return;
+  window._roleCatalog = (window._roleCatalog || []).filter(r => r !== role);
+  if (window._fb) window._fb.saveRoleCatalog(window._roleCatalog);
+  renderManageRolesList();
+}
+
 function addCustomModule(teamId) {
   const name = prompt('Custom tab name (e.g. "Equipment Checklist"):');
   if (!name) return;
@@ -3234,7 +3353,9 @@ function saveEdit() {
   if (!n) return;
   const oldName = n.name;
   n.name   = document.getElementById('editName').value.trim() || n.name;
-  n.role   = getRoleValue('edit') || n.role;
+  const editRoleVal = getRoleValue('edit');
+  registerRoleIfNew(editRoleVal);
+  n.role   = editRoleVal || n.role;
   n.status = document.getElementById('editStatus').value;
   n.region = document.getElementById('editRegion').value;
   n.email  = document.getElementById('editEmail').value.trim();
@@ -3334,6 +3455,7 @@ function toggleAddColeadFields() {
 function saveNewNode() {
   const role = getRoleValue('add');
   if (!role) { alert('Role is required — enter a role title.'); return; }
+  registerRoleIfNew(role);
   snapshotForUndo();
   const name   = document.getElementById('addName').value.trim();
   const status = document.getElementById('addStatus').value;
