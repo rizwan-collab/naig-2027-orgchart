@@ -54,6 +54,7 @@
   const customModulesRef = ref(db, 'naig2027/customModules');
   const roleCatalogRef   = ref(db, 'naig2027/roleCatalog');
   const activityLogRef   = ref(db, 'naig2027/activityLog');
+  const dirMigrationRef   = ref(db, 'naig2027/directoryV2Migrated');
 
   // ── expose Firebase to the rest of the page ──
   window._fb = {
@@ -81,6 +82,8 @@
     saveRoleCatalog:   (data) => set(roleCatalogRef, data),
     listenActivityLog: (cb) => onValue(activityLogRef, snap => cb(snap.val())),
     saveActivityLog:   (data) => set(activityLogRef, data),
+    listenDirMigrationFlag: (cb) => onValue(dirMigrationRef, snap => cb(snap.val())),
+    setDirMigrationFlag:    (val) => set(dirMigrationRef, val),
   };
   // Primitives for global CRUD
   window._dbRef    = (path) => ref(db, path);
@@ -106,6 +109,15 @@
         showSyncStatus(' Connected — push Save to sync');
         window._onboardToken && window.renderOnboardView && window.renderOnboardView();
       }
+      window._orgLoaded = true;
+      window._maybeMigrateThenSyncDirectory && window._maybeMigrateThenSyncDirectory();
+    });
+
+    // ── Directory-driven org chart: one-time migration flag ──
+    window._fb.listenDirMigrationFlag((flag) => {
+      window._dirMigrationFlag = !!flag;
+      window._dirFlagLoaded = true;
+      window._maybeMigrateThenSyncDirectory && window._maybeMigrateThenSyncDirectory();
     });
 
     // ── Volunteer prospects ──
@@ -117,6 +129,8 @@
           : Object.values(cloudData).filter(Boolean);
         window.renderProspects && window.renderProspects();
       }
+      window._prospectsLoaded = true;
+      window._maybeMigrateThenSyncDirectory && window._maybeMigrateThenSyncDirectory();
     });
 
     // ── Roles & Responsibilities ──
@@ -2142,6 +2156,13 @@ html.onboard-mode #onboardScreen { display: block !important; }
  <input type="text" id="pRole" placeholder="e.g. Venue Lead, Coordinator">
  </div>
  <div class="form-group">
+ <label>Reports To</label>
+ <select id="pReportsTo">
+ <option value="">— Rizwan (Root) —</option>
+ </select>
+ <div style="font-size:10.5px;color:#888;margin-top:3px">This is what places them on the Org Chart. The chart is generated from this field — set it once here and the chart updates itself.</div>
+ </div>
+ <div class="form-group">
  <label>Status</label>
  <select id="pStatus">
  <option value="prospect"> Prospect</option>
@@ -2668,6 +2689,7 @@ function performReparent(dragId, targetId) {
   newParent.children.push(dragged);
   newParent.expanded = true;
   maybeConvertToCoLeads(newParent, dragged);
+  upsertDirectoryFromOrgNode(dragged, newParent.id);
   saveToCloud();
   window._renderAll();
 }
@@ -2690,6 +2712,7 @@ function performReorder(dragId, parentId, beforeId, slot) {
   arr.splice(insertAt, 0, dragged);
   parent.expanded = true;
   if (!useColeads) maybeConvertToCoLeads(parent, dragged);
+  upsertDirectoryFromOrgNode(dragged, parent.id);
   saveToCloud();
   window._renderAll();
 }
@@ -3513,6 +3536,9 @@ function saveEdit() {
     }
   }
 
+  const finalParentNode = (newParentId && newParentId !== '') ? findNode(newParentId, window._orgData) : editParentNode;
+  upsertDirectoryFromOrgNode(n, finalParentNode ? finalParentNode.id : 'rizwan');
+
   closeEdit();
   saveToCloud();
   window._renderAll();
@@ -3621,6 +3647,12 @@ function saveNewNode() {
   parent.expanded = true;
 
   if (!isColead) maybeConvertToCoLeads(parent, newNode);
+
+  if (isColead) {
+    newNode.coLeads.forEach(cl => upsertDirectoryFromOrgNode(cl, parent.id));
+  } else {
+    upsertDirectoryFromOrgNode(newNode, parent.id);
+  }
 
   logActivity('org', `New person added: "${name || 'TBD'}" (${role})`);
   closeAdd();
@@ -3740,6 +3772,17 @@ function saveProspectsLocal() {
   if (window._fb) window._fb.saveProspects(window._prospects);
 }
 
+function populateReportsToOptions(excludeId) {
+  const sel = document.getElementById('pReportsTo');
+  if (!sel) return;
+  const current = sel.value;
+  const people = (window._prospects || []).filter(x => x.id !== excludeId && (x.status || 'prospect') !== 'declined');
+  people.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  sel.innerHTML = '<option value="">— Rizwan (Root) —</option>' +
+    people.map(x => `<option value="${x.id}">${esc(x.name || 'Unnamed')} — ${esc(x.role || 'No role set')}</option>`).join('');
+  sel.value = current;
+}
+
 function openProspect(id) {
   editingProspectId = id || null;
   const p = id ? window._prospects.find(x => x.id === id) : null;
@@ -3754,6 +3797,8 @@ function openProspect(id) {
   document.getElementById('pRole').value     = p ? (p.role     || '') : '';
   document.getElementById('pStatus').value   = p ? (p.status   || 'prospect') : 'prospect';
   document.getElementById('pNotes').value    = p ? (p.notes    || '') : '';
+  populateReportsToOptions(id || null);
+  document.getElementById('pReportsTo').value = p ? (p.reportsTo || '') : '';
   document.getElementById('prospectOverlay').classList.add('active');
 }
 
@@ -3764,17 +3809,19 @@ function closeProspect() {
 
 function saveProspect() {
   const id   = editingProspectId || ('p-' + Date.now());
+  const reportsToVal = document.getElementById('pReportsTo').value;
   const data = {
     id,
-    name:     document.getElementById('pName').value.trim(),
-    email:    document.getElementById('pEmail').value.trim(),
-    phone:    document.getElementById('pPhone').value.trim(),
-    city:     document.getElementById('pCity').value.trim(),
-    region:   document.getElementById('pRegion').value,
-    vertical: document.getElementById('pVertical').value,
-    role:     document.getElementById('pRole').value.trim(),
-    status:   document.getElementById('pStatus').value,
-    notes:    document.getElementById('pNotes').value.trim(),
+    name:      document.getElementById('pName').value.trim(),
+    email:     document.getElementById('pEmail').value.trim(),
+    phone:     document.getElementById('pPhone').value.trim(),
+    city:      document.getElementById('pCity').value.trim(),
+    region:    document.getElementById('pRegion').value,
+    vertical:  document.getElementById('pVertical').value,
+    role:      document.getElementById('pRole').value.trim(),
+    status:    document.getElementById('pStatus').value,
+    reportsTo: (reportsToVal && reportsToVal !== id) ? reportsToVal : '',
+    notes:     document.getElementById('pNotes').value.trim(),
     added:    editingProspectId ? (window._prospects.find(x=>x.id===id)||{}).added : new Date().toLocaleDateString()
   };
   if (!data.name) { alert('Please enter a name'); return; }
@@ -3784,6 +3831,7 @@ function saveProspect() {
   saveProspectsLocal();
   closeProspect();
   renderProspects();
+  if (window._dirMigrationFlag) window.regenerateOrgFromDirectory && window.regenerateOrgFromDirectory();
 }
 
 function deleteProspect(id) {
@@ -3791,7 +3839,270 @@ function deleteProspect(id) {
   window._prospects = window._prospects.filter(x => x.id !== id);
   saveProspectsLocal();
   renderProspects();
+  if (window._dirMigrationFlag) window.regenerateOrgFromDirectory && window.regenerateOrgFromDirectory();
 }
+
+// ══════════════════════════════════════════════
+//  DIRECTORY-DRIVEN ORG CHART GENERATOR
+//  The Directory (Volunteer Prospects) is the single source of truth for
+//  who reports to whom. This walks the flat directory list and produces
+//  the same nested tree shape the Org Chart renderer already consumes.
+// ══════════════════════════════════════════════
+function buildOrgTreeFromDirectory(people) {
+  const list = (people || []).filter(p => p && p.id && (p.status || 'prospect') !== 'declined');
+  const byId = {};
+  list.forEach(p => { byId[p.id] = p; });
+
+  function hasCycle(startId) {
+    const seen = new Set();
+    let cur = byId[startId];
+    while (cur && cur.reportsTo) {
+      if (cur.reportsTo === startId) return true;
+      if (seen.has(cur.id)) return true;
+      seen.add(cur.id);
+      cur = byId[cur.reportsTo];
+    }
+    return false;
+  }
+
+  // Duplicate vertical anchors: if 2+ people have no reportsTo and share the
+  // same vertical, keep the first (alphabetically) as the real anchor and
+  // auto-nest the rest under it as Co-Lead-style children, so the tree never
+  // ends up with two competing top-level nodes for one vertical.
+  const rootCandidates = list.filter(p => !p.reportsTo || !byId[p.reportsTo] || hasCycle(p.id));
+  const verticalGroups = {};
+  rootCandidates.forEach(p => {
+    if (!p.vertical) return;
+    (verticalGroups[p.vertical] = verticalGroups[p.vertical] || []).push(p);
+  });
+  const extraReportsTo = {};
+  Object.keys(verticalGroups).forEach(vName => {
+    const group = verticalGroups[vName].slice().sort((a, b) => {
+      // Prefer whoever matches the established RNR_VERTICALS.leadId for this
+      // vertical as the anchor (e.g. Raj over Kiran for Site Logistics),
+      // falling back to alphabetical so the result is always deterministic.
+      const prefA = (typeof RNR_VERTICALS !== 'undefined' && RNR_VERTICALS.some(v => v.leadId === a.id)) ? 0 : 1;
+      const prefB = (typeof RNR_VERTICALS !== 'undefined' && RNR_VERTICALS.some(v => v.leadId === b.id)) ? 0 : 1;
+      if (prefA !== prefB) return prefA - prefB;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+    group.slice(1).forEach(extra => { extraReportsTo[extra.id] = group[0].id; });
+  });
+
+  function effectiveParentId(p) {
+    if (extraReportsTo[p.id]) return extraReportsTo[p.id];
+    if (p.reportsTo && byId[p.reportsTo] && !hasCycle(p.id)) return p.reportsTo;
+    return 'rizwan';
+  }
+
+  const childrenOf = {};
+  list.forEach(p => {
+    const pid = effectiveParentId(p);
+    (childrenOf[pid] = childrenOf[pid] || []).push(p);
+  });
+
+  function isConfirmed(p) {
+    return (p.status || '') === 'ready' || (p.status || '') === 'confirmed';
+  }
+
+  function toNode(p, depth) {
+    const confirmed = isConfirmed(p) && p.name && p.name.trim().toLowerCase() !== 'tbd';
+    let tier;
+    if (depth === 1 && p.vertical) {
+      tier = confirmed ? 't2' : 't2-tbd';
+    } else if (depth === 1) {
+      tier = /pmo|coordinator/i.test(p.role || '') ? 'pmo' : 'deputy';
+    } else {
+      tier = confirmed ? 't3' : 't3-tbd';
+    }
+    const node = {
+      id: p.id,
+      name: p.name || 'TBD',
+      role: p.role || (p.vertical ? (p.vertical + ' Lead') : 'TBD'),
+      tier,
+      status: confirmed ? 'confirmed' : 'tbd',
+      region: (p.region || 'usa'),
+      expanded: true,
+      children: (childrenOf[p.id] || [])
+        .slice()
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+        .map(c => toNode(c, depth + 1))
+    };
+    if (p.city) node.city = p.city;
+    return node;
+  }
+
+  const rizwanOverride = byId['rizwan'];
+  const root = {
+    id: 'rizwan',
+    name: (rizwanOverride && rizwanOverride.name) || 'Rizwan Ali',
+    role: (rizwanOverride && rizwanOverride.role) || 'Logistics Lead',
+    tier: 't1',
+    status: 'confirmed',
+    region: 'usa',
+    expanded: true,
+    children: (childrenOf['rizwan'] || [])
+      .filter(p => p.id !== 'rizwan')
+      .slice()
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+      .map(p => toNode(p, 1))
+  };
+  return root;
+}
+
+let _regeneratingFromDirectory = false;
+function regenerateOrgFromDirectory() {
+  if (_regeneratingFromDirectory) return; // guard against re-entrant calls
+  _regeneratingFromDirectory = true;
+  try {
+    // Index cosmetic-only fields (photo/venue/area/dashed) and prior sibling
+    // order by id (flat lookup, not parallel recursion) so a regeneration
+    // never silently deletes them or resets drag-to-reorder — this has to be
+    // id-based rather than shape-based, since a person's container can change
+    // shape across a regeneration (e.g. moving out of a legacy coLeads[] array).
+    const oldById = {};
+    const oldChildOrder = {};
+    (function indexOld(node) {
+      if (!node) return;
+      if (node.id) oldById[node.id] = node;
+      const kids = [].concat(node.children || [], node.coLeads || []);
+      if (node.id) oldChildOrder[node.id] = kids.map(k => k.id);
+      kids.forEach(indexOld);
+    })(window._orgData);
+
+    const newTree = buildOrgTreeFromDirectory(window._prospects);
+
+    (function overlayExtras(node) {
+      const old = oldById[node.id];
+      if (old) {
+        ['photo', 'venue', 'area', 'dashed'].forEach(k => { if (old[k] !== undefined) node[k] = old[k]; });
+      }
+      const priorOrder = oldChildOrder[node.id];
+      if (priorOrder && Array.isArray(node.children) && node.children.length > 1) {
+        const byIdNew = {};
+        node.children.forEach(c => { byIdNew[c.id] = c; });
+        const ordered = [];
+        priorOrder.forEach(id => { if (byIdNew[id]) { ordered.push(byIdNew[id]); delete byIdNew[id]; } });
+        Object.keys(byIdNew).forEach(id => ordered.push(byIdNew[id]));
+        node.children = ordered;
+      }
+      (node.children || []).forEach(overlayExtras);
+    })(newTree);
+
+    window._orgData = newTree;
+    saveToCloud();
+    window._renderAll && window._renderAll();
+  } finally {
+    _regeneratingFromDirectory = false;
+  }
+}
+
+function upsertDirectoryFromOrgNode(node, parentId) {
+  if (!node || !node.id || node.id === 'rizwan') return;
+  const isRoot = !parentId || parentId === 'rizwan';
+  const idx = window._prospects.findIndex(p => p.id === node.id);
+  const existing = idx >= 0 ? window._prospects[idx] : null;
+  const entry = {
+    id:        node.id,
+    name:      node.name || 'TBD',
+    email:     node.email || (existing && existing.email) || '',
+    phone:     node.phone || (existing && existing.phone) || '',
+    city:      node.city  || (existing && existing.city)  || '',
+    region:    node.region || (existing && existing.region) || 'usa',
+    vertical:  (existing && existing.vertical) || (isRoot ? (node.role || '') : ''),
+    role:      node.role || (existing && existing.role) || '',
+    status:    (node.status === 'confirmed') ? 'ready' : ((existing && existing.status) || 'prospect'),
+    reportsTo: isRoot ? '' : parentId,
+    notes:     (existing && existing.notes) || '',
+    added:     (existing && existing.added) || new Date().toLocaleDateString()
+  };
+  if (idx >= 0) window._prospects[idx] = entry; else window._prospects.push(entry);
+  saveProspectsLocal();
+}
+window.upsertDirectoryFromOrgNode = upsertDirectoryFromOrgNode;
+window.buildOrgTreeFromDirectory = buildOrgTreeFromDirectory;
+window.regenerateOrgFromDirectory = regenerateOrgFromDirectory;
+
+// ── One-time migration: seed the Directory's reportsTo/vertical from
+//    whatever tree structure is already live, so nothing gets lost when
+//    the Directory becomes the source of truth. Runs exactly once ever,
+//    guarded by naig2027/directoryV2Migrated. ──
+const KNOWN_VERTICAL_LABELS = { fb: 'F&B', hotels: 'Hotels', transport: 'Transportation', site: 'Site Logistics', equipment: 'Equipment & Signage' };
+
+function migrateOrgToDirectory() {
+  const existingById = {};
+  (window._prospects || []).forEach(p => { if (p && p.id) existingById[p.id] = p; });
+  const merged = [];
+  const seenIds = new Set();
+
+  function upsert(node, parentId, vertical) {
+    const existing = existingById[node.id] || {};
+    const entry = {
+      id: node.id,
+      name:      existing.name      || node.name  || 'TBD',
+      email:     existing.email     || '',
+      phone:     existing.phone     || '',
+      city:      existing.city      || node.city   || '',
+      region:    existing.region    || node.region || 'usa',
+      vertical:  (existing.vertical !== undefined && existing.vertical !== '') ? existing.vertical : (vertical || ''),
+      role:      existing.role      || node.role   || '',
+      status:    existing.status    || (node.status === 'confirmed' ? 'ready' : 'prospect'),
+      reportsTo: (existing.reportsTo !== undefined) ? existing.reportsTo : (parentId === 'rizwan' ? '' : parentId),
+      notes:     existing.notes     || '',
+      added:     existing.added     || new Date().toLocaleDateString()
+    };
+    merged.push(entry);
+    seenIds.add(node.id);
+  }
+
+  function walk(node, parentId, vertical, depth) {
+    if (!node || !node.id) return;
+    const nodeVertical = vertical || (depth === 1 ? (KNOWN_VERTICAL_LABELS[node.id] || '') : '');
+
+    if (node.type === 'cogroup') {
+      // Co-lead container: the container itself isn't a person — its
+      // coLeads become the vertical anchors, and anything in `children`
+      // reports to the first co-lead (matches the generator's own
+      // duplicate-anchor auto-nesting rule on the way back out).
+      const heads = node.coLeads || [];
+      heads.forEach(h => upsert(h, parentId, nodeVertical));
+      const effectiveHeadId = heads[0] && heads[0].id;
+      (node.children || []).forEach(c => walk(c, effectiveHeadId || parentId, nodeVertical, depth + 1));
+      return;
+    }
+
+    if (node.id !== 'rizwan') upsert(node, parentId, nodeVertical);
+    const childParentId = node.id === 'rizwan' ? 'rizwan' : node.id;
+    (node.children || []).forEach(c => walk(c, childParentId, nodeVertical, depth + 1));
+    (node.coLeads  || []).forEach(c => walk(c, childParentId, nodeVertical, depth + 1));
+  }
+
+  walk(window._orgData, 'rizwan', null, 0);
+
+  // Keep any directory-only entries (pure prospects never placed on the chart)
+  (window._prospects || []).forEach(p => {
+    if (p && p.id && !seenIds.has(p.id)) merged.push(p);
+  });
+
+  window._prospects = merged;
+  saveProspectsLocal();
+  window.renderProspects && window.renderProspects();
+}
+window.migrateOrgToDirectory = migrateOrgToDirectory;
+
+window._maybeMigrateThenSyncDirectory = function() {
+  if (!window._orgLoaded || !window._prospectsLoaded || !window._dirFlagLoaded) return;
+  if (!window._dirMigrationFlag) {
+    if (window._dirMigrationRunning) return;
+    window._dirMigrationRunning = true;
+    window._dirMigrationFlag = true;
+    migrateOrgToDirectory();
+    window._fb.setDirMigrationFlag(true);
+    return; // the migration's own prospects save will re-fire this listener;
+            // next pass falls through to the regenerate branch below
+  }
+  regenerateOrgFromDirectory();
+};
 
 function toggleProspectsPanel() {
   prospectsPanelOpen = !prospectsPanelOpen;
