@@ -3849,7 +3849,7 @@ function deleteProspect(id) {
 //  the same nested tree shape the Org Chart renderer already consumes.
 // ══════════════════════════════════════════════
 function buildOrgTreeFromDirectory(people) {
-  const list = (people || []).filter(p => p && p.id && (p.status || 'prospect') !== 'declined');
+  const list = (people || []).filter(p => p && p.id && p.id !== 'rizwan' && (p.name || '').trim().toLowerCase() !== 'rizwan ali' && (p.status || 'prospect') !== 'declined');
   const byId = {};
   list.forEach(p => { byId[p.id] = p; });
 
@@ -4036,6 +4036,7 @@ function migrateOrgToDirectory() {
   const seenIds = new Set();
 
   function upsert(node, parentId, vertical) {
+    if (node.id === 'rizwan' || (node.name || '').trim().toLowerCase() === 'rizwan ali') return;
     const existing = existingById[node.id] || {};
     const entry = {
       id: node.id,
