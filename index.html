@@ -5,6 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NAIG 2027 — Logistics Hub</title>
 
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1E3A8A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NAIG 2027">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+
 <!-- ═══════════════════════════════════════════════════════
      FIREBASE CONFIG — NAIG 2027 Org Chart (naig-2027)
      ═══════════════════════════════════════════════════════ -->
@@ -43,6 +53,7 @@
   const teamsRef         = ref(db, 'naig2027/teams');
   const customModulesRef = ref(db, 'naig2027/customModules');
   const roleCatalogRef   = ref(db, 'naig2027/roleCatalog');
+  const activityLogRef   = ref(db, 'naig2027/activityLog');
 
   // ── expose Firebase to the rest of the page ──
   window._fb = {
@@ -68,6 +79,8 @@
     listenCustomModules: (cb) => onValue(customModulesRef, snap => cb(snap.val())),
     listenRoleCatalog: (cb) => onValue(roleCatalogRef, snap => cb(snap.val())),
     saveRoleCatalog:   (data) => set(roleCatalogRef, data),
+    listenActivityLog: (cb) => onValue(activityLogRef, snap => cb(snap.val())),
+    saveActivityLog:   (data) => set(activityLogRef, data),
   };
   // Primitives for global CRUD
   window._dbRef    = (path) => ref(db, path);
@@ -118,6 +131,7 @@
     window._fb.listenTasks((data) => {
       window._tasksData = data || {};
       window.renderTasks && window.renderTasks();
+      window.renderDashboard && window.renderDashboard();
       if (!data) window.seedInitialTasks && window.seedInitialTasks();
     });
     // ── Hub: Venues ──
@@ -131,6 +145,7 @@
       window.renderVenues && window.renderVenues();
       window.renderScope && window.renderScope(); // refresh scope status chart
       window.renderBudget && window.renderBudget();
+      window.renderDashboard && window.renderDashboard();
       if (!data) window.seedInitialVenues && window.seedInitialVenues();
     });
     // ── Hub: Vendors ──
@@ -143,6 +158,7 @@
         window._vendorsData = data;
         window.renderVendors && window.renderVendors();
         window.renderBudget && window.renderBudget();
+        window.renderDashboard && window.renderDashboard();
       }
     });
     // ── Hub: Scope ──
@@ -272,6 +288,23 @@
         const sel = document.getElementById(prefix + 'Role');
         if (sel && sel.options.length) { window.populateRoleSelect && window.populateRoleSelect(prefix, window.getRoleValue ? window.getRoleValue(prefix) : ''); }
       });
+    });
+
+    // ── Activity log (shared feed for Dashboard + Notifications) ──
+    window._fb.listenActivityLog((data) => {
+      const incoming = Array.isArray(data) ? data : [];
+      const isFirstLoad = !window._activityLogLoaded;
+      const prevIds = new Set((window._activityLog || []).map(e => e.id));
+      window._activityLog = incoming;
+      window._activityLogLoaded = true;
+      window.renderDashboard && window.renderDashboard();
+      window.renderNotifPanel && window.renderNotifPanel();
+      // Fire a browser notification for genuinely new entries (skip the initial bulk load)
+      if (!isFirstLoad && window.Notification && Notification.permission === 'granted') {
+        incoming.filter(e => !prevIds.has(e.id)).forEach(e => {
+          try { new Notification('NAIG 2027', { body: e.text, tag: e.id }); } catch (err) {}
+        });
+      }
     });
   })();
 </script>
@@ -882,6 +915,8 @@ html.onboard-mode #onboardScreen { display: block !important; }
  <select id="teamSwitcher" class="sync-status" onchange="applyTeamScope(this.value)" style="cursor:pointer;border:none;font-family:inherit"></select>
  <span class="sync-status" onclick="openManageTeams()" style="cursor:pointer"> Manage Teams</span>
  <span class="sync-status" onclick="openManageRoles()" style="cursor:pointer"> Manage Roles</span>
+ <span class="sync-status" id="notifBell" onclick="toggleNotifPanel(event)" style="cursor:pointer;position:relative">🔔<span id="notifBadge" style="display:none;position:absolute;top:-5px;right:-6px;background:#BF1B2A;color:#fff;border-radius:8px;font-size:9px;padding:1px 5px;font-weight:700;line-height:1.4">0</span></span>
+ <button class="btn btn-light" id="installAppBtn" onclick="installNaigApp()" style="display:none;font-size:11px" title="Install as an app">⬇ Install App</button>
  <span id="orgBtns" style="display:inline-flex;gap:8px;align-items:center">
  <span id="orgSearchWrap">
   <input type="text" id="orgSearchBox" placeholder=" Find a person…" oninput="orgSearchInput()" style="font-size:11px;padding:5px 8px;border-radius:6px;border:none;width:140px">
@@ -901,9 +936,18 @@ html.onboard-mode #onboardScreen { display: block !important; }
  </div>
 </div>
 
+<div id="notifPanel" style="display:none;position:fixed;top:60px;right:20px;width:360px;max-height:70vh;overflow-y:auto;background:#fff;border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,0.25);z-index:9999;border:1px solid #e5e7eb">
+ <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #eee;position:sticky;top:0;background:#fff;border-radius:10px 10px 0 0">
+  <strong style="font-size:14px;color:#1E3A8A">Notifications</strong>
+  <span onclick="markAllNotifsRead()" style="font-size:11px;color:#1E3A8A;cursor:pointer;font-weight:600">Mark all read</span>
+ </div>
+ <div id="notifList" style="padding:6px 0"></div>
+</div>
+
 <!-- Tab Navigation -->
 <div class="tab-nav">
- <button class="tab-btn active" id="taborg" onclick="switchTab('orgchart')">Org Chart</button>
+ <button class="tab-btn active" id="tabdashboard" onclick="switchTab('dashboard')">🏠 Dashboard</button>
+ <button class="tab-btn" id="taborg" onclick="switchTab('orgchart')">Org Chart</button>
  <button class="tab-btn" id="tabplan" onclick="switchTab('plan')">Project Plan <span class="tab-badge" id="badge-plan"></span></button>
  <button class="tab-btn" id="tabtasks" onclick="switchTab('tasks')">Tasks <span class="tab-badge" id="badge-tasks">0</span></button>
  <button class="tab-btn" id="tabvenues" onclick="switchTab('venues')">Venues <span class="tab-badge" id="badge-venues">0</span></button>
@@ -1059,6 +1103,67 @@ html.onboard-mode #onboardScreen { display: block !important; }
 </div>
 
 <!-- ══════════ HUB SECTIONS ══════════ -->
+
+<!-- ══ Command Center Dashboard ══ -->
+<div class="hub-section" id="sectionDashboard">
+ <div class="hub-toolbar">
+  <div>
+   <div class="hub-title">Command Center</div>
+   <div class="hub-subtitle" id="dashCountdown">Countdown loading…</div>
+  </div>
+  <div id="dashGreeting" style="font-size:12px;color:#888"></div>
+ </div>
+
+ <!-- KPI row -->
+ <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px" id="dashKpiRow"></div>
+
+ <!-- Two-column layout -->
+ <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:16px;align-items:start" id="dashGrid">
+
+  <div style="display:flex;flex-direction:column;gap:16px">
+   <!-- My Tasks -->
+   <div style="background:#fff;border:1px solid #e0e8f0;border-radius:10px;padding:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+     <strong style="font-size:13px;color:#1E3A8A">My Open Tasks</strong>
+     <span style="font-size:11px;color:#1E3A8A;cursor:pointer;font-weight:600" onclick="switchTab('tasks')">View all →</span>
+    </div>
+    <div id="dashMyTasks"></div>
+   </div>
+
+   <!-- Venue status -->
+   <div style="background:#fff;border:1px solid #e0e8f0;border-radius:10px;padding:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+     <strong style="font-size:13px;color:#1E3A8A">Venue Status</strong>
+     <span style="font-size:11px;color:#1E3A8A;cursor:pointer;font-weight:600" onclick="switchTab('venues')">View all →</span>
+    </div>
+    <div id="dashVenueStatus"></div>
+   </div>
+
+   <!-- Budget snapshot -->
+   <div style="background:#fff;border:1px solid #e0e8f0;border-radius:10px;padding:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+     <strong style="font-size:13px;color:#1E3A8A">Budget Snapshot</strong>
+     <span style="font-size:11px;color:#1E3A8A;cursor:pointer;font-weight:600" onclick="switchTab('budget')">View all →</span>
+    </div>
+    <div id="dashBudget"></div>
+   </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:16px">
+   <!-- Overdue / due soon -->
+   <div style="background:#fff;border:1px solid #e0e8f0;border-radius:10px;padding:16px">
+    <strong style="font-size:13px;color:#BF1B2A">⚠ Needs Attention</strong>
+    <div id="dashAttention" style="margin-top:10px"></div>
+   </div>
+
+   <!-- Recent activity -->
+   <div style="background:#fff;border:1px solid #e0e8f0;border-radius:10px;padding:16px">
+    <strong style="font-size:13px;color:#1E3A8A">Recent Activity</strong>
+    <div id="dashActivity" style="margin-top:10px;max-height:340px;overflow-y:auto"></div>
+   </div>
+  </div>
+ </div>
+</div>
 
 <!-- Tasks — Kanban Board -->
 <!-- ══ Project Plan ══ -->
@@ -2905,11 +3010,13 @@ function setIdentity(nodeId) {
   localStorage.setItem('naig_identity', JSON.stringify(identity));
   renderIdentityBadge();
   closeIdentityPicker();
+  requestNotifPermission();
 }
 function setViewerIdentity() {
   localStorage.setItem('naig_identity', JSON.stringify({ id: null, name: null, vertical: null, level: 'View User' }));
   renderIdentityBadge();
   closeIdentityPicker();
+  requestNotifPermission();
 }
 function renderIdentityBadge() {
   const badge = document.getElementById('identityBadge');
@@ -3374,6 +3481,7 @@ function saveEdit() {
   if (historyLog.length > 5) historyLog.pop();
   document.getElementById('historyLog').innerHTML = historyLog.map(h=>`<span class="hist-entry">${h}</span>`).join('');
   document.getElementById('lastEdit').textContent = now;
+  logActivity('org', `Org update: "${oldName}" → "${n.name}" (${n.role})`);
 
   // Handle move/reparent
   const newParentId = document.getElementById('editParent').value;
@@ -3514,6 +3622,7 @@ function saveNewNode() {
 
   if (!isColead) maybeConvertToCoLeads(parent, newNode);
 
+  logActivity('org', `New person added: "${name || 'TBD'}" (${role})`);
   closeAdd();
   saveToCloud();
   window._renderAll();
@@ -4202,6 +4311,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const addOv = document.getElementById('addOverlay');
   if (addOv) addOv.addEventListener('click', e => { if (e.target === addOv) closeAdd(); });
   renderIdentityBadge();
+  switchTab('dashboard');
 });
 
 /* ══════════════════════════════════════════════════════════
@@ -4469,7 +4579,7 @@ window.exportPlanCSV    = exportPlanCSV;
 function switchTab(tab) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   const isCustom = typeof tab === 'string' && tab.indexOf('custom_') === 0;
-  const tabMap = { orgchart:'taborg', plan:'tabplan', tasks:'tabtasks', venues:'tabvenues', vendors:'tabvendors',
+  const tabMap = { dashboard:'tabdashboard', orgchart:'taborg', plan:'tabplan', tasks:'tabtasks', venues:'tabvenues', vendors:'tabvendors',
     hotels:'tabhotels', transport:'tabtransport', docs:'tabdocs', scope:'tabscope' };
   const activeBtn = isCustom ? document.getElementById('tabcustom_' + tab.slice(7)) : document.getElementById(tabMap[tab]);
   if (activeBtn) activeBtn.classList.add('active');
@@ -4485,7 +4595,7 @@ function switchTab(tab) {
   if (orgBtns) orgBtns.style.display = (tab === 'orgchart') ? '' : 'none';
 
   // Hub sections
-  const hubSections = ['sectionPlan','sectionTasks','sectionVenues','sectionVendors','sectionHotels',
+  const hubSections = ['sectionDashboard','sectionPlan','sectionTasks','sectionVenues','sectionVendors','sectionHotels',
     'sectionTransport','sectionDocs','sectionBudget','sectionScope'];
   hubSections.forEach(id => {
     const el = document.getElementById(id);
@@ -4494,7 +4604,7 @@ function switchTab(tab) {
   document.querySelectorAll('.custom-section').forEach(el => { el.style.display = 'none'; el.classList.remove('active'); });
 
   const sectionMap = {
-    plan:'sectionPlan', tasks:'sectionTasks', venues:'sectionVenues', vendors:'sectionVendors',
+    dashboard:'sectionDashboard', plan:'sectionPlan', tasks:'sectionTasks', venues:'sectionVenues', vendors:'sectionVendors',
     hotels:'sectionHotels', transport:'sectionTransport', docs:'sectionDocs', budget:'sectionBudget', scope:'sectionScope'
   };
   if (isCustom) {
@@ -4505,6 +4615,7 @@ function switchTab(tab) {
     if (el) { el.style.display = 'block'; el.classList.add('active'); }
   }
   if (tab === 'budget') { window.renderBudget && window.renderBudget(); }
+  if (tab === 'dashboard') { window.renderDashboard && window.renderDashboard(); }
 }
 window.switchTab = switchTab;
 
@@ -4531,6 +4642,216 @@ function deleteHubItem(path, key, closeFn) {
   window._dbRemove(window._dbRef('naig2027/' + path + '/' + key));
   closeFn && closeFn();
 }
+
+// ── Activity log — shared feed powering the Dashboard and Notifications bell ──
+function logActivity(type, text) {
+  if (!window._fb) return;
+  const entry = { id: 'act' + Date.now() + Math.random().toString(36).slice(2,6), ts: Date.now(), type, text };
+  const log = (window._activityLog || []).concat([entry]);
+  const capped = log.slice(-200); // keep the last 200 entries
+  window._activityLog = capped;
+  window._fb.saveActivityLog(capped);
+}
+function timeAgo(ts) {
+  const diff = Math.max(0, Date.now() - ts);
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + 'm ago';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + 'h ago';
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return days + 'd ago';
+  return new Date(ts).toLocaleDateString();
+}
+
+/* ── Notification bell / panel ── */
+const NOTIF_TYPE_ICON = { task: '\u2705', venue: '\ud83c\udfdf\ufe0f', org: '\ud83d\udc65', budget: '\ud83d\udcb0' };
+function _notifLastSeen() {
+  return parseInt(localStorage.getItem('naig_notif_seen') || '0', 10);
+}
+function toggleNotifPanel(e) {
+  if (e) e.stopPropagation();
+  const panel = document.getElementById('notifPanel');
+  if (!panel) return;
+  const opening = panel.style.display === 'none' || !panel.style.display;
+  panel.style.display = opening ? 'block' : 'none';
+  if (opening) {
+    renderNotifPanel();
+    document.addEventListener('click', _notifOutsideClick);
+  } else {
+    document.removeEventListener('click', _notifOutsideClick);
+  }
+}
+function _notifOutsideClick(e) {
+  const panel = document.getElementById('notifPanel');
+  const bell = document.getElementById('notifBell');
+  if (!panel || panel.style.display === 'none') return;
+  if (panel.contains(e.target) || (bell && bell.contains(e.target))) return;
+  panel.style.display = 'none';
+  document.removeEventListener('click', _notifOutsideClick);
+}
+function markAllNotifsRead() {
+  localStorage.setItem('naig_notif_seen', String(Date.now()));
+  renderNotifPanel();
+}
+function renderNotifPanel() {
+  const log = (window._activityLog || []).slice().sort((a, b) => b.ts - a.ts);
+  const lastSeen = _notifLastSeen();
+  const unreadCount = log.filter(e => e.ts > lastSeen).length;
+  const badge = document.getElementById('notifBadge');
+  if (badge) {
+    if (unreadCount > 0) { badge.style.display = 'inline'; badge.textContent = unreadCount > 99 ? '99+' : String(unreadCount); }
+    else { badge.style.display = 'none'; }
+  }
+  const list = document.getElementById('notifList');
+  if (!list) return;
+  if (!log.length) {
+    list.innerHTML = '<div style="padding:24px 16px;text-align:center;color:#888;font-size:13px">No activity yet</div>';
+    return;
+  }
+  list.innerHTML = log.slice(0, 40).map(e => {
+    const unread = e.ts > lastSeen;
+    const icon = NOTIF_TYPE_ICON[e.type] || '\ud83d\udd14';
+    return `<div style="display:flex;gap:10px;padding:10px 16px;border-bottom:1px solid #f2f2f2;${unread ? 'background:#F2F5FA' : ''}">
+      <span style="font-size:16px;flex-shrink:0">${icon}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12.5px;color:#222;line-height:1.4">${e.text}</div>
+        <div style="font-size:10.5px;color:#999;margin-top:2px">${timeAgo(e.ts)}</div>
+      </div>
+      ${unread ? '<span style="width:7px;height:7px;border-radius:50%;background:#BF1B2A;flex-shrink:0;margin-top:4px"></span>' : ''}
+    </div>`;
+  }).join('');
+}
+function requestNotifPermission() {
+  if (window.Notification && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+/* ── Command Center Dashboard ── */
+const GAMES_DATE = new Date('2027-03-25T00:00:00');
+function renderDashboard() {
+  const sec = document.getElementById('sectionDashboard');
+  if (!sec) return;
+  const parse = s => parseFloat(String(s||'0').replace(/[^0-9.]/g,'')) || 0;
+  const fmt   = n => n ? '$' + n.toLocaleString('en-US',{maximumFractionDigits:0}) : '$0';
+  const raw = localStorage.getItem('naig_identity');
+  const identity = raw ? JSON.parse(raw) : null;
+
+  // ── Countdown ──
+  const now = new Date();
+  const diffMs = GAMES_DATE - now;
+  const days = Math.ceil(diffMs / 86400000);
+  const cd = document.getElementById('dashCountdown');
+  if (cd) cd.textContent = days > 0 ? `${days} days until Games Week (Mar 25, 2027)` : (days === 0 ? 'Games Week starts today!' : 'Games Week is underway / complete');
+  const greet = document.getElementById('dashGreeting');
+  if (greet) greet.textContent = identity && identity.name ? `Welcome back, ${identity.name}` : '';
+
+  // ── Task stats ──
+  const tasks = Object.values(window._tasksData || {});
+  const openTasks = tasks.filter(t => t.status !== 'done');
+  const todayStr = now.toISOString().slice(0,10);
+  const overdue = openTasks.filter(t => t.due && t.due < todayStr);
+  const dueSoon = openTasks.filter(t => t.due && t.due >= todayStr && t.due <= new Date(now.getTime()+7*86400000).toISOString().slice(0,10));
+
+  // ── Venue stats ──
+  const venues = Object.values(window._venuesData || {});
+  const venueStatusCounts = {};
+  venues.forEach(v => { const s = v.status || 'Unknown'; venueStatusCounts[s] = (venueStatusCounts[s]||0) + 1; });
+  const confirmedVenues = venues.filter(v => /confirm|contract.*sign|booked/i.test(v.status||'')).length;
+
+  // ── Budget snapshot (mirrors renderBudget aggregation) ──
+  let venueC=0, venueP=0;
+  venues.forEach(v => { venueC += parse(v.rentalFee); venueP += parse(v.paid); });
+  let vendorC=0, vendorP=0;
+  Object.values(window._vendorsData || {}).forEach(v => { vendorC += parse(v.cost); vendorP += parse(v.paid); });
+  const grandC = venueC + vendorC, grandP = venueP + vendorP;
+  const grandOut = Math.max(0, grandC - grandP);
+
+  // ── KPI row ──
+  const kpiRow = document.getElementById('dashKpiRow');
+  if (kpiRow) kpiRow.innerHTML = `
+    <div class="sum-chip"><strong>${venues.length}</strong><span>Venues (${confirmedVenues} confirmed)</span></div>
+    <div class="sum-chip"><strong>${openTasks.length}</strong><span>Open Tasks</span></div>
+    <div class="sum-chip" style="${overdue.length ? 'color:#BF1B2A' : ''}"><strong>${overdue.length}</strong><span>Overdue</span></div>
+    <div class="sum-chip"><strong>${fmt(grandC)}</strong><span>Total Committed</span></div>
+    <div class="sum-chip" style="color:#721c24"><strong>${fmt(grandOut)}</strong><span>Outstanding</span></div>
+  `;
+
+  // ── My open tasks ──
+  const dashMyTasks = document.getElementById('dashMyTasks');
+  if (dashMyTasks) {
+    const mine = identity && identity.name
+      ? openTasks.filter(t => taskOwners(t).includes(identity.name))
+      : [];
+    if (!identity || !identity.name) {
+      dashMyTasks.innerHTML = '<div style="color:#aaa;font-size:12px">Identify yourself in the header to see your personal task list.</div>';
+    } else if (!mine.length) {
+      dashMyTasks.innerHTML = '<div style="color:#aaa;font-size:12px">No open tasks assigned to you. 🎉</div>';
+    } else {
+      dashMyTasks.innerHTML = mine.sort((a,b) => (a.due||'9999').localeCompare(b.due||'9999')).slice(0,6).map(t => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f2f2f2">
+          <span style="font-size:12px;color:#222">${_PRI_ICON[t.priority]||''} ${esc(t.title||'Untitled')}</span>
+          <span style="font-size:10.5px;color:${t.due && t.due < todayStr ? '#BF1B2A' : '#999'}">${t.due ? esc(t.due) : '—'}</span>
+        </div>
+      `).join('');
+    }
+  }
+
+  // ── Venue status breakdown ──
+  const dashVenueStatus = document.getElementById('dashVenueStatus');
+  if (dashVenueStatus) {
+    const entries = Object.entries(venueStatusCounts).sort((a,b) => b[1]-a[1]);
+    dashVenueStatus.innerHTML = entries.length ? entries.map(([status,count]) => `
+      <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f2f2f2">
+        <span style="font-size:12px;color:#444">${esc(status)}</span>
+        <span style="font-size:12px;font-weight:700;color:#1E3A8A">${count}</span>
+      </div>
+    `).join('') : '<div style="color:#aaa;font-size:12px">No venues added yet.</div>';
+  }
+
+  // ── Budget snapshot ──
+  const dashBudget = document.getElementById('dashBudget');
+  if (dashBudget) dashBudget.innerHTML = `
+    <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f2f2f2">
+      <span style="font-size:12px;color:#444">Committed</span><span style="font-size:12px;font-weight:700">${fmt(grandC)}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f2f2f2">
+      <span style="font-size:12px;color:#444">Paid</span><span style="font-size:12px;font-weight:700;color:#155724">${fmt(grandP)}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;padding:5px 0">
+      <span style="font-size:12px;color:#444">Outstanding</span><span style="font-size:12px;font-weight:700;color:#721c24">${fmt(grandOut)}</span>
+    </div>
+  `;
+
+  // ── Needs attention ──
+  const dashAttention = document.getElementById('dashAttention');
+  if (dashAttention) {
+    const items = [];
+    overdue.slice(0,5).forEach(t => items.push({ text: `Overdue: "${t.title||'Untitled'}"${t.due ? ' (due '+t.due+')' : ''}`, urgent: true }));
+    dueSoon.slice(0,5).forEach(t => items.push({ text: `Due soon: "${t.title||'Untitled'}" (${t.due})`, urgent: false }));
+    venues.filter(v => /tbd|pending|evaluat/i.test(v.status||'')).slice(0,3).forEach(v => items.push({ text: `Venue "${v.name||'TBD'}" status: ${v.status||'—'}`, urgent: false }));
+    dashAttention.innerHTML = items.length ? items.slice(0,8).map(i => `
+      <div style="display:flex;gap:6px;align-items:flex-start;padding:5px 0;border-bottom:1px solid #f2f2f2">
+        <span style="color:${i.urgent?'#BF1B2A':'#d97706'};font-size:11px;margin-top:2px">●</span>
+        <span style="font-size:12px;color:#333">${i.text}</span>
+      </div>
+    `).join('') : '<div style="color:#aaa;font-size:12px">Nothing urgent — all caught up.</div>';
+  }
+
+  // ── Recent activity ──
+  const dashActivity = document.getElementById('dashActivity');
+  if (dashActivity) {
+    const log = (window._activityLog || []).slice().sort((a,b) => b.ts-a.ts).slice(0,15);
+    dashActivity.innerHTML = log.length ? log.map(e => `
+      <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid #f2f2f2">
+        <span style="font-size:14px">${NOTIF_TYPE_ICON[e.type]||'🔔'}</span>
+        <div style="flex:1"><div style="font-size:11.5px;color:#333">${e.text}</div><div style="font-size:10px;color:#999">${timeAgo(e.ts)}</div></div>
+      </div>
+    `).join('') : '<div style="color:#aaa;font-size:12px">No recent activity yet.</div>';
+  }
+}
+window.renderDashboard = renderDashboard;
 
 /* ══════════════════════════════════════════════════════════
    TASKS — Kanban
@@ -4872,6 +5193,8 @@ function saveTask() {
   // Detect newly-added assignees for email notification
   const oldOwners = editKey ? taskOwners(window._tasksData[editKey] || {}) : [];
   const newlyAdded = newOwners.filter(o => !oldOwners.includes(o));
+  const _oldTask = editKey ? (window._tasksData[editKey] || {}) : null;
+  const _newStatus = document.getElementById('taskStatus').value;
   hubSave('tasks', key, {
     title,
     status:     document.getElementById('taskStatus').value,
@@ -4888,6 +5211,11 @@ function saveTask() {
     parentTask: document.getElementById('taskParent').value,
     updated:    new Date().toISOString()
   });
+  if (!editKey) {
+    logActivity('task', `New task: "${title}"${newOwners.length ? ' — assigned to ' + newOwners.join(', ') : ''}`);
+  } else if (_oldTask && _oldTask.status !== _newStatus) {
+    logActivity('task', `Task "${title}" moved to ${_STATUS_LABEL[_newStatus] || _newStatus}`);
+  }
   // Send assignment email for newly-added people
   if (newlyAdded.length) {
     const emails = newlyAdded.map(o => _ASSIGNEE_EMAILS[o]).filter(Boolean);
@@ -5117,6 +5445,9 @@ function saveVenue() {
   const name = document.getElementById('venueName').value.trim();
   if (!name) { alert('Venue name required.'); return; }
   const key = document.getElementById('venueKey').value || hubKey();
+  const _isNewVenue = !document.getElementById('venueKey').value;
+  const _oldVenue = window._venuesData ? window._venuesData[key] : null;
+  const _newStatus = document.getElementById('venueStatus').value;
   hubSave('venues', key, {
     name, type: document.getElementById('venueType').value,
     capacity: document.getElementById('venueCapacity').value.trim(),
@@ -5146,6 +5477,11 @@ function saveVenue() {
     customQA: _venueCustomQA.length ? JSON.stringify(_venueCustomQA) : '',
     updated: new Date().toISOString()
   });
+  if (_isNewVenue) {
+    logActivity('venue', `New venue added: "${name}"`);
+  } else if (_oldVenue && _oldVenue.status !== _newStatus) {
+    logActivity('venue', `Venue "${name}" status changed: ${_oldVenue.status || '—'} → ${_newStatus}`);
+  }
   closeVenueModal();
 }
 window.openVenueModal = openVenueModal;
@@ -7102,5 +7438,35 @@ window.addEventListener('load', function() {
  </div>
 </div>
 </div><!-- /mainHub -->
+
+<script>
+  // PWA: register service worker for offline capability + installability
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    });
+  }
+  // Install prompt handling (Android/desktop Chrome "Add to Home Screen")
+  let _deferredInstallPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    _deferredInstallPrompt = e;
+    const btn = document.getElementById('installAppBtn');
+    if (btn) btn.style.display = 'inline-flex';
+  });
+  window.installNaigApp = function() {
+    if (!_deferredInstallPrompt) return;
+    _deferredInstallPrompt.prompt();
+    _deferredInstallPrompt.userChoice.finally(() => {
+      _deferredInstallPrompt = null;
+      const btn = document.getElementById('installAppBtn');
+      if (btn) btn.style.display = 'none';
+    });
+  };
+  window.addEventListener('appinstalled', () => {
+    const btn = document.getElementById('installAppBtn');
+    if (btn) btn.style.display = 'none';
+  });
+</script>
 </body>
 </html>

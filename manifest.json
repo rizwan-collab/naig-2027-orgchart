@@ -1,0 +1,15 @@
+{
+  "name": "NAIG 2027 Logistics Hub",
+  "short_name": "NAIG 2027",
+  "description": "North American Ismaili Games 2027 — Logistics, Tasks, Venues & Org Chart Hub",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#1E3A8A",
+  "theme_color": "#1E3A8A",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
