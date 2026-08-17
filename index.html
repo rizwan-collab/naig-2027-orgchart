@@ -932,6 +932,7 @@ html.onboard-mode #onboardScreen { display: block !important; }
  <span class="sync-status" id="notifBell" onclick="toggleNotifPanel(event)" style="cursor:pointer;position:relative">🔔<span id="notifBadge" style="display:none;position:absolute;top:-5px;right:-6px;background:#BF1B2A;color:#fff;border-radius:8px;font-size:9px;padding:1px 5px;font-weight:700;line-height:1.4">0</span></span>
  <button class="btn btn-light" id="installAppBtn" onclick="installNaigApp()" style="display:none;font-size:11px" title="Install as an app">⬇ Install App</button>
  <span id="orgBtns" style="display:inline-flex;gap:8px;align-items:center">
+ <button class="btn" id="quickAddBtn" onclick="openQuickAdd()" style="background:#BF1B2A;color:#fff;font-weight:700;font-size:11px;border:none" title="Add a new person to the directory and org chart">+ Add Person</button>
  <span id="orgSearchWrap">
   <input type="text" id="orgSearchBox" placeholder=" Find a person…" oninput="orgSearchInput()" style="font-size:11px;padding:5px 8px;border-radius:6px;border:none;width:140px">
   <div id="orgSearchResults"></div>
@@ -2178,6 +2179,44 @@ html.onboard-mode #onboardScreen { display: block !important; }
  <div class="modal-actions">
  <button class="btn btn-cancel" onclick="closeProspect()">Cancel</button>
  <button class="btn btn-primary" onclick="saveProspect()">Save</button>
+ </div>
+ </div>
+</div>
+
+<!-- Quick Add Person Modal (org chart header "+ Add Person") -->
+<div class="overlay" id="quickAddOverlay">
+ <div class="modal" style="width:400px;font-family:'Inter',sans-serif">
+ <h3 style="font-family:'Outfit','Inter',sans-serif;color:#1E3A8A;margin:0 0 4px">Add Person</h3>
+ <div style="font-size:11px;color:#777;margin-bottom:10px">Adds to the directory — the org chart regenerates itself.</div>
+ <div class="form-group">
+  <label>Name</label>
+  <input type="text" id="qaName" placeholder="Full name" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();saveQuickAdd();}">
+ </div>
+ <div class="form-group">
+  <label>Role</label>
+  <select id="qaRole" onchange="toggleRoleCustom('qa')"></select>
+  <input type="text" id="qaRoleCustom" placeholder="Type a new role title" style="display:none;margin-top:5px">
+ </div>
+ <div class="form-group">
+  <label>Team</label>
+  <select id="qaTeam">
+   <option value="">— Unassigned —</option>
+   <option value="F&amp;B">F&amp;B</option>
+   <option value="Hotels">Hotels &amp; Accommodations</option>
+   <option value="Transportation">Transportation</option>
+   <option value="Site Logistics">Site Logistics</option>
+   <option value="Equipment &amp; Signage">Equipment &amp; Signage</option>
+   <option value="General">General / Any</option>
+  </select>
+ </div>
+ <div class="form-group">
+  <label>Manager</label>
+  <select id="qaManager"></select>
+ </div>
+ <div id="qaWarn" style="display:none;font-size:11px;color:#BF1B2A;font-weight:600;margin-top:8px"></div>
+ <div class="modal-actions">
+  <button class="btn btn-cancel" onclick="closeQuickAdd()">Cancel</button>
+  <button class="btn btn-primary" id="qaSaveBtn" onclick="saveQuickAdd()" style="background:#1E3A8A">Add Person</button>
  </div>
  </div>
 </div>
@@ -3833,6 +3872,110 @@ function saveProspect() {
   renderProspects();
   if (window._dirMigrationFlag) window.regenerateOrgFromDirectory && window.regenerateOrgFromDirectory();
 }
+
+// ══════════════════════════════════════════════
+//  QUICK ADD PERSON  (org chart header button)
+//  Simple 4-field form — name, role, team, manager.
+//  Writes straight into the Directory (single source of truth) and lets
+//  regenerateOrgFromDirectory() redraw the chart, so there is exactly one
+//  code path for creating people and no chance of the two views diverging.
+// ══════════════════════════════════════════════
+let _qaDupeConfirmPending = false;
+
+function populateManagerOptions(selId, excludeId) {
+  const sel = document.getElementById(selId);
+  if (!sel) return;
+  const current = sel.value;
+  const people = (window._prospects || [])
+    .filter(x => x.id !== excludeId && (x.status || 'prospect') !== 'declined' && (x.name || '').trim());
+  people.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  sel.innerHTML = '<option value="">— Rizwan (Top level) —</option>' +
+    people.map(x => `<option value="${esc(x.id)}">${esc(x.name)} — ${esc(x.role || 'No role set')}</option>`).join('');
+  if (current) sel.value = current;
+}
+
+function openQuickAdd() {
+  _qaDupeConfirmPending = false;
+  document.getElementById('qaName').value = '';
+  document.getElementById('qaTeam').value = '';
+  const warn = document.getElementById('qaWarn');
+  warn.style.display = 'none';
+  warn.textContent = '';
+  document.getElementById('qaSaveBtn').textContent = 'Add Person';
+  populateRoleSelect('qa', '');
+  populateManagerOptions('qaManager', null);
+  document.getElementById('qaManager').value = '';
+  document.getElementById('quickAddOverlay').classList.add('active');
+  setTimeout(() => { const n = document.getElementById('qaName'); n && n.focus(); }, 30);
+}
+
+function closeQuickAdd() {
+  _qaDupeConfirmPending = false;
+  document.getElementById('quickAddOverlay').classList.remove('active');
+}
+
+function saveQuickAdd() {
+  const warn = document.getElementById('qaWarn');
+  const name = document.getElementById('qaName').value.trim();
+  if (!name) {
+    warn.textContent = 'Please enter a name.';
+    warn.style.display = '';
+    document.getElementById('qaName').focus();
+    return;
+  }
+
+  // Duplicate guard — same protection the directory dedup relies on. Non-blocking:
+  // first click warns inline, a second click goes ahead (some names really do repeat).
+  const dupe = (window._prospects || []).find(p => (p.name || '').trim().toLowerCase() === name.toLowerCase());
+  if (dupe && !_qaDupeConfirmPending) {
+    _qaDupeConfirmPending = true;
+    warn.innerHTML = esc(name) + ' is already in the directory (' + esc(dupe.role || 'no role set') +
+      '). Click <strong>Add Anyway</strong> if this is a different person.';
+    warn.style.display = '';
+    document.getElementById('qaSaveBtn').textContent = 'Add Anyway';
+    return;
+  }
+
+  const role      = getRoleValue('qa');
+  const team      = document.getElementById('qaTeam').value;
+  const managerId = document.getElementById('qaManager').value;
+  // Unique id: Date.now() alone can collide if two people are added inside the
+  // same millisecond, which would make one entry overwrite the other (and any
+  // reportsTo pointing at that id would attach to the wrong person).
+  let id = 'p-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+  while ((window._prospects || []).some(p => p.id === id)) {
+    id = 'p-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+  }
+
+  registerRoleIfNew(role);
+
+  const entry = {
+    id, name, role,
+    email: '', phone: '', city: '',
+    region: 'usa',
+    vertical: team,
+    status: 'prospect',
+    reportsTo: (managerId && managerId !== id) ? managerId : '',
+    notes: '',
+    added: new Date().toLocaleDateString()
+  };
+
+  window._prospects = (window._prospects || []).concat([entry]);
+  saveProspectsLocal();
+  closeQuickAdd();
+  renderProspects();
+  if (window._dirMigrationFlag) {
+    window.regenerateOrgFromDirectory && window.regenerateOrgFromDirectory();
+  }
+  const mgr = managerId ? (window._prospects.find(p => p.id === managerId) || {}).name : 'Rizwan (top level)';
+  if (typeof logActivity === 'function') {
+    logActivity('org', 'Added ' + name + (role ? ' (' + role + ')' : '') + ' reporting to ' + (mgr || 'Rizwan'));
+  }
+}
+
+window.openQuickAdd  = openQuickAdd;
+window.closeQuickAdd = closeQuickAdd;
+window.saveQuickAdd  = saveQuickAdd;
 
 function deleteProspect(id) {
   if (!confirm('Remove this prospect?')) return;
