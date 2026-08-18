@@ -2157,6 +2157,17 @@ html.onboard-mode #onboardScreen { display: block !important; }
  <input type="text" id="pRole" placeholder="e.g. Venue Lead, Coordinator">
  </div>
  <div class="form-group">
+ <label>Role Type</label>
+ <select id="pRoleType">
+  <option value="lead">Lead / Co-Lead — layer 1</option>
+  <option value="deputy">Deputy — layer 2</option>
+  <option value="pmo">PMO / Coordinator — layer 3</option>
+  <option value="venue">Venue Lead — layer 4</option>
+  <option value="">Other / unassigned</option>
+ </select>
+ <div style="font-size:10.5px;color:#888;margin-top:3px">Sets which layer they sit on inside their vertical. Two people set to Lead in the same vertical render as Co-Leads, side by side.</div>
+ </div>
+ <div class="form-group">
  <label>Reports To</label>
  <select id="pReportsTo">
  <option value="">— Rizwan (Root) —</option>
@@ -2196,6 +2207,16 @@ html.onboard-mode #onboardScreen { display: block !important; }
   <label>Role</label>
   <select id="qaRole" onchange="toggleRoleCustom('qa')"></select>
   <input type="text" id="qaRoleCustom" placeholder="Type a new role title" style="display:none;margin-top:5px">
+ </div>
+ <div class="form-group">
+  <label>Role Type <span style="font-weight:400;color:#888">— sets which layer they sit on</span></label>
+  <select id="qaRoleType">
+   <option value="lead">Lead / Co-Lead — layer 1</option>
+   <option value="deputy">Deputy — layer 2</option>
+   <option value="pmo">PMO / Coordinator — layer 3</option>
+   <option value="venue">Venue Lead — layer 4</option>
+   <option value="">Other / unassigned</option>
+  </select>
  </div>
  <div class="form-group">
   <label>Team</label>
@@ -3834,6 +3855,7 @@ function openProspect(id) {
   document.getElementById('pRegion').value   = p ? (p.region   || 'usa') : 'usa';
   document.getElementById('pVertical').value = p ? (p.vertical || '') : '';
   document.getElementById('pRole').value     = p ? (p.role     || '') : '';
+  document.getElementById('pRoleType').value = p ? (p.roleType || '') : '';
   document.getElementById('pStatus').value   = p ? (p.status   || 'prospect') : 'prospect';
   document.getElementById('pNotes').value    = p ? (p.notes    || '') : '';
   populateReportsToOptions(id || null);
@@ -3858,6 +3880,7 @@ function saveProspect() {
     region:    document.getElementById('pRegion').value,
     vertical:  document.getElementById('pVertical').value,
     role:      document.getElementById('pRole').value.trim(),
+    roleType:  document.getElementById('pRoleType').value,
     status:    document.getElementById('pStatus').value,
     reportsTo: (reportsToVal && reportsToVal !== id) ? reportsToVal : '',
     notes:     document.getElementById('pNotes').value.trim(),
@@ -3951,6 +3974,7 @@ function saveQuickAdd() {
 
   const entry = {
     id, name, role,
+    roleType: document.getElementById('qaRoleType').value,
     email: '', phone: '', city: '',
     region: 'usa',
     vertical: team,
@@ -3992,7 +4016,20 @@ function deleteProspect(id) {
 //  the same nested tree shape the Org Chart renderer already consumes.
 // ══════════════════════════════════════════════
 function buildOrgTreeFromDirectory(people) {
-  const list = (people || []).filter(p => p && p.id && p.id !== 'rizwan' && (p.name || '').trim().toLowerCase() !== 'rizwan ali' && (p.status || 'prospect') !== 'declined');
+  // CONFIRMED-ONLY: the org chart is the roster of people who are actually in
+  // post. Anyone still Prospect / Contacted / Declined, and any unfilled TBD
+  // placeholder, stays in the Directory but is not drawn. Confirm someone in
+  // the Directory and they appear; that is the only way onto the chart.
+  const list = (people || []).filter(p => {
+    if (!p || !p.id) return false;
+    if (p.id === 'rizwan') return false;
+    if ((p.name || '').trim().toLowerCase() === 'rizwan ali') return false;
+    const st = (p.status || 'prospect');
+    if (st !== 'ready' && st !== 'confirmed') return false;
+    const nm = (p.name || '').trim();
+    if (!nm || nm.toLowerCase() === 'tbd') return false;
+    return true;
+  });
   const byId = {};
   list.forEach(p => { byId[p.id] = p; });
 
@@ -4072,6 +4109,7 @@ function buildOrgTreeFromDirectory(people) {
         .map(c => toNode(c, depth + 1))
     };
     if (p.city) node.city = p.city;
+    if (p.roleType) node.roleType = p.roleType; // carried through for the layered renderer
     return node;
   }
 
@@ -4154,6 +4192,7 @@ function upsertDirectoryFromOrgNode(node, parentId) {
     region:    node.region || (existing && existing.region) || 'usa',
     vertical:  (existing && existing.vertical) || (isRoot ? (node.role || '') : ''),
     role:      node.role || (existing && existing.role) || '',
+    roleType:  node.roleType || (existing && existing.roleType) || '',
     status:    (node.status === 'confirmed') ? 'ready' : ((existing && existing.status) || 'prospect'),
     reportsTo: isRoot ? '' : parentId,
     notes:     (existing && existing.notes) || '',
