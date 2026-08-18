@@ -2457,8 +2457,39 @@ function renderCoGroup(v) {
 
 window._renderAll = function() {
   const root = window._orgData;
-  const support   = root.children.filter(c => c.tier === 'pmo' || c.tier === 'deputy');
-  const verticals = root.children.filter(c => c.tier !== 'pmo' && c.tier !== 'deputy');
+
+  // ── Empty chart: nobody confirmed yet ──
+  if (!root) {
+    document.getElementById('canvasInner').innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+                  padding:70px 20px 90px;text-align:center;min-width:600px">
+        <div style="font-family:'Outfit',sans-serif;font-size:17px;font-weight:700;color:#1E3A8A">
+          No one confirmed yet</div>
+        <div style="font-size:12.5px;color:#6b7280;margin-top:7px;max-width:430px;line-height:1.55">
+          The org chart is built from the Directory. Add a person, set their Role Type and who
+          they report to, then set their status to <b>Confirmed</b> and they'll appear here.
+          The first confirmed person with no manager becomes the top of the tree.</div>
+        <button class="btn" onclick="openQuickAdd()"
+          style="margin-top:16px;background:#BF1B2A;color:#fff;font-weight:700;border:none;
+                 padding:8px 16px;font-size:12.5px">+ Add the first person</button>
+      </div>`;
+    updateStats();
+    return;
+  }
+
+  // ── Two or more people at the top: draw them as a row, no phantom root card ──
+  if (root.__forest) {
+    let fh = `<div style="display:flex;flex-direction:column;align-items:center;min-width:1200px;padding-bottom:40px">`;
+    fh += renderChildrenRow(root.id, 'children', root.children.map(c => renderOrgNode(c, {connectorHeight:0})).join(''),
+                            root.children.length, {connectorHeight:0, maxWidth:1400, gap:14});
+    fh += `</div>`;
+    document.getElementById('canvasInner').innerHTML = fh;
+    updateStats();
+    return;
+  }
+
+  const support   = (root.children || []).filter(c => c.tier === 'pmo' || c.tier === 'deputy');
+  const verticals = (root.children || []).filter(c => c.tier !== 'pmo' && c.tier !== 'deputy');
 
   let html = `<div style="display:flex;flex-direction:column;align-items:center;min-width:1200px;padding-bottom:40px">`;
 
@@ -2986,7 +3017,7 @@ function closeOrgDir() {
   document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
   _orgDirMode = null;
 }
-function setAll(n, v) { n.expanded = v; (n.children||[]).forEach(c=>setAll(c,v)); }
+function setAll(n, v) { if (!n) return; n.expanded = v; (n.children||[]).forEach(c=>setAll(c,v)); }
 
 // ── ROLE DROPDOWN (keeps title naming consistent across the org) ───────────
 // Options come from the persistent role catalog (naig2027/roleCatalog, extendable via
@@ -3516,9 +3547,17 @@ function countNodes(node, depth) {
 }
 
 function updateStats() {
-  if (!window._orgData) return;
+  // Empty chart -> every counter reads zero, rather than holding stale numbers
+  // from the last render.
+  if (!window._orgData) {
+    ['sn-people','sn-dept','sn-mgr','sn-lvl','sn-tbd'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.textContent = '0';
+    });
+    return;
+  }
   const root = window._orgData;
-  const t2Count = (root.children || []).length;
+  // a forest container is scaffolding, not a person
+  const t2Count = root.__forest ? (root.children || []).length : (root.children || []).length;
 
   function maxDepth(n, d) {
     let m = d;
@@ -4070,9 +4109,11 @@ function buildOrgTreeFromDirectory(people) {
   });
 
   function effectiveParentId(p) {
-    if (extraReportsTo[p.id]) return extraReportsTo[p.id];
+    // Only a CONFIRMED manager (i.e. one who survived the filter into byId)
+    // can parent someone. If their manager is still TBD, they sit at the top
+    // until that manager is confirmed — they are never silently dropped.
     if (p.reportsTo && byId[p.reportsTo] && !hasCycle(p.id)) return p.reportsTo;
-    return 'rizwan';
+    return '__ROOT__';
   }
 
   const childrenOf = {};
@@ -4088,7 +4129,9 @@ function buildOrgTreeFromDirectory(people) {
   function toNode(p, depth) {
     const confirmed = isConfirmed(p) && p.name && p.name.trim().toLowerCase() !== 'tbd';
     let tier;
-    if (depth === 1 && p.vertical) {
+    if (depth === 0) {
+      tier = 't1';                       // whoever sits at the top of the tree
+    } else if (depth === 1 && p.vertical) {
       tier = confirmed ? 't2' : 't2-tbd';
     } else if (depth === 1) {
       tier = /pmo|coordinator/i.test(p.role || '') ? 'pmo' : 'deputy';
@@ -4113,22 +4156,24 @@ function buildOrgTreeFromDirectory(people) {
     return node;
   }
 
-  const rizwanOverride = byId['rizwan'];
-  const root = {
-    id: 'rizwan',
-    name: (rizwanOverride && rizwanOverride.name) || 'Rizwan Ali',
-    role: (rizwanOverride && rizwanOverride.role) || 'Logistics Lead',
-    tier: 't1',
-    status: 'confirmed',
-    region: 'usa',
-    expanded: true,
-    children: (childrenOf['rizwan'] || [])
-      .filter(p => p.id !== 'rizwan')
-      .slice()
-      .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-      .map(p => toNode(p, 1))
+  // NO HARDCODED ROOT. The chart is a pure function of the Directory: whoever
+  // is confirmed and has no confirmed manager becomes a top-level node. An
+  // empty (or all-TBD) directory therefore produces an empty chart — null —
+  // rather than a phantom root that was never entered by anyone.
+  const rootPeople = (childrenOf['__ROOT__'] || [])
+    .slice()
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+  if (!rootPeople.length) return null;
+  if (rootPeople.length === 1) return toNode(rootPeople[0], 0);
+
+  // More than one person at the top: hold them in a container the renderer
+  // draws through rather than drawing as a card.
+  return {
+    id: '__forest__', __forest: true, name: '', role: '',
+    tier: 't1', status: 'confirmed', region: 'usa', expanded: true,
+    children: rootPeople.map(p => toNode(p, 0))
   };
-  return root;
 }
 
 let _regeneratingFromDirectory = false;
