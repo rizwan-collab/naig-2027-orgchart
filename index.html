@@ -378,6 +378,35 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .canvas { padding: 20px; overflow: auto; }
 #canvasInner { transform-origin: top left; transition: transform 0.12s ease; display: inline-block; min-width: 100%; }
 
+/* ── Layered org renderer ───────────────────────────────────────────────
+   A manager's direct reports are grouped by Role Type into stacked rows
+   (Lead → Deputy → PMO → Venue). Connectors are drawn as an SVG overlay
+   after layout, so they always match the real box positions.            */
+.pl-sub    { display:flex; flex-direction:column; align-items:center; }
+.pl-layers { display:flex; flex-direction:column; align-items:center; }
+.pl-layer  { display:flex; align-items:flex-start; justify-content:center; gap:20px; margin-top:44px; }
+.pl-cell   { display:flex; flex-direction:column; align-items:center; }
+.pl-card   { position:relative; z-index:2; width:178px; min-height:72px; background:#fff;
+             border:1px solid #e2e8f0; border-top:3px solid #1E3A8A; border-radius:7px;
+             padding:8px 10px 9px; box-shadow:0 1px 3px rgba(15,23,42,.08); text-align:center;
+             cursor:pointer; }
+.pl-card:hover { box-shadow:0 3px 10px rgba(30,58,138,.18); }
+.pl-card .pl-nm { font-family:'Outfit',sans-serif; font-weight:700; font-size:13px; line-height:1.25; color:#1E3A8A; }
+.pl-card .pl-rl { font-size:10px; color:#6b7280; margin-top:3px; line-height:1.3; }
+.pl-card .pl-bd { margin-top:5px; display:flex; gap:4px; justify-content:center; align-items:center; flex-wrap:wrap; }
+.pl-card.rt-lead   { border-top-color:#1E3A8A; }
+.pl-card.rt-deputy { border-top-color:#2c7a5c; }
+.pl-card.rt-pmo    { border-top-color:#2d6a9f; }
+.pl-card.rt-venue  { border-top-color:#7b3f00; }
+.pl-card.is-root   { border-top-color:#BF1B2A; width:196px; }
+.pl-card.is-root .pl-nm { font-size:15px; }
+.pl-knob { position:relative; z-index:3; margin-top:6px; display:inline-flex; align-items:center; gap:5px;
+           font-size:10px; font-weight:700; color:#1E3A8A; background:#fff; border:1.5px solid #cbd5e1;
+           border-radius:12px; padding:2px 9px; cursor:pointer; user-select:none; }
+.pl-knob:hover  { border-color:#1E3A8A; background:#f8fafc; }
+.pl-knob.closed { background:#1E3A8A; color:#fff; border-color:#1E3A8A; }
+.pl-colead-tie  { position:absolute; }
+
 /* ── Nodes ── */
 .node {
   border-radius: 8px; padding: 9px 12px; min-width: 155px; max-width: 195px;
@@ -2330,6 +2359,7 @@ function _applyZoom() {
   if (inner) inner.style.transform = `scale(${_zoom})`;
   const pct = document.getElementById('zoomPct');
   if (pct) pct.textContent = Math.round(_zoom * 100) + '%';
+  if (typeof drawOrgWires === 'function') drawOrgWires();
 }
 function zoomIn()    { _zoom = Math.min(parseFloat((_zoom + 0.1).toFixed(1)), 2.5); _applyZoom(); }
 function zoomOut()   { _zoom = Math.max(parseFloat((_zoom - 0.1).toFixed(1)), 0.3); _applyZoom(); }
@@ -2485,62 +2515,147 @@ window._renderAll = function() {
 
   // ── Two or more people at the top: draw them as a row, no phantom root card ──
   if (root.__forest) {
-    let fh = `<div style="display:flex;flex-direction:column;align-items:center;min-width:1200px;padding-bottom:40px">`;
-    fh += renderChildrenRow(root.id, 'children', root.children.map(c => renderOrgNode(c, {connectorHeight:0})).join(''),
-                            root.children.length, {connectorHeight:0, maxWidth:1400, gap:14});
-    fh += `</div>`;
-    document.getElementById('canvasInner').innerHTML = fh;
+    paintOrg(`<div class="pl-layer" style="margin-top:0">` +
+      root.children.map(c => `<div class="pl-cell">${renderPersonSubtree(c, true)}</div>`).join('') +
+      `</div>`);
     updateStats();
     return;
   }
 
-  const support   = (root.children || []).filter(c => c.tier === 'pmo' || c.tier === 'deputy');
-  const verticals = (root.children || []).filter(c => c.tier !== 'pmo' && c.tier !== 'deputy');
-
-  let html = `<div style="display:flex;flex-direction:column;align-items:center;min-width:1200px;padding-bottom:40px">`;
-
-  // Root (drop target so people can be moved to report directly to the top; not itself draggable)
-  html += `
- <div class="node-col">
- <div class="node node-t1 org-node" id="node-${root.id}" data-node-id="${root.id}"
-   onclick="openDir('${root.id}')" style="position:relative;border-left-width:4px;border-left-style:solid;border-left-color:${orgStatusColor(root.status)}">
- <div class="node-role">${root.role}</div>
- <div class="node-name" style="font-size:16px">${root.name}</div>
- <div class="node-badges">
- <div class="node-status-wrap" onclick="event.stopPropagation();toggleStatusDrop('${root.id}',event)">
-          ${orgStatusBadge(root.status)}
- <div class="status-drop" id="sdrop-${root.id}">${buildStatusDrop(root.id,root.status)}</div>
- </div>
-        ${regionBadge(root.region)}
- </div>
- <button class="toggle-btn" onclick="toggleNode(event,'${root.id}')">${root.expanded?'−':'+'}</button>
- </div>
- <div style="display:flex;gap:6px;margin-top:4px">
- <button class="add-child-btn" style="width:auto;font-size:10px" onclick="openAddChild('${root.id}',event)">+ Add Person</button>
- </div>
-    `;
-
-  if (root.expanded) {
-    html += `<div id="ch-${root.id}">`;
-    html += `<div class="v-line" style="height:20px"></div>`;
-
-    // Support row
-    html += `<div style="text-align:center;font-size:10px;color:#2d6a9f;font-weight:700;letter-spacing:1px;margin-bottom:4px;text-transform:uppercase">— Leadership Support —</div>`;
-    html += renderChildrenRow(root.id, 'children', support.map(c => renderOrgNode(c, {connectorHeight:16})).join(''), support.length, {connectorHeight:0, maxWidth:900, gap:14, marginBottom:4});
-
-    // Connector to T2
-    html += `<div class="v-line" style="height:16px"></div>`;
-    html += `<div style="text-align:center;font-size:10px;color:#1a3a5c;font-weight:700;letter-spacing:1px;margin-bottom:0;text-transform:uppercase">— Tier 2 Verticals —</div>`;
-    const verticalsHtml = verticals.map(v => v.type === 'cogroup' ? renderCoGroup(v) : renderOrgNode(v, {connectorHeight:20})).join('');
-    html += renderChildrenRow(root.id, 'children', verticalsHtml, verticals.length, {connectorHeight:0, maxWidth:1100, gap:10});
-    html += `</div>`; // ch-root
-  }
-
-  html += `</div>`; // root col
-  html += `</div>`;
-  document.getElementById('canvasInner').innerHTML = html;
+  // ── Layered render: a manager's direct reports are grouped by Role Type
+  //    into stacked rows (Lead -> Deputy -> PMO -> Venue). Anyone in a row can
+  //    carry their own stack beneath them, so venue leads get their own teams.
+  paintOrg(renderPersonSubtree(root, true));
   updateStats();
 };
+
+// Role Type drives which row someone lands on. Anything unset sorts last so a
+// person is never hidden just because the field is blank.
+const PL_LAYERS = ['lead','deputy','pmo','venue'];
+function plRank(n){
+  const i = PL_LAYERS.indexOf(((n && n.roleType) || '').toLowerCase());
+  return i < 0 ? PL_LAYERS.length : i;
+}
+function plGroupChildren(n){
+  // ONE row per manager, ordered Deputy -> PMO -> Lead -> Venue.
+  //
+  // Layering comes from reportsTo, NOT from role type. If you want the PMO to
+  // sit a level below the Deputy, point the PMO's "Reports To" at the Deputy.
+  // An earlier build stacked role types into separate rows under one manager,
+  // which pushed a manager's PMO to the bottom of the page whenever a Deputy in
+  // the row above happened to have a deep team of their own. Depth is now purely
+  // the reporting chain, so nothing moves unless you move it.
+  const kids = (n.children || []).slice()
+    .sort((a,b) => plRank(a) - plRank(b) || (a.name||'').localeCompare(b.name||''));
+  return kids.length ? [{ rank:0, members:kids }] : [];
+}
+function plDescendants(n){
+  let c = 0;
+  (function w(x){ (x.children||[]).forEach(k => { c++; w(k); }); })(n);
+  return c;
+}
+function plCard(n, isRoot){
+  const rt = (n.roleType || '').toLowerCase();
+  return `<div class="pl-card ${rt?('rt-'+rt):''} ${isRoot?'is-root':''}" id="node-${n.id}"
+      data-node-id="${n.id}" onclick="openDir('${n.id}')" title="Open ${esc(n.name)} in the Directory">
+      <div class="pl-nm">${esc(n.name || 'TBD')}</div>
+      <div class="pl-rl">${esc(n.role || '')}</div>
+      <div class="pl-bd">${orgStatusBadge(n.status)}${regionBadge(n.region)}</div>
+    </div>`;
+}
+function renderPersonSubtree(n, isRoot){
+  const rows = plGroupChildren(n);
+  const open = n.expanded !== false;
+  let h = `<div class="pl-sub" data-id="${n.id}">${plCard(n, isRoot)}`;
+  if (rows.length){
+    const hidden = plDescendants(n);
+    h += `<div class="pl-knob ${open?'':'closed'}" onclick="plToggle(event,'${n.id}')">
+            <span>${open?'\u2212':'+'}</span>${open ? (n.children.length + ' report' + (n.children.length>1?'s':'')) : (hidden + ' hidden')}
+          </div>`;
+  }
+  if (open && rows.length){
+    h += `<div class="pl-layers">`;
+    rows.forEach(row => {
+      h += `<div class="pl-layer" data-mgr="${n.id}" data-rank="${row.rank}">`;
+      row.members.forEach(m => {
+        h += `<div class="pl-cell">${renderPersonSubtree(m, false)}</div>`;
+      });
+      h += `</div>`;
+    });
+    h += `</div>`;
+  }
+  return h + `</div>`;
+}
+function plToggle(e, id){
+  e.stopPropagation();
+  const node = findNode(id, window._orgData);
+  if (!node) return;
+  node.expanded = (node.expanded === false);
+  window._renderAll();
+}
+function paintOrg(innerHtml){
+  document.getElementById('canvasInner').innerHTML =
+    `<div id="orgWrap" style="position:relative;display:inline-block;min-width:100%;padding:16px 40px 60px">
+       <svg id="orgWires" style="position:absolute;inset:0;overflow:visible;pointer-events:none"></svg>
+       <div id="orgTree" style="position:relative;display:flex;justify-content:center">${innerHtml}</div>
+     </div>`;
+  drawOrgWires();
+}
+// Connectors are computed from real box positions AFTER layout. getBoundingClientRect
+// reports SCALED pixels while this SVG lives inside the zoomed container, so the zoom
+// has to be divided out or every line drifts further the further right it sits.
+function drawOrgWires(){
+  const wrap = document.getElementById('orgWrap');
+  const svg  = document.getElementById('orgWires');
+  if (!wrap || !svg) return;
+  const z = (typeof _zoom === 'number' && _zoom) ? _zoom : 1;
+  const base = wrap.getBoundingClientRect();
+  const box = el => { const r = el.getBoundingClientRect();
+    const L=(r.left-base.left)/z, T=(r.top-base.top)/z, W=r.width/z, H=r.height/z;
+    return {l:L, r:L+W, t:T, b:T+H, cx:L+W/2, cy:T+H/2}; };
+  const S = 'stroke="#94a3b8" stroke-width="1.6" fill="none"';
+  const topCardOf = cell => cell.querySelector('.pl-card');
+  let out = '';
+
+  const link = (ups, downs) => {
+    if (!ups.length || !downs.length) return '';
+    const y = (Math.max(...ups.map(u=>u.b)) + Math.min(...downs.map(d=>d.t))) / 2;
+    let s = '';
+    ups.forEach(u => s += `<path d="M ${u.cx} ${u.b} V ${y}" ${S}/>`);
+    const xs = [...ups.map(u=>u.cx), ...downs.map(d=>d.cx)];
+    if (xs.length > 1) s += `<path d="M ${Math.min(...xs)} ${y} H ${Math.max(...xs)}" ${S}/>`;
+    downs.forEach(d => s += `<path d="M ${d.cx} ${y} V ${d.t}" ${S}/>`);
+    return s;
+  };
+
+  wrap.querySelectorAll('.pl-sub').forEach(sub => {
+    const card = sub.children[0];
+    if (!card || !card.classList.contains('pl-card')) return;
+    const layers = sub.querySelector(':scope > .pl-layers');
+    if (!layers) return;
+    const rows = [...layers.querySelectorAll(':scope > .pl-layer')];
+    if (!rows.length) return;
+    const rowBoxes = rows.map(r => [...r.querySelectorAll(':scope > .pl-cell')]
+                                    .map(topCardOf).filter(Boolean).map(box));
+    out += link([box(card)], rowBoxes[0]);
+    for (let i = 0; i < rowBoxes.length - 1; i++) out += link(rowBoxes[i], rowBoxes[i+1]);
+
+    // Exactly two people of Role Type "Lead" under the same manager = co-leads.
+    // Tie them with a solid bar so they read as one shared role.
+    rows.forEach(r => {
+      const leads = [...r.querySelectorAll(':scope > .pl-cell')]
+        .map(topCardOf).filter(c => c && c.classList.contains('rt-lead')).map(box);
+      if (leads.length === 2){
+        const [a,b] = leads[0].cx <= leads[1].cx ? leads : [leads[1], leads[0]];
+        out += `<path d="M ${a.r} ${a.cy} H ${b.l}" stroke="#1E3A8A" stroke-width="2.2" fill="none"/>`;
+      }
+    });
+  });
+
+  svg.innerHTML = out;
+  svg.setAttribute('width',  wrap.scrollWidth);
+  svg.setAttribute('height', wrap.scrollHeight);
+}
 
 // ══════════════════════════════════════════════
 //  INTERACTIONS
