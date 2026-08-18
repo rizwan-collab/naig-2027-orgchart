@@ -105,6 +105,9 @@
         showSyncStatus(' Live — synced from cloud');
         window._onboardToken && window.renderOnboardView && window.renderOnboardView();
       } else {
+        // No org node in the cloud = nobody confirmed. Clear it, otherwise the
+        // stale in-memory tree (or the old hardcoded default) keeps rendering.
+        window._orgData = null;
         window._renderAll && window._renderAll();
         showSyncStatus(' Connected — push Save to sync');
         window._onboardToken && window.renderOnboardView && window.renderOnboardView();
@@ -2314,7 +2317,10 @@ const OUT_OF_SCOPE = [
 // ══════════════════════════════════════════════
 //  STATE
 // ══════════════════════════════════════════════
-window._orgData = JSON.parse(localStorage.getItem('naig_org') || 'null') || JSON.parse(JSON.stringify(DEFAULT_DATA));
+// Starts EMPTY. The tree is derived from the Directory (or loaded from the
+// cloud), never seeded from a hardcoded default — a default root would put a
+// person on the chart that nobody entered.
+window._orgData = JSON.parse(localStorage.getItem('naig_org') || 'null');
 let editingId  = null;
 
 // ── ZOOM ──────────────────────────────────────────────────────────────────────
@@ -4197,6 +4203,16 @@ function regenerateOrgFromDirectory() {
     })(window._orgData);
 
     const newTree = buildOrgTreeFromDirectory(window._prospects);
+
+    // Nobody confirmed -> empty chart. Bail before overlayExtras, which walks
+    // node.id and would throw on null, leaving the previous tree stranded in
+    // memory and in Firebase.
+    if (!newTree) {
+      window._orgData = null;
+      saveToCloud();
+      window._renderAll && window._renderAll();
+      return;
+    }
 
     (function overlayExtras(node) {
       const old = oldById[node.id];
