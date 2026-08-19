@@ -285,10 +285,10 @@
       "Transportation Lead",
       "Transportation Deputy Lead",
       "Transportation PMO / Coordinator",
-      "Site Logistics Lead",
-      "Site Logistics Co-Lead",
-      "Site Logistics Deputy Lead",
-      "Site Logistics PMO / Coordinator",
+      "Site Management Lead",
+      "Site Management Co-Lead",
+      "Site Management Deputy Lead",
+      "Site Management PMO / Coordinator",
       "Equipment & Signage Lead",
       "Equipment & Signage Deputy Lead",
       "Equipment & Signage PMO / Coordinator",
@@ -1076,7 +1076,7 @@ html.onboard-mode #onboardScreen { display: block !important; }
   <div class="form-group">
    <label>New role title</label>
    <div style="display:flex;gap:8px">
-    <input type="text" id="newRoleName" placeholder="e.g. Site Logistics Deputy Lead" style="flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+    <input type="text" id="newRoleName" placeholder="e.g. Site Management Deputy Lead" style="flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
     <button class="btn btn-primary" onclick="addRoleToCatalog()">+ Add Role</button>
    </div>
   </div>
@@ -1129,7 +1129,23 @@ html.onboard-mode #onboardScreen { display: block !important; }
    <option value="ready">Confirmed</option>
    <option value="declined">Declined</option>
   </select>
+  <select class="hub-filter-select" id="dirFilterTeam" onchange="renderProspects()"><option value="">All Teams</option></select>
+  <select class="hub-filter-select" id="dirFilterRoleType" onchange="renderProspects()">
+   <option value="">All Role Types</option>
+   <option value="lead">Lead / Co-Lead</option>
+   <option value="deputy">Deputy</option>
+   <option value="pmo">PMO / Coordinator</option>
+   <option value="venue">Venue Lead</option>
+  </select>
+  <select class="hub-filter-select" id="dirFilterRegion" onchange="renderProspects()"><option value="">All Regions</option></select>
+  <select class="hub-filter-select" id="dirFilterCountry" onchange="renderProspects()">
+   <option value="">USA + Canada</option><option value="usa">USA</option><option value="ca">Canada</option>
+  </select>
+  <select class="hub-filter-select" id="dirFilterGender" onchange="renderProspects()"><option value="">All Genders</option></select>
+  <select class="hub-filter-select" id="dirFilterAge" onchange="renderProspects()"><option value="">All Ages</option></select>
+  <button class="btn btn-light" style="font-size:11px;padding:5px 10px" onclick="clearDirFilters()">Clear filters</button>
  </div>
+ <div id="dirStats"></div>
  <div id="prospectsTableWrap">
  <p style="color:#aaa;font-size:12px;font-style:italic;margin:0">Nobody added yet. Click <strong>+ Add Person</strong> to start building the team.</p>
  </div>
@@ -1362,7 +1378,7 @@ html.onboard-mode #onboardScreen { display: block !important; }
  <select class="hub-filter-select" id="filterDept" onchange="renderTasks()">
  <option value="">All Departments</option>
  <option>Leadership</option><option>F&amp;B</option><option>Hotels &amp; Accommodations</option>
- <option>Transportation</option><option>Site Logistics</option><option>Equipment &amp; Signage</option>
+ <option>Transportation</option><option>Site Management</option><option>Equipment &amp; Signage</option>
  </select>
  <select class="hub-filter-select" id="filterOwner" onchange="renderTasks()">
  <option value="">All Assignees</option>
@@ -2171,6 +2187,29 @@ html.onboard-mode #onboardScreen { display: block !important; }
  <option value="ca">Canada</option>
  </select>
  </div>
+ <div class="form-group">
+ <label>Age Range</label>
+ <select id="pAgeRange">
+ <option value="">— Not set —</option>
+ <option value="Under 18">Under 18</option>
+ <option value="18-24">18–24</option>
+ <option value="25-34">25–34</option>
+ <option value="35-44">35–44</option>
+ <option value="45-54">45–54</option>
+ <option value="55-64">55–64</option>
+ <option value="65+">65+</option>
+ </select>
+ </div>
+ <div class="form-group">
+ <label>Gender</label>
+ <select id="pGender">
+ <option value="">— Not set —</option>
+ <option value="Male">Male</option>
+ <option value="Female">Female</option>
+ <option value="Non-binary">Non-binary</option>
+ <option value="Prefer not to say">Prefer not to say</option>
+ </select>
+ </div>
  <div class="modal-section">Assignment</div>
  <div class="form-group">
  <label>Interested Vertical</label>
@@ -2179,9 +2218,9 @@ html.onboard-mode #onboardScreen { display: block !important; }
  <option value="F&B">F&B</option>
  <option value="Hotels">Hotels & Accommodations</option>
  <option value="Transportation">Transportation</option>
- <option value="Site Logistics">Site Logistics</option>
+ <option value="Site Management">Site Management</option>
  <option value="Equipment & Signage">Equipment & Signage</option>
- <option value="General">General / Any</option>
+ <option value="Core Team">Core Team</option>
  </select>
  </div>
  <div class="form-group">
@@ -2257,9 +2296,9 @@ html.onboard-mode #onboardScreen { display: block !important; }
    <option value="F&amp;B">F&amp;B</option>
    <option value="Hotels">Hotels &amp; Accommodations</option>
    <option value="Transportation">Transportation</option>
-   <option value="Site Logistics">Site Logistics</option>
+   <option value="Site Management">Site Management</option>
    <option value="Equipment &amp; Signage">Equipment &amp; Signage</option>
-   <option value="General">General / Any</option>
+   <option value="Core Team">Core Team</option>
   </select>
  </div>
  <div class="form-group">
@@ -2310,13 +2349,13 @@ const DEFAULT_DATA = {
         { id: 'transport-pmo', name: 'TBD', role: 'Transportation PMO / Coordinator', tier: 't3-tbd', status: 'tbd', region: 'ca', expanded: true, children: [] }
       ]
     },
-    { id: 'site', type: 'cogroup', role: 'Site Logistics', tier: 't2', expanded: true,
+    { id: 'site', type: 'cogroup', role: 'Site Management', tier: 't2', expanded: true,
       coLeads: [
-        { id: 'raj',   name: 'Raj Thakur',   role: 'Site Logistics Co-Lead', status: 'confirmed', region: 'usa' },
-        { id: 'kiran', name: 'Kiran Surani',  role: 'Site Logistics Co-Lead', status: 'confirmed', region: 'usa' }
+        { id: 'raj',   name: 'Raj Thakur',   role: 'Site Management Co-Lead', status: 'confirmed', region: 'usa' },
+        { id: 'kiran', name: 'Kiran Surani',  role: 'Site Management Co-Lead', status: 'confirmed', region: 'usa' }
       ],
       children: [
-        { id: 'site-pmo',     name: 'TBD',  role: 'Site Logistics PMO / Coordinator', tier: 't3-tbd', status: 'tbd', region: 'usa', children: [] },
+        { id: 'site-pmo',     name: 'TBD',  role: 'Site Management PMO / Coordinator', tier: 't3-tbd', status: 'tbd', region: 'usa', children: [] },
         { id: 'venue-ryse',     name: 'Shah', role: 'Venue Co-Lead — TBD Assignment',                        tier: 't3-tbd', status: 'tbd',       region: 'usa', children: [] },
         { id: 'venue-northlake',name: 'TBD',  role: "Venue Lead — Children's Health StarCenter, Northlake",    tier: 't3-tbd', status: 'tbd', region: 'usa', children: [] },
         { id: 'venue-fw',       name: 'TBD',  role: 'Venue Lead — GatewayPark Soccer Fields, Fort Worth',      tier: 't3-tbd', status: 'tbd', region: 'usa', children: [] },
@@ -2468,7 +2507,7 @@ function renderOrgNode(n, opts) {
 }
 
 // ══════════════════════════════════════════════
-//  CO-LEAD GROUP RENDERER (two peers sharing one role, e.g. Site Logistics)
+//  CO-LEAD GROUP RENDERER (two peers sharing one role, e.g. Site Management)
 // ══════════════════════════════════════════════
 function renderCoGroup(v) {
   const has = v.children && v.children.length > 0;
@@ -2557,7 +2596,7 @@ function plDescendants(n){
 function plCard(n, isRoot){
   const rt = (n.roleType || '').toLowerCase();
   return `<div class="pl-card ${rt?('rt-'+rt):''} ${isRoot?'is-root':''}" id="node-${n.id}"
-      data-node-id="${n.id}" onclick="openDir('${n.id}')" title="Open ${esc(n.name)} in the Directory">
+      data-node-id="${n.id}" onclick="openProspect('${n.id}')" title="Edit ${esc(n.name)} — same form as Add Person">
       <div class="pl-nm">${esc(n.name || 'TBD')}</div>
       <div class="pl-rl">${esc(n.role || '')}</div>
       <div class="pl-bd">${orgStatusBadge(n.status)}${regionBadge(n.region)}</div>
@@ -3203,7 +3242,7 @@ function getRoleValue(prefix) {
 // ── IDENTITY (matched against org chart) — label only, no access restriction yet ──
 const NAIG_VERTICALS = {
   fb: 'F&B', hotels: 'Hotels & Accommodations', transport: 'Transportation',
-  site: 'Site Logistics', equipment: 'Equipment & Signage'
+  site: 'Site Management', equipment: 'Equipment & Signage'
 };
 function inferVertical(nodeId) {
   function findPath(node, targetId, path) {
@@ -4016,6 +4055,20 @@ function openProspect(id) {
   document.getElementById('pVertical').value = p ? (p.vertical || '') : '';
   document.getElementById('pRole').value     = p ? (p.role     || '') : '';
   document.getElementById('pRoleType').value = p ? (p.roleType || '') : '';
+  document.getElementById('pAgeRange').value = p ? (p.ageRange || '') : '';
+  document.getElementById('pGender').value   = p ? (p.gender   || '') : '';
+  // Older entries hold free-text regions ("Central / Dallas", "Houston") that
+  // aren't options in this dropdown. Without this, opening their record shows a
+  // blank Region and SAVING WOULD WIPE IT. Inject the existing value as an option.
+  (function preserveRegion(){
+    const sel = document.getElementById('pCity');
+    const val = p ? (p.city || '') : '';
+    if (val && ![...sel.options].some(o => o.value === val)) {
+      const o = document.createElement('option');
+      o.value = val; o.textContent = val + ' (existing)';
+      sel.appendChild(o);
+    }
+  })();
   document.getElementById('pStatus').value   = p ? (p.status   || 'prospect') : 'prospect';
   document.getElementById('pNotes').value    = p ? (p.notes    || '') : '';
   populateReportsToOptions(id || null);
@@ -4041,6 +4094,8 @@ function saveProspect() {
     vertical:  document.getElementById('pVertical').value,
     role:      document.getElementById('pRole').value.trim(),
     roleType:  document.getElementById('pRoleType').value,
+    ageRange:  document.getElementById('pAgeRange').value,
+    gender:    document.getElementById('pGender').value,
     status:    document.getElementById('pStatus').value,
     reportsTo: (reportsToVal && reportsToVal !== id) ? reportsToVal : '',
     notes:     document.getElementById('pNotes').value.trim(),
@@ -4221,7 +4276,7 @@ function buildOrgTreeFromDirectory(people) {
   Object.keys(verticalGroups).forEach(vName => {
     const group = verticalGroups[vName].slice().sort((a, b) => {
       // Prefer whoever matches the established RNR_VERTICALS.leadId for this
-      // vertical as the anchor (e.g. Raj over Kiran for Site Logistics),
+      // vertical as the anchor (e.g. Raj over Kiran for Site Management),
       // falling back to alphabetical so the result is always deterministic.
       const prefA = (typeof RNR_VERTICALS !== 'undefined' && RNR_VERTICALS.some(v => v.leadId === a.id)) ? 0 : 1;
       const prefB = (typeof RNR_VERTICALS !== 'undefined' && RNR_VERTICALS.some(v => v.leadId === b.id)) ? 0 : 1;
@@ -4387,7 +4442,7 @@ window.regenerateOrgFromDirectory = regenerateOrgFromDirectory;
 //    whatever tree structure is already live, so nothing gets lost when
 //    the Directory becomes the source of truth. Runs exactly once ever,
 //    guarded by naig2027/directoryV2Migrated. ──
-const KNOWN_VERTICAL_LABELS = { fb: 'F&B', hotels: 'Hotels', transport: 'Transportation', site: 'Site Logistics', equipment: 'Equipment & Signage' };
+const KNOWN_VERTICAL_LABELS = { fb: 'F&B', hotels: 'Hotels', transport: 'Transportation', site: 'Site Management', equipment: 'Equipment & Signage' };
 
 function migrateOrgToDirectory() {
   const existingById = {};
@@ -4484,42 +4539,66 @@ function pStatusBadge(s) {
 
 function renderProspects() {
   const all = window._prospects || [];
-  document.getElementById('prospectCount').textContent = `${all.length} prospect${all.length!==1?'s':''}`;
+  document.getElementById('prospectCount').textContent = `${all.length} ${all.length!==1?'people':'person'}`;
+
+  // Keep the value-driven dropdowns in sync with whatever is actually in the data,
+  // preserving the current selection so re-rendering never resets a filter.
+  const fillFrom = (id, values, label) => {
+    const sel = document.getElementById(id); if (!sel) return;
+    const cur = sel.value;
+    const opts = [...new Set(values.filter(Boolean))].sort();
+    sel.innerHTML = `<option value="">${label}</option>` +
+      opts.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    if (opts.includes(cur)) sel.value = cur;
+  };
+  fillFrom('dirFilterTeam',   all.map(p => p.vertical), 'All Teams');
+  fillFrom('dirFilterRegion', all.map(p => p.city),     'All Regions');
+  fillFrom('dirFilterGender', all.map(p => p.gender),   'All Genders');
+  fillFrom('dirFilterAge',    all.map(p => p.ageRange), 'All Ages');
+
+  const val = id => (document.getElementById(id)?.value || '');
   const q = (document.getElementById('prospectSearch')?.value || '').toLowerCase();
-  const statusF = document.getElementById('prospectStatusFilter')?.value || '';
   let list = all;
   if (q) list = list.filter(p => [p.name,p.email,p.city,p.vertical,p.role,p.notes].join(' ').toLowerCase().includes(q));
-  if (statusF) list = list.filter(p => p.status === statusF);
+  const f = {status:val('prospectStatusFilter'), vertical:val('dirFilterTeam'), roleType:val('dirFilterRoleType'),
+             city:val('dirFilterRegion'), region:val('dirFilterCountry'), gender:val('dirFilterGender'), ageRange:val('dirFilterAge')};
+  Object.keys(f).forEach(k => { if (f[k]) list = list.filter(p => (p[k] || '') === f[k]); });
+
+  renderDirStats(list, all);
+
   const wrap = document.getElementById('prospectsTableWrap');
   if (!all.length) {
     wrap.innerHTML = `<p style="color:#aaa;font-size:12px;font-style:italic;margin:0">Nobody added yet. Click <strong>+ Add Person</strong> to start building the team.</p>`;
     return;
   }
   if (!list.length) {
-    wrap.innerHTML = `<p style="color:#aaa;font-size:12px;font-style:italic;margin:0">No prospects match this search/filter.</p>`;
+    wrap.innerHTML = `<p style="color:#aaa;font-size:12px;font-style:italic;margin:0">No one matches these filters. <a href="#" onclick="clearDirFilters();return false;" style="color:#2d6a9f">Clear filters</a></p>`;
     return;
   }
+  const RT = {lead:'Lead', deputy:'Deputy', pmo:'PMO', venue:'Venue'};
   wrap.innerHTML = `
  <table class="prospects-table">
  <thead>
  <tr>
- <th>Name</th><th>Email</th><th>Phone</th><th>City</th><th>Region</th>
- <th>Vertical</th><th>Role</th><th>Status</th><th>Notes</th><th>Added</th><th></th>
+ <th>Name</th><th>Email</th><th>Phone</th><th>Region</th><th>Country</th>
+ <th>Team</th><th>Role</th><th>Type</th><th>Age</th><th>Gender</th><th>Status</th><th>Added</th><th></th>
  </tr>
  </thead>
  <tbody>
       ${list.map(p => `
  <tr>
- <td><strong>${p.name}</strong></td>
- <td>${p.email ? `<a href="mailto:${p.email}" style="color:#2d6a9f">${p.email}</a>` : '—'}</td>
- <td>${p.phone || '—'}</td>
- <td>${p.city  || '—'}</td>
+ <td><strong>${esc(p.name)}</strong></td>
+ <td>${p.email ? `<a href="mailto:${esc(p.email)}" style="color:#2d6a9f">${esc(p.email)}</a>` : '—'}</td>
+ <td>${esc(p.phone) || '—'}</td>
+ <td>${esc(p.city)  || '—'}</td>
  <td>${regionBadge(p.region)}</td>
- <td>${p.vertical || '—'}</td>
- <td style="color:#555">${p.role || '—'}</td>
+ <td>${esc(p.vertical) || '—'}</td>
+ <td style="color:#555">${esc(p.role) || '—'}</td>
+ <td style="color:#555;font-size:11px">${RT[p.roleType] || '—'}</td>
+ <td style="color:#555;font-size:11px">${esc(p.ageRange) || '—'}</td>
+ <td style="color:#555;font-size:11px">${esc(p.gender) || '—'}</td>
  <td>${pStatusBadge(p.status)}</td>
- <td style="color:#888;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${p.notes||''}">${p.notes||'—'}</td>
- <td style="color:#aaa;font-size:10px">${p.added||''}</td>
+ <td style="color:#aaa;font-size:10px">${esc(p.added)||''}</td>
  <td>
  <div class="prospect-actions">
  <button class="btn btn-light" style="padding:3px 7px;font-size:10px;background:#e8f4fd;color:#2d6a9f;border:1px solid #7ab3d9" onclick="openProspect('${p.id}')">Edit</button>
@@ -4530,6 +4609,74 @@ function renderProspects() {
  </tbody>
  </table>`;
 }
+
+function clearDirFilters() {
+  ['prospectSearch','prospectStatusFilter','dirFilterTeam','dirFilterRoleType',
+   'dirFilterRegion','dirFilterCountry','dirFilterGender','dirFilterAge']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  renderProspects();
+}
+
+// ── Directory dashboard ────────────────────────────────────────────────────
+// Counts are a headline-number job, so these are stat tiles, not a chart.
+// Distributions are magnitude-by-category, so they get horizontal bars in ONE
+// navy hue with the category named in text beside every bar — identity never
+// rests on colour, so there is no palette to get wrong.
+function renderDirStats(list, all) {
+  const host = document.getElementById('dirStats'); if (!host) return;
+  const n = list.length;
+  const by = (arr, key) => {
+    const m = {};
+    arr.forEach(p => { const v = (p[key] || '').trim() || 'Not set'; m[v] = (m[v]||0)+1; });
+    return Object.entries(m).sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0]));
+  };
+  const count = st => list.filter(p => (p.status||'') === st).length;
+
+  const tile = (label, value, tone) => `
+    <div style="flex:1;min-width:104px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:9px 12px">
+      <div style="font-family:'Outfit',sans-serif;font-size:21px;font-weight:700;color:${tone||'#1E3A8A'};line-height:1.1">${value}</div>
+      <div style="font-size:9.5px;color:#6b7280;text-transform:uppercase;letter-spacing:.6px;margin-top:2px">${label}</div>
+    </div>`;
+
+  const block = (title, rows) => {
+    if (!rows.length) return '';
+    const max = Math.max(...rows.map(r => r[1])) || 1;
+    return `
+    <div style="flex:1;min-width:210px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px">
+      <div style="font-size:9.5px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px">${title}</div>
+      ${rows.map(([label,c]) => `
+        <div style="display:flex;align-items:center;gap:8px;margin:3px 0">
+          <div style="flex:0 0 88px;font-size:11px;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(label)}">${esc(label)}</div>
+          <div style="flex:1;height:7px;background:#eef2f7;border-radius:4px;overflow:hidden">
+            <div style="width:${Math.round(c/max*100)}%;height:100%;background:#1E3A8A;border-radius:4px"></div>
+          </div>
+          <div style="flex:0 0 22px;text-align:right;font-size:11px;font-weight:700;color:#374151">${c}</div>
+        </div>`).join('')}
+    </div>`;
+  };
+
+  const filtered = n !== all.length;
+  host.innerHTML = `
+    <div style="margin:0 0 12px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        ${tile('People', n)}
+        ${tile('On org chart', count('ready'), '#2c7a5c')}
+        ${tile('Contacted', count('contacted'), '#2d6a9f')}
+        ${tile('Prospect', count('prospect'), '#8a6d3b')}
+        ${tile('Declined', count('declined'), '#BF1B2A')}
+        ${tile('Teams', new Set(list.map(p=>p.vertical).filter(Boolean)).size)}
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${block('By team', by(list,'vertical'))}
+        ${block('By region', by(list,'city'))}
+        ${block('By role type', by(list,'roleType').map(([k,v]) => [({lead:'Lead',deputy:'Deputy',pmo:'PMO',venue:'Venue'})[k]||k, v]))}
+        ${block('By gender', by(list,'gender'))}
+        ${block('By age range', by(list,'ageRange'))}
+      </div>
+      ${filtered ? `<div style="font-size:10.5px;color:#8a6d3b;margin-top:7px">Showing ${n} of ${all.length} — stats reflect the current filters.</div>` : ''}
+    </div>`;
+}
+
 
 function exportProspectsCSV() {
   if (!window._prospects.length) { alert('No prospects to export yet.'); return; }
@@ -4609,7 +4756,7 @@ const RNR_VERTICALS = [
   { id: 'fb',        label: 'F&B',                    leadId: 'fb',        color: '#2c7a5c' },
   { id: 'hotels',    label: 'Hotels & Accommodations', leadId: 'hotels',    color: '#2d6a9f' },
   { id: 'transport', label: 'Transportation',          leadId: 'transport', color: '#1a3a5c' },
-  { id: 'site',      label: 'Site Logistics',          leadId: 'raj',       color: '#7b3f00', coLeadId: 'kiran' },
+  { id: 'site',      label: 'Site Management',          leadId: 'raj',       color: '#7b3f00', coLeadId: 'kiran' },
   { id: 'equipment', label: 'Equipment & Signage',     leadId: 'equipment', color: '#5a3e85' }
 ];
 
@@ -5584,7 +5731,7 @@ function _toggleOwnerPill(name) {
   h.value = cur.join(',');
   _renderOwnerPills(cur);
 }
-const _DEPTS = ['Leadership','F&B','Hotels & Accommodations','Transportation','Site Logistics','Equipment & Signage'];
+const _DEPTS = ['Leadership','F&B','Hotels & Accommodations','Transportation','Site Management','Equipment & Signage'];
 const _PRI_ORDER = {Urgent:0, High:1, Medium:2, Low:3};
 const _PRI_ICON  = {Urgent:'🔴', High:'🟠', Medium:'🟡', Low:'🟢'};
 const _STATUS_LABEL = {todo:'To Do', inprogress:'In Progress', blocked:'Blocked', done:'Done'};
@@ -7714,7 +7861,7 @@ window.addEventListener('load', function() {
  <select id="taskDept" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
  <option value="">— None —</option>
  <option>Leadership</option><option>F&amp;B</option><option>Hotels &amp; Accommodations</option>
- <option>Transportation</option><option>Site Logistics</option><option>Equipment &amp; Signage</option>
+ <option>Transportation</option><option>Site Management</option><option>Equipment &amp; Signage</option>
  </select>
  </div>
  <div class="form-group">
