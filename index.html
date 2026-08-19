@@ -2239,9 +2239,9 @@ html.onboard-mode #onboardScreen { display: block !important; }
  <div style="font-size:10.5px;color:#888;margin-top:3px">Sets which layer they sit on inside their vertical. Two people set to Lead in the same vertical render as Co-Leads, side by side.</div>
  </div>
  <div class="form-group">
- <label>Reports To</label>
+ <label>Reports To <span style="font-weight:400;color:#888">— this sets their level on the chart</span></label>
  <select id="pReportsTo">
- <option value="">— Rizwan (Root) —</option>
+ <option value="">— No manager (top of the chart) —</option>
  </select>
  <div style="font-size:10.5px;color:#888;margin-top:3px">This is what places them on the Org Chart. The chart is generated from this field — set it once here and the chart updates itself.</div>
  </div>
@@ -4037,8 +4037,12 @@ function populateReportsToOptions(excludeId) {
   const current = sel.value;
   const people = (window._prospects || []).filter(x => x.id !== excludeId && (x.status || 'prospect') !== 'declined');
   people.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  sel.innerHTML = '<option value="">— Rizwan (Root) —</option>' +
-    people.map(x => `<option value="${x.id}">${esc(x.name || 'Unnamed')} — ${esc(x.role || 'No role set')}</option>`).join('');
+  sel.innerHTML = '<option value="">— No manager (top of the chart) —</option>' +
+    people.map(x => {
+      const live = (x.status === 'ready' || x.status === 'confirmed');
+      const note = live ? '' : '  ·  not confirmed yet';
+      return `<option value="${x.id}">${esc(x.name || 'Unnamed')} — ${esc(x.role || 'No role set')}${note}</option>`;
+    }).join('');
   sel.value = current;
 }
 
@@ -4127,7 +4131,7 @@ function populateManagerOptions(selId, excludeId) {
   const people = (window._prospects || [])
     .filter(x => x.id !== excludeId && (x.status || 'prospect') !== 'declined' && (x.name || '').trim());
   people.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  sel.innerHTML = '<option value="">— Rizwan (Top level) —</option>' +
+  sel.innerHTML = '<option value="">— No manager (top of the chart) —</option>' +
     people.map(x => `<option value="${esc(x.id)}">${esc(x.name)} — ${esc(x.role || 'No role set')}</option>`).join('');
   if (current) sel.value = current;
 }
