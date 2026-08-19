@@ -2212,7 +2212,7 @@ html.onboard-mode #onboardScreen { display: block !important; }
  </div>
  <div class="modal-section">Assignment</div>
  <div class="form-group">
- <label>Interested Vertical</label>
+ <label>Vertical</label>
  <select id="pVertical">
  <option value="">— Unassigned —</option>
  <option value="F&B">F&B</option>
@@ -2224,8 +2224,9 @@ html.onboard-mode #onboardScreen { display: block !important; }
  </select>
  </div>
  <div class="form-group">
- <label>Potential Role</label>
- <input type="text" id="pRole" placeholder="e.g. Venue Lead, Coordinator">
+ <label>Role</label>
+ <select id="pRole" onchange="toggleRoleCustom('p')"></select>
+ <input type="text" id="pRoleCustom" placeholder="Type a new role title" style="display:none;margin-top:5px">
  </div>
  <div class="form-group">
  <label>Role Type</label>
@@ -4057,7 +4058,7 @@ function openProspect(id) {
   document.getElementById('pCity').value     = p ? (p.city     || '') : '';
   document.getElementById('pRegion').value   = p ? (p.region   || 'usa') : 'usa';
   document.getElementById('pVertical').value = p ? (p.vertical || '') : '';
-  document.getElementById('pRole').value     = p ? (p.role     || '') : '';
+  populateRoleSelect('p', p ? (p.role || '') : '');
   document.getElementById('pRoleType').value = p ? (p.roleType || '') : '';
   document.getElementById('pAgeRange').value = p ? (p.ageRange || '') : '';
   document.getElementById('pGender').value   = p ? (p.gender   || '') : '';
@@ -4067,7 +4068,8 @@ function openProspect(id) {
   (function preserveRegion(){
     const sel = document.getElementById('pCity');
     const val = p ? (p.city || '') : '';
-    if (val && ![...sel.options].some(o => o.value === val)) {
+    const RETIRED = ['Central / Dallas'];   // folded into 'Central'
+    if (val && !RETIRED.includes(val) && ![...sel.options].some(o => o.value === val)) {
       const o = document.createElement('option');
       o.value = val; o.textContent = val + ' (existing)';
       sel.appendChild(o);
@@ -4096,7 +4098,7 @@ function saveProspect() {
     city:      document.getElementById('pCity').value.trim(),
     region:    document.getElementById('pRegion').value,
     vertical:  document.getElementById('pVertical').value,
-    role:      document.getElementById('pRole').value.trim(),
+    role:      getRoleValue('p'),
     roleType:  document.getElementById('pRoleType').value,
     ageRange:  document.getElementById('pAgeRange').value,
     gender:    document.getElementById('pGender').value,
@@ -4106,6 +4108,7 @@ function saveProspect() {
     added:    editingProspectId ? (window._prospects.find(x=>x.id===id)||{}).added : new Date().toLocaleDateString()
   };
   if (!data.name) { alert('Please enter a name'); return; }
+  registerRoleIfNew(data.role);   // a custom title becomes available to everyone
   const idx = window._prospects.findIndex(x => x.id === id);
   if (idx >= 0) window._prospects[idx] = data;
   else window._prospects.push(data);
