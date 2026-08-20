@@ -996,7 +996,7 @@ html.onboard-mode #onboardScreen { display: block !important; }
  <button class="tab-btn active" id="tabdashboard" onclick="switchTab('dashboard')">🏠 Dashboard</button>
  <button class="tab-btn" id="taborg" onclick="switchTab('orgchart')">Org Chart</button>
  <button class="tab-btn" id="tabplan" onclick="switchTab('plan')">Project Plan <span class="tab-badge" id="badge-plan"></span></button>
- <button class="tab-btn" id="tabtasks" onclick="switchTab('tasks')">Tasks <span class="tab-badge" id="badge-tasks">0</span></button>
+ <button class="tab-btn" id="tabtasks" onclick="switchTab('tasks')">Logistics Team Tasks <span class="tab-badge" id="badge-tasks">0</span></button>
  <button class="tab-btn" id="tabvenues" onclick="switchTab('venues')">Venues <span class="tab-badge" id="badge-venues">0</span></button>
  <button class="tab-btn" id="tabvendors" onclick="switchTab('vendors')">Vendors <span class="tab-badge" id="badge-vendors">0</span></button>
  <button class="tab-btn" id="tabhotels" onclick="switchTab('hotels')">Hotels <span class="tab-badge" id="badge-hotels">0</span></button>
@@ -1338,8 +1338,8 @@ html.onboard-mode #onboardScreen { display: block !important; }
 <div class="hub-section" id="sectionTasks">
  <div class="hub-toolbar">
  <div>
- <div class="hub-title"> Master Task Board</div>
- <div class="hub-subtitle">Logistics team · Granular tasks with assignments, priorities, and due dates</div>
+ <div class="hub-title"> Logistics Team Tasks</div>
+ <div class="hub-subtitle">Detailed tasks with assignments, priorities, and due dates</div>
  </div>
  <div class="section-actions">
  <button class="btn btn-light" onclick="exportTasksCSV()">⬇ CSV</button>
@@ -3346,7 +3346,7 @@ function renderIdentityBadge() {
 }
 
 // ── TEAMS / PER-TEAM MODULE SCOPING (foundation only — no Sports data seeded yet) ──
-const BASE_PICKABLE_MODULES = { orgchart:'Org Chart', tasks:'Tasks', vendors:'Vendors', docs:'Documents', budget:'Budget', scope:'Scope' };
+const BASE_PICKABLE_MODULES = { orgchart:'Org Chart', tasks:'Logistics Team Tasks', vendors:'Vendors', docs:'Documents', budget:'Budget', scope:'Scope' };
 const TAB_ID_MAP = { orgchart:'taborg', plan:'tabplan', tasks:'tabtasks', venues:'tabvenues', vendors:'tabvendors',
   hotels:'tabhotels', transport:'tabtransport', docs:'tabdocs', budget:'tabbudget', scope:'tabscope' };
 
