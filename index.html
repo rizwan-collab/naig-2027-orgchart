@@ -100,6 +100,12 @@
     // ── Org structure ──
     window._fb.listen((cloudData) => {
       if (cloudData) {
+        // Ignore the echo of our own write. Firebase fires this listener for
+        // every write including ours, and repainting on our own echo is half of
+        // what made the org chart thrash.
+        const incoming = JSON.stringify(cloudData);
+        if (incoming === window._lastOrgJson) { window._orgLoaded = true; return; }
+        window._lastOrgJson = incoming;
         window._orgData = cloudData;
         window._renderAll && window._renderAll();
         showSyncStatus(' Live — synced from cloud');
@@ -4618,6 +4624,9 @@ function regenerateOrgFromDirectory() {
     // node.id and would throw on null, leaving the previous tree stranded in
     // memory and in Firebase.
     if (!newTree) {
+      // Same no-op rule as below: only write and repaint if this is a change.
+      if (window._lastOrgJson === 'null') return;
+      window._lastOrgJson = 'null';
       window._orgData = null;
       saveToCloud();
       window._renderAll && window._renderAll();
@@ -4640,6 +4649,24 @@ function regenerateOrgFromDirectory() {
       }
       (node.children || []).forEach(overlayExtras);
     })(newTree);
+
+    // ── Break the write/read feedback loop ────────────────────────────────
+    // saveToCloud() writes naig2027/org, which fires our own listenOrg
+    // listener, which calls _maybeMigrateThenSyncDirectory(), which calls this
+    // function again -- which writes again. The _regeneratingFromDirectory
+    // guard above cannot stop it because the listener fires asynchronously,
+    // long after the guard has been released in the finally block.
+    //
+    // Measured on the live app: regenerate ran 20x/second and the chart
+    // re-rendered 30x/second while nobody was touching it. That is what the
+    // "glitching" was, and it was hammering the database with writes all day.
+    //
+    // A regeneration that produces the identical tree must therefore write
+    // nothing and render nothing. That is what terminates the cycle: the first
+    // pass settles the tree, the second pass sees no change and stops.
+    const json = JSON.stringify(newTree);
+    if (json === window._lastOrgJson) return;
+    window._lastOrgJson = json;
 
     window._orgData = newTree;
     saveToCloud();
