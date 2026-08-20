@@ -2739,10 +2739,16 @@ function scheduleOrgWires() {
   // requestAnimationFrame alone: rAF does not fire while the tab is in the
   // background, so a render that happens off-screen would never get its
   // connectors drawn. setTimeout still runs (throttled) when backgrounded.
+  // Kill any timer from a previous call FIRST. The old order cleared the
+  // interval only on the failure path, so every successful re-render left the
+  // previous 250ms retry timer running forever. Switch tabs a few times and
+  // several timers are all redrawing the same SVG at once.
+  clearInterval(window._orgWireTimer);
+  window._orgWireTimer = null;
+
   if (drawOrgWires()) { window._orgWiresPending = false; return; }
   window._orgWiresPending = true;
   let tries = 0;
-  clearInterval(window._orgWireTimer);
   window._orgWireTimer = setInterval(() => {
     if (drawOrgWires() || ++tries > 40) {          // ~10s of attempts, then stop
       window._orgWiresPending = false;
@@ -2763,6 +2769,12 @@ document.addEventListener('visibilitychange', () => {
 // reports SCALED pixels while this SVG lives inside the zoomed container, so the zoom
 // has to be divided out or every line drifts further the further right it sits.
 function drawOrgWires(){
+  if (window._orgWireDrawing) return false;   // never re-enter
+  window._orgWireDrawing = true;
+  try { return drawOrgWiresInner(); }
+  finally { window._orgWireDrawing = false; }
+}
+function drawOrgWiresInner(){
   const wrap = document.getElementById('orgWrap');
   const svg  = document.getElementById('orgWires');
   if (!wrap || !svg) return false;
@@ -2842,15 +2854,32 @@ function drawOrgWires(){
     });
   });
 
-  svg.innerHTML = out;
-  svg.setAttribute('width',  wrap.scrollWidth);
-  svg.setAttribute('height', wrap.scrollHeight);
+  // Only touch the DOM when something actually changed. Re-writing identical
+  // markup and identical width/height attributes still counts as a layout
+  // change, which woke the ResizeObserver below, which called this function
+  // again -- a loop that ran ~30 times a second and read on screen as the chart
+  // flickering. Idempotent writes break the cycle at the source.
+  if (svg.innerHTML !== out) svg.innerHTML = out;
+  const w = String(wrap.scrollWidth), h = String(wrap.scrollHeight);
+  if (svg.getAttribute('width')  !== w) svg.setAttribute('width',  w);
+  if (svg.getAttribute('height') !== h) svg.setAttribute('height', h);
+
   if (!window._orgWireObserver && typeof ResizeObserver !== 'undefined') {
-    // Belt and braces: any later layout change (tab shown, window resize,
-    // fonts landing) redraws instead of leaving stale or collapsed lines.
-    window._orgWireObserver = new ResizeObserver(() => drawOrgWires());
+    // Redraw when the container genuinely changes size (tab shown, window
+    // resize, fonts landing) -- but never re-enter while a draw is in flight,
+    // and ignore notifications where the size is unchanged.
+    window._orgWireObserver = new ResizeObserver(() => {
+      if (window._orgWireDrawing) return;
+      const el = document.getElementById('orgWrap');
+      if (!el) return;
+      const key = el.scrollWidth + 'x' + el.scrollHeight;
+      if (key === window._orgWireLastSize) return;
+      window._orgWireLastSize = key;
+      drawOrgWires();
+    });
     window._orgWireObserver.observe(wrap);
   }
+  window._orgWireLastSize = w + 'x' + h;
   return true;
 }
 
