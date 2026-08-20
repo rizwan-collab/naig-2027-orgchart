@@ -2213,7 +2213,7 @@ html.onboard-mode #onboardScreen { display: block !important; }
  <div class="modal-section">Assignment</div>
  <div class="form-group">
  <label>Vertical</label>
- <select id="pVertical">
+ <select id="pVertical" onchange="renderPersonRnr()">
  <option value="">— Unassigned —</option>
  <option value="F&B">F&B</option>
  <option value="Hotels">Hotels & Accommodations</option>
@@ -2230,7 +2230,7 @@ html.onboard-mode #onboardScreen { display: block !important; }
  </div>
  <div class="form-group">
  <label>Role Type</label>
- <select id="pRoleType">
+ <select id="pRoleType" onchange="renderPersonRnr()">
   <option value="lead">Lead / Co-Lead — layer 1</option>
   <option value="deputy">Deputy — layer 2</option>
   <option value="pmo">PMO / Coordinator — layer 3</option>
@@ -2259,6 +2259,7 @@ html.onboard-mode #onboardScreen { display: block !important; }
  <label>Notes</label>
  <input type="text" id="pNotes" placeholder="Referral, skills, availability, etc.">
  </div>
+ <div id="pRnrBlock" style="display:none;margin-top:12px;padding:10px 11px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px"></div>
  <div class="modal-actions">
  <button class="btn btn-cancel" onclick="closeProspect()">Cancel</button>
  <button class="btn btn-primary" onclick="saveProspect()">Save</button>
@@ -2639,7 +2640,20 @@ function paintOrg(innerHtml){
        <svg id="orgWires" style="position:absolute;inset:0;overflow:visible;pointer-events:none"></svg>
        <div id="orgTree" style="position:relative;display:flex;justify-content:center">${innerHtml}</div>
      </div>`;
-  drawOrgWires();
+  scheduleOrgWires();
+}
+
+// The chart is rendered even when the Org Chart tab is hidden (the app lands on
+// Dashboard, and #canvas is display:none until you switch). A hidden element has
+// NO layout, so every getBoundingClientRect came back zero — the SVG was sized
+// 0x0 and every connector collapsed to a point. That is why the lines vanished.
+// So: only draw when the container genuinely has layout, and redraw when it gains it.
+function scheduleOrgWires() {
+  requestAnimationFrame(() => { if (!drawOrgWires()) window._orgWiresPending = true; });
+}
+function orgWiresIfPending() {
+  if (window._orgWiresPending) { if (drawOrgWires()) window._orgWiresPending = false; }
+  else { drawOrgWires(); }
 }
 // Connectors are computed from real box positions AFTER layout. getBoundingClientRect
 // reports SCALED pixels while this SVG lives inside the zoomed container, so the zoom
@@ -2647,7 +2661,10 @@ function paintOrg(innerHtml){
 function drawOrgWires(){
   const wrap = document.getElementById('orgWrap');
   const svg  = document.getElementById('orgWires');
-  if (!wrap || !svg) return;
+  if (!wrap || !svg) return false;
+  // No layout yet (hidden tab / not attached) -> measurements would all be zero.
+  if (!wrap.offsetParent && wrap.offsetWidth === 0) return false;
+  if (wrap.scrollWidth === 0 || wrap.scrollHeight === 0) return false;
   const z = (typeof _zoom === 'number' && _zoom) ? _zoom : 1;
   const base = wrap.getBoundingClientRect();
   const box = el => { const r = el.getBoundingClientRect();
@@ -2695,6 +2712,13 @@ function drawOrgWires(){
   svg.innerHTML = out;
   svg.setAttribute('width',  wrap.scrollWidth);
   svg.setAttribute('height', wrap.scrollHeight);
+  if (!window._orgWireObserver && typeof ResizeObserver !== 'undefined') {
+    // Belt and braces: any later layout change (tab shown, window resize,
+    // fonts landing) redraws instead of leaving stale or collapsed lines.
+    window._orgWireObserver = new ResizeObserver(() => drawOrgWires());
+    window._orgWireObserver.observe(wrap);
+  }
+  return true;
 }
 
 // ══════════════════════════════════════════════
@@ -4077,10 +4101,43 @@ function openProspect(id) {
   })();
   document.getElementById('pStatus').value   = p ? (p.status   || 'prospect') : 'prospect';
   document.getElementById('pNotes').value    = p ? (p.notes    || '') : '';
+  renderPersonRnr();
   populateReportsToOptions(id || null);
   document.getElementById('pReportsTo').value = p ? (p.reportsTo || '') : '';
   document.getElementById('prospectOverlay').classList.add('active');
 }
+
+// Read-only view of what this person inherits, shown inside the person form so
+// you can see the scope you are assigning at the moment you assign it.
+function renderPersonRnr() {
+  const host = document.getElementById('pRnrBlock');
+  if (!host) return;
+  const vert = (document.getElementById('pVertical') || {}).value || '';
+  const rt   = (document.getElementById('pRoleType') || {}).value || '';
+  const r = rnrForPerson(vert, rt);
+  if (!r) {
+    host.style.display = '';
+    host.innerHTML = `<div style="font-size:11px;color:#888">Set a <strong>Role Type</strong> to see the responsibilities this person inherits.</div>`;
+    return;
+  }
+  const li = t => `<li style="margin:2px 0">${esc(t)}</li>`;
+  host.style.display = '';
+  host.innerHTML = `
+    <div style="font-size:10px;font-weight:700;color:#1E3A8A;text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px">
+      Inherited responsibilities — ${esc(r.verticalLabel)} · ${esc(r.roleLabel)}</div>
+    <ul style="margin:0;padding-left:16px;font-size:11px;color:#374151;line-height:1.5">
+      ${r.core.map(li).join('')}
+      ${r.extras.map(t => `<li style="margin:2px 0"><em>${esc(t)}</em></li>`).join('')}
+    </ul>
+    <div style="margin-top:6px;font-size:10.5px;color:#6b7280;line-height:1.5">
+      <div><strong>Escalates to:</strong> ${esc(r.meta.escalatesTo || '—')}</div>
+      <div><strong>Time:</strong> ${esc(r.meta.timePre || '—')} pre-event · ${esc(r.meta.timeGames || '—')} during Games Week</div>
+      ${(r.meta.success||[]).length ? `<div style="margin-top:3px"><strong>Success looks like:</strong>
+        <ul style="margin:2px 0 0;padding-left:16px">${(r.meta.success||[]).map(li).join('')}</ul></div>` : ''}
+    </div>
+    <div style="margin-top:6px;font-size:9.5px;color:#9aa5b4">Edit this content on the Roles &amp; Responsibilities panel — it applies to everyone at this layer.</div>`;
+}
+window.renderPersonRnr = renderPersonRnr;
 
 function closeProspect() {
   editingProspectId = null;
@@ -4770,8 +4827,115 @@ const RNR_VERTICALS = [
 const RNR_ROLES = [
   { key: 'lead',   label: 'Lead',               bg: '#1a3a5c' },
   { key: 'deputy', label: 'Deputy',             bg: '#2c7a5c' },
-  { key: 'pmo',    label: 'PMO / Coordinator',  bg: '#2d6a9f' }
+  { key: 'pmo',    label: 'PMO / Coordinator',  bg: '#2d6a9f' },
+  { key: 'venue',  label: 'Venue Lead',         bg: '#7b3f00' }
 ];
+const RNR_ROLE_KEYS = RNR_ROLES.map(r => r.key);
+
+// Directory "Vertical" values are labels; R&R is keyed by vertical id.
+const DIR_VERTICAL_TO_RNR = {
+  'F&B':'fb', 'Hotels':'hotels', 'Hotels & Accommodations':'hotels',
+  'Transportation':'transport', 'Site Management':'site',
+  'Equipment & Signage':'equipment', 'Core Team':'__core'
+};
+
+// ── SHARED CORE ─────────────────────────────────────────────────────────────
+// Every vertical inherits these. Ownership split per Rizwan: Lead = people +
+// risk. Deputy = project management/operations + finances. PMO = process,
+// documentation, workflow + contracts. Venue Lead = everything at their venue
+// on game day.
+const RNR_CORE = {
+  lead: [
+    'Recruit, assign and manage the people in this vertical — know who owns what at all times.',
+    'Own risk for this vertical: name what could fail, plan the mitigation, escalate early.',
+    'Approve the vertical plan and sign off on readiness before Games Week.',
+    'Represent this vertical in Core Team reviews and decisions.',
+    'Make the final call when the Deputy and PMO disagree.'
+  ],
+  deputy: [
+    'Run day-to-day delivery: timelines, dependencies, and who is doing what this week.',
+    'Own the vertical budget — track committed against actual spend and flag overruns before they land.',
+    'Turn the Lead plan into scheduled, assigned, dated work.',
+    'Chase blockers to closure and escalate anything that will slip.',
+    'Deputise for the Lead when they are unavailable.'
+  ],
+  pmo: [
+    'Maintain the master task list for this vertical — status, owners, due dates.',
+    'Own vendor and service contracts: terms, renewal dates, signed copies on file.',
+    'Document process and workflow so the vertical does not depend on tribal knowledge.',
+    'Keep the hub current — the tool is the source of truth, not somebody\'s inbox.',
+    'Produce the weekly status roll-up for the Lead and Core Team.'
+  ],
+  venue: [
+    'Single point of accountability for everything at this venue on game day.',
+    'Own the on-site relationship with facility staff and management.',
+    'Run setup, load-in and teardown to the agreed schedule.',
+    'Direct every volunteer and staff member working at this venue during competition.',
+    'First responder for on-site issues — resolve locally or escalate immediately.'
+  ]
+};
+
+// ── VERTICAL-SPECIFIC EXTRAS ────────────────────────────────────────────────
+const RNR_EXTRAS = {
+  fb: {
+    lead:   ['Approve menus across all venues and sign off dietary and allergy policy.'],
+    deputy: ['Own food ordering volumes and per-venue meal counts against registration numbers.'],
+    pmo:    ['Hold caterer contracts, food-safety documentation and serving schedules.']
+  },
+  hotels: {
+    lead:   ['Set room block strategy and sign off property agreements.'],
+    deputy: ['Own rooming lists, occupancy tracking and attrition / no-show management.'],
+    pmo:    ['Hold hotel contracts, cut-off dates and billing reconciliation.']
+  },
+  transport: {
+    lead:   ['Own fleet strategy and driver safety accountability.'],
+    deputy: ['Own route and shuttle scheduling, and driver assignment across venues.'],
+    pmo:    ['Hold charter and vendor contracts, insurance certificates and driver credential records.']
+  },
+  site: {
+    lead:   ['Own readiness across the whole venue portfolio, not just one site.'],
+    deputy: ['Own cross-venue staffing levels and equipment allocation.'],
+    pmo:    ['Hold venue agreements, permits and certificates of insurance.'],
+    venue:  ['Report venue readiness status into Site Management ahead of Games Week.']
+  },
+  equipment: {
+    lead:   ['Set equipment and signage standards across all venues.'],
+    deputy: ['Own procurement quantities, delivery windows and per-venue kit lists.'],
+    pmo:    ['Hold print and vendor contracts, artwork approvals and asset tracking.']
+  }
+};
+
+// ── PER-LAYER META (escalation, success, time) ──────────────────────────────
+const RNR_META_DEFAULTS = {
+  lead: {
+    escalatesTo: 'Logistics Lead',
+    success: ['Vertical is Games-Week ready with no open critical risks.',
+              'Every role in the vertical is filled and confirmed.',
+              'No surprise escalations to Core Team in the final 30 days.'],
+    timePre: '3–5 hrs/week', timeGames: 'Full-time on site, Mar 25–28'
+  },
+  deputy: {
+    escalatesTo: 'Vertical Lead',
+    success: ['Plan runs to schedule, with any slip flagged before it happens.',
+              'Spend stays within approved budget.',
+              'Weekly commitments are met or renegotiated, never silently missed.'],
+    timePre: '4–6 hrs/week', timeGames: 'Full-time on site, Mar 25–28'
+  },
+  pmo: {
+    escalatesTo: 'Vertical Deputy, then Vertical Lead',
+    success: ['Task list is accurate and current enough to run a meeting from.',
+              'Every vendor has a signed contract on file.',
+              'Process is documented well enough for someone else to pick it up.'],
+    timePre: '3–4 hrs/week', timeGames: 'Full-time on site, Mar 25–28'
+  },
+  venue: {
+    escalatesTo: 'Site Management Deputy, then Site Management Lead',
+    success: ['Venue opens and runs on schedule every competition day.',
+              'No on-site issue escalates past you twice.',
+              'Facility handed back in the agreed condition.'],
+    timePre: '2–3 hrs/week, rising close to Games Week', timeGames: 'Full-time at your venue, Mar 25–28'
+  }
+};
 
 function saveRnrLocal() {
   localStorage.setItem('naig_rnr', JSON.stringify(window._rnrData));
@@ -4779,17 +4943,108 @@ function saveRnrLocal() {
 }
 
 function getRnrV(id) {
-  if (!window._rnrData[id]) {
-    window._rnrData[id] = { roles: { lead: [], deputy: [], pmo: [] }, authority: '' };
-  }
+  if (!window._rnrData[id]) window._rnrData[id] = {};
   const v = window._rnrData[id];
   // Defensive normalize: Firebase RTDB strips empty arrays/objects on write, so any
   // vertical with zero items in every role loses its whole `.roles` key on reload.
   if (!v.roles || typeof v.roles !== 'object') v.roles = {};
-  ['lead', 'deputy', 'pmo'].forEach(k => { if (!Array.isArray(v.roles[k])) v.roles[k] = []; });
-  if (typeof v.authority !== 'string') v.authority = '';
+  RNR_ROLE_KEYS.forEach(k => { if (!Array.isArray(v.roles[k])) v.roles[k] = []; });
+  if (!Array.isArray(v.dismissed)) v.dismissed = [];   // seed keys the user deleted on purpose
+  if (!v.meta || typeof v.meta !== 'object') v.meta = {};
+  RNR_ROLE_KEYS.forEach(k => {
+    const d = RNR_META_DEFAULTS[k] || {};
+    const m = (v.meta[k] && typeof v.meta[k] === 'object') ? v.meta[k] : {};
+    v.meta[k] = {
+      escalatesTo: typeof m.escalatesTo === 'string' ? m.escalatesTo : (d.escalatesTo || ''),
+      success:     Array.isArray(m.success) ? m.success : (d.success || []).slice(),
+      timePre:     typeof m.timePre  === 'string' ? m.timePre  : (d.timePre  || ''),
+      timeGames:   typeof m.timeGames=== 'string' ? m.timeGames: (d.timeGames|| '')
+    };
+  });
   return v;
 }
+
+// SEEDING BY IDENTITY, not by emptiness.
+//
+// The first version only seeded a role if it had ZERO items. Two problems with
+// that: (a) improving the seed text later never reached any vertical that
+// already had content, and (b) F&B's Lead already held Humera's hand-written
+// items, so its own vertical-specific line could never appear at all.
+//
+// Now every seeded line carries a stable key. On each run we add the ones that
+// are missing, refresh the wording of ones still marked as seed-owned, and
+// never touch anything you wrote or edited. Delete a seeded line and its key is
+// remembered as dismissed, so it does not come back next load.
+function rnrMergeSeed(store, rk, seedTexts, scope) {
+  if (!seedTexts || !seedTexts.length) return false;
+  const arr = store.roles[rk];
+  const dismissed = new Set(store.dismissed || []);
+  let changed = false;
+  seedTexts.forEach((text, i) => {
+    const key = `${scope}.${rk}.${i}`;
+    if (dismissed.has(key)) return;                      // you removed it deliberately
+    const hit = arr.find(x => x && x.key === key);
+    if (!hit) {
+      // Don't duplicate a line you already typed by hand with the same wording.
+      const norm = t => (t||'').trim().toLowerCase().replace(/\s+/g,' ');
+      if (arr.some(x => norm(x.text) === norm(text))) return;
+      arr.push({ id: rnrNewId(), text, priority: 'medium', src: 'seed', key });
+      changed = true;
+    } else if (hit.src === 'seed' && hit.text !== text) {
+      hit.text = text;                                   // wording improvement flows through
+      changed = true;
+    }
+  });
+  return changed;
+}
+function rnrNewId() {
+  // Date.now() alone collides when two items are added in the same millisecond.
+  return 'r-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+}
+function seedRnr() {
+  let changed = false;
+  const core = getRnrV('__core');
+  RNR_ROLE_KEYS.forEach(rk => {
+    if (rnrMergeSeed(core, rk, RNR_CORE[rk], '__core')) changed = true;
+  });
+  RNR_VERTICALS.forEach(vDef => {
+    const v = getRnrV(vDef.id);
+    const extras = RNR_EXTRAS[vDef.id] || {};
+    RNR_ROLE_KEYS.forEach(rk => {
+      if (rnrMergeSeed(v, rk, extras[rk], vDef.id)) changed = true;
+    });
+  });
+  if (changed) saveRnrLocal();
+  return changed;
+}
+window.seedRnr = seedRnr;
+
+// Core is now stored (and editable) rather than read straight from the constant.
+function rnrCoreItems(rk) {
+  const c = getRnrV('__core');
+  const stored = (c.roles[rk] || []).map(i => i.text);
+  return stored.length ? stored : (RNR_CORE[rk] || []).slice();
+}
+
+// What a given person inherits: shared core for their layer, plus their
+// vertical's extras. Returns null when we can't place them.
+function rnrForPerson(verticalLabel, roleType) {
+  const rk = (roleType || '').toLowerCase();
+  if (!RNR_ROLE_KEYS.includes(rk)) return null;
+  const vid = DIR_VERTICAL_TO_RNR[verticalLabel || ''] || '';
+  const core = rnrCoreItems(rk);
+  let extras = [], meta = RNR_META_DEFAULTS[rk] || {}, label = 'Core Team';
+  if (vid && vid !== '__core') {
+    const vDef = RNR_VERTICALS.find(x => x.id === vid);
+    const v = getRnrV(vid);
+    extras = (v.roles[rk] || []).map(i => i.text);
+    meta = v.meta[rk] || meta;
+    label = vDef ? vDef.label : vid;
+  }
+  return { roleKey: rk, roleLabel: (RNR_ROLES.find(r=>r.key===rk)||{}).label || rk,
+           verticalLabel: label, core, extras, meta };
+}
+window.rnrForPerson = rnrForPerson;
 
 function prioDot(p) {
   return p === 'high' ? '<span style="color:#e74c3c;font-size:9px;flex-shrink:0">●</span>'
@@ -4800,50 +5055,110 @@ function prioDot(p) {
 function renderRnr() {
   const grid = document.getElementById('rnrGrid');
   if (!grid) return;
+  seedRnr();
 
   let totalItems = 0;
 
-  grid.innerHTML = RNR_VERTICALS.map(vDef => {
-    const vData  = getRnrV(vDef.id);
+  // A "Shared core" card first: these apply to every vertical, so they are shown
+  // once here rather than repeated five times.
+  const coreData = getRnrV('__core');
+  const srcTag = it => it && it.src === 'seed'
+    ? `<span title="Maintained by the template — edit freely, or delete and it stays deleted" style="font-size:8.5px;color:#aab4c4;border:1px solid #e2e8f0;border-radius:8px;padding:0 4px;margin-left:5px">template</span>`
+    : (it && it.src === 'user' ? `<span title="Added by you" style="font-size:8.5px;color:#2c7a5c;border:1px solid #d5e8dd;border-radius:8px;padding:0 4px;margin-left:5px">yours</span>` : '');
+
+  const coreCard = `
+ <div class="rnr-card">
+ <div class="rnr-card-header" style="background:#1E3A8A">
+ <div><div class="rnr-card-title">Shared core — every vertical inherits this</div></div>
+ <span style="font-size:10px;background:rgba(255,255,255,0.2);padding:2px 9px;border-radius:10px;font-weight:700">edit once, applies everywhere</span>
+ </div>
+      ${RNR_ROLES.map(role => {
+        const items = coreData.roles[role.key] || [];
+        return `
+ <div class="rnr-role-section">
+ <div class="rnr-role-label">
+ <span class="rnr-pill" style="background:${role.bg}">${role.label}</span>
+ <button class="rnr-add-btn" onclick="openRnr('__core','${role.key}','Shared core','${role.label}')">+ Add</button>
+ </div>
+        ${items.length === 0
+          ? `<div class="rnr-empty">No core duties for this layer yet</div>`
+          : items.map((item, idx) => `
+ <div class="rnr-item">
+              ${prioDot(item.priority)}
+ <span class="rnr-item-text">${esc(item.text)}${srcTag(item)}</span>
+ <span class="rnr-item-del" onclick="deleteRnrItem('__core','${role.key}',${idx})" title="Remove">×</span>
+ </div>`).join('')}
+ </div>`;
+      }).join('')}
+ </div>`;
+
+  grid.innerHTML = coreCard + RNR_VERTICALS.map(vDef => {
+    const vData = getRnrV(vDef.id);
 
     const roleHtml = RNR_ROLES.map(role => {
       const items = vData.roles[role.key] || [];
+      const m = vData.meta[role.key] || {};
       totalItems += items.length;
+      const coreCount = (RNR_CORE[role.key]||[]).length;
       return `
  <div class="rnr-role-section">
  <div class="rnr-role-label">
  <span class="rnr-pill" style="background:${role.bg}">${role.label}</span>
- <button class="rnr-add-btn" onclick="openRnr('${vDef.id}','${role.key}','${vDef.label.replace(/'/g,"\\'")}','${role.label}')" >+ Add</button>
+ <span style="font-size:9.5px;color:#9aa5b4">+ ${coreCount} core</span>
+ <button class="rnr-add-btn" onclick="openRnr('${vDef.id}','${role.key}','${vDef.label.replace(/'/g,"\\'")}','${role.label}')">+ Add</button>
  </div>
         ${items.length === 0
-          ? `<div class="rnr-empty">No responsibilities yet — click <strong>+ Add</strong> to define this role</div>`
+          ? `<div class="rnr-empty">No ${vDef.label}-specific duties — inherits the ${coreCount} shared core items only</div>`
           : items.map((item, idx) => `
  <div class="rnr-item">
               ${prioDot(item.priority)}
- <span class="rnr-item-text">${item.text}</span>
+ <span class="rnr-item-text">${esc(item.text)}${srcTag(item)}</span>
  <span class="rnr-item-del" onclick="deleteRnrItem('${vDef.id}','${role.key}',${idx})" title="Remove">×</span>
  </div>`).join('')
         }
+ <div style="margin:6px 0 2px;padding:7px 9px;background:#f8fafc;border:1px solid #eef2f7;border-radius:6px;font-size:10.5px;color:#4b5563;line-height:1.5">
+ <div><strong>Escalates to:</strong> <span contenteditable="true" data-rnr="escalatesTo" data-v="${vDef.id}" data-r="${role.key}"
+        onblur="saveRnrMeta(this)" style="outline:none;border-bottom:1px dotted #cbd5e1">${esc(m.escalatesTo||'—')}</span></div>
+ <div style="margin-top:3px"><strong>Success looks like:</strong>
+   <ul style="margin:2px 0 0;padding-left:16px">${(m.success||[]).map(x=>`<li>${esc(x)}</li>`).join('')||'<li>—</li>'}</ul></div>
+ <div style="margin-top:3px"><strong>Time:</strong>
+   <span contenteditable="true" data-rnr="timePre" data-v="${vDef.id}" data-r="${role.key}" onblur="saveRnrMeta(this)"
+     style="outline:none;border-bottom:1px dotted #cbd5e1">${esc(m.timePre||'—')}</span> pre-event ·
+   <span contenteditable="true" data-rnr="timeGames" data-v="${vDef.id}" data-r="${role.key}" onblur="saveRnrMeta(this)"
+     style="outline:none;border-bottom:1px dotted #cbd5e1">${esc(m.timeGames||'—')}</span> during Games Week</div>
+ </div>
  </div>`;
     }).join('');
 
-    const count = (vData.roles.lead||[]).length + (vData.roles.deputy||[]).length + (vData.roles.pmo||[]).length;
+    const count = RNR_ROLE_KEYS.reduce((n,k)=>n+((vData.roles[k]||[]).length),0);
 
     return `
  <div class="rnr-card">
  <div class="rnr-card-header" style="background:${vDef.color}">
- <div>
- <div class="rnr-card-title">${vDef.label}</div>
- </div>
- <span style="font-size:10px;background:rgba(255,255,255,0.2);padding:2px 9px;border-radius:10px;font-weight:700">${count} item${count!==1?'s':''}</span>
+ <div><div class="rnr-card-title">${vDef.label}</div></div>
+ <span style="font-size:10px;background:rgba(255,255,255,0.2);padding:2px 9px;border-radius:10px;font-weight:700">${count} specific</span>
  </div>
       ${roleHtml}
  </div>`;
   }).join('');
 
   const countEl = document.getElementById('rnrCount');
-  if (countEl) countEl.textContent = `${totalItems} item${totalItems!==1?'s':''} across 5 verticals`;
+  if (countEl) {
+    const coreTotal = RNR_ROLE_KEYS.reduce((n,k)=>n+((coreData.roles[k]||[]).length),0);
+    countEl.textContent = `${coreTotal} shared core + ${totalItems} vertical-specific across ${RNR_VERTICALS.length} verticals`;
+  }
 }
+
+// Inline-edited meta (escalation / time). Kept as contenteditable spans so the
+// whole matrix stays editable in place without a modal per field.
+function saveRnrMeta(el) {
+  const vid = el.dataset.v, rk = el.dataset.r, field = el.dataset.rnr;
+  const val = (el.textContent || '').trim();
+  const v = getRnrV(vid);
+  v.meta[rk][field] = (val === '—') ? '' : val;
+  saveRnrLocal();
+}
+window.saveRnrMeta = saveRnrMeta;
 
 function toggleRnrPanel() {
   rnrPanelOpen = !rnrPanelOpen;
@@ -4877,7 +5192,7 @@ function saveRnrItem() {
     return;
   }
   const vData = getRnrV(vid);
-  vData.roles[role].push({ id: 'r-' + Date.now(), text, priority: prio });
+  vData.roles[role].push({ id: rnrNewId(), text, priority: prio, src: 'user' });
   saveRnrLocal();
   closeRnr();
   renderRnr();
@@ -4886,6 +5201,12 @@ function saveRnrItem() {
 function deleteRnrItem(vid, role, idx) {
   if (!confirm('Remove this responsibility?')) return;
   const vData = getRnrV(vid);
+  const item = vData.roles[role][idx];
+  // Remember deliberate removal of a seeded line, otherwise the next load
+  // helpfully puts it straight back.
+  if (item && item.src === 'seed' && item.key && !vData.dismissed.includes(item.key)) {
+    vData.dismissed.push(item.key);
+  }
   vData.roles[role].splice(idx, 1);
   saveRnrLocal();
   renderRnr();
@@ -5011,11 +5332,23 @@ function renderOnboardView() {
     <p style="font-size:13px;color:#475569;margin:10px 0 0">Dallas\u2013Fort Worth (DFW), Texas${summary.cities.length ? ' \u2014 venues across ' + summary.cities.join(', ') : ''}.</p>
   </div>`;
 
+  // Pull from the shared-core + vertical-extras model so the onboarding page
+  // shows exactly what the person form and the R&R panel show — one source.
+  const dirRec = (window._prospects || []).find(x => x.id === person.id) || {};
+  const obR = rnrForPerson(dirRec.vertical || '', dirRec.roleType || person.roleType || '');
   html += `<div class="ob-section">
-    <h2>Your Role &amp; Responsibilities${vLabel ? ' \u2014 ' + vLabel : ''}</h2>
-    ${items.length
-      ? items.map(i => `<div class="ob-item">\u2022 <span>${i.text}</span></div>`).join('')
-      : '<div class="ob-empty">Responsibilities for your role haven\'t been added yet \u2014 check back soon, or ask Rizwan.</div>'}
+    <h2>Your Role &amp; Responsibilities${obR ? ' \u2014 ' + obR.verticalLabel + ' \u00b7 ' + obR.roleLabel : (vLabel ? ' \u2014 ' + vLabel : '')}</h2>
+    ${obR
+      ? obR.core.concat(obR.extras).map(t => `<div class="ob-item">\u2022 <span>${t}</span></div>`).join('')
+        + `<div style="margin-top:12px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#475569;line-height:1.6">
+             <div><strong>You escalate to:</strong> ${obR.meta.escalatesTo || '\u2014'}</div>
+             <div><strong>Time commitment:</strong> ${obR.meta.timePre || '\u2014'} before the event \u00b7 ${obR.meta.timeGames || '\u2014'}</div>
+             ${(obR.meta.success||[]).length ? `<div style="margin-top:6px"><strong>What success looks like:</strong>
+               <ul style="margin:4px 0 0;padding-left:18px">${obR.meta.success.map(x=>`<li>${x}</li>`).join('')}</ul></div>` : ''}
+           </div>`
+      : (items.length
+          ? items.map(i => `<div class="ob-item">\u2022 <span>${i.text}</span></div>`).join('')
+          : '<div class="ob-empty">Your responsibilities aren\'t set yet \u2014 ask Rizwan to set your Role Type.</div>')}
   </div>`;
 
   html += `<div class="ob-section">
@@ -5419,6 +5752,9 @@ function switchTab(tab) {
   // Expand/Collapse/Export buttons — org chart only
   const orgBtns = document.getElementById('orgBtns');
   if (orgBtns) orgBtns.style.display = (tab === 'orgchart') ? '' : 'none';
+  if (tab === 'orgchart' && typeof orgWiresIfPending === 'function') {
+    requestAnimationFrame(orgWiresIfPending);
+  }
 
   // Hub sections
   const hubSections = ['sectionDashboard','sectionPlan','sectionTasks','sectionVenues','sectionVendors','sectionHotels',
