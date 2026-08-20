@@ -9,7 +9,13 @@
  * WHY APPS SCRIPT AND NOT A CLAUDE SCHEDULED TASK:
  * The NAIG shared drive is not shared with the Google account behind Claude's
  * Drive connector, so a Claude-side job returns an empty folder every time.
- * This script runs as Rizwan's own Google account, which already has access.
+ *
+ * *** WHICH ACCOUNT MUST OWN THIS SCRIPT ***
+ * The NAIG shared drive belongs to Jubilee Monuments Corp. and is reachable
+ * from aliriz6683@gmail.com. It is NOT reachable from rizwan@swagprint.com --
+ * that account gets Access Denied on the drive root. A copy of this script
+ * owned by rizwan@swagprint.com will find nothing, every single day.
+ * Run checkAccess() first; it says plainly whether this account can see it.
  *
  * SETUP (one time):
  *   1. Services (+) -> Drive API -> v2 -> Add      <-- REQUIRED, fails without it
@@ -61,7 +67,15 @@ function runDailyScan() {
     return;
   }
 
-  var changes = findChanges_(last);
+  var res = findChanges_(last);
+  if (res.error) {
+    // Baseline deliberately NOT advanced -- otherwise a failed run would skip
+    // that window forever and those changes would never be reported.
+    sendFailure_(res.error, last);
+    Logger.log('Scan FAILED, baseline held at ' + last);
+    return;
+  }
+  var changes = res.list;
   logToSheet_(changes);
   var pushed = pushLogisticsTasks_(changes);
   sendDigest_(changes, last, pushed);
@@ -72,7 +86,9 @@ function runDailyScan() {
 /** Test run: looks back 7 days, sends a real digest, does NOT move the baseline. */
 function testScan() {
   var since = new Date(Date.now() - 7 * 86400000).toISOString();
-  var changes = findChanges_(since);
+  var res = findChanges_(since);
+  if (res.error) { sendFailure_(res.error, since); Logger.log('TEST FAILED: ' + res.error); return; }
+  var changes = res.list;
   logToSheet_(changes);
   var pushed = pushLogisticsTasks_(changes);
   sendDigest_(changes, since, pushed);
@@ -82,6 +98,43 @@ function testScan() {
 /** Sends the no-changes email so the formatting can be reviewed. */
 function testNoChanges() {
   sendDigest_([], new Date(Date.now() - 86400000).toISOString(), []);
+}
+
+/**
+ * Run this FIRST on any new copy of the script. It answers one question in
+ * plain language: can the account running this script actually see the NAIG
+ * drive? Getting this wrong is invisible otherwise -- the scan just reports
+ * "no changes" forever.
+ */
+function checkAccess() {
+  var who = 'unknown';
+  try { who = Session.getActiveUser().getEmail() || 'unknown'; } catch (e) {}
+  var out = ['Running as: ' + who];
+
+  try {
+    var d = Drive.Drives.get(CONFIG.DRIVE_ID, { fields: 'id,name' });
+    out.push('OK - shared drive visible: "' + d.name + '"');
+  } catch (e) {
+    out.push('FAIL - cannot see shared drive ' + CONFIG.DRIVE_ID);
+    out.push('       ' + e);
+    out.push('This account does not have access. Create this script under the');
+    out.push('account that can open the drive in a browser, then re-run.');
+    Logger.log(out.join('\n'));
+    return out.join('\n');
+  }
+
+  try {
+    var r = Drive.Files.list({
+      q: 'trashed = false', corpora: 'drive', driveId: CONFIG.DRIVE_ID,
+      supportsAllDrives: true, includeItemsFromAllDrives: true,
+      maxResults: 5, fields: 'items(id,title)'
+    });
+    out.push('OK - query returned ' + ((r.items || []).length) + ' sample item(s).');
+  } catch (e) {
+    out.push('FAIL - drive is visible but the file query errored: ' + e);
+  }
+  Logger.log(out.join('\n'));
+  return out.join('\n');
 }
 
 function resetBaseline() {
@@ -115,8 +168,12 @@ function findChanges_(sinceIso) {
                 'alternateLink,lastModifyingUserName,parents(id),explicitlyTrashed)'
       });
     } catch (e) {
+      // Do NOT swallow this. The first version logged and broke out of the
+      // loop, which produced an empty change list -- indistinguishable from a
+      // genuinely quiet drive. The result was a cheerful "All clear" email for
+      // a drive the script could not even see. A failure now surfaces.
       Logger.log('Drive query failed: ' + e);
-      break;
+      return { list: [], error: String(e && e.message ? e.message : e) };
     }
 
     var items = res.items || [];
@@ -150,7 +207,7 @@ function findChanges_(sinceIso) {
     return (a.path || '').localeCompare(b.path || '') ||
            (a.fileName || '').localeCompare(b.fileName || '');
   });
-  return changes;
+  return { list: changes, error: null };
 }
 
 /**
@@ -336,6 +393,51 @@ function sendDigest_(changes, sinceIso, pushed) {
       if (attempts >= 2) throw e;
       Utilities.sleep(45000);
     }
+  }
+}
+
+/**
+ * Sent when the Drive query itself fails. Kept deliberately blunt: the whole
+ * point is that a broken monitor must not look like a quiet one.
+ */
+function sendFailure_(errText, sinceIso) {
+  var who = 'unknown';
+  try { who = Session.getActiveUser().getEmail() || 'unknown'; } catch (e) {}
+  var today = fmtLongDate_(new Date());
+
+  var h = '';
+  h += '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"></head>';
+  h += '<body style="margin:0;padding:0;background:#f3f4f6;">';
+  h += '<table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f3f4f6;padding:24px 0;">';
+  h += '<tr><td align="center">';
+  h += '<table cellpadding="0" cellspacing="0" border="0" width="620" style="width:620px;max-width:620px;background:#ffffff;border-radius:10px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">';
+  h += '<tr><td style="background:#991b1b;padding:20px 24px;color:#ffffff;font-size:17px;font-weight:bold;">';
+  h += 'NAIG Drive Monitor could not read the drive</td></tr>';
+  h += '<tr><td style="padding:20px 24px;color:#374151;font-size:13px;line-height:1.6;">';
+  h += '<div style="padding-bottom:12px;">The daily scan did not run. This is <strong>not</strong> a quiet day &mdash; '
+     + 'the scan failed before it could look, so treat the drive as unchecked.</div>';
+  h += '<table cellpadding="0" cellspacing="0" border="0" width="100%" style="font-size:12px;">';
+  h += '<tr><td style="padding:4px 0;color:#6b7280;width:130px;">Running as</td><td style="padding:4px 0;">' + escapeHtml_(who) + '</td></tr>';
+  h += '<tr><td style="padding:4px 0;color:#6b7280;">Shared drive</td><td style="padding:4px 0;">' + escapeHtml_(CONFIG.DRIVE_ID) + '</td></tr>';
+  h += '<tr><td style="padding:4px 0;color:#6b7280;">Window start</td><td style="padding:4px 0;">' + escapeHtml_(fmtDateTime_(new Date(sinceIso))) + '</td></tr>';
+  h += '</table>';
+  h += '<div style="margin-top:14px;padding:12px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;'
+     + 'font-family:monospace;font-size:11px;color:#7f1d1d;word-break:break-word;">' + escapeHtml_(errText) + '</div>';
+  h += '<div style="margin-top:14px;">Most likely cause: the account above does not have access to that shared drive. '
+     + 'Run <strong>checkAccess()</strong> in the script editor &mdash; it says so directly.</div>';
+  h += '<div style="margin-top:10px;color:#6b7280;font-size:11px;">The baseline was not advanced, so nothing in this '
+     + 'window will be skipped once the scan works again.</div>';
+  h += '</td></tr></table></td></tr></table></body></html>';
+
+  try {
+    MailApp.sendEmail({
+      to: CONFIG.NOTIFY_EMAILS.join(','),
+      subject: 'NAIG 2027 Drive - SCAN FAILED - ' + today,
+      htmlBody: h
+    });
+    Logger.log('Failure email sent to ' + CONFIG.NOTIFY_EMAILS.join(','));
+  } catch (e) {
+    Logger.log('Could not even send the failure email: ' + e);
   }
 }
 
