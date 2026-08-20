@@ -6884,9 +6884,15 @@ window.renderVenues = function() {
   const search = (document.getElementById('venueSearch')||{}).value?.toLowerCase()||'';
   const items = all.filter(([,v]) => !search || JSON.stringify(v).toLowerCase().includes(search));
 
-  const confirmed = items.filter(([,v]) => ['Confirmed','Signed','Walk Done','Ops Ready'].includes(v.status));
-  const inWorks   = items.filter(([,v]) => ['In Works','In Conversation','Identified','Outreach Sent','LOI Sent','Contract Review','Exploring','Shortlisted','Negotiating','Site Visit Scheduled','Evaluating','Prospect'].includes(v.status));
-  const closed    = items.filter(([,v]) => ['Dropped','Closed','Cancelled','Not Available'].includes(v.status));
+  // Case-insensitive prefix match so descriptive suffixes (e.g. "Signed — Executed 8/18") still bucket correctly
+  const _statusMatch = (status, prefixes) => {
+    if (!status) return false;
+    const s = String(status).toLowerCase().trim();
+    return prefixes.some(p => s.startsWith(p.toLowerCase()));
+  };
+  const confirmed = items.filter(([,v]) => _statusMatch(v.status, ['Confirmed','Signed','Walk Done','Ops Ready','Reserved']));
+  const inWorks   = items.filter(([,v]) => _statusMatch(v.status, ['In Works','In Conversation','Identified','Outreach','LOI Sent','Contract Review','Exploring','Shortlisted','Negotiating','Site Visit','Evaluating','Under Evaluation','Under Review','Prospect']));
+  const closed    = items.filter(([,v]) => _statusMatch(v.status, ['Dropped','Closed','Cancelled','Not Available','Not Selected','Declined']));
 
   // Financial snapshot
   const parseNum = s => parseFloat(String(s||'0').replace(/[^0-9.]/g,'')) || 0;
