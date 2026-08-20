@@ -4658,10 +4658,9 @@ function regenerateOrgFromDirectory() {
     // memory and in Firebase.
     if (!newTree) {
       // Same no-op rule as below: only write and repaint if this is a change.
+      window._orgData = null;
       if (window._lastOrgSig === 'null') return;
       window._lastOrgSig = 'null';
-      window._orgData = null;
-      saveToCloud();
       window._renderAll && window._renderAll();
       return;
     }
@@ -4697,12 +4696,26 @@ function regenerateOrgFromDirectory() {
     // A regeneration that produces the identical tree must therefore write
     // nothing and render nothing. That is what terminates the cycle: the first
     // pass settles the tree, the second pass sees no change and stops.
+    // ── Do NOT persist a derived tree ────────────────────────────────────
+    // The org tree is 100% a function of the Directory. Writing it back to
+    // Firebase here bought nothing and cost a permanent write loop: the write
+    // fires our own listener, the listener regenerates, the regeneration
+    // writes. Signature comparison could not break it either, because the
+    // value that comes back from Firebase is not identical to the value we
+    // sent -- the root's `vertical` field survived locally and not in the echo,
+    // so "has it changed?" answered YES in both directions forever. Measured
+    // live: 13 writes/second, 30 repaints/second, indefinitely.
+    //
+    // So: update memory, repaint, and write nothing. Every genuine user action
+    // (edit, drag, add, delete) already calls saveToCloud() at its own call
+    // site, so real changes are still persisted -- and any client that loads
+    // the app rebuilds this exact tree from the Directory anyway. We proved
+    // that earlier: deleting naig2027/org and regenerating produced a
+    // byte-identical tree.
     const sig = orgSignature(newTree);
-    if (sig === window._lastOrgSig) return;
-    window._lastOrgSig = sig;
-
     window._orgData = newTree;
-    saveToCloud();
+    if (sig === window._lastOrgSig) return;   // nothing changed, nothing to repaint
+    window._lastOrgSig = sig;
     window._renderAll && window._renderAll();
   } finally {
     _regeneratingFromDirectory = false;
