@@ -602,9 +602,13 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .tier-inworks          { background: #fff3cd; color: #856404; }
 .tier-closed           { background: #f1f3f5; color: #6c757d; }
 .venue-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; padding: 14px 0; }
-.venue-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; cursor: pointer; transition: box-shadow .15s, border-color .15s; }
+.venue-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; cursor: grab; transition: box-shadow .15s, border-color .15s, transform .1s; }
 .venue-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.1); border-color: #1a3a5c; }
+.venue-card:active { cursor: grabbing; }
+.venue-card.dragging { opacity: .4; transform: scale(.98); }
 .venue-card-dim { opacity: .55; background: #f8f9fa; }
+.venue-tier.drop-target { outline: 2px dashed #1a3a5c; outline-offset: 4px; background: rgba(26,58,92,.04); border-radius: 8px; }
+.venue-tier.drop-target .venue-card-grid, .venue-tier.drop-target .hub-empty { min-height: 60px; }
 .vc-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
 .vc-name { font-weight: 700; font-size: .92rem; color: #1a3a5c; }
 .vc-meta { font-size: .76rem; color: #64748b; margin-top: 2px; }
@@ -6957,7 +6961,7 @@ window.renderVenues = function() {
     const _statusOpts = ['Confirmed','Walk Done','Ops Ready','---','Signed','Pending Deposit','Executed','---','In Works','Reserved','In Conversation','Identified','Outreach Sent','LOI Sent','Contract Review','Exploring','Shortlisted','Negotiating','Site Visit Scheduled','Under Evaluation','Under Review','Prospect','---','Dropped','Closed','Cancelled','Not Available','Not Selected','Declined'];
     const _optHtml = _statusOpts.map(o => o === '---' ? '<option disabled>──────────</option>' : `<option${o===v.status?' selected':''}>${o}</option>`).join('');
     const statusInline = `<select onclick="event.stopPropagation()" onchange="event.stopPropagation();quickChangeVenueStatus('${k}', this.value, this)" style="font-size:10px;padding:2px 6px;border:1px solid #ddd;border-radius:12px;background:#fff;cursor:pointer;margin-left:6px" title="Change status">${_optHtml}</select>`;
-    return `<div class="venue-card${dim?' venue-card-dim':''}" onclick="openVenueModal('${k}')">
+    return `<div class="venue-card${dim?' venue-card-dim':''}" draggable="true" data-venue-key="${k}" ondragstart="window._venueDragStart(event,'${k}')" ondragend="window._venueDragEnd(event)" onclick="openVenueModal('${k}')">
       <div class="vc-header">
         <div>
           <div class="vc-name">${esc(v.name||'TBD')}</div>
@@ -6972,20 +6976,69 @@ window.renderVenues = function() {
     </div>`;
   }
 
-  function tier(label, entries, cls, dim) {
-    return `<div class="venue-tier">
+  function tier(label, entries, cls, dim, tierId) {
+    return `<div class="venue-tier" data-tier="${tierId}" ondragover="window._venueDragOver(event)" ondragleave="window._venueDragLeave(event)" ondrop="window._venueDrop(event,'${tierId}')">
       <div class="venue-tier-hdr ${cls}">${label} <span class="venue-tier-count">${entries.length}</span></div>
       ${entries.length
         ? `<div class="venue-card-grid">${entries.map(([k,v])=>venueCard(k,v,dim)).join('')}</div>`
-        : `<div class="hub-empty" style="margin:6px 0;padding:10px 14px">None yet — click + Add Venue to add one.</div>`}
+        : `<div class="hub-empty" style="margin:6px 0;padding:10px 14px">Drop a venue card here, or click + Add Venue.</div>`}
     </div>`;
   }
 
+  // Always render all 4 tiers so empty ones remain valid drop targets
   wrap.innerHTML =
-    tier('Confirmed', confirmed, 'tier-confirmed', false) +
-    (pendingDeposit.length ? tier('Pending Deposit', pendingDeposit, 'tier-pending-deposit', false) : '') +
-    tier('In Works', inWorks, 'tier-inworks', false) +
-    (closed.length ? tier('Closed / Out', closed, 'tier-closed', true) : '');
+    tier('Confirmed', confirmed, 'tier-confirmed', false, 'confirmed') +
+    tier('Pending Deposit', pendingDeposit, 'tier-pending-deposit', false, 'pending-deposit') +
+    tier('In Works', inWorks, 'tier-inworks', false, 'in-works') +
+    tier('Closed / Out', closed, 'tier-closed', true, 'closed');
+};
+
+// ── Drag & drop between venue tiers ──────────────────────────────
+// Dropping a card onto a tier sets its status to that tier's default
+// status (unless it's already bucketed into that tier, in which case
+// it's a no-op — preserves descriptive suffixes like "Signed — Executed 8/18").
+window._venueDragStart = function(e, key) {
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', key);
+  e.currentTarget.classList.add('dragging');
+};
+window._venueDragEnd = function(e) {
+  e.currentTarget.classList.remove('dragging');
+  // Clean up any stuck drop-target hover states
+  document.querySelectorAll('.venue-tier.drop-target').forEach(el => el.classList.remove('drop-target'));
+};
+window._venueDragOver = function(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.classList.add('drop-target');
+};
+window._venueDragLeave = function(e) {
+  // Only remove if leaving the tier itself, not just moving over a child
+  if (!e.currentTarget.contains(e.relatedTarget)) {
+    e.currentTarget.classList.remove('drop-target');
+  }
+};
+window._venueDrop = function(e, tierId) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drop-target');
+  const key = e.dataTransfer.getData('text/plain');
+  if (!key) return;
+  const v = (window._venuesData || {})[key];
+  if (!v) return;
+
+  // Map tier → the prefixes it accepts and default status if change needed
+  const tierMap = {
+    'confirmed':       { prefixes: ['Confirmed','Walk Done','Ops Ready'],                       def: 'Confirmed' },
+    'pending-deposit': { prefixes: ['Pending Deposit','Signed','Executed'],                     def: 'Signed' },
+    'in-works':        { prefixes: ['In Works','In Conversation','Identified','Outreach','LOI Sent','Contract Review','Exploring','Shortlisted','Negotiating','Site Visit','Evaluating','Under Evaluation','Under Review','Prospect','Reserved'], def: 'In Works' },
+    'closed':          { prefixes: ['Dropped','Closed','Cancelled','Not Available','Not Selected','Declined'], def: 'Dropped' }
+  };
+  const t = tierMap[tierId];
+  if (!t) return;
+  const cur = String(v.status || '').toLowerCase().trim();
+  const alreadyInTier = t.prefixes.some(p => cur.startsWith(p.toLowerCase()));
+  if (alreadyInTier) return; // no-op — preserves descriptive suffixes
+  window.quickChangeVenueStatus(key, t.def, null);
 };
 
 function exportVenuesCSV() {
