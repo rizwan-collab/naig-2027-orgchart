@@ -597,9 +597,10 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .venue-tier { margin-bottom: 20px; }
 .venue-tier-hdr { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; padding: 6px 12px; border-radius: 6px 6px 0 0; display: flex; align-items: center; gap: 8px; }
 .venue-tier-count { background: rgba(255,255,255,.4); border-radius: 10px; padding: 1px 8px; font-size: .72rem; }
-.tier-confirmed { background: #d4edda; color: #155724; }
-.tier-inworks   { background: #fff3cd; color: #856404; }
-.tier-closed    { background: #f1f3f5; color: #6c757d; }
+.tier-confirmed        { background: #d4edda; color: #155724; }
+.tier-pending-deposit  { background: #cfe2ff; color: #084298; }
+.tier-inworks          { background: #fff3cd; color: #856404; }
+.tier-closed           { background: #f1f3f5; color: #6c757d; }
 .venue-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; padding: 14px 0; }
 .venue-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; cursor: pointer; transition: box-shadow .15s, border-color .15s; }
 .venue-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.1); border-color: #1a3a5c; }
@@ -6877,6 +6878,26 @@ function contractBadge(s) {
   return `<span class="hbadge ${map[s]||'hbadge-grey'}">${esc(s||'—')}</span>`;
 }
 
+// Quick inline status change from venue card (no full modal round-trip)
+window.quickChangeVenueStatus = function(key, newStatus, selectEl) {
+  const v = (window._venuesData || {})[key];
+  if (!v) return;
+  const oldStatus = v.status || '';
+  if (oldStatus === newStatus) return;
+  // Write full object with just status swapped (matches saveVenue behavior)
+  const updated = Object.assign({}, v, { status: newStatus, updated: new Date().toISOString() });
+  if (!window._dbRef || !window._dbSet) { alert('Firebase not ready yet — try again in a moment.'); return; }
+  window._dbSet(window._dbRef('naig2027/venues/' + key), updated);
+  if (typeof logActivity === 'function') {
+    logActivity('venue', `Venue "${v.name || key}" status changed: ${oldStatus || '—'} → ${newStatus}`);
+  }
+  // Visual feedback: brief highlight
+  if (selectEl) {
+    selectEl.style.background = '#d4edda';
+    setTimeout(() => { if (selectEl) selectEl.style.background = '#fff'; }, 700);
+  }
+};
+
 window.renderVenues = function() {
   const wrap = document.getElementById('venuesTierWrap');
   if (!wrap) return;
@@ -6890,9 +6911,10 @@ window.renderVenues = function() {
     const s = String(status).toLowerCase().trim();
     return prefixes.some(p => s.startsWith(p.toLowerCase()));
   };
-  const confirmed = items.filter(([,v]) => _statusMatch(v.status, ['Confirmed','Signed','Walk Done','Ops Ready','Reserved']));
-  const inWorks   = items.filter(([,v]) => _statusMatch(v.status, ['In Works','In Conversation','Identified','Outreach','LOI Sent','Contract Review','Exploring','Shortlisted','Negotiating','Site Visit','Evaluating','Under Evaluation','Under Review','Prospect']));
-  const closed    = items.filter(([,v]) => _statusMatch(v.status, ['Dropped','Closed','Cancelled','Not Available','Not Selected','Declined']));
+  const confirmed      = items.filter(([,v]) => _statusMatch(v.status, ['Confirmed','Walk Done','Ops Ready']));
+  const pendingDeposit = items.filter(([,v]) => _statusMatch(v.status, ['Pending Deposit','Signed','Executed']));
+  const inWorks        = items.filter(([,v]) => _statusMatch(v.status, ['In Works','In Conversation','Identified','Outreach','LOI Sent','Contract Review','Exploring','Shortlisted','Negotiating','Site Visit','Evaluating','Under Evaluation','Under Review','Prospect','Reserved']));
+  const closed         = items.filter(([,v]) => _statusMatch(v.status, ['Dropped','Closed','Cancelled','Not Available','Not Selected','Declined']));
 
   // Financial snapshot
   const parseNum = s => parseFloat(String(s||'0').replace(/[^0-9.]/g,'')) || 0;
@@ -6904,6 +6926,7 @@ window.renderVenues = function() {
   if (strip) strip.innerHTML =
     `<div class="sum-chip"><strong>${all.length}</strong><span>Total</span></div>` +
     `<div class="sum-chip" style="color:#155724"><strong>${confirmed.length}</strong><span>Confirmed</span></div>` +
+    (pendingDeposit.length ? `<div class="sum-chip" style="color:#084298"><strong>${pendingDeposit.length}</strong><span>Pending Deposit</span></div>` : '') +
     `<div class="sum-chip" style="color:#856404"><strong>${inWorks.length}</strong><span>In Works</span></div>` +
     (closed.length ? `<div class="sum-chip" style="color:#6c757d"><strong>${closed.length}</strong><span>Closed</span></div>` : '') +
     (totalCommitted ? `<div class="sum-chip" style="border-left:1px solid #d0dae4;margin-left:4px;padding-left:12px;color:#1a3a5c"><strong>${fmtN(totalCommitted)}</strong><span>Committed</span></div>` : '') +
@@ -6930,6 +6953,10 @@ window.renderVenues = function() {
     };
     const sc = statusColors[v.status] || '##495057;background:#e9ecef';
     const statusBadge = v.status ? `<span style="display:inline-block;font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;color:${sc};letter-spacing:0.02em">${esc(v.status)}</span>` : '';
+    // Inline quick-change dropdown — click doesn't propagate to open the modal
+    const _statusOpts = ['Confirmed','Walk Done','Ops Ready','---','Signed','Pending Deposit','Executed','---','In Works','Reserved','In Conversation','Identified','Outreach Sent','LOI Sent','Contract Review','Exploring','Shortlisted','Negotiating','Site Visit Scheduled','Under Evaluation','Under Review','Prospect','---','Dropped','Closed','Cancelled','Not Available','Not Selected','Declined'];
+    const _optHtml = _statusOpts.map(o => o === '---' ? '<option disabled>──────────</option>' : `<option${o===v.status?' selected':''}>${o}</option>`).join('');
+    const statusInline = `<select onclick="event.stopPropagation()" onchange="event.stopPropagation();quickChangeVenueStatus('${k}', this.value, this)" style="font-size:10px;padding:2px 6px;border:1px solid #ddd;border-radius:12px;background:#fff;cursor:pointer;margin-left:6px" title="Change status">${_optHtml}</select>`;
     return `<div class="venue-card${dim?' venue-card-dim':''}" onclick="openVenueModal('${k}')">
       <div class="vc-header">
         <div>
@@ -6938,7 +6965,7 @@ window.renderVenues = function() {
         </div>
         <button class="btn btn-cancel" style="padding:2px 7px;font-size:10px;flex-shrink:0" onclick="event.stopPropagation();deleteHubItem('venues','${k}',window.renderVenues)">×</button>
       </div>
-      ${statusBadge}
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">${statusBadge}${statusInline}</div>
       ${v.sports?`<div class="vc-sports">${esc(v.sports)}</div>`:''}
       ${poc}
       ${v.notes?`<div class="vc-notes">${esc(v.notes.slice(0,120))}${v.notes.length>120?'…':''}</div>`:''}
@@ -6956,6 +6983,7 @@ window.renderVenues = function() {
 
   wrap.innerHTML =
     tier('Confirmed', confirmed, 'tier-confirmed', false) +
+    (pendingDeposit.length ? tier('Pending Deposit', pendingDeposit, 'tier-pending-deposit', false) : '') +
     tier('In Works', inWorks, 'tier-inworks', false) +
     (closed.length ? tier('Closed / Out', closed, 'tier-closed', true) : '');
 };
@@ -8805,12 +8833,23 @@ window.addEventListener('load', function() {
  <div class="form-group">
  <label>Status</label>
  <select id="venueStatus" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
- <option>Identified</option><option>Outreach Sent</option><option>In Conversation</option>
- <option>LOI Sent</option><option>Contract Review</option><option>Signed</option>
- <option>Walk Done</option><option>Ops Ready</option>
- <option>Exploring</option><option>Site Visit Scheduled</option><option>Shortlisted</option>
- <option>Negotiating</option><option>Confirmed</option>
- <option>Not Available</option><option>Dropped</option><option>Cancelled</option>
+ <optgroup label="Confirmed tier">
+ <option>Confirmed</option><option>Walk Done</option><option>Ops Ready</option>
+ </optgroup>
+ <optgroup label="Pending Deposit tier">
+ <option>Signed</option><option>Pending Deposit</option><option>Executed</option>
+ </optgroup>
+ <optgroup label="In Works tier">
+ <option>In Works</option><option>Reserved</option><option>In Conversation</option>
+ <option>Identified</option><option>Outreach Sent</option><option>LOI Sent</option>
+ <option>Contract Review</option><option>Exploring</option><option>Shortlisted</option>
+ <option>Negotiating</option><option>Site Visit Scheduled</option>
+ <option>Under Evaluation</option><option>Under Review</option><option>Prospect</option>
+ </optgroup>
+ <optgroup label="Closed / Out tier">
+ <option>Dropped</option><option>Closed</option><option>Cancelled</option>
+ <option>Not Available</option><option>Not Selected</option><option>Declined</option>
+ </optgroup>
  </select>
  </div>
  <div class="form-group">
