@@ -1851,7 +1851,7 @@ html.onboard-mode #onboardScreen { display: block !important; }
  <div class="hub-toolbar">
   <div>
    <div class="hub-title">Sports Scope — NAIG 2027</div>
-   <div class="hub-subtitle">Dallas, TX · March 25–29, 2027 · 14 Sports · ~2,200 Athletes · 14 Provinces</div>
+   <div class="hub-subtitle" id="scopeSubtitle">Loading…</div>
   </div>
   <div style="display:flex;gap:8px">
    <button class="btn" style="font-size:11px;padding:4px 12px;background:#f1f5f9;color:#334155;border:1px solid #cbd5e1" onclick="exportScopeCSV()">⬇ Export CSV</button>
@@ -1866,22 +1866,25 @@ html.onboard-mode #onboardScreen { display: block !important; }
    <div style="font-size:11px;opacity:.75;margin-top:4px;text-transform:uppercase;letter-spacing:.5px">Sports</div>
   </div>
   <div style="background:#0e7490;border-radius:10px;padding:14px 16px;color:#fff">
-   <div style="font-size:24px;font-weight:800;line-height:1">~2,200</div>
-   <div style="font-size:11px;opacity:.75;margin-top:4px;text-transform:uppercase;letter-spacing:.5px">Athletes (Est.)</div>
+   <div style="font-size:24px;font-weight:800;line-height:1">~3,000</div>
+   <div style="font-size:11px;opacity:.75;margin-top:4px;text-transform:uppercase;letter-spacing:.5px">Athletes On-Site</div>
   </div>
   <div style="background:#7c3aed;border-radius:10px;padding:14px 16px;color:#fff">
    <div style="font-size:24px;font-weight:800;line-height:1">14</div>
-   <div style="font-size:11px;opacity:.75;margin-top:4px;text-transform:uppercase;letter-spacing:.5px">Provinces</div>
+   <div style="font-size:11px;opacity:.75;margin-top:4px;text-transform:uppercase;letter-spacing:.5px">Regions (7 US · 7 CA)</div>
   </div>
   <div style="background:#b45309;border-radius:10px;padding:14px 16px;color:#fff">
-   <div style="font-size:24px;font-weight:800;line-height:1">750–1K</div>
-   <div style="font-size:11px;opacity:.75;margin-top:4px;text-transform:uppercase;letter-spacing:.5px">Volunteers</div>
+   <div style="font-size:24px;font-weight:800;line-height:1">4–5K</div>
+   <div style="font-size:11px;opacity:.75;margin-top:4px;text-transform:uppercase;letter-spacing:.5px">Spectators</div>
   </div>
   <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">
    <div style="font-size:11px;font-weight:700;color:#1a3a5c;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Sports by Status</div>
    <div id="scopeStatusChart" style="display:flex;flex-direction:column;gap:6px"></div>
   </div>
  </div>
+
+ <!-- Official event overview, rendered from NAIG_FACTS -->
+ <div id="scopeOverview" style="margin-bottom:20px"></div>
 
  <!-- Filters -->
  <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
@@ -4941,6 +4944,84 @@ document.addEventListener('click', () => {
 
 
 // ══════════════════════════════════════════════
+//  OFFICIAL GAMES FACTS  (NAIG Team Onboarding deck, generic version)
+// ══════════════════════════════════════════════
+// Source of truth for everything the whole organisation shares: dates, scale,
+// divisions, sport list, qualifier window, program flow. Taken verbatim from the
+// ELT onboarding deck so the hub tells recruits the same story the deck does.
+// Sport-by-sport venue and session detail stays in the Scope tab, which is OURS
+// (logistics) and goes deeper than the deck.
+const NAIG_FACTS = {
+  eventName:   'North American Ismaili Games 2027',
+  tagline:     'Compete. Connect. Unite.',
+  site:        'naismailigames.com',
+  hashtag:     '#CompeteConnectUnite',
+
+  // Easter weekend. NOT Labor Day -- an earlier version of this hub was built
+  // around Sep 4-8 2027 and that date is wrong everywhere it still appears.
+  dateRange:   'March 25–28, 2027',
+  dateNote:    'Easter weekend · 4-day program',
+  arrivalDay:  'Thursday, March 25, 2027',
+  finalsDay:   'Sunday, March 28, 2027',
+
+  host:        'Dallas–Fort Worth Metroplex, Texas',
+  hostCities:  ['Northlake', 'Little Elm', 'Farmers Branch', 'Fort Worth', 'Cricket (TBD)'],
+  venueCount:  '~8 venues',
+
+  regions:     '14 regions (7 US · 7 Canada)',
+  athletes:    '~3,000 athletes on-site',
+  spectators:  '4–5K expected spectators',
+  sportsLine:  '14 sports · 100 event categories',
+
+  teamSports: ['Basketball', 'Cricket (Hardball)', 'Cricket (Tapeball)', 'Dance',
+               'Flag Football', 'Football (Soccer)', 'Throwball', 'Volleyball (International)'],
+  individualSports: ['Badminton', 'Chess', 'Pickleball', 'Table Tennis', 'Tennis',
+               'Track (100m · 200m · 400m · 800m · 1500m · 5000m)'],
+
+  divisions: [
+    { name: 'U18 · Junior',  ages: '15 to 17 years',
+      dob: 'Born on or after Jan 1, 2009 and on or before Dec 31, 2011' },
+    { name: 'Open · Adult',  ages: '18+',
+      dob: 'Born on or before Dec 31, 2008' },
+    { name: 'Legends · 45+', ages: '45+ — NEW pilot',
+      dob: 'Born on or before Dec 31, 1981' }
+  ],
+  legendsNote: 'Legends (45+) is a community-led pilot running in three individual sports only — Table Tennis, Badminton and Pickleball — added in direct response to past athlete survey feedback.',
+
+  qualifiers: {
+    window: 'April – end of November 2026',
+    count:  '~20–25 regional tournaments',
+    people: '8–10K regional participants across US and Canada',
+    note:   'Athletes compete at their home regional games, which serve as the qualifier. Each athlete represents the region in which they reside. Regional formats vary — some regions run all sports in one weekend, others split sports across several weekends.'
+  },
+
+  program: [
+    { day: 'Thursday · Mar 25', title: 'Arrival & Check-In',
+      detail: 'Athlete and delegation arrivals, registration check-in, welcome reception.' },
+    { day: 'Friday · Mar 26',   title: 'Games — Day 1',
+      detail: 'Opening ceremony and first day of competition across team and individual sports.' },
+    { day: 'Saturday · Mar 27', title: 'Games — Day 2',
+      detail: 'Continued pool play across most sports; select sports begin playoff rounds.' },
+    { day: 'Sunday · Mar 28',   title: 'Finals & Closing',
+      detail: 'Pool play wraps; playoffs and championship finals, medal presentations, closing ceremony.' }
+  ],
+  programNote: 'Community-building events, networking, clinics, content sessions and mentorship run alongside competition all four days. A visit to an Ismaili Center is also part of the program.',
+
+  // Where Logistics sits in the wider organisation, per the deck's org chart.
+  eltContext: {
+    boardUS: 'Tasneem Devani (NYSB Board Member, US)',
+    boardCA: 'Alina Lalji (NYSB Board Member, Canada)',
+    pms:     'Aziz Hirani and Fariyal Hasham (Co-Project Managers)',
+    ourLine: 'Logistics — Director of Logistics: Rizwan Ali · PMO: Azmina Hashim, Kiran Surani',
+    peers:   ['Command Center', 'Finance', 'Human Resources', 'Sports Operations',
+              'Technology', 'Registration & Data', 'Broadcasting', 'Memorabilia',
+              'Marketing + Comms', 'Athlete & Spectator Engagement',
+              'Internal Volunteer Support', 'Fair Play / Conflict Resolution',
+              'Jamati Engagement', 'Legal']
+  }
+};
+
+// ══════════════════════════════════════════════
 //  ROLES & RESPONSIBILITIES
 // ══════════════════════════════════════════════
 window._rnrData = JSON.parse(localStorage.getItem('naig_rnr') || '{}');
@@ -5492,14 +5573,58 @@ function renderOnboardView() {
     ${parent ? `<div class="ob-sub">Reports to ${parent.name || 'TBD'}</div>` : ''}
   </div>`;
 
+  // The generic half of onboarding: what these Games are. Straight from the ELT
+  // onboarding deck so a recruit reading this link and a recruit sitting through
+  // the deck hear the same numbers. Previously this block derived its figures
+  // from our own Scope rows, which meant a half-filled Scope tab told new people
+  // the event was smaller than it is.
+  const F = NAIG_FACTS;
   html += `<div class="ob-section">
-    <h2>NAIG 2027 — Event Scope</h2>
+    <h2>${F.eventName}</h2>
+    <p style="font-size:13px;color:#475569;margin:0 0 10px">${F.tagline} \u00b7 ${F.hashtag}</p>
     <div class="ob-stat-row">
-      <div class="ob-stat"><b>${summary.sportsCount}</b>Sports Offered</div>
-      <div class="ob-stat"><b>${summary.participantsLo}\u2013${summary.participantsHi}</b>Est. Participants</div>
-      <div class="ob-stat"><b>${summary.dateRange}</b>Event Dates</div>
+      <div class="ob-stat"><b>${F.dateRange}</b>${F.dateNote}</div>
+      <div class="ob-stat"><b>${F.athletes.replace(' athletes on-site','')}</b>Athletes On-Site</div>
+      <div class="ob-stat"><b>14 / 100</b>Sports / Categories</div>
+      <div class="ob-stat"><b>14</b>Regions (7 US \u00b7 7 CA)</div>
     </div>
-    <p style="font-size:13px;color:#475569;margin:10px 0 0">Dallas\u2013Fort Worth (DFW), Texas${summary.cities.length ? ' \u2014 venues across ' + summary.cities.join(', ') : ''}.</p>
+    <p style="font-size:13px;color:#475569;margin:10px 0 0">
+      ${F.host} \u2014 ${F.venueCount} across ${F.hostCities.join(', ')}.
+      ${F.spectators.charAt(0).toUpperCase() + F.spectators.slice(1)}.
+    </p>
+  </div>`;
+
+  html += `<div class="ob-section">
+    <h2>The Four Days</h2>
+    ${F.program.map(d => `
+      <div style="display:flex;gap:12px;padding:7px 0;border-bottom:1px solid #f1f5f9">
+        <div style="flex:0 0 130px;font-size:11px;font-weight:700;color:#1E3A8A;text-transform:uppercase;letter-spacing:.4px;padding-top:2px">${d.day}</div>
+        <div><div style="font-size:13px;font-weight:600;color:#0f172a">${d.title}</div>
+             <div style="font-size:12px;color:#64748b;line-height:1.5">${d.detail}</div></div>
+      </div>`).join('')}
+    <p style="font-size:12px;color:#64748b;margin:10px 0 0;line-height:1.55">${F.programNote}</p>
+  </div>`;
+
+  html += `<div class="ob-section">
+    <h2>Who Competes</h2>
+    ${F.divisions.map(d => `
+      <div style="padding:6px 0">
+        <div style="font-size:13px;font-weight:600;color:#0f172a">${d.name} <span style="font-weight:400;color:#64748b">\u00b7 ${d.ages}</span></div>
+        <div style="font-size:12px;color:#64748b">${d.dob}</div>
+      </div>`).join('')}
+    <p style="font-size:12px;color:#7c3aed;margin:8px 0 0;line-height:1.55">${F.legendsNote}</p>
+    <p style="font-size:12px;color:#64748b;margin:8px 0 0;line-height:1.55">
+      <strong>Getting here:</strong> ${F.qualifiers.note} Qualifier window is ${F.qualifiers.window}
+      \u2014 ${F.qualifiers.count}, ${F.qualifiers.people}.</p>
+  </div>`;
+
+  html += `<div class="ob-section">
+    <h2>Where You Sit</h2>
+    <p style="font-size:13px;color:#0f172a;margin:0;font-weight:600">${F.eltContext.ourLine}</p>
+    <p style="font-size:12px;color:#64748b;margin:6px 0 0;line-height:1.55">
+      Logistics reports into ${F.eltContext.pms}, under ${F.eltContext.boardUS} and ${F.eltContext.boardCA}.
+      We work alongside ${F.eltContext.peers.length} peer workstreams including
+      ${F.eltContext.peers.slice(0,5).join(', ')} and others.</p>
   </div>`;
 
   // Pull from the shared-core + vertical-extras model so the onboarding page
@@ -7892,7 +8017,75 @@ function _renderScopeStatusChart() {
   }).join('');
 }
 
+// Renders the deck's generic facts: dates, divisions with their date-of-birth
+// windows, the official sport split, the qualifier window and the four-day flow.
+// A recruit should be able to answer "what are these Games" from this alone.
+function renderScopeOverview() {
+  const F = NAIG_FACTS;
+  const sub = document.getElementById('scopeSubtitle');
+  if (sub) sub.textContent = F.host + ' · ' + F.dateRange + ' · ' + F.sportsLine +
+    ' · ' + F.athletes + ' · ' + F.regions;
+
+  const el = document.getElementById('scopeOverview');
+  if (!el) return;
+
+  const card = (title, body) =>
+    `<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">
+       <div style="font-size:11px;font-weight:700;color:#1a3a5c;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">${title}</div>
+       ${body}</div>`;
+
+  const pill = t => `<span style="display:inline-block;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;border-radius:5px;padding:2px 7px;font-size:11px;margin:2px 3px 2px 0">${esc(t)}</span>`;
+
+  let h = '';
+  h += `<div style="background:linear-gradient(135deg,#1E3A8A,#0e7490);border-radius:10px;padding:16px 18px;color:#fff;margin-bottom:12px">
+          <div style="font-size:15px;font-weight:800">${esc(F.eventName)} — ${esc(F.tagline)}</div>
+          <div style="font-size:12px;opacity:.85;margin-top:4px">${esc(F.dateRange)} · ${esc(F.dateNote)} · ${esc(F.host)} · ${esc(F.venueCount)}</div>
+          <div style="font-size:11px;opacity:.7;margin-top:6px">Host cities: ${F.hostCities.map(esc).join(' · ')}</div>
+        </div>`;
+
+  h += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">`;
+
+  h += card('Divisions & Eligibility',
+    F.divisions.map(d =>
+      `<div style="margin-bottom:8px">
+         <div style="font-size:12px;font-weight:700;color:#0f172a">${esc(d.name)} <span style="font-weight:400;color:#64748b">· ${esc(d.ages)}</span></div>
+         <div style="font-size:11px;color:#64748b;line-height:1.5">${esc(d.dob)}</div>
+       </div>`).join('') +
+    `<div style="font-size:11px;color:#7c3aed;line-height:1.5;padding-top:4px;border-top:1px solid #f1f5f9">${esc(F.legendsNote)}</div>`);
+
+  h += card('Official Sport List — ' + esc(F.sportsLine),
+    `<div style="font-size:11px;color:#64748b;margin-bottom:3px">Team · ${F.teamSports.length}</div>
+     <div style="margin-bottom:8px">${F.teamSports.map(pill).join('')}</div>
+     <div style="font-size:11px;color:#64748b;margin-bottom:3px">Individual · ${F.individualSports.length}</div>
+     <div>${F.individualSports.map(pill).join('')}</div>`);
+
+  h += card('Regional Qualifiers',
+    `<div style="font-size:13px;font-weight:700;color:#0f172a">${esc(F.qualifiers.window)}</div>
+     <div style="font-size:12px;color:#334155;margin-top:2px">${esc(F.qualifiers.count)} · ${esc(F.qualifiers.people)}</div>
+     <div style="font-size:11px;color:#64748b;line-height:1.5;margin-top:6px">${esc(F.qualifiers.note)}</div>`);
+
+  h += card('Program Flow',
+    F.program.map(d =>
+      `<div style="margin-bottom:7px">
+         <div style="font-size:11px;font-weight:700;color:#1E3A8A;text-transform:uppercase;letter-spacing:.4px">${esc(d.day)}</div>
+         <div style="font-size:12px;font-weight:600;color:#0f172a">${esc(d.title)}</div>
+         <div style="font-size:11px;color:#64748b;line-height:1.45">${esc(d.detail)}</div>
+       </div>`).join('') +
+    `<div style="font-size:11px;color:#64748b;line-height:1.5;padding-top:4px;border-top:1px solid #f1f5f9">${esc(F.programNote)}</div>`);
+
+  h += `</div>`;
+
+  h += `<div style="margin-top:12px">` + card('Where Logistics Sits',
+    `<div style="font-size:12px;color:#0f172a;font-weight:600">${esc(F.eltContext.ourLine)}</div>
+     <div style="font-size:11px;color:#64748b;line-height:1.6;margin-top:4px">
+       Reports into ${esc(F.eltContext.pms)}, under ${esc(F.eltContext.boardUS)} and ${esc(F.eltContext.boardCA)}.</div>
+     <div style="font-size:11px;color:#64748b;margin-top:6px">Peer workstreams: ${F.eltContext.peers.map(esc).join(' · ')}</div>`) + `</div>`;
+
+  el.innerHTML = h;
+}
+
 window.renderScope = function() {
+  renderScopeOverview();
   _renderScopeStatusChart();
   const tbody = document.getElementById('scopeTbody');
   if (!tbody) return;
