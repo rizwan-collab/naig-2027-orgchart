@@ -4357,13 +4357,12 @@ function buildOrgTreeFromDirectory(people) {
   const extraReportsTo = {};
   Object.keys(verticalGroups).forEach(vName => {
     const group = verticalGroups[vName].slice().sort((a, b) => {
-      // Prefer whoever matches the established RNR_VERTICALS.leadId for this
-      // vertical as the anchor (e.g. Raj over Kiran for Site Management),
-      // falling back to alphabetical so the result is always deterministic.
-      const prefA = (typeof RNR_VERTICALS !== 'undefined' && RNR_VERTICALS.some(v => v.leadId === a.id)) ? 0 : 1;
-      const prefB = (typeof RNR_VERTICALS !== 'undefined' && RNR_VERTICALS.some(v => v.leadId === b.id)) ? 0 : 1;
-      if (prefA !== prefB) return prefA - prefB;
-      return (a.name || '').localeCompare(b.name || '');
+      // A Lead anchors the vertical ahead of a Deputy or PMO; ties break
+      // alphabetically so the result is always deterministic. This used to
+      // prefer a hardcoded person id, which silently picked the wrong anchor
+      // once the directory changed.
+      const rank = p => ({ lead: 0, deputy: 1, pmo: 2, venue: 3 })[(p.roleType || '')] ?? 9;
+      return rank(a) - rank(b) || (a.name || '').localeCompare(b.name || '');
     });
     group.slice(1).forEach(extra => { extraReportsTo[extra.id] = group[0].id; });
   });
@@ -4834,12 +4833,18 @@ document.addEventListener('click', () => {
 window._rnrData = JSON.parse(localStorage.getItem('naig_rnr') || '{}');
 let rnrPanelOpen = true;
 
+// Verticals that ship with seeded R&R content. There are deliberately NO
+// leadId/coLeadId fields here. An earlier version pinned each vertical to a
+// hardcoded person id (Site Management was pinned to raj + kiran), which went
+// stale the moment the directory changed — Site Management is now Raj + Ruhee
+// and Kiran is a Core Team deputy. Who leads a vertical is a directory fact,
+// so it is read from the directory (vertical + roleType) every time.
 const RNR_VERTICALS = [
-  { id: 'fb',        label: 'F&B',                    leadId: 'fb',        color: '#2c7a5c' },
-  { id: 'hotels',    label: 'Hotels & Accommodations', leadId: 'hotels',    color: '#2d6a9f' },
-  { id: 'transport', label: 'Transportation',          leadId: 'transport', color: '#1a3a5c' },
-  { id: 'site',      label: 'Site Management',          leadId: 'raj',       color: '#7b3f00', coLeadId: 'kiran' },
-  { id: 'equipment', label: 'Equipment & Signage',     leadId: 'equipment', color: '#5a3e85' }
+  { id: 'fb',        label: 'F&B',                     color: '#2c7a5c' },
+  { id: 'hotels',    label: 'Hotels & Accommodations',  color: '#2d6a9f' },
+  { id: 'transport', label: 'Transportation',           color: '#1a3a5c' },
+  { id: 'site',      label: 'Site Management',          color: '#7b3f00' },
+  { id: 'equipment', label: 'Equipment & Signage',      color: '#5a3e85' }
 ];
 
 const RNR_ROLES = [
@@ -5025,7 +5030,7 @@ function seedRnr() {
   RNR_ROLE_KEYS.forEach(rk => {
     if (rnrMergeSeed(core, rk, RNR_CORE[rk], '__core')) changed = true;
   });
-  RNR_VERTICALS.forEach(vDef => {
+  rnrVerticals().forEach(vDef => {
     const v = getRnrV(vDef.id);
     const extras = RNR_EXTRAS[vDef.id] || {};
     RNR_ROLE_KEYS.forEach(rk => {
@@ -5053,7 +5058,7 @@ function rnrForPerson(verticalLabel, roleType) {
   const core = rnrCoreItems(rk);
   let extras = [], meta = RNR_META_DEFAULTS[rk] || {}, label = 'Core Team';
   if (vid && vid !== '__core') {
-    const vDef = RNR_VERTICALS.find(x => x.id === vid);
+    const vDef = rnrVerticals().find(x => x.id === vid);
     const v = getRnrV(vid);
     extras = (v.roles[rk] || []).map(i => i.text);
     meta = v.meta[rk] || meta;
@@ -5110,7 +5115,7 @@ function renderRnr() {
       }).join('')}
  </div>`;
 
-  grid.innerHTML = coreCard + RNR_VERTICALS.map(vDef => {
+  grid.innerHTML = coreCard + rnrVerticals().map(vDef => {
     const vData = getRnrV(vDef.id);
 
     const roleHtml = RNR_ROLES.map(role => {
@@ -5163,7 +5168,7 @@ function renderRnr() {
   const countEl = document.getElementById('rnrCount');
   if (countEl) {
     const coreTotal = RNR_ROLE_KEYS.reduce((n,k)=>n+((coreData.roles[k]||[]).length),0);
-    countEl.textContent = `${coreTotal} shared core + ${totalItems} vertical-specific across ${RNR_VERTICALS.length} verticals`;
+    countEl.textContent = `${coreTotal} shared core + ${totalItems} vertical-specific across ${rnrVerticals().length} verticals`;
   }
 }
 
@@ -5232,7 +5237,7 @@ function deleteRnrItem(vid, role, idx) {
 
 function exportRnrCSV() {
   const rows = [['Vertical', 'Role', 'Responsibility', 'Priority']];
-  RNR_VERTICALS.forEach(vDef => {
+  rnrVerticals().forEach(vDef => {
     const vData = getRnrV(vDef.id);
     ['lead','deputy','pmo'].forEach(rk => {
       (vData.roles[rk]||[]).forEach(item => {
@@ -5272,19 +5277,53 @@ function findNodeByOnboardToken(token, node) {
 // which role bucket (lead/deputy/pmo) it maps to. Mirrors the lookup logic
 // renderRnr() already uses in the other direction (vertical -> person).
 function findVerticalRoleForNode(nodeId) {
-  for (const vDef of RNR_VERTICALS) {
-    if (nodeId === vDef.leadId) return { vid: vDef.id, roleKey: 'lead' };
-    if (vDef.coLeadId && nodeId === vDef.coLeadId) return { vid: vDef.id, roleKey: 'lead' };
+  // The directory is the source of truth: a person's own Vertical and Role Type
+  // decide which R&R applies. The previous version matched the node id against
+  // hardcoded vertical leadIds and, failing that, guessed the role by reading
+  // words out of the free-text job title — so a newly added Lead got no R&R at
+  // all, and a title typo silently dropped someone into the wrong bucket.
+  const rec = (window._prospects || []).find(p => p && p.id === nodeId);
+  let vLabel = rec && rec.vertical;
+  let rKey   = rec && rec.roleType;
+
+  if (!rKey) {
+    // Fall back to the org node's title only when the directory has no roleType.
+    const node = findNode(nodeId, window._orgData);
+    const t = ((node && node.role) || '').toLowerCase();
+    if (t.includes('deputy')) rKey = 'deputy';
+    else if (t.includes('pmo') || t.includes('coord')) rKey = 'pmo';
+    else if (t.includes('venue')) rKey = 'venue';
+    else if (t.includes('lead')) rKey = 'lead';
   }
-  const parent = findParentNode(nodeId, window._orgData);
-  if (!parent) return null;
-  const vDef = RNR_VERTICALS.find(v => v.leadId === parent.id || v.coLeadId === parent.id);
-  if (!vDef) return null;
-  const node = findNode(nodeId, window._orgData);
-  const roleText = (node && node.role || '').toLowerCase();
-  if (roleText.includes('deputy')) return { vid: vDef.id, roleKey: 'deputy' };
-  if (roleText.includes('pmo') || roleText.includes('coord')) return { vid: vDef.id, roleKey: 'pmo' };
-  return null;
+  if (!vLabel || !rKey) return null;
+
+  const vid = DIR_VERTICAL_TO_RNR[vLabel] || rnrSlugFor(vLabel);
+  if (!vid || vid === '__core') return null;
+  if (RNR_ROLE_KEYS.indexOf(rKey) === -1) return null;
+  return { vid: vid, roleKey: rKey };
+}
+
+// Stable id for a vertical that exists in the directory but has no seeded
+// R&R block yet, so adding a new vertical in the directory surfaces on the
+// R&R tab instead of being silently ignored.
+function rnrSlugFor(label) {
+  return 'v-' + String(label || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+// Seeded verticals plus every distinct vertical currently in the directory.
+function rnrVerticals() {
+  const out = RNR_VERTICALS.slice();
+  const seen = {};
+  out.forEach(v => { seen[v.label] = true; });
+  Object.keys(DIR_VERTICAL_TO_RNR).forEach(k => { seen[k] = true; });
+  const palette = ['#5a3e85', '#2c7a5c', '#2d6a9f', '#7b3f00', '#1a3a5c'];
+  (window._prospects || []).forEach(p => {
+    const lbl = p && p.vertical;
+    if (!lbl || seen[lbl]) return;
+    seen[lbl] = true;
+    out.push({ id: rnrSlugFor(lbl), label: lbl, color: palette[out.length % palette.length] });
+  });
+  return out;
 }
 
 // Computes a live "Event Scope" summary directly from the Scope tab data,
@@ -5331,7 +5370,7 @@ function renderOnboardView() {
   const vr = findVerticalRoleForNode(person.id);
   const vData = vr ? getRnrV(vr.vid) : null;
   const items = vData ? (vData.roles[vr.roleKey] || []) : [];
-  const vLabel = vr ? (RNR_VERTICALS.find(v => v.id === vr.vid) || {}).label : null;
+  const vLabel = vr ? (rnrVerticals().find(v => v.id === vr.vid) || {}).label : null;
 
   let html = '';
   html += `<div class="ob-hero">
