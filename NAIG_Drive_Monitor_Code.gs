@@ -25,7 +25,19 @@
  */
 
 var CONFIG = {
-  NOTIFY_EMAILS: ['rizwan@swagprint.com'],
+  // BOTH addresses. The drive lives on aliriz6683@gmail.com; rizwan@swagprint.com
+  // gets Access Denied on it. Sending only to the work address meant every file
+  // link in the digest hit a permission wall.
+  NOTIFY_EMAILS: ['rizwan@swagprint.com', 'aliriz6683@gmail.com'],
+
+  // Attachment budget. Gmail rejects the whole message over ~25 MB, so this is
+  // a hard ceiling, not a preference -- blow it and NOBODY gets the digest.
+  // Anything skipped is listed in the email by name and reason, so a missing
+  // attachment is never silent.
+  ATTACH: true,
+  ATTACH_MAX_FILE_BYTES: 5 * 1024 * 1024,    // per file
+  ATTACH_MAX_TOTAL_BYTES: 18 * 1024 * 1024,  // all files, leaves headroom under 25 MB
+  ATTACH_MAX_COUNT: 20,
   TRACKING_SHEET_ID: '',            // filled automatically by createTrackingSheet()
   END_OF_DAY_HOUR: 8,
   TIMEZONE: 'America/Chicago',
@@ -210,6 +222,7 @@ function findChanges_(sinceIso) {
         modified: it.modifiedDate,
         modifiedBy: it.lastModifyingUserName || 'Unknown',
         sizeText: sizeText_(it.fileSize),
+        sizeBytes: it.fileSize || 0,   // raw bytes; absent for Google-native files
         action: isNew ? 'New File' : 'Updated',
         path: path,
         isLogistics: isLogistics_(it.title, path)
@@ -420,22 +433,128 @@ function sendDigest_(changes, sinceIso, pushed) {
     ? 'NAIG 2027 Drive - ' + changes.length + ' Change(s) - ' + today
     : 'NAIG 2027 Drive - No Changes - ' + today;
 
-  var html = buildDigestHtml_(changes, sinceIso, pushed, today);
-
-  var to = CONFIG.NOTIFY_EMAILS.join(',');
-  var attempts = 0;
-  while (attempts < 2) {
+  var att = { blobs: [], skipped: [], totalBytes: 0 };
+  if (CONFIG.ATTACH && changes.length) {
     try {
-      MailApp.sendEmail({ to: to, subject: subject, htmlBody: html });
-      Logger.log('Email sent to ' + to);
+      att = buildAttachments_(changes);
+    } catch (e) {
+      // Attachments are a convenience. Losing them must never cost the digest.
+      Logger.log('Attachment build failed, sending links only: ' + e);
+      att = { blobs: [], skipped: [{ name: 'all files', why: 'attachment step errored', url: '' }], totalBytes: 0 };
+    }
+  }
+
+  var html = buildDigestHtml_(changes, sinceIso, pushed, today, att);
+  var to = CONFIG.NOTIFY_EMAILS.join(',');
+
+  for (var attempt = 1; attempt <= 3; attempt++) {
+    try {
+      var msg = { to: to, subject: subject, htmlBody: html };
+      if (att.blobs.length) msg.attachments = att.blobs;
+      MailApp.sendEmail(msg);
+      Logger.log('Email sent to ' + to + ' with ' + att.blobs.length + ' attachment(s)');
       return;
     } catch (e) {
-      attempts++;
-      Logger.log('Send attempt ' + attempts + ' failed: ' + e);
-      if (attempts >= 2) throw e;
+      Logger.log('Send attempt ' + attempt + ' failed: ' + e);
+      // A rejection is usually total size. Drop the attachments and get the
+      // digest out -- the information matters more than the convenience.
+      if (att.blobs.length) {
+        Logger.log('Retrying without attachments.');
+        att = { blobs: [], skipped: att.skipped.concat([{ name: 'all files',
+                 why: 'email was rejected with attachments, links only', url: '' }]),
+                totalBytes: 0 };
+        html = buildDigestHtml_(changes, sinceIso, pushed, today, att);
+        continue;
+      }
+      if (attempt >= 3) throw e;
       Utilities.sleep(45000);
     }
   }
+}
+
+/**
+ * Turns changed files into real email attachments, newest first, within the
+ * budget in CONFIG. Returns { blobs, skipped } where skipped explains WHY each
+ * omission happened -- a digest that quietly drops files is worse than one that
+ * says "too big", because you cannot tell the difference from nothing changing.
+ *
+ * Google-native files (Docs/Sheets/Slides) have no bytes to download, so they
+ * are exported to PDF/XLSX. Their fileSize is absent from the API, which is why
+ * the size check happens AFTER the blob exists, not before.
+ */
+function buildAttachments_(changes) {
+  var blobs = [], skipped = [], total = 0;
+
+  var EXPORT = {
+    'application/vnd.google-apps.document':     { mime: 'application/pdf', ext: '.pdf' },
+    'application/vnd.google-apps.presentation': { mime: 'application/pdf', ext: '.pdf' },
+    'application/vnd.google-apps.drawing':      { mime: 'application/pdf', ext: '.pdf' },
+    'application/vnd.google-apps.spreadsheet':  {
+      mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ext: '.xlsx' }
+  };
+
+  // Newest first: if the budget runs out, it should run out on the stale stuff.
+  var ordered = changes.slice().sort(function (a, b) {
+    return new Date(b.modified).getTime() - new Date(a.modified).getTime();
+  });
+
+  for (var i = 0; i < ordered.length; i++) {
+    var c = ordered[i];
+
+    if (blobs.length >= CONFIG.ATTACH_MAX_COUNT) {
+      skipped.push({ name: c.fileName, why: 'attachment limit reached', url: c.fileUrl });
+      continue;
+    }
+    // Folder-like entries and shortcuts have nothing to attach.
+    if (c.mimeType === 'application/vnd.google-apps.shortcut') {
+      skipped.push({ name: c.fileName, why: 'shortcut, not a file', url: c.fileUrl });
+      continue;
+    }
+    // Cheap pre-filter for binaries where the API told us the size up front.
+    var declared = parseInt(c.sizeBytes, 10);
+    if (declared && declared > CONFIG.ATTACH_MAX_FILE_BYTES) {
+      skipped.push({ name: c.fileName, why: 'too large (' + sizeText_(declared) + ')', url: c.fileUrl });
+      continue;
+    }
+
+    var blob = null;
+    try {
+      var exp = EXPORT[c.mimeType];
+      if (exp) {
+        var url = 'https://www.googleapis.com/drive/v3/files/' + c.fileId +
+                  '/export?mimeType=' + encodeURIComponent(exp.mime) + '&supportsAllDrives=true';
+        var resp = UrlFetchApp.fetch(url, {
+          headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+          muteHttpExceptions: true
+        });
+        if (resp.getResponseCode() !== 200) {
+          skipped.push({ name: c.fileName, why: 'export failed (' + resp.getResponseCode() + ')', url: c.fileUrl });
+          continue;
+        }
+        blob = resp.getBlob().setName(c.fileName + exp.ext);
+      } else {
+        blob = DriveApp.getFileById(c.fileId).getBlob().setName(c.fileName);
+      }
+    } catch (e) {
+      skipped.push({ name: c.fileName, why: 'could not download', url: c.fileUrl });
+      continue;
+    }
+
+    var bytes = blob.getBytes().length;
+    if (bytes > CONFIG.ATTACH_MAX_FILE_BYTES) {
+      skipped.push({ name: c.fileName, why: 'too large (' + sizeText_(bytes) + ')', url: c.fileUrl });
+      continue;
+    }
+    if (total + bytes > CONFIG.ATTACH_MAX_TOTAL_BYTES) {
+      skipped.push({ name: c.fileName, why: 'email size budget full', url: c.fileUrl });
+      continue;
+    }
+    blobs.push(blob);
+    total += bytes;
+  }
+
+  Logger.log('Attachments: ' + blobs.length + ' (' + sizeText_(total) + '), skipped ' + skipped.length);
+  return { blobs: blobs, skipped: skipped, totalBytes: total };
 }
 
 /**
@@ -483,7 +602,8 @@ function sendFailure_(errText, sinceIso) {
   }
 }
 
-function buildDigestHtml_(changes, sinceIso, pushed, today) {
+function buildDigestHtml_(changes, sinceIso, pushed, today, att) {
+  att = att || { blobs: [], skipped: [], totalBytes: 0 };
   var newCount = changes.filter(function (c) { return c.action === 'New File'; }).length;
   var updCount = changes.length - newCount;
   var logCount = changes.filter(function (c) { return c.isLogistics; }).length;
@@ -514,6 +634,29 @@ function buildDigestHtml_(changes, sinceIso, pushed, today) {
   h += '</tr></table></td></tr>';
 
   h += '<tr><td style="padding:12px 26px 0;color:#6b7280;font-size:11px;">Since ' + escapeHtml_(fmtDateTime_(new Date(sinceIso))) + '</td></tr>';
+
+  // Attachment summary. States plainly what is attached and what is not, so a
+  // missing file reads as "too big" rather than "nothing happened".
+  if (changes.length && (att.blobs.length || att.skipped.length)) {
+    h += '<tr><td style="padding:14px 26px 0;">';
+    h += '<table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;">';
+    h += '<tr><td style="padding:12px 14px;">';
+    h += '<div style="font-size:12px;font-weight:bold;color:#111827;">'
+       + att.blobs.length + ' file' + (att.blobs.length === 1 ? '' : 's') + ' attached'
+       + (att.totalBytes ? ' (' + sizeText_(att.totalBytes) + ')' : '') + '</div>';
+    if (att.skipped.length) {
+      h += '<div style="font-size:11px;color:#6b7280;padding-top:6px;">Not attached &mdash; open these from the link:</div>';
+      att.skipped.forEach(function (sk) {
+        h += '<div style="font-size:11px;color:#374151;padding:2px 0;">&middot;&nbsp;';
+        h += sk.url ? ('<a href="' + sk.url + '" style="color:#1d4ed8;text-decoration:underline;">' + escapeHtml_(sk.name) + '</a>')
+                    : escapeHtml_(sk.name);
+        h += ' <span style="color:#9ca3af;">&mdash; ' + escapeHtml_(sk.why) + '</span></div>';
+      });
+    }
+    h += '<div style="font-size:10px;color:#9ca3af;padding-top:8px;">Drive links only open while signed in as '
+       + 'aliriz6683@gmail.com &mdash; the work account has no access to this drive.</div>';
+    h += '</td></tr></table></td></tr>';
+  }
 
   if (!changes.length) {
     h += '<tr><td style="padding:26px;">';
