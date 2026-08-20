@@ -39,7 +39,22 @@ var CONFIG = {
 
   // Anything whose file name OR folder path contains one of these words gets
   // turned into a task on the Logistics Team Tasks board.
-  LOGISTICS_TAGS: ['logistics'],
+  //
+  // 'logistics' alone was far too narrow. The first real scan returned 46
+  // changes and tagged zero, yet it included Site Layouts, Sports Flooring &
+  // Surface Requirements, the Onsite Meeting Agenda and Cricket scheduling --
+  // all squarely this team's work, none of them filed under a folder or name
+  // containing the word "logistics". The filter now follows the work, not the
+  // filing. Add or remove words here; matching is case-insensitive and matches
+  // on whole words only, so "site" does not fire on "website".
+  LOGISTICS_TAGS: [
+    'logistics', 'venue', 'venues', 'site', 'sites', 'site layout', 'onsite',
+    'transport', 'transportation', 'shuttle', 'bus', 'fleet',
+    'hotel', 'hotels', 'lodging', 'accommodation', 'accommodations', 'rooming',
+    'f&b', 'food', 'catering', 'beverage',
+    'equipment', 'signage', 'wayfinding',
+    'flooring', 'surface requirement', 'scheduling', 'schedule'
+  ],
 
   FIREBASE_TASKS_URL: 'https://naig-2027-default-rtdb.firebaseio.com/naig2027/tasks.json',
   HUB_URL: 'https://rizwan-collab.github.io/naig-2027-orgchart/'
@@ -237,12 +252,38 @@ function folderPath_(parentId) {
   return parts.length ? parts.join(' / ') : CONFIG.DRIVE_LABEL;
 }
 
+/**
+ * Whole-word match, not substring. A plain indexOf made 'site' fire on
+ * "website" and 'bus' fire on "business", which would have quietly filled the
+ * task board with other teams' files. Word boundaries keep it honest while
+ * still allowing multi-word entries like "site layout".
+ */
 function isLogistics_(name, path) {
   var hay = ((name || '') + ' ' + (path || '')).toLowerCase();
   for (var i = 0; i < CONFIG.LOGISTICS_TAGS.length; i++) {
-    if (hay.indexOf(CONFIG.LOGISTICS_TAGS[i].toLowerCase()) !== -1) return true;
+    var term = String(CONFIG.LOGISTICS_TAGS[i] || '').toLowerCase().trim();
+    if (!term) continue;
+    // Escape regex metacharacters -- 'f&b' is fine but future terms may not be.
+    var esc = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (new RegExp('(^|[^a-z0-9])' + esc + '($|[^a-z0-9])', 'i').test(hay)) return true;
   }
   return false;
+}
+
+/**
+ * Which term matched, so the task notes can say why it was created. Without
+ * this, a surprising task looks arbitrary and the first instinct is to
+ * distrust the whole board.
+ */
+function logisticsMatch_(name, path) {
+  var hay = ((name || '') + ' ' + (path || '')).toLowerCase();
+  for (var i = 0; i < CONFIG.LOGISTICS_TAGS.length; i++) {
+    var term = String(CONFIG.LOGISTICS_TAGS[i] || '').toLowerCase().trim();
+    if (!term) continue;
+    var esc = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (new RegExp('(^|[^a-z0-9])' + esc + '($|[^a-z0-9])', 'i').test(hay)) return term;
+  }
+  return '';
 }
 
 /* ========================================================================== */
@@ -287,7 +328,8 @@ function pushLogisticsTasks_(changes) {
       scopeArea: 'Site Management',
       due: '',
       notes: 'Auto-created from the NAIG master drive on ' + fmtDate_(new Date()) +
-             '. Folder: ' + c.path + '. ' + c.action + ' by ' + c.modifiedBy + '. ' + c.fileUrl,
+             '. Folder: ' + c.path + '. ' + c.action + ' by ' + c.modifiedBy +
+             '. Matched keyword: "' + logisticsMatch_(c.fileName, c.path) + '". ' + c.fileUrl,
       driveFileId: c.fileId,
       driveFileUrl: c.fileUrl,
       src: 'drive-monitor'
