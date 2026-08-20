@@ -2649,12 +2649,30 @@ function paintOrg(innerHtml){
 // 0x0 and every connector collapsed to a point. That is why the lines vanished.
 // So: only draw when the container genuinely has layout, and redraw when it gains it.
 function scheduleOrgWires() {
-  requestAnimationFrame(() => { if (!drawOrgWires()) window._orgWiresPending = true; });
+  // Try immediately, then retry on a timer. Deliberately NOT relying on
+  // requestAnimationFrame alone: rAF does not fire while the tab is in the
+  // background, so a render that happens off-screen would never get its
+  // connectors drawn. setTimeout still runs (throttled) when backgrounded.
+  if (drawOrgWires()) { window._orgWiresPending = false; return; }
+  window._orgWiresPending = true;
+  let tries = 0;
+  clearInterval(window._orgWireTimer);
+  window._orgWireTimer = setInterval(() => {
+    if (drawOrgWires() || ++tries > 40) {          // ~10s of attempts, then stop
+      window._orgWiresPending = false;
+      clearInterval(window._orgWireTimer);
+    }
+  }, 250);
 }
 function orgWiresIfPending() {
-  if (window._orgWiresPending) { if (drawOrgWires()) window._orgWiresPending = false; }
-  else { drawOrgWires(); }
+  if (!drawOrgWires()) scheduleOrgWires();   // couldn't draw yet -> keep retrying
+  else window._orgWiresPending = false;
 }
+// A tab that was hidden when the chart rendered still needs its lines when the
+// user comes back to it.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && typeof drawOrgWires === 'function') drawOrgWires();
+});
 // Connectors are computed from real box positions AFTER layout. getBoundingClientRect
 // reports SCALED pixels while this SVG lives inside the zoomed container, so the zoom
 // has to be divided out or every line drifts further the further right it sits.
@@ -5753,7 +5771,7 @@ function switchTab(tab) {
   const orgBtns = document.getElementById('orgBtns');
   if (orgBtns) orgBtns.style.display = (tab === 'orgchart') ? '' : 'none';
   if (tab === 'orgchart' && typeof orgWiresIfPending === 'function') {
-    requestAnimationFrame(orgWiresIfPending);
+    orgWiresIfPending();
   }
 
   // Hub sections
