@@ -1027,7 +1027,7 @@ html.onboard-mode #onboardScreen { display: block !important; }
 <!-- Stats Bar -->
 <div class="stats-bar" id="statsBar">
  <div class="stat-card" id="stat-people" onclick="statTileClick('people')" title="Click to expand all"><div class="stat-num" id="sn-people">—</div><div class="stat-label">People</div></div>
- <div class="stat-card" id="stat-dept"   onclick="statTileClick('dept')"   title="Click to collapse to departments"><div class="stat-num" id="sn-dept">—</div><div class="stat-label">Departments</div></div>
+ <div class="stat-card" id="stat-dept"   onclick="statTileClick('dept')"   title="Click to collapse to departments"><div class="stat-num" id="sn-dept">—</div><div class="stat-label">Verticals</div></div>
  <div class="stat-card" id="stat-mgr"    onclick="statTileClick('mgr')"    title="Click to expand all"><div class="stat-num" id="sn-mgr">—</div><div class="stat-label">Managers</div></div>
  <div class="stat-card" id="stat-lvl"    onclick="statTileClick('lvl')"    title="Click to expand all"><div class="stat-num" id="sn-lvl">—</div><div class="stat-label">Levels</div></div>
  <div class="stat-card" id="stat-tbd"    onclick="statTileClick('tbd')"    title="Click to highlight unfilled roles"><div class="stat-num" id="sn-tbd">—</div><div class="stat-label">Pending / Open</div></div>
@@ -3874,8 +3874,20 @@ function updateStats() {
     return;
   }
   const root = window._orgData;
-  // a forest container is scaffolding, not a person
-  const t2Count = root.__forest ? (root.children || []).length : (root.children || []).length;
+  // "Departments" means VERTICALS, and a vertical is a directory fact. This used
+  // to count the root's direct reports, which is a completely different number:
+  // with two Logistics Deputies under Rizwan it read "2 Departments" while six
+  // verticals were actually staffed.
+  const vertSet = {};
+  (window._prospects || []).forEach(p => {
+    if (!p || !p.vertical) return;
+    const st = p.status || '';
+    if (st !== 'ready' && st !== 'confirmed') return;
+    const nm = (p.name || '').trim();
+    if (!nm || nm.toLowerCase() === 'tbd') return;
+    vertSet[p.vertical.trim()] = true;
+  });
+  const t2Count = Object.keys(vertSet).length;
 
   function maxDepth(n, d) {
     let m = d;
@@ -6326,22 +6338,44 @@ function switchTaskView(v) {
 }
 window.switchTaskView = switchTaskView;
 
-const _ASSIGNEES = ['Rizwan Ali','Azmina Hashim','Sohail Ali','Humera Kabani','Maleka Surani','Akil Momin','Shehzad Ali','Raj Thakur','Kiran Surani','Shah','Anil','Shahneel Kanji','Sharez Prasla'];
-const _ASSIGNEE_EMAILS = {
-  'Rizwan Ali':     'rizwan@swagprint.com',
-  'Azmina Hashim':  '',
-  'Sohail Ali':     '',
-  'Humera Kabani':  '',
-  'Maleka Surani':  '',
-  'Akil Momin':     '',
-  'Shehzad Ali':    '',
-  'Raj Thakur':     '',
-  'Kiran Surani':   '',
-  'Shah':           '',
-  'Anil':           '',
-  'Shahneel Kanji': '',
-  'Sharez Prasla':  ''
-};
+// Task assignees and their emails come from the DIRECTORY, always.
+//
+// This used to be two hardcoded lists. Every email except Rizwan's was an empty
+// string, so assigning a task to anyone notified nobody -- silently. The name
+// list had also drifted from reality: it said "Maleka Surani" and "Akil Momin"
+// (directory says Malekah Surani and Alishah Momin) and carried placeholders
+// like "Shah" and "Anil", while genuinely missing Ruhee, Danyaal, Ahad, Ramiz,
+// Farhan, Natasha and Shan. Add someone to the Directory with an email and they
+// become assignable and notifiable in the same moment.
+function _dirPeople() {
+  return (window._prospects || []).filter(p => {
+    if (!p || !p.name) return false;
+    const n = p.name.trim();
+    if (!n || n.toLowerCase() === 'tbd') return false;
+    return (p.status || '') !== 'declined';
+  });
+}
+function assigneeNames() {
+  const names = _dirPeople().map(p => p.name.trim());
+  // Anyone already named on an existing task stays selectable even if they are
+  // not in the Directory, so historic assignments never become un-editable.
+  Object.values(window._tasksData || {}).forEach(t => {
+    taskOwners(t || {}).forEach(o => { if (o && names.indexOf(o) === -1) names.push(o); });
+  });
+  return names.sort((a, b) => a.localeCompare(b));
+}
+function assigneeEmail(name) {
+  const hit = _dirPeople().find(p => p.name.trim() === String(name || '').trim());
+  return (hit && hit.email) ? hit.email.trim() : '';
+}
+// Kept as a getter so nothing downstream has to change, but it is now derived.
+Object.defineProperty(window, '_ASSIGNEE_EMAILS', {
+  get() {
+    const m = {};
+    _dirPeople().forEach(p => { if (p.email) m[p.name.trim()] = p.email.trim(); });
+    return m;
+  }
+});
 // Returns owners as array — handles both new {owners:[]} and legacy {owner:''} schema
 function taskOwners(t) {
   if (Array.isArray(t.owners) && t.owners.length) return t.owners;
@@ -6352,7 +6386,7 @@ function taskOwners(t) {
 function _renderOwnerPills(selected) {
   const c = document.getElementById('taskOwnerPills');
   if (!c) return;
-  c.innerHTML = _ASSIGNEES.map(name => {
+  c.innerHTML = assigneeNames().map(name => {
     const on = selected.includes(name);
     return `<span onclick="_toggleOwnerPill('${name}')"
       style="padding:4px 10px;border-radius:12px;font-size:12px;cursor:pointer;user-select:none;
@@ -6515,7 +6549,8 @@ function renderGrouped() {
   Object.values(groups).forEach(g => g.sort((a,b)=>(_PRI_ORDER[a[1].priority||'Medium']||2)-(_PRI_ORDER[b[1].priority||'Medium']||2)));
   const body = document.getElementById('taskGroupedBody');
   if (!body) return;
-  const personOrder = [..._ASSIGNEES.filter(n=>groups[n]), ...Object.keys(groups).filter(n=>!_ASSIGNEES.includes(n))];
+  const _an = assigneeNames();
+  const personOrder = [..._an.filter(n=>groups[n]), ...Object.keys(groups).filter(n=>_an.indexOf(n)===-1)];
   if (!personOrder.length) { body.innerHTML = `<div class="hub-empty">No tasks match filters.</div>`; return; }
   body.innerHTML = personOrder.map(person => {
     const items = groups[person] || [];
@@ -6675,7 +6710,7 @@ function saveTask() {
   }
   // Send assignment email for newly-added people
   if (newlyAdded.length) {
-    const emails = newlyAdded.map(o => _ASSIGNEE_EMAILS[o]).filter(Boolean);
+    const emails = newlyAdded.map(assigneeEmail).filter(Boolean);
     const status   = document.getElementById('taskStatus').value;
     const priority = document.getElementById('taskPriority').value;
     const due      = document.getElementById('taskDue').value || 'TBD';
@@ -6684,14 +6719,16 @@ function saveTask() {
     const body     = encodeURIComponent(
       `Hi,\n\nYou've been assigned a task on the NAIG 2027 Sports Central hub.\n\n` +
       `Task: ${title}\nStatus: ${status}\nPriority: ${priority}\nDue: ${due}\nNotes: ${notes}\n\n` +
-      `View the hub: https://rizwan-io.github.io/naig-2027-orgchart/\n\n— NAIG 2027 Logistics Team`
+      // This said rizwan-io.github.io, which is not our site -- every assignment
+      // email sent the assignee to a dead address.
+      `View the hub: https://rizwan-collab.github.io/naig-2027-orgchart/\n\n— NAIG 2027 Logistics Team`
     );
     if (emails.length) {
       window.open(`mailto:${emails.join(',')}?subject=${subject}&body=${body}`, '_blank');
     } else {
       // No emails stored — show a reminder banner briefly
       const banner = document.createElement('div');
-      banner.textContent = `📧 Assigned to: ${newlyAdded.join(', ')} — add their emails to send notifications.`;
+      banner.textContent = `Assigned to ${newlyAdded.join(', ')} — no email on file. Add it on their Directory card to notify them.`;
       Object.assign(banner.style, { position:'fixed', bottom:'24px', left:'50%', transform:'translateX(-50%)',
         background:'#1E3A8A', color:'#fff', padding:'10px 20px', borderRadius:'8px',
         fontSize:'12px', zIndex:9999, boxShadow:'0 4px 16px rgba(0,0,0,.2)' });
