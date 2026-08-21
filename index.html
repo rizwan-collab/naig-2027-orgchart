@@ -5247,21 +5247,19 @@ const RNR_EXTRAS = {
   // clocks -- equipment is inventory and movement, signage is design and print
   // with a hard artwork deadline that lands months earlier.
   equipment: {
+    // Only what his existing list does not already say: the two-workstream
+    // framing and the deadline asymmetry between them.
     lead: [
-      'Run this vertical as TWO workstreams and keep them visibly separate: (A) Sport Equipment and (B) Signage & Wayfinding.',
-      'WORKSTREAM A — Sport Equipment: set the standard for what each of the 14 sports needs, in what quantity, to what spec.',
-      'WORKSTREAM B — Signage & Wayfinding: own the branded signage set, venue wayfinding and the artwork approval deadline.',
-      'Signage locks months before equipment does — print has no flexibility once artwork is approved. Do not let the two share one deadline.'
+      'Run this as TWO workstreams with separate deadlines: (A) Sport Equipment and (B) Signage & Wayfinding.',
+      'Signage locks months earlier than equipment — once artwork is approved, print has no flexibility. Never let the two share one deadline.'
     ],
     deputy: [
-      'Equipment: own per-sport and per-venue kit lists, quantities, and delivery windows against the competition schedule.',
-      'Equipment: own the inventory count — what we have, where it is, who signed it out, and what comes back.',
-      'Signage: own the sign schedule per venue — what sign, what size, what wall, who installs it.',
-      'Coordinate with Transportation on getting the right kit to the right venue the right morning — that handoff is where this fails.'
+      'Own the inventory count for Workstream A — what we have, where it is, who signed it out, what came back.',
+      'Own the per-venue sign schedule for Workstream B — what sign, what size, which wall, who installs it.',
+      'Own the handoff with Transportation: right kit, right venue, right morning. That handoff is where this vertical fails.'
     ],
     pmo: [
-      'Hold print and equipment vendor contracts, artwork approvals and version control on final files.',
-      'Maintain the asset register across both workstreams so nothing is bought twice or lost after Games Week.',
+      'Hold print and equipment vendor contracts, plus version control on final artwork files.',
       'Track the artwork approval chain — who signed off which file, and when.'
     ]
   }
@@ -5370,6 +5368,15 @@ function rnrNewId() {
   // Date.now() alone collides when two items are added in the same millisecond.
   return 'r-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
 }
+// Bump this whenever RNR_META_DEFAULTS changes in a way everyone should get.
+// Meta (escalation path, success criteria, time commitment) is stored per
+// vertical once seeded, and stored values win over the defaults. That is right
+// for anything Rizwan has hand-edited, but it also meant a corrected default
+// could never reach anyone -- the new "escalate to the Core Team" path was in
+// the code and invisible in the app. Version-stamping fixes that: a bump
+// refreshes meta once, then stored edits win again until the next bump.
+const RNR_META_VERSION = 2;
+
 function seedRnr() {
   let changed = false;
   const core = getRnrV('__core');
@@ -5382,7 +5389,35 @@ function seedRnr() {
     RNR_ROLE_KEYS.forEach(rk => {
       if (rnrMergeSeed(v, rk, extras[rk], vDef.id)) changed = true;
     });
+    if (v.metaVersion !== RNR_META_VERSION) {
+      RNR_ROLE_KEYS.forEach(rk => {
+        const d = RNR_META_DEFAULTS[rk];
+        if (!d) return;
+        v.meta[rk] = Object.assign({}, v.meta[rk] || {}, {
+          escalatesTo: d.escalatesTo,
+          success:     (d.success || []).slice(),
+          timePre:     d.timePre,
+          timeGames:   d.timeGames
+        });
+      });
+      v.metaVersion = RNR_META_VERSION;
+      changed = true;
+    }
   });
+  // Core carries meta too, so it needs the same refresh.
+  if (core.metaVersion !== RNR_META_VERSION) {
+    RNR_ROLE_KEYS.forEach(rk => {
+      const d = RNR_META_DEFAULTS[rk];
+      if (d) core.meta[rk] = Object.assign({}, core.meta[rk] || {}, {
+        escalatesTo: d.escalatesTo,
+        success:     (d.success || []).slice(),
+        timePre:     d.timePre,
+        timeGames:   d.timeGames
+      });
+    });
+    core.metaVersion = RNR_META_VERSION;
+    changed = true;
+  }
   if (changed) saveRnrLocal();
   return changed;
 }
