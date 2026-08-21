@@ -5362,6 +5362,23 @@ function rnrMergeSeed(store, rk, seedTexts, scope) {
       changed = true;
     }
   });
+
+  // Retire seed items whose index no longer exists in the seed list.
+  //
+  // Without this, SHORTENING a seed list orphans the extra entries forever: they
+  // keep their key, nothing updates them, and nothing removes them. Real case --
+  // Equipment & Signage lead went from 4 seeded items down to 2 and the app kept
+  // showing 4, two of them stale text nobody could account for. Only items still
+  // marked src:'seed' are touched, so anything hand-edited survives.
+  const live = new Set(seedTexts.map((_, i) => `${scope}.${rk}.${i}`));
+  for (let i = arr.length - 1; i >= 0; i--) {
+    const it = arr[i];
+    if (!it || it.src !== 'seed' || !it.key) continue;
+    if (!it.key.startsWith(`${scope}.${rk}.`)) continue;
+    if (live.has(it.key)) continue;
+    arr.splice(i, 1);
+    changed = true;
+  }
   return changed;
 }
 function rnrNewId() {
