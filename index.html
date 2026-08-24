@@ -993,6 +993,7 @@ html.onboard-mode #onboardScreen { display: block !important; }
  <button class="btn btn-light" onclick="collapseToTopLevel()">Collapse to Top</button>
  <button class="btn btn-light" onclick="collapseAll()">Collapse All</button>
  <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,0.12);border-radius:6px;padding:2px 6px">
+   <button class="btn btn-light" onclick="zoomFitManual()" style="padding:3px 10px;font-size:12px;line-height:1.4;font-weight:700" title="Scale the chart so the whole tree fits the window">Fit</button>
    <button class="btn btn-light" onclick="zoomOut()" style="padding:3px 9px;font-size:16px;line-height:1;font-weight:700" title="Zoom out (Ctrl+Scroll)">−</button>
    <span id="zoomPct" style="font-size:12px;font-weight:700;color:#fff;min-width:38px;text-align:center;cursor:pointer" onclick="zoomReset()" title="Click to reset to 100%">100%</span>
    <button class="btn btn-light" onclick="zoomIn()" style="padding:3px 9px;font-size:16px;line-height:1;font-weight:700" title="Zoom in (Ctrl+Scroll)">+</button>
@@ -2427,9 +2428,43 @@ function _applyZoom() {
   if (pct) pct.textContent = Math.round(_zoom * 100) + '%';
   if (typeof drawOrgWires === 'function') drawOrgWires();
 }
-function zoomIn()    { _zoom = Math.min(parseFloat((_zoom + 0.1).toFixed(1)), 2.5); _applyZoom(); }
-function zoomOut()   { _zoom = Math.max(parseFloat((_zoom - 0.1).toFixed(1)), 0.3); _applyZoom(); }
-function zoomReset() { _zoom = 1.0; _applyZoom(); }
+function zoomIn()    { _zoomUserSet = true; _zoom = Math.min(parseFloat((_zoom + 0.1).toFixed(1)), 2.5); _applyZoom(); }
+function zoomOut()   { _zoomUserSet = true; _zoom = Math.max(parseFloat((_zoom - 0.1).toFixed(1)), 0.3); _applyZoom(); }
+function zoomReset() { _zoomUserSet = true; _zoom = 1.0; _applyZoom(); }
+
+// ── FIT ───────────────────────────────────────────────────────────────────────
+// At 100% the tree runs wider than the window the moment a deputy has four
+// reports, so the right-hand branch is sliced off mid-card and the whole thing
+// reads as broken. Fit picks the largest zoom -- never above 100% -- at which
+// the entire chart is on screen. scrollWidth is layout pixels and a CSS
+// transform does not change layout, so this measurement is stable at any zoom.
+let _zoomUserSet = false;
+function zoomFit() {
+  const canvas = document.getElementById('canvas');
+  const wrap   = document.getElementById('orgWrap');
+  if (!canvas || !wrap) return false;
+  const avail    = canvas.clientWidth - 4;
+  const contentW = wrap.scrollWidth;
+  if (avail <= 0 || contentW <= 0) return false;
+  const z = Math.max(0.35, Math.min(1, Math.floor((avail / contentW) * 100) / 100));
+  if (Math.abs(z - _zoom) < 0.005) return true;
+  _zoom = z;
+  _applyZoom();
+  return true;
+}
+function zoomFitManual() { _zoomUserSet = false; window._autoFitDone = false; zoomFit(); }
+// Auto-fit runs once per repaint, and only while the user has not taken manual
+// control of the zoom. Once they click +/-/100% their choice sticks.
+function maybeAutoFit() {
+  if (_zoomUserSet || window._autoFitDone) return;
+  window._autoFitDone = true;
+  zoomFit();
+}
+window.addEventListener('resize', () => {
+  if (_zoomUserSet) return;
+  window._autoFitDone = false;
+  maybeAutoFit();
+});
 // Mouse-wheel zoom (Ctrl/Cmd + scroll)
 document.addEventListener('wheel', function(e) {
   if ((e.ctrlKey || e.metaKey) && document.getElementById('canvas')?.contains(e.target)) {
@@ -2703,6 +2738,7 @@ function paintOrg(innerHtml){
        <svg id="orgWires" style="position:absolute;inset:0;overflow:visible;pointer-events:none"></svg>
        <div id="orgTree" style="position:relative;display:flex;justify-content:center">${innerHtml}</div>
      </div>`;
+  window._autoFitDone = false;   // new tree -> new width -> re-fit
   scheduleOrgWires();
 }
 
@@ -2723,19 +2759,20 @@ function scheduleOrgWires() {
   clearInterval(window._orgWireTimer);
   window._orgWireTimer = null;
 
-  if (drawOrgWires()) { window._orgWiresPending = false; return; }
+  if (drawOrgWires()) { window._orgWiresPending = false; maybeAutoFit(); return; }
   window._orgWiresPending = true;
   let tries = 0;
   window._orgWireTimer = setInterval(() => {
     if (drawOrgWires() || ++tries > 40) {          // ~10s of attempts, then stop
       window._orgWiresPending = false;
       clearInterval(window._orgWireTimer);
+      maybeAutoFit();
     }
   }, 250);
 }
 function orgWiresIfPending() {
   if (!drawOrgWires()) scheduleOrgWires();   // couldn't draw yet -> keep retrying
-  else window._orgWiresPending = false;
+  else { window._orgWiresPending = false; maybeAutoFit(); }
 }
 // A tab that was hidden when the chart rendered still needs its lines when the
 // user comes back to it.
