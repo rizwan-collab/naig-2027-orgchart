@@ -1142,6 +1142,7 @@ html.onboard-mode #onboardScreen { display: block !important; }
  <h2> Volunteer Prospects — Pre-Nomex Pool</h2>
  <span id="prospectCount" style="font-size:11px;color:#666;background:#e8f4fd;padding:2px 8px;border-radius:10px">0 prospects</span>
  <button class="btn btn-green" style="font-size:11px;padding:5px 10px" onclick="event.stopPropagation();openProspect()">+ Add Person</button>
+ <button class="btn" style="font-size:11px;padding:5px 10px;background:#e9f7ef;color:#1e7e46;border:1px solid #a8ddc0" title="One link for the whole team — they pick their own name" onclick="event.stopPropagation();copyTeamOnboardLink()">🔗 Team Link</button>
  <button class="btn btn-accent" style="font-size:11px;padding:5px 10px" onclick="event.stopPropagation();exportProspectsCSV()">⬇ Export CSV (Nomex)</button>
  <span id="prospectToggleIcon" style="font-size:16px;color:#2d6a9f;font-weight:700">▼</span>
  </div>
@@ -4578,7 +4579,12 @@ function buildOrgTreeFromDirectory(people) {
     };
     if (p.city) node.city = p.city;
     if (p.roleType) node.roleType = p.roleType; // carried through for the layered renderer
-    if (p.vertical) node.vertical = p.vertical; // needed to pair co-leads of one vertical
+    if (p.vertical) node.vertical = p.vertical; // needed to pair co-leads
+    // The onboarding token lives on the DIRECTORY record. Copy it onto the org
+    // node so the existing ?onboard= lookup keeps working -- without this the
+    // tree is rebuilt on every directory change and every link already sent out
+    // stops resolving.
+    if (p.onboardToken) node.onboardToken = p.onboardToken;
     return node;
   }
 
@@ -4915,6 +4921,8 @@ function renderProspects() {
  <td>
  <div class="prospect-actions">
  <button class="btn btn-light" style="padding:3px 7px;font-size:10px;background:#e8f4fd;color:#2d6a9f;border:1px solid #7ab3d9" onclick="openProspect('${p.id}')">Edit</button>
+ <button class="btn btn-light" title="${p.email ? 'Email ' + esc(p.name||'') + ' their profile link' : 'No email on file — copies the link instead'}" style="padding:3px 7px;font-size:10px;background:${p.email ? '#e9f7ef' : '#fdf6e3'};color:${p.email ? '#1e7e46' : '#8a6d1f'};border:1px solid ${p.email ? '#a8ddc0' : '#e6d9a8'}" onclick="dirSendOnboardLink('${p.id}',event)">${p.email ? 'Send Link' : 'Copy Link'}</button>
+ <button class="btn btn-light" title="Copy the profile link" style="padding:3px 7px;font-size:10px;background:#f4f6f8;color:#4b5563;border:1px solid #d7dde5" onclick="dirCopyOnboardLink('${p.id}',event)">⧉</button>
  <button class="btn btn-light" style="padding:3px 7px;font-size:10px;background:#fff0f0;color:#c0392b;border:1px solid #e8a0a0" onclick="deleteProspect('${p.id}')">×</button>
  </div>
  </td>
@@ -5733,6 +5741,29 @@ function genOnboardToken() {
   return Math.random().toString(36).slice(2, 8) + Math.random().toString(36).slice(2, 6);
 }
 
+// Resolve an onboarding token to a person.
+//
+// This used to search ONLY the org tree, and the org tree holds confirmed people
+// exclusively. But an onboarding link is precisely what you send to someone who
+// is NOT confirmed yet -- a new recruit filling in their own details. So the
+// lookup returned nothing and the link showed "Link not found" to every new
+// person it was sent to. The Directory is now the fallback, and it is where the
+// token actually lives.
+function findPersonByOnboardToken(token) {
+  if (!token) return null;
+  const fromTree = findNodeByOnboardToken(token, window._orgData);
+  if (fromTree) return fromTree;
+  const rec = (window._prospects || []).find(x => x && x.onboardToken === token);
+  if (!rec) return null;
+  return {
+    id: rec.id, name: rec.name, role: rec.role, roleType: rec.roleType,
+    vertical: rec.vertical, status: rec.status, region: rec.region,
+    email: rec.email, phone: rec.phone, city: rec.city,
+    onboardToken: rec.onboardToken, children: []
+  };
+}
+window.findPersonByOnboardToken = findPersonByOnboardToken;
+
 function findNodeByOnboardToken(token, node) {
   if (!node || !token) return null;
   if (node.onboardToken === token) return node;
@@ -5824,11 +5855,78 @@ function computeEventScopeSummary() {
   };
 }
 
+// The shared-link landing page: choose yourself, then complete your profile.
+// Deliberately shows names only -- no emails, phone numbers or statuses -- since
+// this URL gets forwarded around and the Directory holds personal contact data.
+function renderOnboardPicker(el) {
+  const people = (window._prospects || [])
+    .filter(p => p && p.name && p.name.trim() && p.name.trim().toLowerCase() !== 'tbd'
+                 && (p.status || '') !== 'declined')
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+  const F = NAIG_FACTS;
+  let h = '';
+  h += `<div class="ob-hero">
+    <h1>${F.eventName}</h1>
+    <div class="ob-role">${F.tagline}</div>
+    <div class="ob-sub">${F.dateRange} \u00b7 ${F.host}</div>
+  </div>`;
+
+  h += `<div class="ob-section">
+    <h2>Find yourself to continue</h2>
+    <p style="font-size:13px;color:#475569;margin:0 0 12px">
+      Pick your name below to see your role, your responsibilities, and a short form
+      to confirm your contact details.</p>`;
+
+  if (!people.length) {
+    h += `<div class="ob-empty">Nobody has been added to the Directory yet.</div>`;
+  } else {
+    h += `<div class="ob-form-group"><label>Your name</label>
+      <select id="obPickName" style="width:100%">
+        <option value="">\u2014 Select your name \u2014</option>
+        ${people.map(p => `<option value="${esc(p.id)}">${esc(p.name)}${p.role ? ' \u2014 ' + esc(p.role) : ''}</option>`).join('')}
+      </select></div>
+      <button class="btn btn-primary" style="margin-top:10px" onclick="obPickContinue()">Continue</button>
+      <p style="font-size:11.5px;color:#94a3b8;margin:12px 0 0;line-height:1.5">
+        Not on the list? Ask Rizwan to add you to the Directory first.</p>`;
+  }
+  h += `</div>`;
+  el.innerHTML = h;
+}
+
+// Mint (or reuse) that person's token and switch the page to their profile.
+function obPickContinue() {
+  const sel = document.getElementById('obPickName');
+  const id = sel && sel.value;
+  if (!id) { alert('Please select your name first.'); return; }
+  const rec = (window._prospects || []).find(x => x && x.id === id);
+  if (!rec) { alert('Could not find that person. Please refresh and try again.'); return; }
+  if (!rec.onboardToken) {
+    rec.onboardToken = genOnboardToken();
+    saveProspectsLocal();
+    const node = findNode(id, window._orgData);
+    if (node) node.onboardToken = rec.onboardToken;
+  }
+  // Real navigation, so the personal link is what sits in the address bar and
+  // can be bookmarked or re-opened later.
+  location.search = '?onboard=' + encodeURIComponent(rec.onboardToken);
+}
+window.obPickContinue = obPickContinue;
+
 function renderOnboardView() {
   if (!window._onboardToken) return;
   const el = document.getElementById('onboardContent');
   if (!el) return;
-  const person = findNodeByOnboardToken(window._onboardToken, window._orgData);
+  // ONE SHARED LINK. ?onboard=team shows a name picker instead of a person, so
+  // you can send a single URL to the whole team rather than 30 individual ones.
+  // Choosing a name swaps to that person's own token, so from that point on the
+  // page behaves exactly like a personal link -- including the save-back form.
+  if (String(window._onboardToken).toLowerCase() === 'team') {
+    renderOnboardPicker(el);
+    return;
+  }
+
+  const person = findPersonByOnboardToken(window._onboardToken);
   if (!person) {
     el.innerHTML = '<div class="ob-notfound"><h2>Link not found</h2><p>This onboarding link isn\'t recognized. Please reach out to Rizwan Ali for a new link.</p></div>';
     return;
@@ -5956,6 +6054,105 @@ function saveOnboardContact(personId) {
     setTimeout(() => { msg.style.display = 'none'; }, 3000);
   }
 }
+
+// ── Send someone their own profile link, straight from the Directory ───────
+// Everything here works off the DIRECTORY record, not the org tree, because the
+// people who most need this link are the ones not yet confirmed.
+function dirOnboardUrl(rec) {
+  return location.origin + location.pathname + '?onboard=' + rec.onboardToken;
+}
+function dirEnsureToken(id) {
+  const rec = (window._prospects || []).find(x => x && x.id === id);
+  if (!rec) return null;
+  if (!rec.onboardToken) {
+    rec.onboardToken = genOnboardToken();
+    saveProspectsLocal();
+    // Push it onto the live org node too so the link resolves immediately,
+    // without waiting for the next regeneration.
+    const node = findNode(id, window._orgData);
+    if (node) node.onboardToken = rec.onboardToken;
+  }
+  return rec;
+}
+function dirToast(text, ok) {
+  const b = document.createElement('div');
+  b.textContent = text;
+  Object.assign(b.style, { position:'fixed', bottom:'24px', left:'50%',
+    transform:'translateX(-50%)', background: ok ? '#1E3A8A' : '#b45309',
+    color:'#fff', padding:'10px 18px', borderRadius:'8px', fontSize:'12px',
+    zIndex:99999, boxShadow:'0 4px 16px rgba(0,0,0,.2)', maxWidth:'80vw', textAlign:'center' });
+  document.body.appendChild(b);
+  setTimeout(() => b.remove(), 4200);
+}
+function dirSendOnboardLink(id, ev) {
+  if (ev) ev.stopPropagation();
+  const rec = dirEnsureToken(id);
+  if (!rec) { dirToast('Could not find that person in the Directory.', false); return; }
+
+  const url = dirOnboardUrl(rec);
+  const first = (rec.name || '').trim().split(' ')[0] || 'there';
+  const email = (rec.email || '').trim();
+
+  // No email on file: put the link on the clipboard so it can still be sent by
+  // text or WhatsApp. Failing silently here would be the worst outcome.
+  if (!email) {
+    const done = () => dirToast('No email on file for ' + (rec.name || 'this person') +
+      ' — link copied to your clipboard instead.', false);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(done).catch(() => {
+        window.prompt('No email on file. Copy this link:', url);
+      });
+    } else {
+      window.prompt('No email on file. Copy this link:', url);
+    }
+    return;
+  }
+
+  const subject = 'Your NAIG 2027 profile — please complete it';
+  const body =
+    'Hi ' + first + ',\n\n' +
+    'Here is your personal NAIG 2027 link. It shows what the Games are, your role and ' +
+    'responsibilities, and has a short form at the bottom to fill in your contact details:\n\n' +
+    url + '\n\n' +
+    'It takes two minutes. The link is yours alone — please don\'t forward it.\n\n' +
+    'Thanks,\nRizwan';
+
+  window.location.href = 'mailto:' + encodeURIComponent(email) +
+    '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+  dirToast('Opening your email app to ' + email, true);
+}
+function dirCopyOnboardLink(id, ev) {
+  if (ev) ev.stopPropagation();
+  const rec = dirEnsureToken(id);
+  if (!rec) return;
+  const url = dirOnboardUrl(rec);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url)
+      .then(() => dirToast('Profile link copied for ' + (rec.name || ''), true))
+      .catch(() => window.prompt('Copy this link:', url));
+  } else {
+    window.prompt('Copy this link:', url);
+  }
+}
+// The one shared URL. No token to mint -- 'team' is a fixed sentinel that
+// renders the name picker.
+function teamOnboardUrl() {
+  return location.origin + location.pathname + '?onboard=team';
+}
+function copyTeamOnboardLink() {
+  const url = teamOnboardUrl();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url)
+      .then(() => dirToast('Team link copied — anyone can pick their own name: ' + url, true))
+      .catch(() => window.prompt('Copy the team link:', url));
+  } else {
+    window.prompt('Copy the team link:', url);
+  }
+}
+window.copyTeamOnboardLink = copyTeamOnboardLink;
+window.teamOnboardUrl = teamOnboardUrl;
+window.dirSendOnboardLink = dirSendOnboardLink;
+window.dirCopyOnboardLink = dirCopyOnboardLink;
 
 function refreshOnboardLinkUI(n) {
   const has = !!n.onboardToken;
