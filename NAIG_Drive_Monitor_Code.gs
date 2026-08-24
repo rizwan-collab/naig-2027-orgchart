@@ -30,6 +30,14 @@ var CONFIG = {
   // link in the digest hit a permission wall.
   NOTIFY_EMAILS: ['rizwan@swagprint.com', 'aliriz6683@gmail.com'],
 
+  // On top of the fixed addresses above, the digest also goes to everyone in the
+  // hub Directory whose Vertical is one of these AND who has an email on file.
+  // That is how Shan, Azmina, Sohail and Kiran get added -- put their address on
+  // their Directory card and the next run picks them up. No code change, and no
+  // second list to keep in sync with the org chart.
+  NOTIFY_VERTICALS: ['Core Team'],
+  DIRECTORY_URL: 'https://naig-2027-default-rtdb.firebaseio.com/naig2027/prospects.json',
+
   // Attachment budget. Gmail rejects the whole message over ~25 MB, so this is
   // a hard ceiling, not a preference -- blow it and NOBODY gets the digest.
   // Anything skipped is listed in the email by name and reason, so a missing
@@ -445,7 +453,7 @@ function sendDigest_(changes, sinceIso, pushed) {
   }
 
   var html = buildDigestHtml_(changes, sinceIso, pushed, today, att);
-  var to = CONFIG.NOTIFY_EMAILS.join(',');
+  var to = digestRecipients_().join(',');
 
   for (var attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -470,6 +478,57 @@ function sendDigest_(changes, sinceIso, pushed) {
       Utilities.sleep(45000);
     }
   }
+}
+
+/**
+ * The full recipient list: the fixed addresses plus every confirmed person in
+ * the Directory sitting in a NOTIFY_VERTICALS vertical who has an email.
+ *
+ * Reading the Directory rather than hardcoding names means the digest list and
+ * the org chart cannot drift apart. It also fails safe: if the Directory is
+ * unreachable, or nobody has an email yet, the fixed addresses still get the
+ * email rather than the whole send collapsing.
+ */
+function digestRecipients_() {
+  var out = [];
+  var seen = {};
+  function add(e) {
+    var v = String(e || '').trim().toLowerCase();
+    if (!v || v.indexOf('@') === -1 || seen[v]) return;
+    seen[v] = true; out.push(v);
+  }
+  (CONFIG.NOTIFY_EMAILS || []).forEach(add);
+
+  try {
+    var resp = UrlFetchApp.fetch(CONFIG.DIRECTORY_URL, { muteHttpExceptions: true });
+    if (resp.getResponseCode() === 200) {
+      var raw = JSON.parse(resp.getContentText() || 'null');
+      var list = [];
+      if (raw && raw.length !== undefined) list = raw;
+      else if (raw) { for (var k in raw) if (raw[k]) list.push(raw[k]); }
+
+      var want = {};
+      (CONFIG.NOTIFY_VERTICALS || []).forEach(function (v) { want[String(v).toLowerCase()] = true; });
+
+      var added = 0;
+      list.forEach(function (p) {
+        if (!p || !p.email) return;
+        var st = p.status || '';
+        if (st !== 'ready' && st !== 'confirmed') return;           // not confirmed yet
+        var nm = String(p.name || '').trim();
+        if (!nm || nm.toLowerCase() === 'tbd') return;
+        if (!want[String(p.vertical || '').toLowerCase()]) return;
+        if (!seen[String(p.email).trim().toLowerCase()]) added++;
+        add(p.email);
+      });
+      Logger.log('Directory added ' + added + ' recipient(s).');
+    } else {
+      Logger.log('Directory unreachable (' + resp.getResponseCode() + '); using fixed list only.');
+    }
+  } catch (e) {
+    Logger.log('Directory lookup failed, using fixed list only: ' + e);
+  }
+  return out;
 }
 
 /**
@@ -592,7 +651,7 @@ function sendFailure_(errText, sinceIso) {
 
   try {
     MailApp.sendEmail({
-      to: CONFIG.NOTIFY_EMAILS.join(','),
+      to: digestRecipients_().join(','),
       subject: 'NAIG 2027 Drive - SCAN FAILED - ' + today,
       htmlBody: h
     });
