@@ -400,15 +400,8 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .pl-staff  { display:flex; align-items:flex-start; gap:8px; }
 .pl-staff-right { margin-left:34px; }
 .pl-staff-left  { margin-right:34px; }
-.pl-cogroup { display:flex; align-items:flex-start; gap:22px; }
-.pl-co-tag { font-size:8px; letter-spacing:.7px; text-transform:uppercase; color:#1E3A8A;
-             opacity:.75; margin-bottom:3px; white-space:nowrap; }
 .pl-staff .pl-card { width:150px; min-height:60px; opacity:.97; }
 .pl-staff .pl-card .pl-nm { font-size:12px; }
-.pl-staff-tag { position:absolute; top:-14px; font-size:8px;
-                letter-spacing:.7px; text-transform:uppercase; color:#94a3b8; white-space:nowrap; }
-.pl-tag-right { left:100%;  margin-left:34px; }
-.pl-tag-left  { right:100%; margin-right:34px; }
 .pl-layers { display:flex; flex-direction:column; align-items:center; }
 .pl-layer  { display:flex; align-items:flex-start; justify-content:center; gap:20px; margin-top:44px; }
 .pl-cell   { display:flex; flex-direction:column; align-items:center; }
@@ -2624,29 +2617,12 @@ function plStaffChildren(n){
 function plFlowChildren(n){
   return (n.children || []).filter(c => !plIsStaff(c));
 }
-// Two (or more) Leads under the same manager sharing the same Vertical are
-// CO-LEADS of one vertical, not two competing branches. They render inside a
-// single cell so they stay side by side and the tie bar between them is
-// unbroken. Without this, one co-lead's PMO staff band gets rendered between
-// them and visually splits the pair in half.
-function plCoGroups(kids){
-  const out = [];
-  const used = new Set();
-  kids.forEach(k => {
-    if (used.has(k)) return;
-    const v = (k.vertical || '').trim();
-    const isLead = ((k.roleType || '').toLowerCase() === 'lead');
-    if (!v || !isLead) { out.push(k); used.add(k); return; }
-    const peers = kids.filter(o => !used.has(o) && o !== k &&
-      ((o.roleType || '').toLowerCase() === 'lead') &&
-      (o.vertical || '').trim() === v);
-    if (!peers.length) { out.push(k); used.add(k); return; }
-    const members = [k].concat(peers);
-    members.forEach(m => used.add(m));
-    out.push({ __co: true, vertical: v, members: members });
-  });
-  return out;
-}
+// NOTE: co-lead grouping was removed. Two Leads sharing a vertical used to be
+// wrapped in a tied pair with a "· co-leads" label. It added a bar, a caption
+// and a nested container for no real information -- the org chart already shows
+// two Leads side by side under the same manager -- and the extra nesting was
+// what left orphan line stubs hanging under their cards.
+
 function plGroupChildren(n){
   // ONE row per manager, ordered Deputy -> PMO -> Lead -> Venue.
   //
@@ -2658,8 +2634,7 @@ function plGroupChildren(n){
   // the reporting chain, so nothing moves unless you move it.
   const kids = plFlowChildren(n).slice()
     .sort((a,b) => plRank(a) - plRank(b) || (a.name||'').localeCompare(b.name||''));
-  const members = plCoGroups(kids);
-  return members.length ? [{ rank:0, members: members }] : [];
+  return kids.length ? [{ rank:0, members: kids }] : [];
 }
 function plDescendants(n){
   let c = 0;
@@ -2687,17 +2662,17 @@ function renderPersonSubtree(n, isRoot, staffSide){
   const card = plCard(n, isRoot);
   let head = card;
   if (staff.length){
-    const tag  = `<div class="pl-staff-tag pl-tag-${side}">${staff.length > 1 ? 'PMO / Coordinators' : 'PMO / Coordinator'}</div>`;
+    // No caption. It floated out to the side of the row, disconnected from the
+    // card it described, and the card's own role colour already says PMO.
     const band = `<div class="pl-staff pl-staff-${side}">` +
                  staff.map(c => `<div class="pl-cell pl-staff-cell">${plCard(c, false)}</div>`).join('') +
                  `</div>`;
-    head = (side === 'left') ? (band + card + tag) : (card + tag + band);
+    head = (side === 'left') ? (band + card) : (card + band);
   }
   let h = `<div class="pl-sub" data-id="${n.id}"><div class="pl-head">${head}</div>`;
   if (rows.length){
     const hidden = plDescendants(n);
-    const flowCount = rows.reduce((a,r) => a + r.members.reduce(
-      (b,m) => b + (m && m.__co ? m.members.length : 1), 0), 0);
+    const flowCount = rows.reduce((a,r) => a + r.members.length, 0);
     h += `<div class="pl-knob ${open?'':'closed'}" onclick="plToggle(event,'${n.id}')">
             <span>${open?'\u2212':'+'}</span>${open ? (flowCount + ' report' + (flowCount>1?'s':'')) : (hidden + ' hidden')}
           </div>`;
@@ -2707,16 +2682,7 @@ function renderPersonSubtree(n, isRoot, staffSide){
     rows.forEach(row => {
       h += `<div class="pl-layer" data-mgr="${n.id}" data-rank="${row.rank}">`;
       row.members.forEach(m => {
-        if (m && m.__co){
-          h += `<div class="pl-cell pl-co-cell" data-vertical="${esc(m.vertical)}">` +
-                 `<div class="pl-co-tag">${esc(m.vertical)} \u00b7 co-leads</div>` +
-                 `<div class="pl-cogroup">` +
-                   m.members.map((x,i) => renderPersonSubtree(x, false, i === 0 ? 'left' : 'right')).join('') +
-                 `</div>` +
-               `</div>`;
-        } else {
-          h += `<div class="pl-cell">${renderPersonSubtree(m, false)}</div>`;
-        }
+        h += `<div class="pl-cell">${renderPersonSubtree(m, false)}</div>`;
       });
       h += `</div>`;
     });
@@ -2801,11 +2767,11 @@ function drawOrgWiresInner(){
   // A cell holds ONE person normally, but a co-lead cell holds two or more.
   // Returning every head card in the cell is what lets the trunk fan out to
   // both co-leads instead of landing on whichever one happens to be first.
+  // One person per cell. Take the cell's OWN head card, never a descendant --
+  // a loose querySelector('.pl-card') will happily return a grandchild, which is
+  // exactly how a connector ends up drawn to a card two rows further down.
   const headCardsOf = cell => {
-    if (cell.classList.contains('pl-co-cell')) {
-      return [...cell.querySelectorAll(':scope > .pl-cogroup > .pl-sub > .pl-head > .pl-card')];
-    }
-    const c = cell.querySelector('.pl-card');
+    const c = cell.querySelector(':scope > .pl-sub > .pl-head > .pl-card');
     return c ? [c] : [];
   };
   let out = '';
@@ -2852,17 +2818,6 @@ function drawOrgWiresInner(){
     out += link([box(card)], rowBoxes[0]);
     for (let i = 0; i < rowBoxes.length - 1; i++) out += link(rowBoxes[i], rowBoxes[i+1]);
 
-    // Co-leads of one vertical are tied with a solid bar so they read as one
-    // shared role. The pair is grouped in a single cell, so the bar is drawn
-    // between adjacent members of that cell — nothing can render between them.
-    rows.forEach(r => {
-      [...r.querySelectorAll(':scope > .pl-co-cell')].forEach(cell => {
-        const bs = headCardsOf(cell).map(box).sort((a,b) => a.cx - b.cx);
-        for (let i = 0; i < bs.length - 1; i++){
-          out += `<path d="M ${bs[i].r} ${bs[i].cy} H ${bs[i+1].l}" stroke="#1E3A8A" stroke-width="2.2" fill="none"/>`;
-        }
-      });
-    });
   });
 
   // Only touch the DOM when something actually changed. Re-writing identical
