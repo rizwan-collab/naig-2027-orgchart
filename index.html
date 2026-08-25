@@ -418,6 +418,9 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .pl-card.rt-pmo    { border-top-color:#2d6a9f; }
 .pl-card.rt-venue  { border-top-color:#7b3f00; }
 .pl-card.is-root   { border-top-color:#BF1B2A; width:196px; }
+/* An unfilled seat has to look unfilled at a glance, or it reads as a person. */
+.pl-card.pl-open   { border-style:dashed; border-color:#94a3b8; background:#fbfcfd; }
+.pl-card.pl-open .pl-nm { color:#64748b; font-style:italic; }
 .pl-card.is-root .pl-nm { font-size:15px; }
 .pl-knob { position:relative; z-index:3; margin-top:6px; display:inline-flex; align-items:center; gap:5px;
            font-size:10px; font-weight:700; color:#1E3A8A; background:#fff; border:1.5px solid #cbd5e1;
@@ -1148,6 +1151,7 @@ html.onboard-mode #onboardScreen { display: block !important; }
    <option value="prospect">Prospect</option>
    <option value="contacted">Contacted</option>
    <option value="ready">Confirmed</option>
+   <option value="open">Open Role</option>
    <option value="declined">Declined</option>
   </select>
   <select class="hub-filter-select" id="dirFilterTeam" onchange="renderProspects()"><option value="">All Teams</option></select>
@@ -2273,11 +2277,12 @@ html.onboard-mode #onboardScreen { display: block !important; }
  <div style="font-size:10.5px;color:#888;margin-top:3px">This is what places them on the Org Chart. The chart is generated from this field — set it once here and the chart updates itself.</div>
  </div>
  <div class="form-group">
- <label>Status <span style="font-weight:400;color:#888">— only Confirmed appears on the org chart</span></label>
+ <label>Status <span style="font-weight:400;color:#888">— Confirmed and Open Role appear on the org chart</span></label>
  <select id="pStatus">
  <option value="prospect"> Prospect</option>
  <option value="contacted"> Contacted</option>
  <option value="ready"> Confirmed</option>
+ <option value="open"> Open Role — seat exists, still hiring</option>
  <option value="declined"> Declined</option>
  </select>
  </div>
@@ -2489,6 +2494,7 @@ function orgStatusBadge(s) {
   if (s === 'confirmed') return '<span class="badge badge-confirmed" title="Click to change status">Confirmed</span>';
   if (s === 'contacted' || s === 'pending-acceptance' || s === 'tbc') return '<span class="badge badge-contacted" title="Click to change status">Contacted</span>';
   if (s === 'declined')  return '<span class="badge badge-declined" title="Click to change status">Declined</span>';
+  if (s === 'open')      return '<span class="badge" style="background:#f1f5f9;color:#475569;border:1px dashed #94a3b8;cursor:pointer" title="Click to change status">Open Role</span>';
   if (s === 'ontrack')   return '<span class="badge" style="background:#e8f8f0;color:#2c7a5c;border:1px solid #a8d9c0;cursor:pointer" title="Click to change status">On Track</span>';
   if (s === 'atrisk')    return '<span class="badge" style="background:#fff8e8;color:#b7770d;border:1px solid #f0d080;cursor:pointer" title="Click to change status">At Risk</span>';
   if (s === 'behind')    return '<span class="badge" style="background:#fef0f0;color:#c0392b;border:1px solid #e8a0a0;cursor:pointer" title="Click to change status">Behind</span>';
@@ -2637,20 +2643,26 @@ function plRank(n){
   const i = PL_LAYERS.indexOf(((n && n.roleType) || '').toLowerCase());
   return i < 0 ? PL_LAYERS.length : i;
 }
-// A leaf PMO / Coordinator is STAFF to their manager: they sit on the manager's
-// own line instead of consuming the tier below. That tier belongs to the next
-// level of the org (vertical Leads under a Deputy, Venue Leads under a Lead).
-// A PMO who has their own reports is NOT staff — they are a real layer, so they
-// stay in the normal flow and their subtree renders as usual.
-function plIsStaff(c){
-  return ((c && c.roleType) || '').toLowerCase() === 'pmo' && !((c.children || []).length);
+// A Core Team PMO sits BESIDE their Deputy on the same line, because the tier
+// under a Deputy belongs to the vertical Leads and a PMO parked there pushes
+// every vertical down a row for no reason.
+//
+// A vertical PMO is different: it sits UNDER its Lead. Danyaal belongs under
+// Raj and Ahad under Ruhee, and side-banding them read as four people in one
+// row with no visible parent. So the side band is now only for a PMO whose
+// manager is a Deputy. Anyone else follows the reporting line straight down.
+// A PMO with their own reports is never staff — they are a real layer.
+function plIsStaff(c, parent){
+  if (((c && c.roleType) || '').toLowerCase() !== 'pmo') return false;
+  if ((c.children || []).length) return false;
+  return ((parent && parent.roleType) || '').toLowerCase() === 'deputy';
 }
 function plStaffChildren(n){
-  return (n.children || []).filter(plIsStaff)
+  return (n.children || []).filter(c => plIsStaff(c, n))
     .sort((a,b) => (a.name||'').localeCompare(b.name||''));
 }
 function plFlowChildren(n){
-  return (n.children || []).filter(c => !plIsStaff(c));
+  return (n.children || []).filter(c => !plIsStaff(c, n));
 }
 // NOTE: co-lead grouping was removed. Two Leads sharing a vertical used to be
 // wrapped in a tied pair with a "· co-leads" label. It added a bar, a caption
@@ -2678,7 +2690,8 @@ function plDescendants(n){
 }
 function plCard(n, isRoot){
   const rt = (n.roleType || '').toLowerCase();
-  return `<div class="pl-card ${rt?('rt-'+rt):''} ${isRoot?'is-root':''}" id="node-${n.id}"
+  const vacant = (n.status === 'open' || n.status === 'tbd') ? ' pl-open' : '';
+  return `<div class="pl-card ${rt?('rt-'+rt):''} ${isRoot?'is-root':''}${vacant}" id="node-${n.id}"
       data-node-id="${n.id}" onclick="openProspect('${n.id}')" title="Edit ${esc(n.name)} — same form as Add Person">
       <div class="pl-nm">${esc(n.name || 'TBD')}</div>
       <div class="pl-rl">${esc(n.role || '')}</div>
@@ -3886,7 +3899,7 @@ function countNodes(node, depth) {
   walk(node, 0);
 
   allNodes.forEach(({ node: n }) => {
-    const isPending = ['tbd','tbc','pending-approval','pending-acceptance','prospect','contacted'].includes(n.status);
+    const isPending = ['tbd','tbc','open','pending-approval','pending-acceptance','prospect','contacted'].includes(n.status);
     if (!isPending && n.name && n.name.toLowerCase() !== 'tbd' && n.name.toLowerCase() !== 'tbc') people++;
     else if (isPending || !n.name || n.name.toLowerCase() === 'tbd') pending++;
     const hasKids = (n.children || []).length > 0 || (n.coLeads || []).length > 0;
@@ -4483,6 +4496,13 @@ function buildOrgTreeFromDirectory(people) {
     // the Directory could never put him on the chart, confirmed or not. The root
     // is now whoever is confirmed with no manager, so nobody is special-cased.
     const st = (p.status || 'prospect');
+    // ONE exception to confirmed-only: a role explicitly marked "Open Role".
+    // That is a seat we have decided exists and are actively hiring for -- the
+    // Transportation Lead above Ramiz and Shehzad -- and it has to be visible,
+    // otherwise its reports look like they answer straight to the Deputy. An
+    // Open Role is drawn dashed, counts under Pending / Open, and is never
+    // counted as a person or as a manager.
+    if (st === 'open') return true;
     if (st !== 'ready' && st !== 'confirmed') return false;
     const nm = (p.name || '').trim();
     if (!nm || nm.toLowerCase() === 'tbd') return false;
@@ -4561,7 +4581,7 @@ function buildOrgTreeFromDirectory(people) {
       name: p.name || 'TBD',
       role: p.role || (p.vertical ? (p.vertical + ' Lead') : 'TBD'),
       tier,
-      status: confirmed ? 'confirmed' : 'tbd',
+      status: confirmed ? 'confirmed' : ((p.status || '') === 'open' ? 'open' : 'tbd'),
       region: (p.region || 'usa'),
       expanded: true,
       children: (childrenOf[p.id] || [])
