@@ -4952,8 +4952,8 @@ function renderProspects() {
  <td>
  <div class="prospect-actions">
  <button class="btn btn-light" style="padding:3px 7px;font-size:10px;background:#e8f4fd;color:#2d6a9f;border:1px solid #7ab3d9" onclick="openProspect('${p.id}')">Edit</button>
- <button class="btn btn-light" title="${p.email ? 'Email ' + esc(p.name||'') + ' their profile link' : 'No email on file — copies the link instead'}" style="padding:3px 7px;font-size:10px;background:${p.email ? '#e9f7ef' : '#fdf6e3'};color:${p.email ? '#1e7e46' : '#8a6d1f'};border:1px solid ${p.email ? '#a8ddc0' : '#e6d9a8'}" onclick="dirSendOnboardLink('${p.id}',event)">${p.email ? 'Send Link' : 'Copy Link'}</button>
- <button class="btn btn-light" title="Copy the profile link" style="padding:3px 7px;font-size:10px;background:#f4f6f8;color:#4b5563;border:1px solid #d7dde5" onclick="dirCopyOnboardLink('${p.id}',event)">⧉</button>
+ <button class="btn btn-light" title="${p.email ? 'Email ' + esc(p.name||'') + ' their own profile link (' + esc(p.email) + ')' : 'No email on file for ' + esc(p.name||'') + ' — this copies their own profile link so you can paste it into WhatsApp or a text'}" style="padding:3px 7px;font-size:10px;background:${p.email ? '#e9f7ef' : '#fdf6e3'};color:${p.email ? '#1e7e46' : '#8a6d1f'};border:1px solid ${p.email ? '#a8ddc0' : '#e6d9a8'}" onclick="dirSendOnboardLink('${p.id}',event)">${p.email ? 'Email Link' : 'Copy Link'}</button>
+ ${p.email ? `<button class="btn btn-light" title="Copy ${esc(p.name||'')}'s profile link instead of emailing it" style="padding:3px 7px;font-size:10px;background:#f4f6f8;color:#4b5563;border:1px solid #d7dde5" onclick="dirCopyOnboardLink('${p.id}',event)">⧉</button>` : ''}
  <button class="btn btn-light" style="padding:3px 7px;font-size:10px;background:#fff0f0;color:#c0392b;border:1px solid #e8a0a0" onclick="deleteProspect('${p.id}')">×</button>
  </div>
  </td>
