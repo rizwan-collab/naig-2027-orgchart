@@ -4863,7 +4863,9 @@ function pStatusBadge(s) {
   if (s === 'contacted-denied')   return '<span class="badge badge-contacted" style="background:#fef0f0;color:#c0392b;border-color:#e8a0a0">Contacted - Denied</span>';
   if (s === 'approved-onboarding')return '<span class="badge badge-confirmed" style="background:#e8f4fd;color:#1a4a7a;border-color:#7ab3d9">Approved - Pending Onboarding</span>';
   if (s === 'declined')  return '<span class="badge" style="background:#fef0f0;color:#c0392b;border:1px solid #e8a0a0">Declined</span>';
-  if (s === 'ready')     return '<span class="badge badge-confirmed" style="background:#d4edda;color:#155724;border:1px solid #a8d9c0">Confirmed</span>';
+  if (s === 'ready' || s === 'confirmed')
+                         return '<span class="badge badge-confirmed" style="background:#d4edda;color:#155724;border:1px solid #a8d9c0">Confirmed</span>';
+  if (s === 'open')      return '<span class="badge" style="background:#f1f5f9;color:#475569;border:1px dashed #94a3b8">Open Role</span>';
   if (s === 'contacted') return '<span class="badge badge-contacted">Contacted</span>';
   return '<span class="badge badge-prospect">Prospect</span>';
 }
@@ -4894,6 +4896,23 @@ function renderProspects() {
   const f = {status:val('prospectStatusFilter'), vertical:val('dirFilterTeam'), roleType:val('dirFilterRoleType'),
              city:val('dirFilterRegion'), region:val('dirFilterCountry'), gender:val('dirFilterGender'), ageRange:val('dirFilterAge')};
   Object.keys(f).forEach(k => { if (f[k]) list = list.filter(p => (p[k] || '') === f[k]); });
+
+  // Default order: Confirmed at the top, then the seats still being worked, then
+  // Declined at the bottom. Alphabetical inside each band. The table used to come
+  // out in insertion order, so a Lead confirmed yesterday sat below a stack of
+  // prospects entered months ago and you had to hunt for the people in post.
+  const DIR_STATUS_RANK = {
+    ready:0, confirmed:0, 'approved-onboarding':1, open:2,
+    contacted:3, 'pending-acceptance':3, 'pending-approval':3, 'prospect-approved':4,
+    prospect:5, 'prospect-waiting':5, tbd:5,
+    declined:9, 'contacted-denied':9
+  };
+  const dirRank = p => {
+    const r = DIR_STATUS_RANK[(p && p.status) || 'prospect'];
+    return (r === undefined) ? 5 : r;       // unknown status sorts with prospects
+  };
+  list = list.slice().sort((a, b) =>
+    dirRank(a) - dirRank(b) || (a.name || '').localeCompare(b.name || ''));
 
   renderDirStats(list, all);
 
