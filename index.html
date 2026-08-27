@@ -21,7 +21,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getDatabase, ref, set, remove, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey:            "AIzaSyC16ftKuUYRkwexYYUuk0i5fYsxxVzI_eU",
@@ -52,17 +52,42 @@
   // This is deliberately non-blocking: if auth is not enabled in the console yet,
   // the app carries on exactly as before rather than showing everyone a dead page.
   const auth = getAuth(app);
-  window._authReady = false;
+  window._auth = auth;
+
+  // ── Who is signed in ───────────────────────────────────────────────────────
+  // Google verifies the address, so the email on someone's record is real rather
+  // than whatever they typed. The Directory still decides ACCESS -- Google only
+  // decides IDENTITY. Those are different jobs and keeping them apart is what
+  // lets Rizwan approve people without managing passwords.
+  window._gUser = null;
   onAuthStateChanged(auth, (u) => {
-    window._authUid   = u ? u.uid : null;
-    window._authReady = !!u;
+    // Anonymous sessions are not a signed-in person. Treat them as nobody.
+    window._gUser = (u && !u.isAnonymous) ? {
+      uid: u.uid, email: (u.email || '').toLowerCase(),
+      name: u.displayName || '', photo: u.photoURL || ''
+    } : null;
+    window._authReady = true;
+    window.axResolve && window.axResolve();
   });
-  signInAnonymously(auth).catch((e) => {
-    // Most likely cause: Anonymous sign-in is not switched on in the Firebase
-    // console. Log it loudly for whoever is debugging, but do not break the app.
-    console.warn('[NAIG] Anonymous auth unavailable — database rules must stay open until this is enabled in the Firebase console.', e && e.code);
-    window._authError = (e && e.code) || 'unknown';
-  });
+
+  // A popup blocked by the browser is the single most common failure here, and a
+  // silent failure looks identical to "the button is broken". Fall back to a
+  // full-page redirect rather than leaving someone staring at nothing.
+  window._gSignIn = function () {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    return signInWithPopup(auth, provider).catch((e) => {
+      const code = (e && e.code) || '';
+      if (code === 'auth/popup-blocked' || code === 'auth/cancelled-popup-request' ||
+          code === 'auth/operation-not-supported-in-this-environment') {
+        return signInWithRedirect(auth, provider);
+      }
+      window.axSignInError && window.axSignInError(code || 'unknown');
+      throw e;
+    });
+  };
+  window._gSignOut = function () { return signOut(auth); };
+  getRedirectResult(auth).catch(() => {});
 
   const orgRef       = ref(db, 'naig2027/org');
   const prospectsRef = ref(db, 'naig2027/prospects');
@@ -349,6 +374,13 @@
     // Read before anything else so a listener firing on an empty node knows the
     // seed has already run for this project and does not re-create placeholders.
     onValue(ref(db, 'naig2027/seeded'), (snap) => { window._seededFlags = snap.val() || {}; });
+
+    // ── Access requests (people waiting on Rizwan's approval) ──
+    onValue(ref(db, 'naig2027/accessRequests'), (snap) => {
+      window._axRequests = snap.val() || {};
+      window.axRenderManage && window.axRenderManage();
+      window.axUpdatePendingBadge && window.axUpdatePendingBadge();
+    });
 
     // ── Access config (who can see what) ──
     // Live, like everything else: revoke someone's Budget tab and it disappears
@@ -1100,7 +1132,7 @@ html.onboard-mode #onboardScreen { display: block !important; }
  <button class="tab-btn" id="tabscope" onclick="switchTab('scope')">Scope</button>
  <button class="tab-btn" id="tabbrief" onclick="switchTab('brief')">📬 Weekly Brief</button>
  <button class="tab-btn" id="tabchangelog" onclick="switchTab('changelog')">🧾 Change Log</button>
- <span id="axWhoami" onclick="axSignOut()" title="Click to sign out and switch user"
+ <span id="axWhoami" onclick="axDoSignOut()" title="Click to sign out"
    style="display:none;margin-left:auto;align-self:center;font-size:11px;color:#cbd5e1;cursor:pointer;padding:3px 10px;border:1px solid rgba(255,255,255,.25);border-radius:12px"></span>
  <button id="axManageBtn" onclick="axOpenManage()" style="display:none;align-self:center;margin-left:8px;font-size:11px;padding:4px 11px;border-radius:12px;border:1px solid rgba(255,255,255,.25);background:transparent;color:#cbd5e1;cursor:pointer">Access</button>
 </div>
@@ -9813,70 +9845,204 @@ function axApply() {
   if (mgr) mgr.style.display = perms.manageAccess ? '' : 'none';
 }
 
-function axSignIn(email, silent) {
-  if (new URLSearchParams(location.search).get('onboard')) return false;  // not this view
-  const person = axFindByEmail(email);
-  const msg = document.getElementById('axGateMsg');
-  if (!person) {
-    if (!silent && msg) {
-      msg.innerHTML = 'That email is not on anyone in the Directory, so I cannot let you in. ' +
-        'Ask Rizwan to add it to your record — it is the same address the team digest goes to.';
-      msg.style.display = '';
-    }
-    return false;
-  }
-  try { localStorage.setItem('naig_user_email', axEmailKey(email)); } catch (e) {}
-  window._axUser  = person;
-  window._axPerms = axPermsFor(person);
+
+/* ── Google sign-in, Directory matching, approval queue ────────────────────
+   Three outcomes when someone signs in:
+     1. Their Google email matches a Directory record  -> straight in
+     2. No match                                       -> access request queued
+     3. Request already pending                        -> told to wait
+   Rizwan approves from the Access panel. Approving writes the Google-verified
+   email onto the Directory record, so the act of letting someone in is also
+   what fills the blank email field that was blocking them. The Directory fills
+   itself instead of Rizwan chasing 15 addresses.                            */
+
+function axReqKey(email) {
+  return String(email || '').toLowerCase().replace(/[.#$/\[\]]/g, '_');
+}
+
+// Resolve the signed-in Google account against the Directory. Runs on every auth
+// change and every time the Directory or the request queue moves, so a pending
+// person drops straight into the hub the moment they are approved -- no reload.
+function axResolve() {
+  const gu = window._gUser;
   const gate = document.getElementById('axGate');
-  if (gate) gate.style.display = 'none';
-  axApply();
-  return true;
-}
 
-function axSignOut() {
-  try { localStorage.removeItem('naig_user_email'); } catch (e) {}
-  window._axUser = null; window._axPerms = null;
-  const gate = document.getElementById('axGate');
-  if (gate) gate.style.display = 'flex';
-}
+  if (new URLSearchParams(location.search).get('onboard')) return;   // onboarding view
 
-function axGateSubmit() {
-  const el = document.getElementById('axGateEmail');
-  axSignIn(el ? el.value : '', false);
-}
-
-// Boot. The Directory arrives from Firebase asynchronously, so keep trying for
-// a few seconds before deciding an email is unknown -- otherwise the very first
-// load locks out a legitimate user purely on timing.
-function axBoot() {
-  // Onboarding links are the way a new teammate gets INTO the Directory. If the
-  // gate ran here it would demand an email from the exact people who do not have
-  // one on file yet -- a closed loop with no way in. Token holders skip it.
-  if (new URLSearchParams(location.search).get('onboard')) {
-    const g = document.getElementById('axGate');
-    if (g) g.style.display = 'none';
+  if (!gu) {                       // nobody signed in
+    window._axUser = null; window._axPerms = null;
+    if (gate) gate.style.display = 'flex';
+    axShowGateState('signin');
     return;
   }
-  let saved = '';
-  try { saved = localStorage.getItem('naig_user_email') || ''; } catch (e) {}
-  let tries = 0;
-  const tick = setInterval(() => {
-    const ready = (window._prospects || []).length > 0;
-    if (ready && saved && axSignIn(saved, true)) { clearInterval(tick); return; }
-    if (ready || ++tries > 20) {
-      clearInterval(tick);
-      if (!window._axUser) {
-        const gate = document.getElementById('axGate');
-        if (gate) gate.style.display = 'flex';
-        if (saved) {
-          const el = document.getElementById('axGateEmail');
-          if (el) el.value = saved;
-        }
-      }
-    }
-  }, 400);
+
+  if (!(window._prospects || []).length) return;   // directory not loaded yet -- wait
+
+  const person = (window._prospects || []).find(p =>
+    p && String(p.email || '').trim().toLowerCase() === gu.email);
+
+  if (person) {
+    window._axUser  = person;
+    window._axPerms = axPermsFor(person);
+    if (gate) gate.style.display = 'none';
+    axApply();
+    return;
+  }
+
+  // Not matched. Queue a request (once) and hold them on the waiting screen.
+  window._axUser = null; window._axPerms = null;
+  if (gate) gate.style.display = 'flex';
+  const key = axReqKey(gu.email);
+  const existing = (window._axRequests || {})[key];
+  if (!existing && window.hubSave) {
+    window.hubSave('accessRequests', key, {
+      email: gu.email, name: gu.name || '', photo: gu.photo || '',
+      uid: gu.uid, requestedAt: Date.now(), status: 'pending'
+    });
+  }
+  axShowGateState(existing && existing.status === 'denied' ? 'denied' : 'pending');
 }
+
+function axShowGateState(state) {
+  const box = document.getElementById('axGateBody');
+  if (!box) return;
+  const gu = window._gUser;
+  if (state === 'signin') {
+    box.innerHTML = `
+      <div style="font-size:13px;color:#64748b;margin-top:6px;line-height:1.5">
+        Sign in with the Google account on your record in the team Directory.
+      </div>
+      <button onclick="axDoSignIn()" style="width:100%;margin-top:16px;padding:11px;border:1px solid #dadce0;border-radius:8px;background:#fff;color:#3c4043;font-weight:600;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px">
+        <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+        Continue with Google
+      </button>
+      <div id="axGateMsg" style="display:none;margin-top:10px;font-size:12px;color:#b91c1c;line-height:1.5"></div>`;
+    return;
+  }
+  if (state === 'pending') {
+    box.innerHTML = `
+      <div style="margin-top:14px;background:#fff8ec;border:1px solid #f0d9a8;border-radius:8px;padding:14px">
+        <div style="font-weight:700;color:#8a6d1f;font-size:14px">Access requested</div>
+        <div style="font-size:13px;color:#64748b;margin-top:6px;line-height:1.5">
+          You're signed in as <strong>${esc(gu ? gu.email : '')}</strong>, but that address isn't on a record in the team Directory yet.
+          Rizwan has been sent a request. You'll get in as soon as he approves it — you don't need to do anything else.
+        </div>
+      </div>
+      <button onclick="axDoSignOut()" style="width:100%;margin-top:12px;padding:9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#475569;font-size:13px;cursor:pointer">Sign in with a different account</button>`;
+    return;
+  }
+  box.innerHTML = `
+    <div style="margin-top:14px;background:#fef2f2;border:1px solid #e8a0a0;border-radius:8px;padding:14px">
+      <div style="font-weight:700;color:#b91c1c;font-size:14px">Access declined</div>
+      <div style="font-size:13px;color:#64748b;margin-top:6px;line-height:1.5">
+        <strong>${esc(gu ? gu.email : '')}</strong> was not approved for this hub. If you think that's wrong, speak to Rizwan directly.
+      </div>
+    </div>
+    <button onclick="axDoSignOut()" style="width:100%;margin-top:12px;padding:9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#475569;font-size:13px;cursor:pointer">Sign in with a different account</button>`;
+}
+
+function axDoSignIn()  { window._gSignIn && window._gSignIn().catch(() => {}); }
+function axDoSignOut() { window._gSignOut && window._gSignOut(); }
+function axSignInError(code) {
+  const m = document.getElementById('axGateMsg');
+  if (!m) return;
+  m.textContent = code === 'auth/unauthorized-domain'
+    ? 'This site is not on the Firebase authorised-domains list yet. Rizwan needs to add it in the console.'
+    : 'Sign-in failed (' + code + '). Try again, or use a different account.';
+  m.style.display = '';
+}
+
+/* ── Approval queue in the Access panel ─────────────────────────────────── */
+function axPendingCount() {
+  return Object.values(window._axRequests || {}).filter(r => r && r.status === 'pending').length;
+}
+function axUpdatePendingBadge() {
+  const b = document.getElementById('axManageBtn');
+  if (!b) return;
+  const n = axPendingCount();
+  b.textContent = n ? ('Access · ' + n) : 'Access';
+  b.style.background = n ? '#BF1B2A' : 'transparent';
+  b.style.color = n ? '#fff' : '#cbd5e1';
+  b.style.borderColor = n ? '#BF1B2A' : 'rgba(255,255,255,.25)';
+}
+
+function axRenderRequests() {
+  const wrap = document.getElementById('axRequests');
+  if (!wrap) return;
+  const reqs = Object.entries(window._axRequests || {})
+    .filter(([k, r]) => r && r.status === 'pending')
+    .sort((a, b) => (a[1].requestedAt || 0) - (b[1].requestedAt || 0));
+  if (!reqs.length) { wrap.innerHTML = ''; return; }
+
+  wrap.innerHTML = `<div style="background:#fff8ec;border:1px solid #f0d9a8;border-radius:10px;padding:14px 16px;margin-bottom:16px">
+    <div style="font-weight:700;color:#8a6d1f;font-size:13px;margin-bottom:4px">${reqs.length} waiting for approval</div>
+    <div style="font-size:12px;color:#64748b;margin-bottom:10px">Approving writes their Google-verified email onto their Directory record. If they're not in the Directory, pick who they are — or add them as a new person.</div>
+    ${reqs.map(([k, r]) => {
+      const unmatched = (window._prospects || [])
+        .filter(p => p && !String(p.email || '').trim())
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      return `<div style="display:flex;gap:12px;align-items:center;padding:9px 0;border-top:1px solid #f0e4c8">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:13px;color:#0f172a">${esc(r.name || '(no name)')}</div>
+          <div style="font-size:11px;color:#64748b">${esc(r.email)}</div>
+        </div>
+        <select id="axReqMatch_${esc(k)}" style="font-size:11px;padding:4px 6px;max-width:230px">
+          <option value="">— who is this? —</option>
+          ${unmatched.map(p => `<option value="${esc(p.id)}">${esc(p.name)} · ${esc(p.role || '')}</option>`).join('')}
+          <option value="__new__">+ Add as a new person</option>
+        </select>
+        <button onclick="axApproveRequest('${esc(k)}')" style="font-size:11px;padding:5px 12px;border-radius:6px;border:1px solid #a8d9c0;background:#e9f7ef;color:#1e7e46;font-weight:600;cursor:pointer">Approve</button>
+        <button onclick="axDenyRequest('${esc(k)}')" style="font-size:11px;padding:5px 10px;border-radius:6px;border:1px solid #e8a0a0;background:#fff0f0;color:#c0392b;cursor:pointer">Deny</button>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function axApproveRequest(key) {
+  const r = (window._axRequests || {})[key];
+  if (!r) return;
+  const sel = document.getElementById('axReqMatch_' + key);
+  const choice = sel ? sel.value : '';
+  if (!choice) { alert('Pick who this is first, or choose "Add as a new person".'); return; }
+
+  if (choice === '__new__') {
+    const id = 'p-' + Date.now();
+    (window._prospects = window._prospects || []).push({
+      id, name: r.name || r.email, email: r.email, role: '', roleType: '',
+      vertical: '', status: 'ready', region: 'usa',
+      added: new Date().toISOString().slice(0, 10),
+      notes: 'Added by approving an access request on ' + new Date().toLocaleDateString('en-US')
+    });
+    window.logActivity && window.logActivity('access', 'Approved access for ' + (r.name || r.email) + ' and added them to the Directory');
+  } else {
+    const p = (window._prospects || []).find(x => x && x.id === choice);
+    if (!p) return;
+    p.email = r.email;                       // Google-verified, so this is trustworthy
+    window.logActivity && window.logActivity('access', 'Approved access for ' + (p.name || r.email) + ' — email captured from their Google account');
+  }
+  window.saveProspectsLocal && window.saveProspectsLocal();
+  window.hubSave && window.hubSave('accessRequests', key, Object.assign({}, r, { status: 'approved', decidedAt: Date.now() }));
+  axResolve();
+}
+
+function axDenyRequest(key) {
+  const r = (window._axRequests || {})[key];
+  if (!r) return;
+  window.hubSave && window.hubSave('accessRequests', key, Object.assign({}, r, { status: 'denied', decidedAt: Date.now() }));
+  window.logActivity && window.logActivity('access', 'Denied access request from ' + (r.email || key));
+}
+
+window.axResolve          = axResolve;
+window.axShowGateState    = axShowGateState;
+window.axDoSignIn         = axDoSignIn;
+window.axDoSignOut        = axDoSignOut;
+window.axSignInError      = axSignInError;
+window.axRenderRequests   = axRenderRequests;
+window.axApproveRequest   = axApproveRequest;
+window.axDenyRequest      = axDenyRequest;
+window.axUpdatePendingBadge = axUpdatePendingBadge;
+window.axPendingCount     = axPendingCount;
+
 
 /* ── Admin panel: the checkbox matrix ────────────────────────────────────── */
 function axOpenManage() {
@@ -9889,6 +10055,7 @@ function axCloseManage() {
   if (m) m.style.display = 'none';
 }
 function axRenderManage() {
+  axRenderRequests();
   const wrap = document.getElementById('axManageBody');
   if (!wrap) return;
   const people = (window._prospects || [])
@@ -9979,8 +10146,6 @@ window.seedOnce = seedOnce;
 window.axPermsFor = axPermsFor;
 window.axApply = axApply;
 window.axRenderManage = axRenderManage;
-window.axSignOut = axSignOut;
-window.axGateSubmit = axGateSubmit;
 window.axOpenManage = axOpenManage;
 window.axCloseManage = axCloseManage;
 window.axSetTier = axSetTier;
@@ -9988,7 +10153,7 @@ window.axToggleTab = axToggleTab;
 window.axSetEdit = axSetEdit;
 window.axResetPerson = axResetPerson;
 
-document.addEventListener('DOMContentLoaded', axBoot);
+document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin'); axResolve(); });
 </script>
 
 <!-- ══════════ HUB MODALS ══════════ -->
@@ -10772,19 +10937,9 @@ document.addEventListener('DOMContentLoaded', axBoot);
 <div id="axGate" style="display:none;position:fixed;inset:0;z-index:9000;background:#0f172a;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:14px;max-width:460px;width:100%;padding:28px 30px;box-shadow:0 20px 60px rgba(0,0,0,.4)">
     <div style="font-family:'Outfit',sans-serif;font-weight:700;font-size:20px;color:#1E3A8A">NAIG 2027 — Logistics Hub</div>
-    <div style="font-size:13px;color:#64748b;margin-top:6px;line-height:1.5">
-      Enter the email address on your record in the team Directory. If you are on the team, you are in — there is no password to remember.
-    </div>
-    <input id="axGateEmail" type="email" placeholder="you@example.com" autocomplete="email"
-      onkeydown="if(event.key==='Enter')axGateSubmit()"
-      style="width:100%;box-sizing:border-box;margin-top:16px;padding:11px 13px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px">
-    <div id="axGateMsg" style="display:none;margin-top:10px;font-size:12px;color:#b91c1c;line-height:1.5"></div>
-    <button onclick="axGateSubmit()"
-      style="width:100%;margin-top:14px;padding:11px;border:0;border-radius:8px;background:#BF1B2A;color:#fff;font-weight:700;font-size:14px;cursor:pointer">
-      Continue
-    </button>
-    <div style="font-size:11px;color:#94a3b8;margin-top:14px;line-height:1.5">
-      This controls which tabs you see. It is not a security boundary — the database itself is still open. Do not treat this page as a safe place for anything confidential.
+    <div id="axGateBody"></div>
+    <div style="font-size:11px;color:#94a3b8;margin-top:16px;line-height:1.5">
+      Access is controlled by the team Directory. Signing in proves who you are; Rizwan decides what you can see.
     </div>
   </div>
 </div>
@@ -10800,6 +10955,7 @@ document.addEventListener('DOMContentLoaded', axBoot);
       Pick a tier to set someone in one move, or tick individual tabs for a custom set. Changes save and take effect immediately — including for anyone who has the page open right now.
       Anyone without an email on their Directory record <strong>cannot sign in at all</strong>, whatever you tick here.
     </div>
+    <div id="axRequests"></div>
     <div id="axManageBody" style="overflow-x:auto"></div>
   </div>
 </div>
