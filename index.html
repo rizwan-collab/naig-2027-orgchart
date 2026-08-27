@@ -6137,8 +6137,28 @@ function saveOnboardContact(personId) {
 // ── Send someone their own profile link, straight from the Directory ───────
 // Everything here works off the DIRECTORY record, not the org tree, because the
 // people who most need this link are the ones not yet confirmed.
+// The token is opaque on purpose, which means a bare link tells you nothing about
+// who it belongs to -- paste three of them into WhatsApp and you cannot tell them
+// apart. So the person's name rides along in a "for" slug. It is decoration only:
+// the lookup reads ONLY the token, so editing or dropping the slug can never
+// resolve a link to the wrong person, and cannot break a link already sent.
+function dirNameSlug(rec) {
+  return String((rec && rec.name) || '').trim()
+    .replace(/[^A-Za-z0-9 ]+/g, '')
+    .replace(/\s+/g, '-')
+    .slice(0, 40);
+}
 function dirOnboardUrl(rec) {
-  return location.origin + location.pathname + '?onboard=' + rec.onboardToken;
+  const base = location.origin + location.pathname + '?onboard=' + rec.onboardToken;
+  const slug = dirNameSlug(rec);
+  return slug ? (base + '&for=' + encodeURIComponent(slug)) : base;
+}
+// What actually lands on the clipboard: the name, then the link. You are pasting
+// this into a chat window, and "here is your link" with no name attached is how
+// the wrong person ends up filling in someone else's profile.
+function dirOnboardShareText(rec) {
+  const nm = String((rec && rec.name) || '').trim();
+  return nm ? (nm + ' — ' + dirOnboardUrl(rec)) : dirOnboardUrl(rec);
 }
 function dirEnsureToken(id) {
   const rec = (window._prospects || []).find(x => x && x.id === id);
@@ -6175,14 +6195,15 @@ function dirSendOnboardLink(id, ev) {
   // No email on file: put the link on the clipboard so it can still be sent by
   // text or WhatsApp. Failing silently here would be the worst outcome.
   if (!email) {
+    const share = dirOnboardShareText(rec);
     const done = () => dirToast('No email on file for ' + (rec.name || 'this person') +
-      ' — link copied to your clipboard instead.', false);
+      ' — copied "' + (rec.name || '') + ' — <link>" to your clipboard instead.', false);
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(url).then(done).catch(() => {
-        window.prompt('No email on file. Copy this link:', url);
+      navigator.clipboard.writeText(share).then(done).catch(() => {
+        window.prompt('No email on file. Copy this — it is labelled with their name:', share);
       });
     } else {
-      window.prompt('No email on file. Copy this link:', url);
+      window.prompt('No email on file. Copy this — it is labelled with their name:', share);
     }
     return;
   }
@@ -6204,13 +6225,13 @@ function dirCopyOnboardLink(id, ev) {
   if (ev) ev.stopPropagation();
   const rec = dirEnsureToken(id);
   if (!rec) return;
-  const url = dirOnboardUrl(rec);
+  const share = dirOnboardShareText(rec);
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(url)
-      .then(() => dirToast('Profile link copied for ' + (rec.name || ''), true))
-      .catch(() => window.prompt('Copy this link:', url));
+    navigator.clipboard.writeText(share)
+      .then(() => dirToast('Copied — labelled "' + (rec.name || '') + '" so you can tell it apart', true))
+      .catch(() => window.prompt('Copy this — it is labelled with their name:', share));
   } else {
-    window.prompt('Copy this link:', url);
+    window.prompt('Copy this — it is labelled with their name:', share);
   }
 }
 // The one shared URL. No token to mint -- 'team' is a fixed sentinel that
@@ -6810,8 +6831,56 @@ function _buildBriefModel(windowDays) {
   const hotelChanges   = log.filter(e => e.type === 'hotel');
   const planChanges    = log.filter(e => e.type === 'plan');
 
+  // ── Where we are in the plan ────────────────────────────────────────────────
+  // A brief that only reports the last seven days answers "what moved" but never
+  // "are we on track". Weeks-before-event is the one number that orients everyone
+  // in a sentence, and it is what the whole Planning Timeline is keyed to.
+  // GAMES_DATE is declared further down in this same script block. It is a const,
+  // so it is initialised at load; this function only ever runs on user action or
+  // after render, long after that. One date, one definition -- do not add a second.
+  const daysToGames = Math.ceil((GAMES_DATE - now) / 86400000);
+  const wbe = Math.floor(daysToGames / 7);
+
+  // ── Plan milestones: overdue now, and landing in the next three weeks ───────
+  const milestones = ((window._planData || {}).milestones) || {};
+  const msDone = s => /^(done|complete|completed)$/i.test(String(s || ''));
+  const milestonesOverdue = [], milestonesDueSoon = [];
+  Object.values(milestones).forEach(ms => {
+    if (!ms || !ms.due || msDone(ms.status)) return;
+    const du = _daysUntil(ms.due);
+    if (du === null) return;
+    const row = { title: ms.title, dept: ms.dept, owner: ms.owner, due: ms.due,
+                  wbe: ms.wbe, priority: ms.priority, daysUntil: du };
+    if (du < 0) { row.daysOverdue = -du; milestonesOverdue.push(row); }
+    else if (du <= 21) milestonesDueSoon.push(row);
+  });
+  milestonesOverdue.sort((a,b) => b.daysOverdue - a.daysOverdue);
+  milestonesDueSoon.sort((a,b) => a.daysUntil - b.daysUntil);
+
+  // ── Vacancies that are actually blocking dated work ─────────────────────────
+  // An empty seat is only news if something is waiting on it. Match Open Roles in
+  // the Directory to the milestones whose owner label names that role, so the
+  // brief says "Transportation Lead is vacant AND owns 2 overdue milestones"
+  // rather than the much weaker "Transportation Lead is vacant".
+  const openRoles = (window._prospects || [])
+    .filter(p => p && p.status === 'open')
+    .map(p => {
+      const role = String(p.role || '');
+      const key = role.replace(/\s+/g, ' ').trim().toLowerCase();
+      const owned = Object.values(milestones).filter(ms =>
+        ms && !msDone(ms.status) && String(ms.owner || '').toLowerCase() === key);
+      const late = owned.filter(ms => { const d = _daysUntil(ms.due); return d !== null && d < 0; });
+      return { role, vertical: p.vertical || '', owns: owned.length, overdue: late.length };
+    })
+    .sort((a,b) => b.overdue - a.overdue || b.owns - a.owns);
+
   // ── Snapshot counters (current, not delta yet) ──
   const stats = {
+    daysToGames,
+    wbe,
+    milestonesTotal:   Object.keys(milestones).length,
+    milestonesDone:    Object.values(milestones).filter(ms => ms && msDone(ms.status)).length,
+    milestonesOverdue: milestonesOverdue.length,
     venues:       Object.keys(venues).length,
     venuesConfirmed:    Object.values(venues).filter(v => _briefTierOf(v.status) === 'Confirmed').length,
     venuesPending:      Object.values(venues).filter(v => _briefTierOf(v.status) === 'Pending Deposit').length,
@@ -6826,6 +6895,9 @@ function _buildBriefModel(windowDays) {
   return {
     window: { days: windowDays, start: new Date(windowStart), end: new Date(now) },
     stats,
+    milestonesOverdue,
+    milestonesDueSoon,
+    openRoles,
     blockers,
     contracts,
     venueByTier,
@@ -6857,6 +6929,18 @@ function _briefHtml(m) {
     <div style="font-weight:700;color:#1e293b;margin-bottom:6px">📊 Snapshot</div>
     <div>Venues: <strong>${m.stats.venues}</strong> total &nbsp;·&nbsp; <span style="color:#155724">${m.stats.venuesConfirmed} confirmed</span> &nbsp;·&nbsp; <span style="color:#084298">${m.stats.venuesPending} pending deposit</span> &nbsp;·&nbsp; <span style="color:#856404">${m.stats.venuesInWorks} in works</span></div>
     <div>Tasks: <strong>${m.stats.tasksOpen}</strong> open &nbsp;·&nbsp; <span style="color:#b91c1c">${m.stats.tasksOverdue} overdue</span> &nbsp;·&nbsp; <span style="color:#b91c1c">${m.stats.tasksBlocked} blocked</span></div>
+    <div>Plan: <strong>${m.stats.milestonesDone}/${m.stats.milestonesTotal}</strong> milestones done &nbsp;·&nbsp; <span style="color:#b91c1c">${m.stats.milestonesOverdue} overdue</span></div>
+  </div>`);
+
+  // Where we are. This goes above everything else on purpose: a lead scanning the
+  // brief on a phone should get the one orienting number before any detail.
+  const wbeTone = m.stats.milestonesOverdue > 0 ? '#b91c1c' : '#155724';
+  h.push(`<div style="background:${m.stats.milestonesOverdue>0?'#fef2f2':'#f0fdf4'};border-left:4px solid ${wbeTone};border-radius:6px;padding:12px 14px;margin-bottom:20px;font-size:13px;color:#1e293b">
+    <div style="font-weight:700;margin-bottom:4px">📅 Where we are</div>
+    <div><strong>${m.stats.daysToGames} days</strong> to Games Week (Mar 25–28, 2027) — that is <strong>WBE ${m.stats.wbe}</strong> on the planning timeline.</div>
+    ${m.stats.milestonesOverdue > 0
+      ? `<div style="color:${wbeTone};margin-top:4px"><strong>${m.stats.milestonesOverdue} milestones are past due.</strong> The oldest has been open ${m.milestonesOverdue[0] ? m.milestonesOverdue[0].daysOverdue : 0} days.</div>`
+      : `<div style="color:${wbeTone};margin-top:4px">Nothing past due.</div>`}
   </div>`);
 
   function section(title, count, body) {
@@ -6867,6 +6951,20 @@ function _briefHtml(m) {
     return `<ul style="margin:0;padding-left:20px">${arr.map(x=>`<li style="margin-bottom:3px">${fn(x)}</li>`).join('')}</ul>`;
   }
   const esc2 = s => String(s == null ? '' : s).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  h.push(section('🔴 Plan Milestones Past Due', m.milestonesOverdue.length,
+    bullets(m.milestonesOverdue.slice(0, 12), ms =>
+      `<strong>${esc2(ms.title)}</strong> — <span style="color:#b91c1c">${ms.daysOverdue}d overdue</span> · ${esc2(ms.wbe || '')} · ${esc2(ms.owner || 'unassigned')}${ms.priority === 'critical' ? ' <span style="color:#b91c1c;font-weight:700">CRITICAL</span>' : ''}`)
+    + (m.milestonesOverdue.length > 12 ? `<div style="font-size:12px;color:#64748b;margin-top:6px">…and ${m.milestonesOverdue.length - 12} more in the Project Plan tab.</div>` : '')));
+
+  h.push(section('📌 Milestones Landing in the Next 3 Weeks', m.milestonesDueSoon.length,
+    bullets(m.milestonesDueSoon.slice(0, 10), ms =>
+      `<strong>${esc2(ms.title)}</strong> — due ${esc2(ms.due)} (in ${ms.daysUntil}d) · ${esc2(ms.wbe || '')} · ${esc2(ms.owner || 'unassigned')}${ms.priority === 'critical' ? ' <span style="color:#b91c1c;font-weight:700">CRITICAL</span>' : ''}`)));
+
+  const blockingRoles = (m.openRoles || []).filter(r => r.owns > 0);
+  h.push(section('👤 Vacant Seats Holding Up Work', blockingRoles.length,
+    bullets(blockingRoles, r =>
+      `<strong>${esc2(r.role)}</strong>${r.vertical ? ' · ' + esc2(r.vertical) : ''} — owns ${r.owns} open milestone${r.owns === 1 ? '' : 's'}${r.overdue ? `, <span style="color:#b91c1c">${r.overdue} already overdue</span>` : ''}`)));
 
   h.push(section('🚨 Blockers & Escalations', m.blockers.length,
     bullets(m.blockers, b => b.reason === 'overdue'
@@ -6930,6 +7028,18 @@ function _briefMarkdown(m) {
     arr.forEach(x => out.push('- ' + fn(x)));
     out.push('');
   }
+
+  out.push(`**Where we are** — ${m.stats.daysToGames} days to Games Week (Mar 25–28, 2027), which is WBE ${m.stats.wbe}. Plan: ${m.stats.milestonesDone}/${m.stats.milestonesTotal} milestones done, ${m.stats.milestonesOverdue} past due.`);
+  out.push('');
+
+  sec('Plan Milestones Past Due', m.milestonesOverdue.slice(0, 12), ms =>
+    `**${ms.title}** — ${ms.daysOverdue}d overdue · ${ms.wbe || ''} · ${ms.owner || 'unassigned'}${ms.priority === 'critical' ? ' · CRITICAL' : ''}`);
+
+  sec('Milestones Landing in the Next 3 Weeks', m.milestonesDueSoon.slice(0, 10), ms =>
+    `**${ms.title}** — due ${ms.due} (in ${ms.daysUntil}d) · ${ms.wbe || ''} · ${ms.owner || 'unassigned'}${ms.priority === 'critical' ? ' · CRITICAL' : ''}`);
+
+  sec('Vacant Seats Holding Up Work', (m.openRoles || []).filter(r => r.owns > 0), r =>
+    `**${r.role}**${r.vertical ? ' · ' + r.vertical : ''} — owns ${r.owns} open milestone${r.owns === 1 ? '' : 's'}${r.overdue ? `, ${r.overdue} already overdue` : ''}`);
 
   sec('Blockers & Escalations', m.blockers, b => b.reason === 'overdue'
     ? `**${b.title}** — overdue by ${b.daysOverdue}d${b.owner?' · '+b.owner:''} (due ${b.due})`
