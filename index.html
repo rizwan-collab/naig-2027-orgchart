@@ -82,6 +82,7 @@
     saveRoleCatalog:   (data) => set(roleCatalogRef, data),
     listenActivityLog: (cb) => onValue(activityLogRef, snap => cb(snap.val())),
     saveActivityLog:   (data) => set(activityLogRef, data),
+    listenAccess:      (cb) => onValue(ref(db, 'naig2027/access/config'), snap => cb(snap.val())),
     listenDirMigrationFlag: (cb) => onValue(dirMigrationRef, snap => cb(snap.val())),
     setDirMigrationFlag:    (val) => set(dirMigrationRef, val),
   };
@@ -315,6 +316,19 @@
       });
     });
 
+    // ── Access config (who can see what) ──
+    // Live, like everything else: revoke someone's Budget tab and it disappears
+    // from their screen without them reloading.
+    window._fb.listenAccess((data) => {
+      window._axConfig = data || { overrides: {} };
+      if (window._axUser && window.axPermsFor) {
+        window._axPerms = window.axPermsFor(window._axUser);
+        window.axApply && window.axApply();
+      }
+      window.axRenderManage && document.getElementById('axManage') &&
+        document.getElementById('axManage').style.display !== 'none' && window.axRenderManage();
+    });
+
     // ── Activity log (shared feed for Dashboard + Notifications) ──
     window._fb.listenActivityLog((data) => {
       const incoming = Array.isArray(data) ? data : [];
@@ -419,6 +433,18 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .pl-card.rt-venue  { border-top-color:#7b3f00; }
 .pl-card.is-root   { border-top-color:#BF1B2A; width:196px; }
 /* An unfilled seat has to look unfilled at a glance, or it reads as a person. */
+
+/* Read-only mode: someone whose tier cannot edit still sees the data, but the
+   controls that would write are inert. Belt and braces with the switchTab guard. */
+body.ax-readonly button[onclick*="save"],
+body.ax-readonly button[onclick*="Save"],
+body.ax-readonly button[onclick*="delete"],
+body.ax-readonly button[onclick*="Delete"],
+body.ax-readonly button[onclick*="openProspect"],
+body.ax-readonly button[onclick*="Add"],
+body.ax-readonly .btn-add { pointer-events:none; opacity:.35; }
+body.ax-readonly input, body.ax-readonly select, body.ax-readonly textarea { pointer-events:none; background:#f8fafc; }
+body.ax-readonly #axGateEmail, body.ax-readonly #prospectSearch { pointer-events:auto; background:#fff; }
 .pl-card.pl-open   { border-style:dashed; border-color:#94a3b8; background:#fbfcfd; }
 .pl-card.pl-open .pl-nm { color:#64748b; font-style:italic; }
 .pl-card.is-root .pl-nm { font-size:15px; }
@@ -1033,6 +1059,9 @@ html.onboard-mode #onboardScreen { display: block !important; }
  <button class="tab-btn" id="tabbudget" onclick="switchTab('budget')">Budget</button>
  <button class="tab-btn" id="tabscope" onclick="switchTab('scope')">Scope</button>
  <button class="tab-btn" id="tabbrief" onclick="switchTab('brief')">📬 Weekly Brief</button>
+ <span id="axWhoami" onclick="axSignOut()" title="Click to sign out and switch user"
+   style="display:none;margin-left:auto;align-self:center;font-size:11px;color:#cbd5e1;cursor:pointer;padding:3px 10px;border:1px solid rgba(255,255,255,.25);border-radius:12px"></span>
+ <button id="axManageBtn" onclick="axOpenManage()" style="display:none;align-self:center;margin-left:8px;font-size:11px;padding:4px 11px;border-radius:12px;border:1px solid rgba(255,255,255,.25);background:transparent;color:#cbd5e1;cursor:pointer">Access</button>
 </div>
 
 <!-- Stats Bar -->
@@ -6617,6 +6646,13 @@ window.exportPlanCSV    = exportPlanCSV;
    HUB — Tab Switcher
 ══════════════════════════════════════════════════════════ */
 function switchTab(tab) {
+  // Access gate. Hiding a tab button is not enough on its own -- switchTab is
+  // reachable from links, from code, and from the console -- so the check lives
+  // here too. Custom modules are not part of the tab matrix and stay open.
+  if (window._axPerms && typeof tab === 'string' && tab.indexOf('custom_') !== 0) {
+    if (window._axPerms.tabs.indexOf(tab) < 0) return;
+  }
+  window._axCurrentTab = tab;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   const isCustom = typeof tab === 'string' && tab.indexOf('custom_') === 0;
   const tabMap = { dashboard:'tabdashboard', orgchart:'taborg', plan:'tabplan', tasks:'tabtasks', venues:'tabvenues', vendors:'tabvendors',
@@ -9398,6 +9434,278 @@ window.addEventListener('load', function() {
     }
   }, 1500); // Wait 1.5s for Firebase to connect + deliver initial snapshots
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ACCESS CONTROL
+   ──────────────────────────────────────────────────────────────────────────
+   HONEST LIMITATION, READ THIS FIRST: this is a front-of-house gate, not
+   security. The Firebase database rules are still open, so anyone who knows
+   the database URL can read or rewrite everything without ever loading this
+   page. What this layer does is stop the wrong teammate seeing the wrong tab
+   and stop accidental edits. It does NOT protect the data from someone who
+   is actually trying. Closing that hole means turning on Firebase Auth and
+   writing real rules — still outstanding.
+
+   How it works: you sign in with your email. If that email is on a person in
+   the Directory, you are in. If it is not, you are not. That is the whole
+   membership rule -- the Directory is already the single source of truth for
+   who is on this team, so access piggybacks on it rather than becoming a
+   second list that drifts out of sync.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+const AX_TABS = [
+  { key:'dashboard', label:'Dashboard' },
+  { key:'orgchart',  label:'Org Chart' },
+  { key:'plan',      label:'Project Plan' },
+  { key:'tasks',     label:'Team Tasks' },
+  { key:'venues',    label:'Venues' },
+  { key:'vendors',   label:'Vendors' },
+  { key:'hotels',    label:'Hotels' },
+  { key:'transport', label:'Transportation' },
+  { key:'docs',      label:'Documents' },
+  { key:'budget',    label:'Budget' },
+  { key:'scope',     label:'Scope' },
+  { key:'brief',     label:'Weekly Brief' }
+];
+const AX_ALL = AX_TABS.map(t => t.key);
+
+// Tiers are the default. Per-person tick boxes override them. Budget is
+// deliberately absent from lead and member -- money is the one thing that
+// should be an explicit grant rather than something you get by job title.
+const AX_TIERS = {
+  admin:  { label:'Admin — everything, including who sees what', tabs: AX_ALL.slice(), edit:true,  manageAccess:true },
+  core:   { label:'Core Team — everything except access settings', tabs: AX_ALL.slice(), edit:true,  manageAccess:false },
+  lead:   { label:'Vertical Lead — everything but Budget, can edit',
+            tabs: AX_ALL.filter(k => k !== 'budget'), edit:true, manageAccess:false },
+  member: { label:'Team member — read-only on the working tabs',
+            tabs: ['dashboard','orgchart','plan','tasks','venues','hotels','transport','docs','scope'],
+            edit:false, manageAccess:false },
+  viewer: { label:'Viewer — org chart and dashboard only',
+            tabs: ['dashboard','orgchart'], edit:false, manageAccess:false }
+};
+
+window._axConfig = null;      // naig2027/access — { overrides: { personId: {tier, tabs, edit} } }
+window._axUser   = null;      // resolved directory record for whoever is signed in
+window._axPerms  = null;      // { tabs:[], edit:bool, manageAccess:bool, tier:'' }
+
+function axEmailKey(e) { return String(e || '').trim().toLowerCase(); }
+
+// A person's default tier, inferred from their Directory record. Inference only
+// runs when there is no explicit override -- once you tick a box for someone,
+// their record stops moving underneath them.
+function axDefaultTier(p) {
+  if (!p) return 'viewer';
+  const rt = String(p.roleType || '').toLowerCase();
+  const vert = String(p.vertical || '').toLowerCase();
+  if (!p.reportsTo && rt === 'lead') return 'admin';     // whoever sits at the top
+  if (vert === 'core team') return 'core';
+  if (rt === 'lead' || rt === 'deputy') return 'lead';
+  return 'member';
+}
+
+function axPermsFor(person) {
+  if (!person) return { tabs: [], edit:false, manageAccess:false, tier:'none' };
+  const ov = ((window._axConfig || {}).overrides || {})[person.id] || {};
+  const tier = ov.tier || axDefaultTier(person);
+  const base = AX_TIERS[tier] || AX_TIERS.viewer;
+  // An explicit tab list wins over the tier's list. An empty array is a real
+  // answer (no tabs), so check for the array itself, not for truthiness.
+  const tabs = Array.isArray(ov.tabs) ? ov.tabs.slice() : base.tabs.slice();
+  const edit = (typeof ov.edit === 'boolean') ? ov.edit : base.edit;
+  return { tabs, edit, manageAccess: !!base.manageAccess, tier };
+}
+
+function axFindByEmail(email) {
+  const k = axEmailKey(email);
+  if (!k) return null;
+  return (window._prospects || []).find(p => p && axEmailKey(p.email) === k) || null;
+}
+
+function axApply() {
+  const perms = window._axPerms || { tabs: AX_ALL, edit:true, manageAccess:true };
+  const allowed = new Set(perms.tabs);
+  AX_TABS.forEach(t => {
+    const id = 'tab' + (t.key === 'orgchart' ? 'org' : t.key);
+    const btn = document.getElementById(id);
+    if (btn) btn.style.display = allowed.has(t.key) ? '' : 'none';
+  });
+  // If the tab you are standing on is not yours, move -- do not just hide the
+  // button and leave the content on screen.
+  const cur = window._axCurrentTab || 'dashboard';
+  if (!allowed.has(cur)) {
+    const first = AX_TABS.find(t => allowed.has(t.key));
+    if (first && window.switchTab) window.switchTab(first.key);
+  }
+  document.body.classList.toggle('ax-readonly', !perms.edit);
+  const badge = document.getElementById('axWhoami');
+  if (badge && window._axUser) {
+    badge.textContent = (window._axUser.name || window._axUser.email) + ' · ' + (AX_TIERS[perms.tier] ? perms.tier : 'custom');
+    badge.style.display = '';
+  }
+  const mgr = document.getElementById('axManageBtn');
+  if (mgr) mgr.style.display = perms.manageAccess ? '' : 'none';
+}
+
+function axSignIn(email, silent) {
+  const person = axFindByEmail(email);
+  const msg = document.getElementById('axGateMsg');
+  if (!person) {
+    if (!silent && msg) {
+      msg.innerHTML = 'That email is not on anyone in the Directory, so I cannot let you in. ' +
+        'Ask Rizwan to add it to your record — it is the same address the team digest goes to.';
+      msg.style.display = '';
+    }
+    return false;
+  }
+  try { localStorage.setItem('naig_user_email', axEmailKey(email)); } catch (e) {}
+  window._axUser  = person;
+  window._axPerms = axPermsFor(person);
+  const gate = document.getElementById('axGate');
+  if (gate) gate.style.display = 'none';
+  axApply();
+  return true;
+}
+
+function axSignOut() {
+  try { localStorage.removeItem('naig_user_email'); } catch (e) {}
+  window._axUser = null; window._axPerms = null;
+  const gate = document.getElementById('axGate');
+  if (gate) gate.style.display = 'flex';
+}
+
+function axGateSubmit() {
+  const el = document.getElementById('axGateEmail');
+  axSignIn(el ? el.value : '', false);
+}
+
+// Boot. The Directory arrives from Firebase asynchronously, so keep trying for
+// a few seconds before deciding an email is unknown -- otherwise the very first
+// load locks out a legitimate user purely on timing.
+function axBoot() {
+  let saved = '';
+  try { saved = localStorage.getItem('naig_user_email') || ''; } catch (e) {}
+  let tries = 0;
+  const tick = setInterval(() => {
+    const ready = (window._prospects || []).length > 0;
+    if (ready && saved && axSignIn(saved, true)) { clearInterval(tick); return; }
+    if (ready || ++tries > 20) {
+      clearInterval(tick);
+      if (!window._axUser) {
+        const gate = document.getElementById('axGate');
+        if (gate) gate.style.display = 'flex';
+        if (saved) {
+          const el = document.getElementById('axGateEmail');
+          if (el) el.value = saved;
+        }
+      }
+    }
+  }, 400);
+}
+
+/* ── Admin panel: the checkbox matrix ────────────────────────────────────── */
+function axOpenManage() {
+  if (!(window._axPerms && window._axPerms.manageAccess)) return;
+  const m = document.getElementById('axManage');
+  if (m) { m.style.display = 'flex'; axRenderManage(); }
+}
+function axCloseManage() {
+  const m = document.getElementById('axManage');
+  if (m) m.style.display = 'none';
+}
+function axRenderManage() {
+  const wrap = document.getElementById('axManageBody');
+  if (!wrap) return;
+  const people = (window._prospects || [])
+    .filter(p => p && (p.status === 'ready' || p.status === 'confirmed'))
+    .slice().sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  const ov = (window._axConfig || {}).overrides || {};
+  const esc3 = s => String(s == null ? '' : s).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  const head = '<tr><th style="text-align:left">Person</th><th style="text-align:left">Tier</th>' +
+    AX_TABS.map(t => `<th style="font-size:10px;font-weight:600;padding:0 4px">${t.label}</th>`).join('') +
+    '<th style="font-size:10px">Can edit</th></tr>';
+
+  const rows = people.map(p => {
+    const perms = axPermsFor(p);
+    const has = new Set(perms.tabs);
+    const custom = Array.isArray((ov[p.id]||{}).tabs);
+    const noEmail = !String(p.email || '').trim();
+    return `<tr style="border-top:1px solid #e2e8f0">
+      <td style="padding:6px 8px;white-space:nowrap">
+        <strong>${esc3(p.name)}</strong><br>
+        <span style="font-size:10px;color:${noEmail ? '#b91c1c' : '#64748b'}">${noEmail ? 'no email — cannot sign in' : esc3(p.email)}</span>
+      </td>
+      <td style="padding:6px 8px">
+        <select onchange="axSetTier('${p.id}', this.value)" style="font-size:11px;padding:3px 5px">
+          ${Object.keys(AX_TIERS).map(k => `<option value="${k}"${k===perms.tier?' selected':''}>${k}</option>`).join('')}
+        </select>
+        ${custom ? '<div style="font-size:9px;color:#b7770d">custom tabs</div>' : ''}
+      </td>
+      ${AX_TABS.map(t => `<td style="text-align:center;padding:4px">
+        <input type="checkbox" ${has.has(t.key)?'checked':''} onchange="axToggleTab('${p.id}','${t.key}',this.checked)">
+      </td>`).join('')}
+      <td style="text-align:center;padding:4px">
+        <input type="checkbox" ${perms.edit?'checked':''} onchange="axSetEdit('${p.id}', this.checked)">
+      </td>
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead style="background:#f1f5f9">${head}</thead><tbody>${rows}</tbody></table>`;
+}
+function axEnsureOverride(id) {
+  window._axConfig = window._axConfig || { overrides: {} };
+  window._axConfig.overrides = window._axConfig.overrides || {};
+  const p = (window._prospects || []).find(x => x && x.id === id);
+  if (!window._axConfig.overrides[id]) {
+    // Materialise the tier's current tab list on first edit, so ticking one box
+    // does not silently drop every other tab the person already had.
+    const cur = axPermsFor(p);
+    window._axConfig.overrides[id] = { tier: cur.tier, tabs: cur.tabs.slice(), edit: cur.edit };
+  }
+  return window._axConfig.overrides[id];
+}
+function axSaveConfig() {
+  if (window.hubSave) window.hubSave('access', 'config', window._axConfig || { overrides:{} });
+  if (window._axUser) { window._axPerms = axPermsFor(window._axUser); axApply(); }
+  axRenderManage();
+}
+function axSetTier(id, tier) {
+  const o = axEnsureOverride(id);
+  o.tier = tier;
+  const base = AX_TIERS[tier] || AX_TIERS.viewer;
+  o.tabs = base.tabs.slice();     // changing tier resets the tick boxes to that tier
+  o.edit = base.edit;
+  axSaveConfig();
+}
+function axToggleTab(id, key, on) {
+  const o = axEnsureOverride(id);
+  const s = new Set(o.tabs || []);
+  if (on) s.add(key); else s.delete(key);
+  o.tabs = AX_ALL.filter(k => s.has(k));
+  axSaveConfig();
+}
+function axSetEdit(id, on) { const o = axEnsureOverride(id); o.edit = !!on; axSaveConfig(); }
+function axResetPerson(id) {
+  if (window._axConfig && window._axConfig.overrides) delete window._axConfig.overrides[id];
+  axSaveConfig();
+}
+
+// The Firebase listener lives in a <script type="module">, which cannot see these
+// declarations. Publish the few it needs.
+window.axPermsFor = axPermsFor;
+window.axApply = axApply;
+window.axRenderManage = axRenderManage;
+window.axSignOut = axSignOut;
+window.axGateSubmit = axGateSubmit;
+window.axOpenManage = axOpenManage;
+window.axCloseManage = axCloseManage;
+window.axSetTier = axSetTier;
+window.axToggleTab = axToggleTab;
+window.axSetEdit = axSetEdit;
+window.axResetPerson = axResetPerson;
+
+document.addEventListener('DOMContentLoaded', axBoot);
 </script>
 
 <!-- ══════════ HUB MODALS ══════════ -->
@@ -10173,5 +10481,44 @@ window.addEventListener('load', function() {
     if (btn) btn.style.display = 'none';
   });
 </script>
+
+<!-- ── Access gate ───────────────────────────────────────────────────────────
+     Shown until the email you type is matched to a person in the Directory.
+     Deliberately NOT a password: the Directory is already the list of who is on
+     this team, and a second credential store would drift out of sync with it. -->
+<div id="axGate" style="display:none;position:fixed;inset:0;z-index:9000;background:#0f172a;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;max-width:460px;width:100%;padding:28px 30px;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+    <div style="font-family:'Outfit',sans-serif;font-weight:700;font-size:20px;color:#1E3A8A">NAIG 2027 — Logistics Hub</div>
+    <div style="font-size:13px;color:#64748b;margin-top:6px;line-height:1.5">
+      Enter the email address on your record in the team Directory. If you are on the team, you are in — there is no password to remember.
+    </div>
+    <input id="axGateEmail" type="email" placeholder="you@example.com" autocomplete="email"
+      onkeydown="if(event.key==='Enter')axGateSubmit()"
+      style="width:100%;box-sizing:border-box;margin-top:16px;padding:11px 13px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px">
+    <div id="axGateMsg" style="display:none;margin-top:10px;font-size:12px;color:#b91c1c;line-height:1.5"></div>
+    <button onclick="axGateSubmit()"
+      style="width:100%;margin-top:14px;padding:11px;border:0;border-radius:8px;background:#BF1B2A;color:#fff;font-weight:700;font-size:14px;cursor:pointer">
+      Continue
+    </button>
+    <div style="font-size:11px;color:#94a3b8;margin-top:14px;line-height:1.5">
+      This controls which tabs you see. It is not a security boundary — the database itself is still open. Do not treat this page as a safe place for anything confidential.
+    </div>
+  </div>
+</div>
+
+<!-- ── Access manager (admin only) ──────────────────────────────────────── -->
+<div id="axManage" style="display:none;position:fixed;inset:0;z-index:8900;background:rgba(15,23,42,.55);align-items:flex-start;justify-content:center;padding:28px 16px;overflow:auto">
+  <div style="background:#fff;border-radius:12px;max-width:1200px;width:100%;padding:20px 22px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <div style="font-family:'Outfit',sans-serif;font-weight:700;font-size:17px;color:#1E3A8A">Who can see what</div>
+      <button onclick="axCloseManage()" style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer">Close</button>
+    </div>
+    <div style="font-size:12px;color:#64748b;margin-bottom:14px;line-height:1.5">
+      Pick a tier to set someone in one move, or tick individual tabs for a custom set. Changes save and take effect immediately — including for anyone who has the page open right now.
+      Anyone without an email on their Directory record <strong>cannot sign in at all</strong>, whatever you tick here.
+    </div>
+    <div id="axManageBody" style="overflow-x:auto"></div>
+  </div>
+</div>
 </body>
 </html>
