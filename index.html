@@ -6292,14 +6292,26 @@ function renderOnboardView() {
 }
 
 function saveOnboardContact(personId) {
-  const n = findNode(personId, window._orgData);
-  if (!n) return;
-  n.name   = document.getElementById('obName').value.trim()  || n.name;
-  n.email  = document.getElementById('obEmail').value.trim();
-  n.phone  = document.getElementById('obPhone').value.trim();
-  n.city   = document.getElementById('obCity').value.trim();
-  n.region = document.getElementById('obRegion').value;
-  saveToCloud();
+  // THIS USED TO WRITE TO THE ORG TREE. That tree is DERIVED from the Directory
+  // and gets rebuilt from it on every directory change -- so everything a
+  // teammate typed here was silently discarded, usually within seconds. The
+  // Directory is the source of truth, so write there and let the tree rebuild.
+  const rec = (window._prospects || []).find(p => p && p.id === personId);
+  if (!rec) { alert('Could not find your record. Send Rizwan a screenshot of this and he will sort it.'); return; }
+
+  const val = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  const name = val('obName');
+  if (name) rec.name = name;
+  rec.email  = val('obEmail');
+  rec.phone  = val('obPhone');
+  rec.city   = val('obCity');
+  const rg = document.getElementById('obRegion');
+  if (rg) rec.region = rg.value;
+
+  saveProspectsLocal();                       // -> naig2027/prospects, the real store
+  regenerateOrgFromDirectory && regenerateOrgFromDirectory();
+  logActivity && logActivity('prospect', (rec.name || 'Someone') + ' completed their profile via their onboarding link',
+    { action: 'onboard', entityKey: rec.id, entityName: rec.name || '' });
   const msg = document.getElementById('obSavedMsg');
   if (msg) {
     msg.style.display = 'block';
