@@ -5808,7 +5808,7 @@ function renderRnr() {
  <div class="rnr-role-section">
  <div class="rnr-role-label">
  <span class="rnr-pill" style="background:${role.bg}">${role.label}</span>
- <button class="rnr-add-btn" onclick="openRnr('__core','${role.key}','Shared core','${role.label}')">+ Add</button>
+ <button class="rnr-add-btn" style="${rnrCanEdit() ? '' : 'display:none'}" onclick="openRnr('__core','${role.key}','Shared core','${role.label}')">+ Add</button>
  </div>
         ${items.length === 0
           ? `<div class="rnr-empty">No core duties for this layer yet</div>`
@@ -5816,7 +5816,7 @@ function renderRnr() {
  <div class="rnr-item">
               ${prioDot(item.priority)}
  <span class="rnr-item-text">${esc(item.text)}${srcTag(item)}</span>
- <span class="rnr-item-del" onclick="deleteRnrItem('__core','${role.key}',${idx})" title="Remove">×</span>
+ <span class="rnr-item-del" style="${rnrCanEdit() ? '' : 'display:none'}" onclick="deleteRnrItem('__core','${role.key}',${idx})" title="Remove">×</span>
  </div>`).join('')}
  </div>`;
       }).join('')}
@@ -5838,7 +5838,7 @@ function renderRnr() {
  <div class="rnr-role-label">
  <span class="rnr-pill" style="background:${role.bg}">${role.label}</span>
  <span style="font-size:9.5px;color:#9aa5b4">+ ${coreCount} core</span>
- <button class="rnr-add-btn" onclick="openRnr('${vDef.id}','${role.key}','${vDef.label.replace(/'/g,"\\'")}','${role.label}')">+ Add</button>
+ <button class="rnr-add-btn" style="${rnrCanEdit() ? '' : 'display:none'}" onclick="openRnr('${vDef.id}','${role.key}','${vDef.label.replace(/'/g,"\\'")}','${role.label}')">+ Add</button>
  </div>
         ${items.length === 0
           ? `<div class="rnr-empty">No ${vDef.label}-specific duties — inherits the ${coreCount} shared core items only</div>`
@@ -5846,7 +5846,7 @@ function renderRnr() {
  <div class="rnr-item">
               ${prioDot(item.priority)}
  <span class="rnr-item-text">${esc(item.text)}${srcTag(item)}</span>
- <span class="rnr-item-del" onclick="deleteRnrItem('${vDef.id}','${role.key}',${idx})" title="Remove">×</span>
+ <span class="rnr-item-del" style="${rnrCanEdit() ? '' : 'display:none'}" onclick="deleteRnrItem('${vDef.id}','${role.key}',${idx})" title="Remove">×</span>
  </div>`).join('')
         }
  <div style="margin:6px 0 2px;padding:7px 9px;background:#f8fafc;border:1px solid #eef2f7;border-radius:6px;font-size:10.5px;color:#4b5563;line-height:1.5">
@@ -5900,7 +5900,27 @@ function toggleRnrPanel() {
   document.getElementById('rnrToggleIcon').textContent = rnrPanelOpen ? '▼' : '▶';
 }
 
+
+// ── Who may edit R&R ──────────────────────────────────────────────────────
+// R&R is the definition of what every role owns. If anyone can add a line to
+// anyone's list it stops being a definition and becomes a suggestion box, and
+// nobody can tell which lines are authoritative. Core Team only: Rizwan, Sohail,
+// Kiran, Shan and Azmina. Everyone else reads it.
+//
+// Deliberately keyed on TIER, not on a list of names -- a hardcoded name list
+// goes stale the moment the Core Team changes, and this app has been bitten by
+// stale hardcoded lists more than once.
+function rnrCanEdit() {
+  const t = (window._axPerms && window._axPerms.tier) || '';
+  return t === 'admin' || t === 'core';
+}
+window.rnrCanEdit = rnrCanEdit;
+
 function openRnr(vid, roleKey, vertLabel, roleLabel) {
+  if (!rnrCanEdit()) {
+    alert('Only the Core Team can change Roles & Responsibilities.\n\nIf something in your list is wrong, tell Rizwan, Sohail, Kiran, Shan or Azmina and they will update it.');
+    return;
+  }
   document.getElementById('rnrVid').value        = vid;
   document.getElementById('rnrRoleKey').value     = roleKey;
   document.getElementById('rnrVDisplay').value    = vertLabel;
@@ -5916,6 +5936,7 @@ function closeRnr() {
 }
 
 function saveRnrItem() {
+  if (!rnrCanEdit()) { closeRnr(); return; }   // belt and braces
   const vid   = document.getElementById('rnrVid').value;
   const role  = document.getElementById('rnrRoleKey').value;
   const text  = document.getElementById('rnrItemText').value.trim();
@@ -5933,6 +5954,10 @@ function saveRnrItem() {
 }
 
 function deleteRnrItem(vid, role, idx) {
+  if (!rnrCanEdit()) {
+    alert('Only the Core Team can change Roles & Responsibilities.');
+    return;
+  }
   if (!confirm('Remove this responsibility?')) return;
   const vData = getRnrV(vid);
   const item = vData.roles[role][idx];
@@ -9855,6 +9880,9 @@ function axApply() {
   }
   const mgr = document.getElementById('axManageBtn');
   if (mgr) mgr.style.display = perms.manageAccess ? '' : 'none';
+  // R&R shows or hides its edit controls by tier, so it has to repaint whenever
+  // who-is-signed-in changes -- otherwise a Lead sees Core Team buttons.
+  window.renderRnr && window.renderRnr();
 }
 
 
