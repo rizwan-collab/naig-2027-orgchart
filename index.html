@@ -158,7 +158,7 @@
       window._tasksData = data || {};
       window.renderTasks && window.renderTasks();
       window.renderDashboard && window.renderDashboard();
-      if (!data) window.seedInitialTasks && window.seedInitialTasks();
+      if (!data) window.seedOnce && window.seedOnce('tasks', window.seedInitialTasks);
     });
     // ── Hub: Venues ──
     window._fb.listenVenues((data) => {
@@ -172,7 +172,7 @@
       window.renderScope && window.renderScope(); // refresh scope status chart
       window.renderBudget && window.renderBudget();
       window.renderDashboard && window.renderDashboard();
-      if (!data) window.seedInitialVenues && window.seedInitialVenues();
+      if (!data) window.seedOnce && window.seedOnce('venues', window.seedInitialVenues);
     });
     // ── Hub: Vendors ──
     window._fb.listenVendors((data) => {
@@ -200,25 +200,25 @@
       window._scopeData = data || {};
       window.renderScope && window.renderScope();
       window.renderScope && window.renderScope(); // refresh scope status chart
-      if (!data) window.seedInitialScope && window.seedInitialScope();
+      if (!data) window.seedOnce && window.seedOnce('scope', window.seedInitialScope);
       window._onboardToken && window.renderOnboardView && window.renderOnboardView();
     });
     // ── Hub: Hotels ──
     window._fb.listenHotels((data) => {
       window._hotelsData = data || {};
       window.renderHotels && window.renderHotels();
-      if (!data) window.seedInitialHotels && window.seedInitialHotels();
+      if (!data) window.seedOnce && window.seedOnce('hotels', window.seedInitialHotels);
     });
     // ── Hub: Transportation ──
     window._fb.listenTransport((data) => {
       window._transportData = data || {};
       window.renderTransport && window.renderTransport();
-      if (!data) window.seedInitialTransport && window.seedInitialTransport();
+      if (!data) window.seedOnce && window.seedOnce('transport', window.seedInitialTransport);
     });
     window._fb.listenLoops((data) => {
       window._loopsData = data || {};
       window.renderLoops && window.renderLoops();
-      if (!data) window.seedInitialLoops && window.seedInitialLoops();
+      if (!data) window.seedOnce && window.seedOnce('loops', window.seedInitialLoops);
     });
     window._fb.listenDrivers((data) => {
       window._driversData = data || {};
@@ -315,6 +315,11 @@
         if (sel && sel.options.length) { window.populateRoleSelect && window.populateRoleSelect(prefix, window.getRoleValue ? window.getRoleValue(prefix) : ''); }
       });
     });
+
+    // ── Seeded-once flags ──
+    // Read before anything else so a listener firing on an empty node knows the
+    // seed has already run for this project and does not re-create placeholders.
+    onValue(ref(db, 'naig2027/seeded'), (snap) => { window._seededFlags = snap.val() || {}; });
 
     // ── Access config (who can see what) ──
     // Live, like everything else: revoke someone's Budget tab and it disappears
@@ -9453,6 +9458,29 @@ window.addEventListener('load', function() {
    second list that drifts out of sync.
    ══════════════════════════════════════════════════════════════════════════ */
 
+
+// ── Seed guard ───────────────────────────────────────────────────────────────
+// These listeners used to read "if (!data) seed()". That is not "seed on first
+// ever run" -- it is "seed ANY time this node is empty". Delete every record in
+// a tab on purpose and the placeholders resurrect themselves and overwrite the
+// replacement you were mid-way through writing. That is exactly how a rebuilt
+// Transportation plan turned back into three seeded rows.
+// A one-time flag per collection, kept in the database next to the data, so the
+// seed fires once for the project and never again -- on any device.
+function seedOnce(name, fn) {
+  if (!fn) return;
+  const path = 'naig2027/seeded/' + name;
+  if (!window._dbRef || !window._dbSet) return;
+  try {
+    const seen = (window._seededFlags || {})[name];
+    if (seen) return;                      // already seeded, in this session or a past one
+    window._seededFlags = window._seededFlags || {};
+    window._seededFlags[name] = true;
+    window._dbSet(window._dbRef(path), Date.now());
+    fn();
+  } catch (e) { /* never let a seed failure break the listener */ }
+}
+
 const AX_TABS = [
   { key:'dashboard', label:'Dashboard' },
   { key:'orgchart',  label:'Org Chart' },
@@ -9693,6 +9721,7 @@ function axResetPerson(id) {
 
 // The Firebase listener lives in a <script type="module">, which cannot see these
 // declarations. Publish the few it needs.
+window.seedOnce = seedOnce;
 window.axPermsFor = axPermsFor;
 window.axApply = axApply;
 window.axRenderManage = axRenderManage;
