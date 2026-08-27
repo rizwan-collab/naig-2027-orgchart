@@ -21,6 +21,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getDatabase, ref, set, remove, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey:            "AIzaSyC16ftKuUYRkwexYYUuk0i5fYsxxVzI_eU",
@@ -34,6 +35,34 @@
 
   const app = initializeApp(firebaseConfig);
   const db  = getDatabase(app);
+
+  // ── Anonymous auth ─────────────────────────────────────────────────────────
+  // The app used to connect with no identity at all, which meant the database
+  // rules had to stay wide open for it to work -- and wide open means anyone who
+  // knows the URL can read every name and phone number without ever loading this
+  // page. Signing in anonymously gives each visitor a real Firebase identity, so
+  // the rules can require one.
+  //
+  // Be clear about what this does and does not buy. It stops drive-by access to
+  // the raw database URL, which is the exposure Google keeps emailing about. It
+  // does NOT prove who someone is -- anyone who loads this page gets a token.
+  // Identity still comes from the Directory email gate. Real per-person security
+  // would mean email-link sign-in, which is a larger change.
+  //
+  // This is deliberately non-blocking: if auth is not enabled in the console yet,
+  // the app carries on exactly as before rather than showing everyone a dead page.
+  const auth = getAuth(app);
+  window._authReady = false;
+  onAuthStateChanged(auth, (u) => {
+    window._authUid   = u ? u.uid : null;
+    window._authReady = !!u;
+  });
+  signInAnonymously(auth).catch((e) => {
+    // Most likely cause: Anonymous sign-in is not switched on in the Firebase
+    // console. Log it loudly for whoever is debugging, but do not break the app.
+    console.warn('[NAIG] Anonymous auth unavailable — database rules must stay open until this is enabled in the Firebase console.', e && e.code);
+    window._authError = (e && e.code) || 'unknown';
+  });
 
   const orgRef       = ref(db, 'naig2027/org');
   const prospectsRef = ref(db, 'naig2027/prospects');
