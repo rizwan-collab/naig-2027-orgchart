@@ -9660,7 +9660,10 @@ const AX_TABS = [
   { key:'docs',      label:'Documents' },
   { key:'budget',    label:'Budget' },
   { key:'scope',     label:'Scope' },
-  { key:'brief',     label:'Weekly Brief' }
+  { key:'brief',     label:'Weekly Brief' },
+  // Any new tab MUST be listed here. switchTab checks this list, so a tab that
+  // is missing from it is invisible to everyone including the admin who added it.
+  { key:'changelog', label:'Change Log' }
 ];
 const AX_ALL = AX_TABS.map(t => t.key);
 
