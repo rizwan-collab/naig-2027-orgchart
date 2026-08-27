@@ -5276,17 +5276,34 @@ const NAIG_FACTS = {
     note:   'Athletes compete at their home regional games, which serve as the qualifier. Each athlete represents the region in which they reside. Regional formats vary — some regions run all sports in one weekend, others split sports across several weekends.'
   },
 
+  // THREE WINDOWS, NOT ONE. Getting these confused is how a volunteer shows up on
+  // the wrong day. The programme runs Wed to Mon; play runs Thu to Sun; and the
+  // volunteer window is wider than both at each end, because someone has to build
+  // the site before the first athlete walks in and strike it after the last leaves.
+  windows: {
+    programme:  { start: 'Wednesday · Mar 24', end: 'Monday · Mar 29',
+                  label: 'Check-in Wednesday, move-out Monday' },
+    play:       { start: 'Thursday · Mar 25',  end: 'Sunday · Mar 28',
+                  label: 'Four days of competition, Thursday through Sunday' },
+    volunteer:  { start: 'Setup begins before check-in', end: 'Teardown runs past move-out',
+                  label: 'Wider than the play window at both ends — earlier still for cricket, where the pitch needs 3–5 days of prep' }
+  },
+
   program: [
-    { day: 'Thursday · Mar 25', title: 'Arrival & Check-In',
-      detail: 'Athlete and delegation arrivals, registration check-in, welcome reception.' },
-    { day: 'Friday · Mar 26',   title: 'Games — Day 1',
-      detail: 'Opening ceremony and first day of competition across team and individual sports.' },
-    { day: 'Saturday · Mar 27', title: 'Games — Day 2',
-      detail: 'Continued pool play across most sports; select sports begin playoff rounds.' },
-    { day: 'Sunday · Mar 28',   title: 'Finals & Closing',
-      detail: 'Pool play wraps; playoffs and championship finals, medal presentations, closing ceremony.' }
+    { day: 'Wednesday · Mar 24', title: 'Check-In',
+      detail: 'Athlete and delegation arrivals, registration check-in, welcome reception. No competition. Volunteers are already on site — setup started before today.' },
+    { day: 'Thursday · Mar 25', title: 'Play — Day 1',
+      detail: 'Opening ceremony and the first day of competition across team and individual sports. Cricket plays today, which is why the grounds are prepped from roughly Mar 20.' },
+    { day: 'Friday · Mar 26',   title: 'Play — Day 2',
+      detail: 'Pool play continues across most sports.' },
+    { day: 'Saturday · Mar 27', title: 'Play — Day 3',
+      detail: 'Pool play wraps in most sports; select sports begin playoff rounds.' },
+    { day: 'Sunday · Mar 28',   title: 'Play — Day 4 · Finals & Closing',
+      detail: 'Playoffs and championship finals, medal presentations, closing ceremony.' },
+    { day: 'Monday · Mar 29',   title: 'Move-Out',
+      detail: 'Departures. Volunteers are still working — teardown, vendor pickups and venue sign-off run through today and beyond.' }
   ],
-  programNote: 'Community-building events, networking, clinics, content sessions and mentorship run alongside competition all four days. A visit to an Ismaili Center is also part of the program.',
+  programNote: 'Community-building events, networking, clinics, content sessions and mentorship run alongside competition across the four days of play. A visit to an Ismaili Center is also part of the program. Note that PLAY TIME and VOLUNTEER TIME are different: if you are volunteering, your window starts before check-in and ends after move-out.',
 
   // Where Logistics sits in the wider organisation, per the deck's org chart.
   eltContext: {
@@ -6124,7 +6141,24 @@ function renderOnboardView() {
   </div>`;
 
   html += `<div class="ob-section">
-    <h2>The Four Days</h2>
+    <h2>The Week</h2>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+      <div style="flex:1;min-width:170px;background:#f8fafc;border-radius:8px;padding:10px 12px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b">Programme</div>
+        <div style="font-size:13px;font-weight:600;color:#0f172a;margin-top:2px">Wed Mar 24 → Mon Mar 29</div>
+        <div style="font-size:11px;color:#64748b;margin-top:2px">Check-in Wednesday, move-out Monday</div>
+      </div>
+      <div style="flex:1;min-width:170px;background:#f0f7ff;border-radius:8px;padding:10px 12px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#1E3A8A">Play</div>
+        <div style="font-size:13px;font-weight:600;color:#0f172a;margin-top:2px">Thu Mar 25 → Sun Mar 28</div>
+        <div style="font-size:11px;color:#64748b;margin-top:2px">Four days of competition</div>
+      </div>
+      <div style="flex:1;min-width:170px;background:#fff8ec;border-radius:8px;padding:10px 12px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8a6d1f">Volunteer</div>
+        <div style="font-size:13px;font-weight:600;color:#0f172a;margin-top:2px">Wider at both ends</div>
+        <div style="font-size:11px;color:#64748b;margin-top:2px">Setup before check-in, teardown after move-out. Cricket earlier still.</div>
+      </div>
+    </div>
     ${F.program.map(d => `
       <div style="display:flex;gap:12px;padding:7px 0;border-bottom:1px solid #f1f5f9">
         <div style="flex:0 0 130px;font-size:11px;font-weight:700;color:#1E3A8A;text-transform:uppercase;letter-spacing:.4px;padding-top:2px">${d.day}</div>
