@@ -946,6 +946,12 @@ body.ax-readonly #axGateEmail, body.ax-readonly #prospectSearch { pointer-events
 
 /* ── Onboarding view ── */
 html.onboard-mode #mainHub { display: none !important; }
+/* The access gate lives outside #mainHub, so onboard-mode did not hide it and it
+   floated over the onboarding screen -- locking people out of the one form that
+   would have given them an email to sign in with. An onboarding token IS the
+   credential for that view; the gate has no business there. */
+html.onboard-mode #axGate,
+html.onboard-mode #axManage { display: none !important; }
 html.onboard-mode #onboardScreen { display: block !important; }
 .onboard-screen {
   min-height: 100vh;
@@ -9745,6 +9751,7 @@ function axApply() {
 }
 
 function axSignIn(email, silent) {
+  if (new URLSearchParams(location.search).get('onboard')) return false;  // not this view
   const person = axFindByEmail(email);
   const msg = document.getElementById('axGateMsg');
   if (!person) {
@@ -9780,6 +9787,14 @@ function axGateSubmit() {
 // a few seconds before deciding an email is unknown -- otherwise the very first
 // load locks out a legitimate user purely on timing.
 function axBoot() {
+  // Onboarding links are the way a new teammate gets INTO the Directory. If the
+  // gate ran here it would demand an email from the exact people who do not have
+  // one on file yet -- a closed loop with no way in. Token holders skip it.
+  if (new URLSearchParams(location.search).get('onboard')) {
+    const g = document.getElementById('axGate');
+    if (g) g.style.display = 'none';
+    return;
+  }
   let saved = '';
   try { saved = localStorage.getItem('naig_user_email') || ''; } catch (e) {}
   let tries = 0;
