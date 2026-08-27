@@ -593,13 +593,18 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .venue-tier { margin-bottom: 20px; }
 .venue-tier-hdr { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; padding: 6px 12px; border-radius: 6px 6px 0 0; display: flex; align-items: center; gap: 8px; }
 .venue-tier-count { background: rgba(255,255,255,.4); border-radius: 10px; padding: 1px 8px; font-size: .72rem; }
-.tier-confirmed { background: #d4edda; color: #155724; }
-.tier-inworks   { background: #fff3cd; color: #856404; }
-.tier-closed    { background: #f1f3f5; color: #6c757d; }
+.tier-confirmed        { background: #d4edda; color: #155724; }
+.tier-pending-deposit  { background: #cfe2ff; color: #084298; }
+.tier-inworks          { background: #fff3cd; color: #856404; }
+.tier-closed           { background: #f1f3f5; color: #6c757d; }
 .venue-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; padding: 14px 0; }
-.venue-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; cursor: pointer; transition: box-shadow .15s, border-color .15s; }
+.venue-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; cursor: grab; transition: box-shadow .15s, border-color .15s, transform .1s; }
 .venue-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.1); border-color: #1a3a5c; }
+.venue-card:active { cursor: grabbing; }
+.venue-card.dragging { opacity: .4; transform: scale(.98); }
 .venue-card-dim { opacity: .55; background: #f8f9fa; }
+.venue-tier.drop-target { outline: 2px dashed #1a3a5c; outline-offset: 4px; background: rgba(26,58,92,.04); border-radius: 8px; }
+.venue-tier.drop-target .venue-card-grid, .venue-tier.drop-target .hub-empty { min-height: 60px; }
 .vc-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
 .vc-name { font-weight: 700; font-size: .92rem; color: #1a3a5c; }
 .vc-meta { font-size: .76rem; color: #64748b; margin-top: 2px; }
@@ -1027,6 +1032,7 @@ html.onboard-mode #onboardScreen { display: block !important; }
  <button class="tab-btn" id="tabdocs" onclick="switchTab('docs')">Documents <span class="tab-badge" id="badge-docs">0</span></button>
  <button class="tab-btn" id="tabbudget" onclick="switchTab('budget')">Budget</button>
  <button class="tab-btn" id="tabscope" onclick="switchTab('scope')">Scope</button>
+ <button class="tab-btn" id="tabbrief" onclick="switchTab('brief')">📬 Weekly Brief</button>
 </div>
 
 <!-- Stats Bar -->
@@ -1855,6 +1861,38 @@ html.onboard-mode #onboardScreen { display: block !important; }
 </div>
 
 <!-- Scope / Working Assumptions -->
+<!-- ═══════════════════════════════════════════════════════
+     WEEKLY STATUS BRIEF
+     ═══════════════════════════════════════════════════════ -->
+<div class="hub-section" id="sectionBrief">
+ <div class="hub-toolbar">
+  <div>
+   <div class="hub-title">📬 Weekly Status Brief</div>
+   <div class="hub-subtitle" id="briefSubtitle">Rollup of hub activity — copy and email every Monday.</div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+   <label style="font-size:12px;color:#475569">Window:</label>
+   <select id="briefWindow" onchange="renderWeeklyBrief()" style="font-size:12px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;background:#fff">
+     <option value="7" selected>Last 7 days</option>
+     <option value="14">Last 14 days</option>
+     <option value="30">Last 30 days</option>
+   </select>
+   <button class="btn" style="font-size:11px;padding:4px 12px;background:#f1f5f9;color:#334155;border:1px solid #cbd5e1" onclick="copyBriefMarkdown()">📋 Copy Markdown</button>
+   <button class="btn btn-primary" onclick="copyBriefEmail()">✉ Copy as Email</button>
+  </div>
+ </div>
+
+ <div id="briefStatus" style="font-size:12px;color:#64748b;margin-bottom:12px"></div>
+
+ <div id="briefContent" style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:24px 28px;font-size:14px;line-height:1.65;color:#1f2937;max-width:820px">
+  <div style="color:#94a3b8">Loading…</div>
+ </div>
+
+ <div style="margin-top:14px;font-size:11px;color:#94a3b8;max-width:820px">
+  This brief is generated from the hub's activity log — venue changes, task moves, plan updates, docs, vendors, hotels, org changes. If a section shows nothing, that means no activity of that kind was recorded in the selected window. Log entries are capped at the most recent 500.
+ </div>
+</div>
+
 <div class="hub-section" id="sectionScope">
  <!-- Toolbar -->
  <div class="hub-toolbar">
@@ -4150,6 +4188,8 @@ This cannot be undone.`
 This cannot be undone.`;
   if (!confirm(msg)) return;
   removeFromTree(id, window._orgData);
+  logActivity('org', `Removed from org chart: "${n.name || 'TBD'}" (${n.role})${childCount ? ' — plus ' + childCount + ' subordinate(s)' : ''}`,
+              { action:'delete', entityKey:id, entityName:n.name || 'TBD' });
   closeEdit();
   saveToCloud();
   window._renderAll();
@@ -4357,9 +4397,12 @@ function saveProspect() {
   if (!data.name) { alert('Please enter a name'); return; }
   registerRoleIfNew(data.role);   // a custom title becomes available to everyone
   const idx = window._prospects.findIndex(x => x.id === id);
+  const isNew = idx < 0;
   if (idx >= 0) window._prospects[idx] = data;
   else window._prospects.push(data);
   saveProspectsLocal();
+  logActivity('prospect', (isNew ? 'New prospect added: ' : 'Prospect updated: ') + `"${data.name}" (${data.role || 'TBD'})`,
+              { action: isNew ? 'create' : 'update', entityKey:id, entityName:data.name, newValue:data.status });
   closeProspect();
   renderProspects();
   if (window._dirMigrationFlag) window.regenerateOrgFromDirectory && window.regenerateOrgFromDirectory();
@@ -4472,8 +4515,13 @@ window.saveQuickAdd  = saveQuickAdd;
 
 function deleteProspect(id) {
   if (!confirm('Remove this prospect?')) return;
+  const gone = (window._prospects || []).find(x => x.id === id);
   window._prospects = window._prospects.filter(x => x.id !== id);
   saveProspectsLocal();
+  if (gone) {
+    logActivity('prospect', `Prospect removed: "${gone.name}"`,
+                { action:'delete', entityKey:id, entityName:gone.name });
+  }
   renderProspects();
   if (window._dirMigrationFlag) window.regenerateOrgFromDirectory && window.regenerateOrgFromDirectory();
 }
@@ -6473,6 +6521,7 @@ function closePlanModal() {
 
 function savePlanMilestone() {
   const key    = document.getElementById('planEditKey').value || ('k' + Date.now() + Math.random().toString(36).slice(2,6));
+  const isNew  = !document.getElementById('planEditKey').value;
   const phase  = document.getElementById('planPhase').value;
   const title  = document.getElementById('planTitle').value.trim();
   const dept   = document.getElementById('planDept').value;
@@ -6481,8 +6530,19 @@ function savePlanMilestone() {
   const notes  = document.getElementById('planNotes').value.trim();
   if (!title) { alert('Please enter a milestone title.'); return; }
   if (!_planData.milestones) _planData.milestones = {};
+  const prev = _planData.milestones[key] || {};
   _planData.milestones[key] = { phase, title, dept, due, status, notes, updatedAt: Date.now() };
   window._fb.savePlan(_planData);
+  if (isNew) {
+    logActivity('plan', `New milestone: "${title}" (${dept || 'General'})`,
+                { action:'create', entityKey:key, entityName:title });
+  } else if (prev.status && prev.status !== status) {
+    logActivity('plan', `Milestone "${title}" status: ${prev.status} → ${status}`,
+                { action:'status_change', entityKey:key, entityName:title, oldValue:prev.status, newValue:status });
+  } else {
+    logActivity('plan', `Milestone "${title}" updated`,
+                { action:'update', entityKey:key, entityName:title });
+  }
   closePlanModal();
 }
 
@@ -6490,8 +6550,11 @@ function deletePlanMilestone() {
   const key = document.getElementById('planEditKey').value;
   if (!key || !_planData.milestones) return;
   if (!confirm('Delete this milestone?')) return;
+  const gone = _planData.milestones[key] || {};
   delete _planData.milestones[key];
   window._fb.savePlan(_planData);
+  logActivity('plan', `Milestone deleted: "${gone.title || key}"`,
+              { action:'delete', entityKey:key, entityName:gone.title || key });
   closePlanModal();
 }
 
@@ -6536,7 +6599,7 @@ function switchTab(tab) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   const isCustom = typeof tab === 'string' && tab.indexOf('custom_') === 0;
   const tabMap = { dashboard:'tabdashboard', orgchart:'taborg', plan:'tabplan', tasks:'tabtasks', venues:'tabvenues', vendors:'tabvendors',
-    hotels:'tabhotels', transport:'tabtransport', docs:'tabdocs', scope:'tabscope' };
+    hotels:'tabhotels', transport:'tabtransport', docs:'tabdocs', scope:'tabscope', brief:'tabbrief' };
   const activeBtn = isCustom ? document.getElementById('tabcustom_' + tab.slice(7)) : document.getElementById(tabMap[tab]);
   if (activeBtn) activeBtn.classList.add('active');
 
@@ -6555,7 +6618,7 @@ function switchTab(tab) {
 
   // Hub sections
   const hubSections = ['sectionDashboard','sectionPlan','sectionTasks','sectionVenues','sectionVendors','sectionHotels',
-    'sectionTransport','sectionDocs','sectionBudget','sectionScope'];
+    'sectionTransport','sectionDocs','sectionBudget','sectionScope','sectionBrief'];
   hubSections.forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.style.display = 'none'; el.classList.remove('active'); }
@@ -6564,7 +6627,8 @@ function switchTab(tab) {
 
   const sectionMap = {
     dashboard:'sectionDashboard', plan:'sectionPlan', tasks:'sectionTasks', venues:'sectionVenues', vendors:'sectionVendors',
-    hotels:'sectionHotels', transport:'sectionTransport', docs:'sectionDocs', budget:'sectionBudget', scope:'sectionScope'
+    hotels:'sectionHotels', transport:'sectionTransport', docs:'sectionDocs', budget:'sectionBudget', scope:'sectionScope',
+    brief:'sectionBrief'
   };
   if (isCustom) {
     const el = document.getElementById('sectioncustom_' + tab.slice(7));
@@ -6575,6 +6639,7 @@ function switchTab(tab) {
   }
   if (tab === 'budget') { window.renderBudget && window.renderBudget(); }
   if (tab === 'dashboard') { window.renderDashboard && window.renderDashboard(); }
+  if (tab === 'brief') { window.renderWeeklyBrief && window.renderWeeklyBrief(); }
 }
 window.switchTab = switchTab;
 
@@ -6598,16 +6663,36 @@ function deleteHubItem(path, key, closeFn) {
   if (!key) return;
   if (!confirm('Delete this item?')) return;
   if (!window._dbRemove) { alert('Firebase not ready.'); return; }
+  // Capture display name BEFORE the remove for the activity log
+  try {
+    const bucket = ({venues:'_venuesData', tasks:'_tasksData', vendors:'_vendorsData',
+                     hotels:'_hotelsData', docs:'_docsData', prospects:'_prospects'})[path];
+    const rec = bucket && window[bucket] ? (Array.isArray(window[bucket]) ? window[bucket].find(x=>x && x.id===key) : window[bucket][key]) : null;
+    const name = (rec && (rec.name || rec.title)) || key;
+    const typeMap = {venues:'venue', tasks:'task', vendors:'vendor', hotels:'hotel', docs:'doc', prospects:'prospect'};
+    logActivity(typeMap[path] || path, `Deleted ${path.replace(/s$/,'')}: "${name}"`,
+                { action:'delete', entityKey:key, entityName:name });
+  } catch (e) { /* logging must never block a delete */ }
   window._dbRemove(window._dbRef('naig2027/' + path + '/' + key));
   closeFn && closeFn();
 }
 
-// ── Activity log — shared feed powering the Dashboard and Notifications bell ──
-function logActivity(type, text) {
+// ── Activity log — shared feed powering the Dashboard, Notifications bell, and Weekly Brief ──
+// Backwards-compatible: `text` is still the human-readable field used by legacy renderers.
+// Optional `meta` adds structured fields (action, entityKey, entityName, oldValue, newValue)
+// that the Weekly Brief uses to group and format entries.
+function logActivity(type, text, meta) {
   if (!window._fb) return;
   const entry = { id: 'act' + Date.now() + Math.random().toString(36).slice(2,6), ts: Date.now(), type, text };
+  if (meta && typeof meta === 'object') {
+    if (meta.action)     entry.action     = String(meta.action);
+    if (meta.entityKey)  entry.entityKey  = String(meta.entityKey);
+    if (meta.entityName) entry.entityName = String(meta.entityName);
+    if (meta.oldValue !== undefined && meta.oldValue !== null) entry.oldValue = String(meta.oldValue);
+    if (meta.newValue !== undefined && meta.newValue !== null) entry.newValue = String(meta.newValue);
+  }
   const log = (window._activityLog || []).concat([entry]);
-  const capped = log.slice(-200); // keep the last 200 entries
+  const capped = log.slice(-500); // keep the last 500 entries so weekly briefs 1-2mo back still resolve
   window._activityLog = capped;
   window._fb.saveActivityLog(capped);
 }
@@ -6621,6 +6706,330 @@ function timeAgo(ts) {
   const days = Math.floor(hrs / 24);
   if (days < 7) return days + 'd ago';
   return new Date(ts).toLocaleDateString();
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   WEEKLY STATUS BRIEF — Phase 2
+   Reads window._activityLog + current state and builds:
+     - "Blockers & Escalations" (overdue tasks, blocked tasks)
+     - "Contracts & Money This Week"
+     - "Venues — Status Changes"
+     - "Tasks — Closed This Week"
+     - "Tasks — Coming Due (next 7 days)"
+     - "Org & Team" (person adds, prospect adds)
+     - "Documents Added / Updated"
+   Two outputs: HTML for on-screen preview + Markdown for clipboard.
+   ════════════════════════════════════════════════════════════════════ */
+
+// Bucket a venue status into a tier label for the brief
+function _briefTierOf(status) {
+  if (!status) return 'unknown';
+  const s = String(status).toLowerCase().trim();
+  if (['confirmed','walk done','ops ready'].some(p => s.startsWith(p))) return 'Confirmed';
+  if (['pending deposit','signed','executed'].some(p => s.startsWith(p))) return 'Pending Deposit';
+  if (['dropped','closed','cancelled','not available','not selected','declined'].some(p => s.startsWith(p))) return 'Closed / Out';
+  return 'In Works';
+}
+
+function _daysUntil(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d)) return null;
+  return Math.floor((d.getTime() - Date.now()) / 86400000);
+}
+
+// Build brief data model. Returns { sections: [{title, entries: [...]}], stats: {...}, window: {...} }
+function _buildBriefModel(windowDays) {
+  const now = Date.now();
+  const windowMs = windowDays * 86400000;
+  const windowStart = now - windowMs;
+  const log = (window._activityLog || []).filter(e => e && e.ts >= windowStart).slice().sort((a,b) => b.ts - a.ts);
+
+  const tasks   = window._tasksData   || {};
+  const venues  = window._venuesData  || {};
+
+  // ── Blockers & escalations ──
+  const blockers = [];
+  Object.entries(tasks).forEach(([k,t]) => {
+    if (!t) return;
+    const s = String(t.status || '').toLowerCase();
+    if (s === 'blocked' || s === 'onhold' || s === 'on-hold') {
+      blockers.push({ title:t.title, owner:t.owner, status:t.status, reason:'blocked' });
+    } else if (t.due && s !== 'done' && s !== 'complete' && s !== 'completed') {
+      const du = _daysUntil(t.due);
+      if (du !== null && du < 0) {
+        blockers.push({ title:t.title, owner:t.owner, status:t.status, reason:'overdue', daysOverdue: -du, due:t.due });
+      }
+    }
+  });
+  blockers.sort((a,b) => (b.daysOverdue||0) - (a.daysOverdue||0));
+
+  // ── Contract / money moves (venue Confirmed or Pending Deposit, vendor status Signed) ──
+  const contracts = log.filter(e =>
+    (e.type === 'venue' && e.action === 'status_change' &&
+      _briefTierOf(e.newValue) !== _briefTierOf(e.oldValue) &&
+      (_briefTierOf(e.newValue) === 'Confirmed' || _briefTierOf(e.newValue) === 'Pending Deposit')) ||
+    (e.type === 'vendor' && e.action === 'status_change' &&
+      /signed|executed|confirmed/i.test(e.newValue || ''))
+  );
+
+  // ── Venue status changes (all) ──
+  const venueChanges = log.filter(e => e.type === 'venue' && e.action === 'status_change')
+    .map(e => Object.assign({}, e, { fromTier: _briefTierOf(e.oldValue), toTier: _briefTierOf(e.newValue) }));
+  const venueByTier = { 'Confirmed':[], 'Pending Deposit':[], 'In Works':[], 'Closed / Out':[] };
+  venueChanges.forEach(e => {
+    if (e.fromTier !== e.toTier && venueByTier[e.toTier]) venueByTier[e.toTier].push(e);
+  });
+  const venuesAdded = log.filter(e => e.type === 'venue' && e.action === 'create');
+
+  // ── Tasks closed / coming due ──
+  const tasksClosed = log.filter(e =>
+    e.type === 'task' && e.action === 'status_change' &&
+    /^(done|complete|completed)$/i.test(e.newValue || ''));
+  const tasksCreated = log.filter(e => e.type === 'task' && e.action === 'create');
+  const tasksDueSoon = [];
+  Object.entries(tasks).forEach(([k,t]) => {
+    if (!t || !t.due) return;
+    const s = String(t.status || '').toLowerCase();
+    if (s === 'done' || s === 'complete' || s === 'completed') return;
+    const du = _daysUntil(t.due);
+    if (du !== null && du >= 0 && du <= 7) {
+      tasksDueSoon.push({ title:t.title, owner:t.owner, due:t.due, daysUntil:du, priority:t.priority });
+    }
+  });
+  tasksDueSoon.sort((a,b) => a.daysUntil - b.daysUntil);
+
+  // ── Org & team ──
+  const orgAdds    = log.filter(e => e.type === 'org' && e.action !== 'delete');
+  const orgRemoves = log.filter(e => e.type === 'org' && e.action === 'delete');
+  const prospectAdds = log.filter(e => e.type === 'prospect' && e.action === 'create');
+
+  // ── Docs / vendors / hotels / plan / other ──
+  const docChanges     = log.filter(e => e.type === 'doc');
+  const vendorChanges  = log.filter(e => e.type === 'vendor');
+  const hotelChanges   = log.filter(e => e.type === 'hotel');
+  const planChanges    = log.filter(e => e.type === 'plan');
+
+  // ── Snapshot counters (current, not delta yet) ──
+  const stats = {
+    venues:       Object.keys(venues).length,
+    venuesConfirmed:    Object.values(venues).filter(v => _briefTierOf(v.status) === 'Confirmed').length,
+    venuesPending:      Object.values(venues).filter(v => _briefTierOf(v.status) === 'Pending Deposit').length,
+    venuesInWorks:      Object.values(venues).filter(v => _briefTierOf(v.status) === 'In Works').length,
+    tasks:        Object.keys(tasks).length,
+    tasksOpen:    Object.values(tasks).filter(t => t && !/^(done|complete|completed)$/i.test(t.status || '')).length,
+    tasksBlocked: Object.values(tasks).filter(t => t && /^(blocked|onhold|on-hold)$/i.test(t.status || '')).length,
+    tasksOverdue: blockers.filter(b => b.reason === 'overdue').length,
+    logEntries:   log.length
+  };
+
+  return {
+    window: { days: windowDays, start: new Date(windowStart), end: new Date(now) },
+    stats,
+    blockers,
+    contracts,
+    venueByTier,
+    venuesAdded,
+    tasksClosed,
+    tasksCreated,
+    tasksDueSoon,
+    orgAdds,
+    orgRemoves,
+    prospectAdds,
+    docChanges,
+    vendorChanges,
+    hotelChanges,
+    planChanges
+  };
+}
+
+// HTML for on-screen preview
+function _briefHtml(m) {
+  const fmt = d => d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const h = [];
+  h.push(`<div style="font-size:12px;color:#64748b;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid #e2e8f0">
+    <strong>NAIG 2027 Logistics — Weekly Status Brief</strong><br>
+    ${fmt(m.window.start)} – ${fmt(m.window.end)} • ${m.window.days} days • ${m.stats.logEntries} log entries
+  </div>`);
+
+  // Snapshot
+  h.push(`<div style="background:#f8fafc;border-radius:8px;padding:12px 14px;margin-bottom:20px;font-size:12px;color:#475569">
+    <div style="font-weight:700;color:#1e293b;margin-bottom:6px">📊 Snapshot</div>
+    <div>Venues: <strong>${m.stats.venues}</strong> total &nbsp;·&nbsp; <span style="color:#155724">${m.stats.venuesConfirmed} confirmed</span> &nbsp;·&nbsp; <span style="color:#084298">${m.stats.venuesPending} pending deposit</span> &nbsp;·&nbsp; <span style="color:#856404">${m.stats.venuesInWorks} in works</span></div>
+    <div>Tasks: <strong>${m.stats.tasksOpen}</strong> open &nbsp;·&nbsp; <span style="color:#b91c1c">${m.stats.tasksOverdue} overdue</span> &nbsp;·&nbsp; <span style="color:#b91c1c">${m.stats.tasksBlocked} blocked</span></div>
+  </div>`);
+
+  function section(title, count, body) {
+    if (!count) return `<div style="margin-bottom:22px"><div style="font-weight:700;color:#94a3b8;font-size:12px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px">${title}</div><div style="color:#94a3b8;font-size:13px;font-style:italic">No activity this window.</div></div>`;
+    return `<div style="margin-bottom:22px"><div style="font-weight:700;color:#1e293b;font-size:13px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">${title} <span style="color:#94a3b8;font-weight:600">(${count})</span></div>${body}</div>`;
+  }
+  function bullets(arr, fn) {
+    return `<ul style="margin:0;padding-left:20px">${arr.map(x=>`<li style="margin-bottom:3px">${fn(x)}</li>`).join('')}</ul>`;
+  }
+  const esc2 = s => String(s == null ? '' : s).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  h.push(section('🚨 Blockers & Escalations', m.blockers.length,
+    bullets(m.blockers, b => b.reason === 'overdue'
+      ? `<strong>${esc2(b.title)}</strong> — overdue by ${b.daysOverdue}d${b.owner?' · '+esc2(b.owner):''} <span style="color:#b91c1c">(due ${esc2(b.due)})</span>`
+      : `<strong>${esc2(b.title)}</strong> — status: ${esc2(b.status)}${b.owner?' · '+esc2(b.owner):''}`)));
+
+  h.push(section('💰 Contracts & Money This Week', m.contracts.length,
+    bullets(m.contracts, e => `<strong>${esc2(e.entityName)}</strong>: ${esc2(e.oldValue||'—')} → <strong>${esc2(e.newValue)}</strong>`)));
+
+  const venueBits = [];
+  ['Confirmed','Pending Deposit','In Works','Closed / Out'].forEach(t => {
+    if (m.venueByTier[t].length) {
+      venueBits.push(`<div style="margin-bottom:6px"><strong>Moved to ${t}:</strong> ${m.venueByTier[t].map(e=>esc2(e.entityName)).join(', ')}</div>`);
+    }
+  });
+  if (m.venuesAdded.length) {
+    venueBits.push(`<div style="margin-bottom:6px"><strong>New venues:</strong> ${m.venuesAdded.map(e=>esc2(e.entityName)).join(', ')}</div>`);
+  }
+  const venueCount = m.venuesAdded.length + Object.values(m.venueByTier).reduce((s,a)=>s+a.length,0);
+  h.push(section('📍 Venues — Status Changes', venueCount, venueBits.join('') || '<div style="color:#94a3b8">None</div>'));
+
+  h.push(section('✅ Tasks Closed This Week', m.tasksClosed.length,
+    bullets(m.tasksClosed, e => `${esc2(e.entityName)}`)));
+
+  h.push(section('🆕 Tasks Created This Week', m.tasksCreated.length,
+    bullets(m.tasksCreated, e => `${esc2(e.entityName)}`)));
+
+  h.push(section('⏰ Coming Due (Next 7 Days)', m.tasksDueSoon.length,
+    bullets(m.tasksDueSoon, t => `<strong>${esc2(t.title)}</strong>${t.owner?' · '+esc2(t.owner):''} — due ${esc2(t.due)} (in ${t.daysUntil}d)${t.priority?' · '+esc2(t.priority):''}`)));
+
+  const orgBits = [];
+  if (m.orgAdds.length)      orgBits.push(`<div><strong>Added / updated:</strong> ${m.orgAdds.map(e=>esc2(e.text)).join(' &nbsp;·&nbsp; ')}</div>`);
+  if (m.orgRemoves.length)   orgBits.push(`<div><strong>Removed:</strong> ${m.orgRemoves.map(e=>esc2(e.entityName)).join(', ')}</div>`);
+  if (m.prospectAdds.length) orgBits.push(`<div><strong>New prospects:</strong> ${m.prospectAdds.map(e=>esc2(e.entityName)).join(', ')}</div>`);
+  h.push(section('👥 Org & Team', m.orgAdds.length + m.orgRemoves.length + m.prospectAdds.length, orgBits.join('') || ''));
+
+  const docBits = [];
+  if (m.docChanges.length)    docBits.push(`<div><strong>Documents:</strong> ${m.docChanges.map(e=>esc2(e.text)).join(' &nbsp;·&nbsp; ')}</div>`);
+  if (m.vendorChanges.length) docBits.push(`<div><strong>Vendors:</strong> ${m.vendorChanges.map(e=>esc2(e.text)).join(' &nbsp;·&nbsp; ')}</div>`);
+  if (m.hotelChanges.length)  docBits.push(`<div><strong>Hotels:</strong> ${m.hotelChanges.map(e=>esc2(e.text)).join(' &nbsp;·&nbsp; ')}</div>`);
+  if (m.planChanges.length)   docBits.push(`<div><strong>Plan:</strong> ${m.planChanges.map(e=>esc2(e.text)).join(' &nbsp;·&nbsp; ')}</div>`);
+  const otherCount = m.docChanges.length + m.vendorChanges.length + m.hotelChanges.length + m.planChanges.length;
+  h.push(section('📂 Documents · Vendors · Hotels · Plan', otherCount, docBits.join('') || ''));
+
+  return h.join('');
+}
+
+// Markdown for clipboard (email-ready)
+function _briefMarkdown(m) {
+  const fmt = d => d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const out = [];
+  out.push(`# NAIG 2027 Logistics — Weekly Status Brief`);
+  out.push(`${fmt(m.window.start)} – ${fmt(m.window.end)} · ${m.window.days} days`);
+  out.push('');
+  out.push(`**Snapshot** — Venues: ${m.stats.venues} total · ${m.stats.venuesConfirmed} confirmed · ${m.stats.venuesPending} pending deposit · ${m.stats.venuesInWorks} in works. Tasks: ${m.stats.tasksOpen} open · ${m.stats.tasksOverdue} overdue · ${m.stats.tasksBlocked} blocked.`);
+  out.push('');
+
+  function sec(title, arr, fn) {
+    out.push(`## ${title}`);
+    if (!arr.length) { out.push('_None this window._'); out.push(''); return; }
+    arr.forEach(x => out.push('- ' + fn(x)));
+    out.push('');
+  }
+
+  sec('Blockers & Escalations', m.blockers, b => b.reason === 'overdue'
+    ? `**${b.title}** — overdue by ${b.daysOverdue}d${b.owner?' · '+b.owner:''} (due ${b.due})`
+    : `**${b.title}** — status: ${b.status}${b.owner?' · '+b.owner:''}`);
+
+  sec('Contracts & Money This Week', m.contracts, e => `**${e.entityName}**: ${e.oldValue||'—'} → ${e.newValue}`);
+
+  // Venues
+  out.push('## Venues — Status Changes');
+  let any = false;
+  ['Confirmed','Pending Deposit','In Works','Closed / Out'].forEach(t => {
+    if (m.venueByTier[t].length) {
+      any = true;
+      out.push(`- **Moved to ${t}:** ${m.venueByTier[t].map(e=>e.entityName).join(', ')}`);
+    }
+  });
+  if (m.venuesAdded.length) { any = true; out.push(`- **New venues:** ${m.venuesAdded.map(e=>e.entityName).join(', ')}`); }
+  if (!any) out.push('_None this window._');
+  out.push('');
+
+  sec('Tasks Closed This Week', m.tasksClosed, e => e.entityName);
+  sec('Tasks Created This Week', m.tasksCreated, e => e.entityName);
+  sec('Coming Due (Next 7 Days)', m.tasksDueSoon, t => `**${t.title}**${t.owner?' · '+t.owner:''} — due ${t.due} (in ${t.daysUntil}d)${t.priority?' · '+t.priority:''}`);
+
+  // Org
+  const orgLines = [];
+  if (m.orgAdds.length)      orgLines.push(`- **Added / updated:** ${m.orgAdds.map(e=>e.text).join(' · ')}`);
+  if (m.orgRemoves.length)   orgLines.push(`- **Removed:** ${m.orgRemoves.map(e=>e.entityName).join(', ')}`);
+  if (m.prospectAdds.length) orgLines.push(`- **New prospects:** ${m.prospectAdds.map(e=>e.entityName).join(', ')}`);
+  out.push('## Org & Team');
+  if (orgLines.length) orgLines.forEach(l => out.push(l)); else out.push('_None this window._');
+  out.push('');
+
+  // Other
+  const otherLines = [];
+  if (m.docChanges.length)    otherLines.push(`- **Documents:** ${m.docChanges.map(e=>e.text).join(' · ')}`);
+  if (m.vendorChanges.length) otherLines.push(`- **Vendors:** ${m.vendorChanges.map(e=>e.text).join(' · ')}`);
+  if (m.hotelChanges.length)  otherLines.push(`- **Hotels:** ${m.hotelChanges.map(e=>e.text).join(' · ')}`);
+  if (m.planChanges.length)   otherLines.push(`- **Plan:** ${m.planChanges.map(e=>e.text).join(' · ')}`);
+  out.push('## Documents · Vendors · Hotels · Plan');
+  if (otherLines.length) otherLines.forEach(l => out.push(l)); else out.push('_None this window._');
+  out.push('');
+
+  out.push('---');
+  out.push(`_Generated ${new Date().toLocaleString()} from https://rizwan-collab.github.io/naig-2027-orgchart/_`);
+  return out.join('\n');
+}
+
+window.renderWeeklyBrief = function() {
+  const el = document.getElementById('briefContent');
+  const statusEl = document.getElementById('briefStatus');
+  const winSel = document.getElementById('briefWindow');
+  const days = parseInt((winSel && winSel.value) || '7', 10);
+  const model = _buildBriefModel(days);
+  window._lastBriefModel = model;
+  if (el) el.innerHTML = _briefHtml(model);
+  if (statusEl) {
+    statusEl.textContent = `${model.stats.logEntries} activity-log entries in the last ${days} days. Latest brief generated ${new Date().toLocaleString()}.`;
+  }
+};
+
+window.copyBriefEmail = async function() {
+  const model = window._lastBriefModel || _buildBriefModel(parseInt(document.getElementById('briefWindow').value,10));
+  const html = _briefHtml(model);
+  // Wrap in a minimal email-friendly shell
+  const emailHtml = `<div style="font-family:-apple-system,'Segoe UI',Arial,sans-serif;font-size:14px;line-height:1.6;color:#1f2937;max-width:720px">${html}</div>`;
+  try {
+    if (navigator.clipboard && window.ClipboardItem) {
+      const blob = new Blob([emailHtml], { type: 'text/html' });
+      const textBlob = new Blob([_briefMarkdown(model)], { type: 'text/plain' });
+      await navigator.clipboard.write([new ClipboardItem({ 'text/html': blob, 'text/plain': textBlob })]);
+    } else {
+      await navigator.clipboard.writeText(_briefMarkdown(model));
+    }
+    _briefFlash('Copied as rich email — paste into Gmail with Cmd+V.');
+  } catch (e) {
+    console.error(e);
+    _briefFlash('Copy failed — check console.');
+  }
+};
+
+window.copyBriefMarkdown = async function() {
+  const model = window._lastBriefModel || _buildBriefModel(parseInt(document.getElementById('briefWindow').value,10));
+  const md = _briefMarkdown(model);
+  try {
+    await navigator.clipboard.writeText(md);
+    _briefFlash('Copied as markdown.');
+  } catch (e) {
+    console.error(e);
+    _briefFlash('Copy failed — check console.');
+  }
+};
+
+function _briefFlash(msg) {
+  const el = document.getElementById('briefStatus');
+  if (!el) return;
+  const prev = el.textContent;
+  el.style.color = '#16a34a';
+  el.textContent = '✓ ' + msg;
+  setTimeout(() => { el.style.color = '#64748b'; el.textContent = prev; }, 3000);
 }
 
 /* ── Notification bell / panel ── */
@@ -7194,9 +7603,11 @@ function saveTask() {
     updated:    new Date().toISOString()
   });
   if (!editKey) {
-    logActivity('task', `New task: "${title}"${newOwners.length ? ' — assigned to ' + newOwners.join(', ') : ''}`);
+    logActivity('task', `New task: "${title}"${newOwners.length ? ' — assigned to ' + newOwners.join(', ') : ''}`,
+                { action:'create', entityKey:key, entityName:title, newValue:_newStatus });
   } else if (_oldTask && _oldTask.status !== _newStatus) {
-    logActivity('task', `Task "${title}" moved to ${_STATUS_LABEL[_newStatus] || _newStatus}`);
+    logActivity('task', `Task "${title}" moved to ${_STATUS_LABEL[_newStatus] || _newStatus}`,
+                { action:'status_change', entityKey:key, entityName:title, oldValue:_oldTask.status, newValue:_newStatus });
   }
   // Send assignment email for newly-added people
   if (newlyAdded.length) {
@@ -7265,6 +7676,27 @@ function contractBadge(s) {
   return `<span class="hbadge ${map[s]||'hbadge-grey'}">${esc(s||'—')}</span>`;
 }
 
+// Quick inline status change from venue card (no full modal round-trip)
+window.quickChangeVenueStatus = function(key, newStatus, selectEl) {
+  const v = (window._venuesData || {})[key];
+  if (!v) return;
+  const oldStatus = v.status || '';
+  if (oldStatus === newStatus) return;
+  // Write full object with just status swapped (matches saveVenue behavior)
+  const updated = Object.assign({}, v, { status: newStatus, updated: new Date().toISOString() });
+  if (!window._dbRef || !window._dbSet) { alert('Firebase not ready yet — try again in a moment.'); return; }
+  window._dbSet(window._dbRef('naig2027/venues/' + key), updated);
+  if (typeof logActivity === 'function') {
+    logActivity('venue', `Venue "${v.name || key}" status changed: ${oldStatus || '—'} → ${newStatus}`,
+                { action:'status_change', entityKey:key, entityName:v.name || key, oldValue:oldStatus, newValue:newStatus });
+  }
+  // Visual feedback: brief highlight
+  if (selectEl) {
+    selectEl.style.background = '#d4edda';
+    setTimeout(() => { if (selectEl) selectEl.style.background = '#fff'; }, 700);
+  }
+};
+
 window.renderVenues = function() {
   const wrap = document.getElementById('venuesTierWrap');
   if (!wrap) return;
@@ -7272,9 +7704,16 @@ window.renderVenues = function() {
   const search = (document.getElementById('venueSearch')||{}).value?.toLowerCase()||'';
   const items = all.filter(([,v]) => !search || JSON.stringify(v).toLowerCase().includes(search));
 
-  const confirmed = items.filter(([,v]) => ['Confirmed','Signed','Walk Done','Ops Ready'].includes(v.status));
-  const inWorks   = items.filter(([,v]) => ['In Works','In Conversation','Identified','Outreach Sent','LOI Sent','Contract Review','Exploring','Shortlisted','Negotiating','Site Visit Scheduled','Evaluating','Prospect'].includes(v.status));
-  const closed    = items.filter(([,v]) => ['Dropped','Closed','Cancelled','Not Available'].includes(v.status));
+  // Case-insensitive prefix match so descriptive suffixes (e.g. "Signed — Executed 8/18") still bucket correctly
+  const _statusMatch = (status, prefixes) => {
+    if (!status) return false;
+    const s = String(status).toLowerCase().trim();
+    return prefixes.some(p => s.startsWith(p.toLowerCase()));
+  };
+  const confirmed      = items.filter(([,v]) => _statusMatch(v.status, ['Confirmed','Walk Done','Ops Ready']));
+  const pendingDeposit = items.filter(([,v]) => _statusMatch(v.status, ['Pending Deposit','Signed','Executed']));
+  const inWorks        = items.filter(([,v]) => _statusMatch(v.status, ['In Works','In Conversation','Identified','Outreach','LOI Sent','Contract Review','Exploring','Shortlisted','Negotiating','Site Visit','Evaluating','Under Evaluation','Under Review','Prospect','Reserved']));
+  const closed         = items.filter(([,v]) => _statusMatch(v.status, ['Dropped','Closed','Cancelled','Not Available','Not Selected','Declined']));
 
   // Financial snapshot
   const parseNum = s => parseFloat(String(s||'0').replace(/[^0-9.]/g,'')) || 0;
@@ -7286,6 +7725,7 @@ window.renderVenues = function() {
   if (strip) strip.innerHTML =
     `<div class="sum-chip"><strong>${all.length}</strong><span>Total</span></div>` +
     `<div class="sum-chip" style="color:#155724"><strong>${confirmed.length}</strong><span>Confirmed</span></div>` +
+    (pendingDeposit.length ? `<div class="sum-chip" style="color:#084298"><strong>${pendingDeposit.length}</strong><span>Pending Deposit</span></div>` : '') +
     `<div class="sum-chip" style="color:#856404"><strong>${inWorks.length}</strong><span>In Works</span></div>` +
     (closed.length ? `<div class="sum-chip" style="color:#6c757d"><strong>${closed.length}</strong><span>Closed</span></div>` : '') +
     (totalCommitted ? `<div class="sum-chip" style="border-left:1px solid #d0dae4;margin-left:4px;padding-left:12px;color:#1a3a5c"><strong>${fmtN(totalCommitted)}</strong><span>Committed</span></div>` : '') +
@@ -7312,7 +7752,11 @@ window.renderVenues = function() {
     };
     const sc = statusColors[v.status] || '##495057;background:#e9ecef';
     const statusBadge = v.status ? `<span style="display:inline-block;font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;color:${sc};letter-spacing:0.02em">${esc(v.status)}</span>` : '';
-    return `<div class="venue-card${dim?' venue-card-dim':''}" onclick="openVenueModal('${k}')">
+    // Inline quick-change dropdown — click doesn't propagate to open the modal
+    const _statusOpts = ['Confirmed','Walk Done','Ops Ready','---','Signed','Pending Deposit','Executed','---','In Works','Reserved','In Conversation','Identified','Outreach Sent','LOI Sent','Contract Review','Exploring','Shortlisted','Negotiating','Site Visit Scheduled','Under Evaluation','Under Review','Prospect','---','Dropped','Closed','Cancelled','Not Available','Not Selected','Declined'];
+    const _optHtml = _statusOpts.map(o => o === '---' ? '<option disabled>──────────</option>' : `<option${o===v.status?' selected':''}>${o}</option>`).join('');
+    const statusInline = `<select onclick="event.stopPropagation()" onchange="event.stopPropagation();quickChangeVenueStatus('${k}', this.value, this)" style="font-size:10px;padding:2px 6px;border:1px solid #ddd;border-radius:12px;background:#fff;cursor:pointer;margin-left:6px" title="Change status">${_optHtml}</select>`;
+    return `<div class="venue-card${dim?' venue-card-dim':''}" draggable="true" data-venue-key="${k}" ondragstart="window._venueDragStart(event,'${k}')" ondragend="window._venueDragEnd(event)" onclick="openVenueModal('${k}')">
       <div class="vc-header">
         <div>
           <div class="vc-name">${esc(v.name||'TBD')}</div>
@@ -7320,26 +7764,73 @@ window.renderVenues = function() {
         </div>
         <button class="btn btn-cancel" style="padding:2px 7px;font-size:10px;flex-shrink:0" onclick="event.stopPropagation();deleteHubItem('venues','${k}',window.renderVenues)">×</button>
       </div>
-      ${statusBadge}
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">${statusBadge}${statusInline}</div>
       ${v.sports?`<div class="vc-sports">${esc(v.sports)}</div>`:''}
       ${poc}
       ${v.notes?`<div class="vc-notes">${esc(v.notes.slice(0,120))}${v.notes.length>120?'…':''}</div>`:''}
     </div>`;
   }
 
-  function tier(label, entries, cls, dim) {
-    return `<div class="venue-tier">
+  function tier(label, entries, cls, dim, tierId) {
+    return `<div class="venue-tier" data-tier="${tierId}" ondragover="window._venueDragOver(event)" ondragleave="window._venueDragLeave(event)" ondrop="window._venueDrop(event,'${tierId}')">
       <div class="venue-tier-hdr ${cls}">${label} <span class="venue-tier-count">${entries.length}</span></div>
       ${entries.length
         ? `<div class="venue-card-grid">${entries.map(([k,v])=>venueCard(k,v,dim)).join('')}</div>`
-        : `<div class="hub-empty" style="margin:6px 0;padding:10px 14px">None yet — click + Add Venue to add one.</div>`}
+        : `<div class="hub-empty" style="margin:6px 0;padding:10px 14px">Drop a venue card here, or click + Add Venue.</div>`}
     </div>`;
   }
 
+  // Always render all 4 tiers so empty ones remain valid drop targets
   wrap.innerHTML =
-    tier('Confirmed', confirmed, 'tier-confirmed', false) +
-    tier('In Works', inWorks, 'tier-inworks', false) +
-    (closed.length ? tier('Closed / Out', closed, 'tier-closed', true) : '');
+    tier('Confirmed', confirmed, 'tier-confirmed', false, 'confirmed') +
+    tier('Pending Deposit', pendingDeposit, 'tier-pending-deposit', false, 'pending-deposit') +
+    tier('In Works', inWorks, 'tier-inworks', false, 'in-works') +
+    tier('Closed / Out', closed, 'tier-closed', true, 'closed');
+};
+
+// ── Drag & drop between venue tiers ──────────────────────────────
+// Dropping a card onto a tier sets its status to that tier's default
+// status (unless it's already bucketed into that tier, in which case
+// it's a no-op — preserves descriptive suffixes like "Signed — Executed 8/18").
+window._venueDragStart = function(e, key) {
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', key);
+  e.currentTarget.classList.add('dragging');
+};
+window._venueDragEnd = function(e) {
+  e.currentTarget.classList.remove('dragging');
+  document.querySelectorAll('.venue-tier.drop-target').forEach(el => el.classList.remove('drop-target'));
+};
+window._venueDragOver = function(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.classList.add('drop-target');
+};
+window._venueDragLeave = function(e) {
+  if (!e.currentTarget.contains(e.relatedTarget)) {
+    e.currentTarget.classList.remove('drop-target');
+  }
+};
+window._venueDrop = function(e, tierId) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drop-target');
+  const key = e.dataTransfer.getData('text/plain');
+  if (!key) return;
+  const v = (window._venuesData || {})[key];
+  if (!v) return;
+
+  const tierMap = {
+    'confirmed':       { prefixes: ['Confirmed','Walk Done','Ops Ready'],                       def: 'Confirmed' },
+    'pending-deposit': { prefixes: ['Pending Deposit','Signed','Executed'],                     def: 'Signed' },
+    'in-works':        { prefixes: ['In Works','In Conversation','Identified','Outreach','LOI Sent','Contract Review','Exploring','Shortlisted','Negotiating','Site Visit','Evaluating','Under Evaluation','Under Review','Prospect','Reserved'], def: 'In Works' },
+    'closed':          { prefixes: ['Dropped','Closed','Cancelled','Not Available','Not Selected','Declined'], def: 'Dropped' }
+  };
+  const t = tierMap[tierId];
+  if (!t) return;
+  const cur = String(v.status || '').toLowerCase().trim();
+  const alreadyInTier = t.prefixes.some(p => cur.startsWith(p.toLowerCase()));
+  if (alreadyInTier) return; // no-op — preserves descriptive suffixes
+  window.quickChangeVenueStatus(key, t.def, null);
 };
 
 function exportVenuesCSV() {
@@ -7462,9 +7953,11 @@ function saveVenue() {
     updated: new Date().toISOString()
   });
   if (_isNewVenue) {
-    logActivity('venue', `New venue added: "${name}"`);
+    logActivity('venue', `New venue added: "${name}"`,
+                { action:'create', entityKey:key, entityName:name, newValue:_newStatus });
   } else if (_oldVenue && _oldVenue.status !== _newStatus) {
-    logActivity('venue', `Venue "${name}" status changed: ${_oldVenue.status || '—'} → ${_newStatus}`);
+    logActivity('venue', `Venue "${name}" status changed: ${_oldVenue.status || '—'} → ${_newStatus}`,
+                { action:'status_change', entityKey:key, entityName:name, oldValue:_oldVenue.status, newValue:_newStatus });
   }
   closeVenueModal();
 }
@@ -7617,6 +8110,9 @@ function saveVendor() {
   const name = document.getElementById('vendorName').value.trim();
   if (!name) { alert('Vendor name required.'); return; }
   const key = document.getElementById('vendorKey').value || hubKey();
+  const isNew = !document.getElementById('vendorKey').value;
+  const prev = (window._vendorsData || {})[key] || {};
+  const newStatus = document.getElementById('vendorContractStatus').value;
   hubSave('vendors', key, {
     name, category: document.getElementById('vendorCategory').value,
     pocName: document.getElementById('vendorPocName').value.trim(),
@@ -7633,6 +8129,16 @@ function saveVendor() {
     notes: document.getElementById('vendorNotes').value.trim(),
     updated: new Date().toISOString()
   });
+  if (isNew) {
+    logActivity('vendor', `New vendor added: "${name}"`,
+                { action:'create', entityKey:key, entityName:name });
+  } else if (prev.contractStatus && prev.contractStatus !== newStatus) {
+    logActivity('vendor', `Vendor "${name}" contract status: ${prev.contractStatus} → ${newStatus}`,
+                { action:'status_change', entityKey:key, entityName:name, oldValue:prev.contractStatus, newValue:newStatus });
+  } else {
+    logActivity('vendor', `Vendor "${name}" updated`,
+                { action:'update', entityKey:key, entityName:name });
+  }
   closeVendorModal();
 }
 window.openVendorModal = openVendorModal;
@@ -7763,6 +8269,9 @@ function saveHotel() {
   const name = document.getElementById('hotelName').value.trim();
   if (!name) { alert('Hotel name required.'); return; }
   const key = document.getElementById('hotelKey').value || hubKey();
+  const isNew = !document.getElementById('hotelKey').value;
+  const prev = (window._hotelsData || {})[key] || {};
+  const newStatus = document.getElementById('hotelStatus').value;
   hubSave('hotels', key, {
     name,
     address: document.getElementById('hotelAddress').value.trim(),
@@ -7784,6 +8293,16 @@ function saveHotel() {
     notes: document.getElementById('hotelNotes').value.trim(),
     updated: new Date().toISOString()
   });
+  if (isNew) {
+    logActivity('hotel', `New hotel added: "${name}"`,
+                { action:'create', entityKey:key, entityName:name });
+  } else if (prev.status && prev.status !== newStatus) {
+    logActivity('hotel', `Hotel "${name}" status: ${prev.status} → ${newStatus}`,
+                { action:'status_change', entityKey:key, entityName:name, oldValue:prev.status, newValue:newStatus });
+  } else {
+    logActivity('hotel', `Hotel "${name}" updated`,
+                { action:'update', entityKey:key, entityName:name });
+  }
   closeHotelModal();
 }
 
@@ -8303,17 +8822,30 @@ function saveDoc() {
   const name = document.getElementById('docName').value.trim();
   if (!name) { alert('Document / file name required.'); return; }
   const key = document.getElementById('docKey').value || hubKey();
+  const isNew = !document.getElementById('docKey').value;
+  const prev = (window._docsData || {})[key] || {};
+  const newStatus = document.getElementById('docStatus').value;
   hubSave('docs', key, {
     name,
     type: document.getElementById('docType').value,
     area: document.getElementById('docArea').value,
-    status: document.getElementById('docStatus').value,
+    status: newStatus,
     owner: document.getElementById('docOwner').value.trim(),
     expiry: document.getElementById('docExpiry').value,
     link: document.getElementById('docLink').value.trim(),
     notes: document.getElementById('docNotes').value.trim(),
     updated: new Date().toISOString()
   });
+  if (isNew) {
+    logActivity('doc', `New document added: "${name}"`,
+                { action:'create', entityKey:key, entityName:name });
+  } else if (prev.status && prev.status !== newStatus) {
+    logActivity('doc', `Document "${name}" status: ${prev.status} → ${newStatus}`,
+                { action:'status_change', entityKey:key, entityName:name, oldValue:prev.status, newValue:newStatus });
+  } else {
+    logActivity('doc', `Document "${name}" updated`,
+                { action:'update', entityKey:key, entityName:name });
+  }
   closeDocModal();
 }
 window.openDocModal = openDocModal;
@@ -9187,12 +9719,23 @@ window.addEventListener('load', function() {
  <div class="form-group">
  <label>Status</label>
  <select id="venueStatus" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
- <option>Identified</option><option>Outreach Sent</option><option>In Conversation</option>
- <option>LOI Sent</option><option>Contract Review</option><option>Signed</option>
- <option>Walk Done</option><option>Ops Ready</option>
- <option>Exploring</option><option>Site Visit Scheduled</option><option>Shortlisted</option>
- <option>Negotiating</option><option>Confirmed</option>
- <option>Not Available</option><option>Dropped</option><option>Cancelled</option>
+ <optgroup label="Confirmed tier">
+ <option>Confirmed</option><option>Walk Done</option><option>Ops Ready</option>
+ </optgroup>
+ <optgroup label="Pending Deposit tier">
+ <option>Signed</option><option>Pending Deposit</option><option>Executed</option>
+ </optgroup>
+ <optgroup label="In Works tier">
+ <option>In Works</option><option>Reserved</option><option>In Conversation</option>
+ <option>Identified</option><option>Outreach Sent</option><option>LOI Sent</option>
+ <option>Contract Review</option><option>Exploring</option><option>Shortlisted</option>
+ <option>Negotiating</option><option>Site Visit Scheduled</option>
+ <option>Under Evaluation</option><option>Under Review</option><option>Prospect</option>
+ </optgroup>
+ <optgroup label="Closed / Out tier">
+ <option>Dropped</option><option>Closed</option><option>Cancelled</option>
+ <option>Not Available</option><option>Not Selected</option><option>Declined</option>
+ </optgroup>
  </select>
  </div>
  <div class="form-group">
