@@ -124,40 +124,108 @@
   const activityLogRef   = ref(db, 'naig2027/activityLog');
   const dirMigrationRef   = ref(db, 'naig2027/directoryV2Migrated');
 
+  // ── Nothing about Firebase is allowed to fail quietly any more ─────────────
+  // Every read and write in this app used to be fire-and-forget. onValue was
+  // called with no error callback, and set()/remove() return a promise nobody
+  // awaited. So when the security rules started refusing something, the app's
+  // reaction was: nothing. Tabs rendered empty, Delete did nothing, Save looked
+  // like it worked. Hours went into chasing "the data is gone" when the data was
+  // fine and the app simply never said it had been refused.
+  //
+  // These two wrappers are the fix. Reads report a denied node; writes report a
+  // denied write, loudly, on screen, naming the path.
+  // A single self-building banner, pinned bottom-right, that says exactly what
+  // was refused. It builds its own DOM so it works no matter which tab is open
+  // and no matter how early in boot the failure happens.
+  window.fbShowBanner = function (what, code, denied) {
+    let el = document.getElementById('fbErrBanner');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'fbErrBanner';
+      el.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:100000;max-width:380px;' +
+        'background:#7f1d1d;color:#fff;border-radius:10px;padding:12px 14px 12px 14px;' +
+        'font:13px/1.45 -apple-system,Segoe UI,Roboto,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.35)';
+      document.body.appendChild(el);
+    }
+    const hint = denied
+      ? 'The database refused this. Usually that means you are not signed in, or your account does not have edit rights on this section.'
+      : 'The database did not accept this. Check your connection and try again.';
+    el.innerHTML =
+      '<div style="font-weight:700;margin-bottom:4px">Database ' + (denied ? 'permission denied' : 'error') + '</div>' +
+      '<div style="opacity:.92;margin-bottom:6px">Could not <b>' + String(what).replace(/</g,'&lt;') + '</b></div>' +
+      '<div style="opacity:.8;font-size:12px;margin-bottom:8px">' + hint + '</div>' +
+      '<div style="opacity:.6;font-size:11px;margin-bottom:8px">' + String(code).replace(/</g,'&lt;') + '</div>' +
+      '<button style="background:#fff;color:#7f1d1d;border:0;border-radius:6px;padding:5px 10px;' +
+      'font-weight:600;font-size:12px;cursor:pointer" onclick="this.parentNode.remove()">Dismiss</button>';
+    el.style.display = 'block';
+  };
+
+  window._fbError = function (what, err) {
+    const code = (err && (err.code || err.message)) || 'unknown';
+    const denied = /permission|denied|PERMISSION/i.test(String(code));
+    console.error('[NAIG][firebase] ' + what + ' failed:', code, err);
+    try {
+      window._fbErrors = window._fbErrors || [];
+      window._fbErrors.push({ what, code: String(code), ts: Date.now() });
+      window.fbShowBanner && window.fbShowBanner(what, String(code), denied);
+      const st = document.getElementById('syncStatus');
+      if (st) st.textContent = ' Sync error — changes may not be saving';
+    } catch (e) { }
+  };
+
+  const onV = (r, path, cb) => onValue(
+    r,
+    snap => cb(snap.val()),
+    err  => window._fbError('read ' + path, err)
+  );
+  const setV = (r, data, path) => {
+    const p = set(r, data);
+    if (p && p.catch) p.catch(err => window._fbError('save ' + path, err));
+    return p;
+  };
+
   // ── expose Firebase to the rest of the page ──
   window._fb = {
     demoMode: false,
-    save:            (data) => set(orgRef, data),
-    saveProspects:   (data) => set(prospectsRef, data),
-    saveRnr:         (data) => set(rnrRef, data),
-    listen:          (cb)   => onValue(orgRef,       snap => cb(snap.val())),
-    listenProspects: (cb)   => onValue(prospectsRef, snap => cb(snap.val())),
-    listenRnr:       (cb)   => onValue(rnrRef,       snap => cb(snap.val())),
-    listenTasks:      (cb) => onValue(tasksRef,    snap => cb(snap.val())),
-    listenVenues:     (cb) => onValue(venuesRef,   snap => cb(snap.val())),
-    listenVendors:    (cb) => onValue(vendorsRef,  snap => cb(snap.val())),
-    listenScope:      (cb) => onValue(scopeRef,    snap => cb(snap.val())),
-    listenHotels:     (cb) => onValue(hotelsRef,    snap => cb(snap.val())),
-    listenTransport:  (cb) => onValue(transportRef, snap => cb(snap.val())),
-    listenLoops:      (cb) => onValue(loopsRef,     snap => cb(snap.val())),
-    listenDrivers:    (cb) => onValue(driversRef,   snap => cb(snap.val())),
-    listenDocs:       (cb) => onValue(docsRef,      snap => cb(snap.val())),
-    listenPlan:       (cb) => onValue(planRef,      snap => cb(snap.val())),
-    savePlan:         (data) => set(planRef, data),
-    listenTeams:         (cb) => onValue(teamsRef,         snap => cb(snap.val())),
-    listenCustomModules: (cb) => onValue(customModulesRef, snap => cb(snap.val())),
-    listenRoleCatalog: (cb) => onValue(roleCatalogRef, snap => cb(snap.val())),
-    saveRoleCatalog:   (data) => set(roleCatalogRef, data),
-    listenActivityLog: (cb) => onValue(activityLogRef, snap => cb(snap.val())),
-    saveActivityLog:   (data) => set(activityLogRef, data),
-    listenAccess:      (cb) => onValue(ref(db, 'naig2027/access/config'), snap => cb(snap.val())),
-    listenDirMigrationFlag: (cb) => onValue(dirMigrationRef, snap => cb(snap.val())),
-    setDirMigrationFlag:    (val) => set(dirMigrationRef, val),
+    save:            (data) => setV(orgRef, data, 'org'),
+    saveProspects:   (data) => setV(prospectsRef, data, 'prospects'),
+    saveRnr:         (data) => setV(rnrRef, data, 'rnr'),
+    listen:          (cb)   => onV(orgRef,       'org', cb),
+    listenProspects: (cb)   => onV(prospectsRef, 'prospects', cb),
+    listenRnr:       (cb)   => onV(rnrRef,       'rnr', cb),
+    listenTasks:      (cb) => onV(tasksRef,     'tasks', cb),
+    listenVenues:     (cb) => onV(venuesRef,    'venues', cb),
+    listenVendors:    (cb) => onV(vendorsRef,   'vendors', cb),
+    listenScope:      (cb) => onV(scopeRef,     'scope', cb),
+    listenHotels:     (cb) => onV(hotelsRef,    'hotels', cb),
+    listenTransport:  (cb) => onV(transportRef, 'transport', cb),
+    listenLoops:      (cb) => onV(loopsRef,     'loops', cb),
+    listenDrivers:    (cb) => onV(driversRef,   'drivers', cb),
+    listenDocs:       (cb) => onV(docsRef,      'docs', cb),
+    listenPlan:       (cb) => onV(planRef,      'plan', cb),
+    savePlan:         (data) => setV(planRef, data, 'plan'),
+    listenTeams:         (cb) => onV(teamsRef,         'teams', cb),
+    listenCustomModules: (cb) => onV(customModulesRef, 'customModules', cb),
+    listenRoleCatalog: (cb) => onV(roleCatalogRef, 'roleCatalog', cb),
+    saveRoleCatalog:   (data) => setV(roleCatalogRef, data, 'roleCatalog'),
+    listenActivityLog: (cb) => onV(activityLogRef, 'activityLog', cb),
+    saveActivityLog:   (data) => setV(activityLogRef, data, 'activityLog'),
+    listenAccess:      (cb) => onV(ref(db, 'naig2027/access/config'), 'access/config', cb),
+    listenDirMigrationFlag: (cb) => onV(dirMigrationRef, 'directoryV2Migrated', cb),
+    setDirMigrationFlag:    (val) => setV(dirMigrationRef, val, 'directoryV2Migrated'),
   };
-  // Primitives for global CRUD
+  // Primitives for global CRUD. Same rule: a rejected write must say so.
   window._dbRef    = (path) => ref(db, path);
-  window._dbSet    = set;
-  window._dbRemove = remove;
+  window._dbSet    = function (r, data) {
+    const p = set(r, data);
+    if (p && p.catch) p.catch(err => window._fbError('save ' + ((r && r.toString && r.toString().split('naig2027/')[1]) || 'node'), err));
+    return p;
+  };
+  window._dbRemove = function (r) {
+    const p = remove(r);
+    if (p && p.catch) p.catch(err => window._fbError('delete ' + ((r && r.toString && r.toString().split('naig2027/')[1]) || 'node'), err));
+    return p;
+  };
 
   function showSyncStatus(msg) {
     const el = document.getElementById('syncStatus');
@@ -176,6 +244,14 @@
   // anonymous-to-Google transition, and re-attaching would stack duplicate
   // listeners on every node.
   function attachAllListeners() {
+    // ── Seed flags FIRST ───────────────────────────────────────────────────
+    // Every "if this node is empty, seed it" branch below has to know whether
+    // the project has already been seeded once. Read that first; seedOnce()
+    // queues anything that arrives before this lands.
+    onV(ref(db, 'naig2027/seeded'), 'seeded', (data) => {
+      window.seedFlagsLoaded && window.seedFlagsLoaded(data || {});
+    });
+
     // ── Org structure ──
     window._fb.listen((cloudData) => {
       if (cloudData) {
@@ -442,6 +518,21 @@
     if (u && !_listenersAttached) {
       _listenersAttached = true;
       attachAllListeners();
+      // Live connection light. Firebase publishes .info/connected on every
+      // client; it is the only honest answer to "is this page actually talking
+      // to the database right now". Everything else is a guess.
+      try {
+        onValue(ref(db, '.info/connected'), (snap) => {
+          const el = document.getElementById('syncStatus');
+          if (!el) return;
+          if (window._fbErrors && window._fbErrors.length) { el.textContent = ' Sync error — changes may not be saving'; return; }
+          el.textContent = snap.val() ? ' Live — synced' : ' Offline — reconnecting…';
+        });
+      } catch (e) { }
+    }
+    if (!u) {
+      const el = document.getElementById('syncStatus');
+      if (el) el.textContent = ' Not signed in — sign in to load data';
     }
   });
 
@@ -3810,8 +3901,9 @@ function openCustomRow(teamId, moduleId) {
   window._dbSet(window._dbRef('naig2027/customModules/' + teamId + '/' + moduleId + '/' + id), { name, status, notes });
 }
 function deleteCustomRow(teamId, moduleId, id) {
-  if (!confirm('Delete this item?')) return;
-  window._dbRemove(window._dbRef('naig2027/customModules/' + teamId + '/' + moduleId + '/' + id));
+  naigConfirm('Delete this item?', () => {
+    window._dbRemove(window._dbRef('naig2027/customModules/' + teamId + '/' + moduleId + '/' + id));
+  });
 }
 
 // ── Manage Teams admin modal ──
@@ -3866,11 +3958,12 @@ function toggleTeamModule(teamId, key, checked) {
 
 function deleteTeam(teamId) {
   if (teamId === 'logistics') return;
-  if (!confirm('Delete this team and its module selections? (Custom module data stays in the database.)')) return;
-  const teams = JSON.parse(JSON.stringify(window._teams || {}));
-  delete teams[teamId];
-  window._dbSet(window._dbRef('naig2027/teams'), teams);
-  if (window._activeTeamId === teamId) applyTeamScope('logistics');
+  naigConfirm('Delete this team and its module selections? (Custom module data stays in the database.)', () => {
+    const teams = JSON.parse(JSON.stringify(window._teams || {}));
+    delete teams[teamId];
+    window._dbSet(window._dbRef('naig2027/teams'), teams);
+    if (window._activeTeamId === teamId) applyTeamScope('logistics');
+  });
 }
 
 // ── Manage Roles admin modal (persistent role catalog, tied to the org chart) ──
@@ -3908,10 +4001,16 @@ function deleteRoleFromCatalog(role) {
     if (n.role === role) return true;
     return (n.children||[]).some(walk) || (n.coLeads||[]).some(walk);
   })(window._orgData);
-  if (inUseByNode && !confirm(`"${role}" is currently assigned to someone in the org chart. Remove it from the role catalog anyway? (Their title on the org chart won't change.)`)) return;
-  window._roleCatalog = (window._roleCatalog || []).filter(r => r !== role);
-  if (window._fb) window._fb.saveRoleCatalog(window._roleCatalog);
-  renderManageRolesList();
+  const _go = () => {
+    window._roleCatalog = (window._roleCatalog || []).filter(r => r !== role);
+    if (window._fb) window._fb.saveRoleCatalog(window._roleCatalog);
+    renderManageRolesList();
+  };
+  if (inUseByNode) {
+    naigConfirm(`"${role}" is currently assigned to someone in the org chart. Remove it from the role catalog anyway? (Their title on the org chart won't change.)`, _go);
+  } else {
+    _go();
+  }
 }
 
 function addCustomModule(teamId) {
@@ -3926,11 +4025,12 @@ function addCustomModule(teamId) {
 }
 
 function deleteCustomModule(teamId, moduleId) {
-  if (!confirm('Delete this custom tab? (Its data stays in the database.)')) return;
-  const teams = JSON.parse(JSON.stringify(window._teams || {}));
-  const t = teams[teamId]; if (!t) return;
-  if (t.custom) delete t.custom[moduleId];
-  window._dbSet(window._dbRef('naig2027/teams'), teams);
+  naigConfirm('Delete this custom tab? (Its data stays in the database.)', () => {
+    const teams = JSON.parse(JSON.stringify(window._teams || {}));
+    const t = teams[teamId]; if (!t) return;
+    if (t.custom) delete t.custom[moduleId];
+    window._dbSet(window._dbRef('naig2027/teams'), teams);
+  });
 }
 
 function findParentNode(childId, node) {
@@ -4358,13 +4458,14 @@ This cannot be undone.`
     : `Remove "${n.name || 'TBD'}" (${n.role}) from the org chart?
 
 This cannot be undone.`;
-  if (!confirm(msg)) return;
-  removeFromTree(id, window._orgData);
-  logActivity('org', `Removed from org chart: "${n.name || 'TBD'}" (${n.role})${childCount ? ' — plus ' + childCount + ' subordinate(s)' : ''}`,
-              { action:'delete', entityKey:id, entityName:n.name || 'TBD' });
-  closeEdit();
-  saveToCloud();
-  window._renderAll();
+  naigConfirm(msg, () => {
+    removeFromTree(id, window._orgData);
+    logActivity('org', `Removed from org chart: "${n.name || 'TBD'}" (${n.role})${childCount ? ' — plus ' + childCount + ' subordinate(s)' : ''}`,
+                { action:'delete', entityKey:id, entityName:n.name || 'TBD' });
+    closeEdit();
+    saveToCloud();
+    window._renderAll();
+  });
 }
 
 function removeFromTree(id, node) {
@@ -4686,16 +4787,17 @@ window.closeQuickAdd = closeQuickAdd;
 window.saveQuickAdd  = saveQuickAdd;
 
 function deleteProspect(id) {
-  if (!confirm('Remove this prospect?')) return;
-  const gone = (window._prospects || []).find(x => x.id === id);
-  window._prospects = window._prospects.filter(x => x.id !== id);
-  saveProspectsLocal();
-  if (gone) {
-    logActivity('prospect', `Prospect removed: "${gone.name}"`,
-                { action:'delete', entityKey:id, entityName:gone.name });
-  }
-  renderProspects();
-  if (window._dirMigrationFlag) window.regenerateOrgFromDirectory && window.regenerateOrgFromDirectory();
+  naigConfirm('Remove this prospect?', () => {
+    const gone = (window._prospects || []).find(x => x.id === id);
+    window._prospects = window._prospects.filter(x => x.id !== id);
+    saveProspectsLocal();
+    if (gone) {
+      logActivity('prospect', `Prospect removed: "${gone.name}"`,
+                  { action:'delete', entityKey:id, entityName:gone.name });
+    }
+    renderProspects();
+    if (window._dirMigrationFlag) window.regenerateOrgFromDirectory && window.regenerateOrgFromDirectory();
+  });
 }
 
 // ══════════════════════════════════════════════
@@ -5991,17 +6093,18 @@ function deleteRnrItem(vid, role, idx) {
     alert('Only the Core Team can change Roles & Responsibilities.');
     return;
   }
-  if (!confirm('Remove this responsibility?')) return;
-  const vData = getRnrV(vid);
-  const item = vData.roles[role][idx];
-  // Remember deliberate removal of a seeded line, otherwise the next load
-  // helpfully puts it straight back.
-  if (item && item.src === 'seed' && item.key && !vData.dismissed.includes(item.key)) {
-    vData.dismissed.push(item.key);
-  }
-  vData.roles[role].splice(idx, 1);
-  saveRnrLocal();
-  renderRnr();
+  naigConfirm('Remove this responsibility?', () => {
+    const vData = getRnrV(vid);
+    const item = vData.roles[role][idx];
+    // Remember deliberate removal of a seeded line, otherwise the next load
+    // helpfully puts it straight back.
+    if (item && item.src === 'seed' && item.key && !vData.dismissed.includes(item.key)) {
+      vData.dismissed.push(item.key);
+    }
+    vData.roles[role].splice(idx, 1);
+    saveRnrLocal();
+    renderRnr();
+  });
 }
 
 function exportRnrCSV() {
@@ -6813,13 +6916,14 @@ function savePlanMilestone() {
 function deletePlanMilestone() {
   const key = document.getElementById('planEditKey').value;
   if (!key || !_planData.milestones) return;
-  if (!confirm('Delete this milestone?')) return;
-  const gone = _planData.milestones[key] || {};
-  delete _planData.milestones[key];
-  window._fb.savePlan(_planData);
-  logActivity('plan', `Milestone deleted: "${gone.title || key}"`,
-              { action:'delete', entityKey:key, entityName:gone.title || key });
-  closePlanModal();
+  naigConfirm('Delete this milestone?', () => {
+    const gone = _planData.milestones[key] || {};
+    delete _planData.milestones[key];
+    window._fb.savePlan(_planData);
+    logActivity('plan', `Milestone deleted: "${gone.title || key}"`,
+                { action:'delete', entityKey:key, entityName:gone.title || key });
+    closePlanModal();
+  });
 }
 
 function openDeptModal(dept) {
@@ -6931,9 +7035,51 @@ function hubSave(path, key, data) {
   window._dbSet(window._dbRef('naig2027/' + path + '/' + key), data);
 }
 
+// naigConfirm — an in-page replacement for window.confirm().
+//
+// Native confirm() is not dependable here. Once a browser has shown a few
+// dialogs from one page it offers "prevent this page from creating additional
+// dialogs", and from then on confirm() returns false INSTANTLY without showing
+// anything. Every delete in this app then silently does nothing, which is
+// exactly what "I can't delete tasks" looks like from the outside.
+//
+// So: try the native dialog, and time it. A dialog a human actually saw and
+// answered takes longer than a few milliseconds. If it came back false in under
+// 120ms, the browser suppressed it — fall back to our own modal.
+function naigConfirm(msg, onYes) {
+  let answer = false, suppressed = false;
+  const t0 = (window.performance && performance.now) ? performance.now() : Date.now();
+  try { answer = window.confirm(msg); } catch (e) { suppressed = true; }
+  const dt = ((window.performance && performance.now) ? performance.now() : Date.now()) - t0;
+  if (answer) { onYes(); return; }
+  if (!suppressed && dt > 120) return;   // a real "Cancel" from a real dialog
+
+  // Browser suppressed the dialog. Ask in-page instead.
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(15,23,42,.55);' +
+    'display:flex;align-items:center;justify-content:center';
+  const box = document.createElement('div');
+  box.style.cssText = 'background:#fff;border-radius:12px;padding:20px 22px;max-width:400px;' +
+    'font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;box-shadow:0 20px 60px rgba(0,0,0,.3)';
+  box.innerHTML = '<div style="font-weight:700;font-size:15px;margin-bottom:8px">Please confirm</div>' +
+    '<div style="color:#334155;margin-bottom:16px"></div>' +
+    '<div style="display:flex;gap:8px;justify-content:flex-end">' +
+    '<button data-no style="background:#e2e8f0;border:0;border-radius:6px;padding:8px 14px;font-weight:600;cursor:pointer">Cancel</button>' +
+    '<button data-yes style="background:#b91c1c;color:#fff;border:0;border-radius:6px;padding:8px 14px;font-weight:600;cursor:pointer">Delete</button>' +
+    '</div>';
+  box.children[1].textContent = msg;
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  box.querySelector('[data-no]').onclick  = () => ov.remove();
+  box.querySelector('[data-yes]').onclick = () => { ov.remove(); onYes(); };
+}
+
 function deleteHubItem(path, key, closeFn) {
   if (!key) return;
-  if (!confirm('Delete this item?')) return;
+  naigConfirm('Delete this item?', () => _deleteHubItemNow(path, key, closeFn));
+}
+
+function _deleteHubItemNow(path, key, closeFn) {
   if (!window._dbRemove) { alert('Firebase not ready.'); return; }
   // Capture display name BEFORE the remove for the activity log
   try {
@@ -7900,7 +8046,7 @@ window.seedInitialTasks = function() {
     [k()]: { title:'First responder training for volunteers', status:'todo', priority:'Medium', owner:'', scopeArea:'Health Board', due:'2027-06-01', notes:'Basic first aid for RST team and site leads.' },
     // ── Org / Staffing ──
     [k()]: { title:'Fill all TBD roles in org chart', status:'inprogress', priority:'Medium', owner:'Rizwan', scopeArea:'Org / Staffing', due:'2026-12-01', notes:'Use Volunteer Prospects panel. 30+ open roles.' },
-    [k()]: { title:'Confirm event weekend — Labor Day 2027', status:'done', priority:'High', owner:'Rizwan', scopeArea:'Org / Staffing', due:'2026-07-01', notes:'Sep 4 arrival, Sep 5–7 games, Sep 8 departure.' },
+    [k()]: { title:'Confirm event weekend — Easter 2027', status:'done', priority:'High', owner:'Rizwan', scopeArea:'Org / Staffing', due:'2026-07-01', notes:'Wed Mar 24 check-in, Thu Mar 25–Sun Mar 28 play, Mon Mar 29 move-out.' },
     [k()]: { title:'Recruit RST (Regional Support Team) leads', status:'todo', priority:'High', owner:'', scopeArea:'Org / Staffing', due:'2026-11-01', notes:'One RST per province/territory delegation. ~14 leads.' },
     [k()]: { title:'Volunteer onboarding and training plan', status:'todo', priority:'Medium', owner:'', scopeArea:'Org / Staffing', due:'2027-06-01', notes:'750–1,000 volunteers. Role-specific training sessions.' },
     // ── Site Management ──
@@ -9805,19 +9951,40 @@ window.clogExportCSV   = clogExportCSV;
 // Transportation plan turned back into three seeded rows.
 // A one-time flag per collection, kept in the database next to the data, so the
 // seed fires once for the project and never again -- on any device.
+//
+// The flag was write-only until now: seedOnce wrote naig2027/seeded/<name> but
+// nothing ever read it back, so `_seededFlags` started empty on every page load
+// and the guard only held within a single session. Reload the page with a node
+// legitimately emptied and the placeholders came back. Now the flags are read
+// from the database first, and any seed that wants to run before they arrive
+// waits in a queue rather than firing blind.
+window._seededFlags   = window._seededFlags || {};
+window._seedFlagsReady = false;
+window._pendingSeeds   = [];
+
 function seedOnce(name, fn) {
   if (!fn) return;
-  const path = 'naig2027/seeded/' + name;
   if (!window._dbRef || !window._dbSet) return;
+  if (!window._seedFlagsReady) {           // flags not loaded yet — do not guess
+    window._pendingSeeds.push([name, fn]);
+    return;
+  }
   try {
-    const seen = (window._seededFlags || {})[name];
-    if (seen) return;                      // already seeded, in this session or a past one
-    window._seededFlags = window._seededFlags || {};
+    if (window._seededFlags[name]) return;  // already seeded, this session or any past one
     window._seededFlags[name] = true;
-    window._dbSet(window._dbRef(path), Date.now());
+    window._dbSet(window._dbRef('naig2027/seeded/' + name), Date.now());
     fn();
   } catch (e) { /* never let a seed failure break the listener */ }
 }
+
+// Called once the seeded/ node has been read. Replays anything that queued.
+window.seedFlagsLoaded = function (flags) {
+  window._seededFlags = Object.assign({}, flags || {}, window._seededFlags);
+  window._seedFlagsReady = true;
+  const q = window._pendingSeeds.slice();
+  window._pendingSeeds.length = 0;
+  q.forEach(([n, f]) => seedOnce(n, f));
+};
 
 const AX_TABS = [
   { key:'dashboard', label:'Dashboard' },
