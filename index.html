@@ -89,6 +89,20 @@
   window._gSignOut = function () { return signOut(auth); };
   getRedirectResult(auth).catch(() => {});
 
+  // ── Onboarding visitors get an anonymous identity ──────────────────────────
+  // Someone opening ?onboard=... has no account and cannot be asked for one --
+  // that link is how they get INTO the Directory in the first place. But the
+  // database rules need SOMETHING to check, or they have to stay wide open for
+  // everyone. An anonymous token is that something: it proves the request came
+  // from a browser that loaded this page, not from a script pointed at the raw
+  // database URL. Their reach is deliberately narrow -- the rules let anonymous
+  // sessions touch the Directory and nothing else.
+  if (new URLSearchParams(location.search).get('onboard')) {
+    signInAnonymously(auth).catch((e) => {
+      console.warn('[NAIG] Anonymous sign-in unavailable — onboarding will fail once rules are locked.', e && e.code);
+    });
+  }
+
   const orgRef       = ref(db, 'naig2027/org');
   const prospectsRef = ref(db, 'naig2027/prospects');
   const rnrRef       = ref(db, 'naig2027/rnr');
