@@ -164,8 +164,18 @@
     if (el) el.textContent = msg;
   }
 
-  // Attach all Firebase listeners immediately on page load
-  ;(function() {
+  // ── Wait for auth BEFORE attaching listeners ───────────────────────────────
+  // These used to attach the instant the page loaded. With open rules that was
+  // fine. With locked rules it is fatal and SILENT: every listener fires a read
+  // before sign-in has resolved, the database refuses it, and onValue simply
+  // never delivers. No error surfaces -- the app just shows empty tabs and a
+  // save that hangs forever. Venues, plan and budget all came up blank this way.
+  //
+  // So: hold every listener until Firebase reports a real user, then attach once.
+  // "Once" matters -- onAuthStateChanged fires again on token refresh and on the
+  // anonymous-to-Google transition, and re-attaching would stack duplicate
+  // listeners on every node.
+  function attachAllListeners() {
     // ── Org structure ──
     window._fb.listen((cloudData) => {
       if (cloudData) {
@@ -423,7 +433,18 @@
         });
       }
     });
-  })();
+  }
+
+  // Attach exactly once, as soon as anyone is signed in — Google or the
+  // anonymous session an onboarding visitor gets.
+  let _listenersAttached = false;
+  onAuthStateChanged(auth, (u) => {
+    if (u && !_listenersAttached) {
+      _listenersAttached = true;
+      attachAllListeners();
+    }
+  });
+
 </script>
 
 <style>
