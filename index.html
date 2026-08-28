@@ -289,20 +289,18 @@
       }
     });
     window._fb.listenPlan((data) => {
-      // Migration: if plan node exists but has no milestones (stale empty write), wipe and re-seed
-      if (data && Object.keys(data.milestones || {}).length === 0) {
-        window._dbSet(window._dbRef('naig2027/plan'), null);
-        return;
-      }
+      // This listener used to DELETE the whole plan node whenever milestones came
+      // back empty, then re-seed from null on the next tick. Two destructive paths
+      // one after the other, both firing on a transient empty read. A 61-milestone
+      // plan built from the master timeline was replaced by 27 seed rows this way.
+      // Now: never delete, and only ever seed once per project.
       if (data) {
         window._planData = data;
-        // Bridge: sync Script 2's let _planData via exposed setter
         window._setPlanData && window._setPlanData(data);
       } else {
-        // null — reset local state so initPlanDefaults doesn't early-return, then seed
         window._planData = null;
         window._setPlanData && window._setPlanData({});
-        window.initPlanDefaults && window.initPlanDefaults();
+        window.seedOnce && window.seedOnce('plan', window.initPlanDefaults);
       }
       window.renderPlan && window.renderPlan();
     });
@@ -9618,12 +9616,12 @@ window.addEventListener('load', function() {
     if (window._tasksData    && Object.keys(window._tasksData).length)    window.renderTasks     && window.renderTasks();
     if (window._docsData     && Object.keys(window._docsData).length)     window.renderDocs      && window.renderDocs();
     window.renderScope && window.renderScope(); // refresh scope status chart
-    // Plan: seed if null, render if data present
-    if (!window._planData) {
-      window.initPlanDefaults && window.initPlanDefaults();
-    } else {
-      window.renderPlan && window.renderPlan();
-    }
+    // Plan: RENDER ONLY. This used to seed defaults when _planData was still null
+    // after 1.5 seconds -- which is a race, not a decision. On a slow connection
+    // Firebase simply had not answered yet, and the seed overwrote a real plan.
+    // Seeding belongs in the listener, where null means "the node is genuinely
+    // empty", not "the network is slow".
+    window.renderPlan && window.renderPlan();
   }, 1500); // Wait 1.5s for Firebase to connect + deliver initial snapshots
 });
 
