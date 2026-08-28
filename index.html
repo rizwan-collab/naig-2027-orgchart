@@ -557,6 +557,21 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-heig
 .btn-light { background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); }
 .btn[disabled] { opacity: 0.4; cursor: default; pointer-events: none; }
 .btn-light:hover { background: rgba(255,255,255,0.35); }
+/* .btn-light was drawn for the dark blue header bar: white text on translucent
+   white. Every "Export CSV" and "Clear filters" button reuses the class but
+   sits on a WHITE section header, where translucent-white-on-white renders it
+   effectively invisible -- the export button existed on eight tabs and nobody
+   could see it. Re-skin the class wherever it lands on a light surface. */
+.section-actions .btn-light,
+.hub-toolbar .btn-light,
+.hub-filters .btn-light,
+.clog-actions .btn-light {
+  background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1;
+}
+.section-actions .btn-light:hover,
+.hub-toolbar .btn-light:hover,
+.hub-filters .btn-light:hover,
+.clog-actions .btn-light:hover { background: #e2e8f0; border-color: #94a3b8; }
 .btn-accent { background: #f5a623; color: #1a3a5c; }
 .btn-danger { background: #c0392b; color: white; border: none; }
 .btn-danger:hover { background: #a93226; }
