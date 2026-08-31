@@ -7050,6 +7050,33 @@ function hubSave(path, key, data) {
   window._dbSet(window._dbRef('naig2027/' + path + '/' + key), data);
 }
 
+// ── moneyNum — the only money parser in this file ────────────────────────────
+// Cost fields here are free text, because that is how the numbers actually
+// arrive from venues: "~$8,000 (5 fields x ~$80/hr x 22.5 hrs)".
+//
+// Every total used to be computed as parseFloat(str.replace(/[^0-9.]/g,'')),
+// which does not extract a number -- it deletes the punctuation and concatenates
+// every digit in the sentence. That field became 80,008,022.50. Another,
+// "~$52,000 ($15k/day x 3 + $7k Thu setup)", became 520,001,537. The venue
+// budget reads $231,550 in reality and $1,320,231,110 on the Budget tab.
+//
+// So: take the FIRST money figure in the string and stop. Prefer one written
+// with a $; fall back to the first bare number. Honour a k/m suffix, since
+// "$15k" is a real thing people type into these fields.
+function moneyNum(s) {
+  const str = String(s == null ? '' : s);
+  const m = str.match(/\$\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*([kKmM])?/) ||
+            str.match(/([0-9][0-9,]*(?:\.[0-9]+)?)\s*([kKmM])?/);
+  if (!m) return 0;
+  let n = parseFloat(String(m[1]).replace(/,/g, ''));
+  if (!isFinite(n)) return 0;
+  const suf = (m[2] || '').toLowerCase();
+  if (suf === 'k') n *= 1000;
+  if (suf === 'm') n *= 1000000;
+  return n;
+}
+window.moneyNum = moneyNum;
+
 // naigConfirm — an in-page replacement for window.confirm().
 //
 // Native confirm() is not dependable here. Once a browser has shown a few
@@ -7633,7 +7660,7 @@ const GAMES_DATE = new Date('2027-03-25T00:00:00');
 function renderDashboard() {
   const sec = document.getElementById('sectionDashboard');
   if (!sec) return;
-  const parse = s => parseFloat(String(s||'0').replace(/[^0-9.]/g,'')) || 0;
+  const parse = s => moneyNum(s);
   const fmt   = n => n ? '$' + n.toLocaleString('en-US',{maximumFractionDigits:0}) : '$0';
   const raw = localStorage.getItem('naig_identity');
   const identity = raw ? JSON.parse(raw) : null;
@@ -8248,7 +8275,7 @@ window.renderVenues = function() {
   const closed         = items.filter(([,v]) => _statusMatch(v.status, ['Dropped','Closed','Cancelled','Not Available','Not Selected','Declined']));
 
   // Financial snapshot
-  const parseNum = s => parseFloat(String(s||'0').replace(/[^0-9.]/g,'')) || 0;
+  const parseNum = s => moneyNum(s);
   const fmtN = n => n ? '$' + n.toLocaleString('en-US',{maximumFractionDigits:0}) : null;
   let totalCommitted=0, totalInvoiced=0, totalPaid=0;
   all.forEach(([,v]) => { totalCommitted+=parseNum(v.rentalFee); totalInvoiced+=parseNum(v.invoiced); totalPaid+=parseNum(v.paid); });
@@ -8546,9 +8573,9 @@ window.renderVendors = function() {
   let totalInvoiced = 0;
   let totalPaid = 0;
   Object.values(window._vendorsData || {}).forEach(v => {
-    totalCommitted += parseFloat(String(v.cost||'0').replace(/[^0-9.]/g,'')) || 0;
-    totalInvoiced  += parseFloat(String(v.invoiced||'0').replace(/[^0-9.]/g,'')) || 0;
-    totalPaid      += parseFloat(String(v.paid||'0').replace(/[^0-9.]/g,'')) || 0;
+    totalCommitted += moneyNum(v.cost);
+    totalInvoiced  += moneyNum(v.invoiced);
+    totalPaid      += moneyNum(v.paid);
   });
   const fmt = n => n ? '$' + n.toLocaleString('en-US',{maximumFractionDigits:0}) : '—';
   const strip = document.getElementById('vendorSummary');
@@ -9263,7 +9290,7 @@ window.renderDocs = function() {
   // summary strip
   const executed = Object.values(window._docsData||{}).filter(d => d.status === 'Executed / Signed').length;
   const pending  = Object.values(window._docsData||{}).filter(d => d.status === 'Pending Signature' || d.status === 'Under Review').length;
-  const totalVal = Object.values(window._docsData||{}).reduce((s,d) => s + (parseFloat(String(d.value||'0').replace(/[^0-9.]/g,''))||0), 0);
+  const totalVal = Object.values(window._docsData||{}).reduce((s,d) => s + moneyNum(d.value), 0);
   const strip = document.getElementById('docSummary');
   if (strip) strip.innerHTML =
     `<span>Documents: <strong>${Object.keys(window._docsData||{}).length}</strong></span>` +
@@ -9438,7 +9465,7 @@ window.initDocDefaults = initDocDefaults;
    BUDGET TAB
 ══════════════════════════════════════════════════════════ */
 window.renderBudget = function() {
-  const parse = s => parseFloat(String(s||'0').replace(/[^0-9.]/g,'')) || 0;
+  const parse = s => moneyNum(s);
   const fmt   = n => n ? '$' + n.toLocaleString('en-US',{maximumFractionDigits:0}) : '—';
 
   // Aggregate venues
@@ -9558,7 +9585,7 @@ window.renderBudget = function() {
 };
 
 function exportBudgetCSV() {
-  const parse = s => parseFloat(String(s||'0').replace(/[^0-9.]/g,'')) || 0;
+  const parse = s => moneyNum(s);
   const rows = [['Category','Source','Items','Committed','Invoiced','Paid','Outstanding']];
   let venueC=0,venueI=0,venueP=0,venueN=0;
   Object.values(window._venuesData||{}).forEach(v=>{ venueC+=parse(v.rentalFee); venueI+=parse(v.invoiced); venueP+=parse(v.paid); venueN++; });
