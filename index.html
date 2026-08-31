@@ -9679,6 +9679,63 @@ window._migrateTrackUTA = function () {
   }
 };
 
+/* ══════════════════════════════════════════════════════════
+   MIGRATION — UTA contact, Easter-weekend calendar, no track hotel
+   ──────────────────────────────────────────────────────────
+   Rizwan, 31 Aug 2026: "drather@uta.edu for durl / its easter weekend
+   so schools are closed / nothing needed on the hotel side."
+   Records the contact, files what we could verify about UTA's own
+   athletics calendar (their home meets land BEFORE our window, so the
+   risk I flagged is smaller than I made it sound), and confirms track
+   needs no hotel block of its own.
+══════════════════════════════════════════════════════════ */
+window._migrateTrackUTAv2 = function () {
+  const now = new Date().toISOString();
+  const V = window._venuesData || {};
+  const M = ((window._planData || {}).milestones) || {};
+  const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
+  const kUTA = Object.keys(V).find(k => /arlington|maverick/i.test(String((V[k] || {}).name || '')));
+
+  if (kUTA) {
+    set('naig2027/venues/' + kUTA, Object.assign({}, V[kUTA], {
+      contact: 'Durl — drather@uta.edu',
+      email: 'drather@uta.edu',
+      notes: 'LEAD VENUE for Track & Field — in talks with Durl (drather@uta.edu). '
+           + 'FACILITY: 400m Polytan track resurfaced 2025; 12,000 seats; home of UTA track & field; '
+           + 'hosts UIL regional meets ahead of the state meet in Austin, so it is a proven host at our '
+           + 'scale. '
+           + 'HOTELS: none needed — Arlington is ~20 mi from Gateway Park Fort Worth, so track rides the '
+           + 'west cluster loop and the Fort Worth block. No separate contract, unlike cricket. '
+           + 'CALENDAR (checked 31 Aug 2026): Easter weekend means schools are closed, and UTA\'s own '
+           + 'outdoor home dates historically sit BEFORE our window — the 2026 UT Arlington Invitational '
+           + 'was 13–14 Mar at Maverick Stadium and the WAC Outdoor Championships were 14–16 Feb; UIL '
+           + 'regionals fall in late April. Mar 25–28 2027 sits in the gap. Still get the 2027 athletics '
+           + 'calendar confirmed in writing — it is one meet and the date moves year to year. '
+           + 'NOTE ON THE CONTACT: Durl is not on the published track & field coaching staff, so he is '
+           + 'most likely facilities / event operations. The person who rents the stadium is not the '
+           + 'person who knows the meet calendar — get athletics scheduling or the head coach '
+           + '(Brandon Berger) to sign off on the dates separately. '
+           + 'STILL TO CONFIRM: whether infield event areas, timing system and seating are included or '
+           + 'are separate hires; campus access and parking over the weekend. '
+           + String((V[kUTA] || {}).notes || '').replace(/^[\s\S]*?PRIOR OUTREACH LOG/, 'PRIOR OUTREACH LOG'),
+      updated: now
+    }));
+  }
+
+  if (M['tk01']) {
+    set('naig2027/plan/milestones/tk01', Object.assign({}, M['tk01'], {
+      priority: 'high',
+      title: 'Confirm UT Arlington (Maverick Stadium) for Track & Field — dates, then terms',
+      notes: 'Lead venue, in talks with Durl (drather@uta.edu). The date risk looks smaller than first '
+           + 'flagged: schools are closed over Easter and UTA\'s outdoor home dates historically land '
+           + 'before our window (2026 invitational 13–14 Mar; WAC championships 14–16 Feb; UIL regionals '
+           + 'late April). Get the 2027 calendar in writing anyway — from athletics scheduling or the '
+           + 'head coach, not only from facilities. Then terms: infield events, timing, seating, parking '
+           + 'and campus access. No hotel block needed — track rides the Fort Worth cluster.'
+    }));
+  }
+};
+
 window._maybeCricketPrimary = function () {
   if (!window._venuesData || !Object.keys(window._venuesData).length) return;
   if (!window._hotelsData || !Object.keys(window._hotelsData).length) return;
@@ -9687,6 +9744,7 @@ window._maybeCricketPrimary = function () {
   window.seedOnce && window.seedOnce('cricket-primary-v1', window._migrateCricketPrimary);
   window.seedOnce && window.seedOnce('cricket-window-v1',  window._migrateCricketWindow);
   window.seedOnce && window.seedOnce('track-uta-v1',       window._migrateTrackUTA);
+  window.seedOnce && window.seedOnce('track-uta-v2',       window._migrateTrackUTAv2);
 };
 
 window.openLoopModal    = openLoopModal;
