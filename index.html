@@ -7320,10 +7320,15 @@ function _buildBriefModel(windowDays) {
 
   // The specific dependency behind the blocked hotel work: cluster geography
   // cannot be set until we know which sports venues are actually in play.
-  const _venuesAll  = Object.values(window._venuesData || {});
-  const _venuesOpen = _venuesAll.filter(v => !/confirm|signed|executed|ops ready|walk done/i.test(String(v.status || '')));
+  // Count venues with the SAME tiering the Snapshot uses. A hand-rolled regex
+  // here produced "16 of 16 unconfirmed" three lines under a Snapshot reading
+  // "2 pending deposit, 11 in works" -- two numbers on one screen disagreeing,
+  // which costs the reader more trust than the line was worth.
+  const _venuesAll   = Object.values(window._venuesData || {});
+  const _venuesLive  = _venuesAll.filter(v => _briefTierOf(v.status) !== 'Closed / Out');
+  const _venuesOpen  = _venuesLive.filter(v => _briefTierOf(v.status) !== 'Confirmed');
   const venueBlocker = (milestonesBlocked.length && _venuesOpen.length)
-    ? { open: _venuesOpen.length, total: _venuesAll.length, waiting: milestonesBlocked.length }
+    ? { open: _venuesOpen.length, total: _venuesLive.length, waiting: milestonesBlocked.length }
     : null;
 
   // ── Vacancies that are actually blocking dated work ─────────────────────────
