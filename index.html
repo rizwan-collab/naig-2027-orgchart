@@ -210,6 +210,7 @@
     listenTransport:  (cb) => onV(transportRef, 'transport', cb),
     listenLoops:      (cb) => onV(loopsRef,     'loops', cb),
     listenJamatkhanas:(cb) => onV(ref(db,'naig2027/jamatkhanas'), 'jamatkhanas', cb),
+    listenFlights:    (cb) => onV(ref(db,'naig2027/flights'), 'flights', cb),
     listenDrivers:    (cb) => onV(driversRef,   'drivers', cb),
     listenDocs:       (cb) => onV(docsRef,      'docs', cb),
     listenPlan:       (cb) => onV(planRef,      'plan', cb),
@@ -324,6 +325,13 @@
       window._jkData = data || {};
       window.renderJamatkhanas && window.renderJamatkhanas();
       if (!data) window.seedOnce && window.seedOnce('jamatkhanas', window.seedJamatkhanas);
+    });
+
+    // ── Inbound flight routes ──
+    window._fb.listenFlights((data) => {
+      window._fltData = data || {};
+      window.renderFlights && window.renderFlights();
+      if (!data) window.seedOnce && window.seedOnce('flights', window.seedFlights);
     });
 
     // ── Roles & Responsibilities ──
@@ -1884,7 +1892,8 @@ html.onboard-mode #onboardScreen { display: flex !important; }
  <div style="display:flex;gap:8px;margin:12px 0;border-bottom:1px solid #e5e7eb;padding-bottom:10px">
  <button class="tnav-btn active" id="tnav-loops" onclick="switchTransportSubTab('loops')"> Shuttle Loops</button>
  <button class="tnav-btn" id="tnav-drivers" onclick="switchTransportSubTab('drivers')"> Driver Roster</button>
- <button class="tnav-btn" id="tnav-jk" onclick="switchTransportSubTab('jk')"> Jamatkhanas</button>
+ <button class="tnav-btn" id="tnav-jk" onclick="switchTransportSubTab('jk')"> Jamatkhanas &amp; Airports</button>
+ <button class="tnav-btn" id="tnav-flights" onclick="switchTransportSubTab('flights')"> Inbound Flights</button>
  </div>
 
  <!-- Panel: Shuttle Loops -->
@@ -1908,9 +1917,9 @@ html.onboard-mode #onboardScreen { display: flex !important; }
  <!-- Panel: Jamatkhanas -->
  <div id="tpanel-jk" style="display:none">
  <div style="background:#fffbeb;border:1px solid #e6ce7a;border-left:4px solid #c9a227;border-radius:8px;padding:11px 14px;margin-bottom:12px;font-size:12.5px;color:#6b5a14;line-height:1.55">
-  <strong>These addresses are unverified.</strong> They were assembled from public listings, not from the Council,
-  and at least one may have moved or closed. Jamati Engagement should confirm every row before we plan a single
-  ride against it. Mark a row Confirmed once someone has actually checked it.
+  <strong>Distances are measured from StarCenter Northlake</strong>, the current event hub. Jamatkhana addresses came
+  from public listings, not from the Council, and at least one may have moved or closed — every row starts Unverified.
+  Confirm before planning a ride against it, then flip the row to Confirmed.
  </div>
  <div class="hub-filters">
   <input class="hub-search" id="jkSearch" placeholder=" Search jamatkhanas…" oninput="renderJamatkhanas()">
@@ -1918,9 +1927,31 @@ html.onboard-mode #onboardScreen { display: flex !important; }
  <div class="summary-strip" id="jkSummary"></div>
  <table class="hub-table">
  <thead><tr>
-  <th>Jamatkhana</th><th>City</th><th>Address</th><th>From Carrollton</th><th>Drive</th><th>Confirmed</th><th>Notes</th><th></th>
+  <th>Location</th><th>Type</th><th>City</th><th>Address</th><th>From Hub</th><th>Drive</th><th>Confirmed</th><th>Notes</th><th></th>
  </tr></thead>
- <tbody id="jkTbody"><tr><td colspan="8" class="hub-empty">Loading…</td></tr></tbody>
+ <tbody id="jkTbody"><tr><td colspan="9" class="hub-empty">Loading…</td></tr></tbody>
+ </table>
+ </div>
+
+ <!-- Panel: Inbound Flights -->
+ <div id="tpanel-flights" style="display:none">
+ <div style="background:#eef4fa;border:1px solid #b9cfe4;border-left:4px solid #1a3a5c;border-radius:8px;padding:11px 14px;margin-bottom:12px;font-size:12.5px;color:#24425f;line-height:1.55">
+  <strong>Love Field cannot take international flights.</strong> Federal law bans nonstop international service from DAL,
+  so <strong>every Canadian delegation lands at DFW</strong> regardless of what a booking site suggests. Plan Canadian
+  arrivals as DFW-only. Each row shows when it was last checked — reconfirm before you build the arrival roster.
+ </div>
+ <div class="hub-filters">
+  <input class="hub-search" id="fltSearch" placeholder=" Search origin, airport or carrier…" oninput="renderFlights()">
+  <select class="hub-filter-select" id="fltCountryFilter" onchange="renderFlights()">
+   <option value="">All origins</option><option>Canada</option><option>USA</option>
+  </select>
+ </div>
+ <div class="summary-strip" id="fltSummary"></div>
+ <table class="hub-table">
+ <thead><tr>
+  <th>Origin</th><th>Code</th><th>Country</th><th>Arrives</th><th>Carriers</th><th>Nonstop</th><th>Flight Time</th><th>Checked</th><th>Notes</th><th></th>
+ </tr></thead>
+ <tbody id="fltTbody"><tr><td colspan="10" class="hub-empty">Loading…</td></tr></tbody>
  </table>
  </div>
 
@@ -9063,18 +9094,21 @@ function switchTransportSubTab(tab) {
   _transportSubTab = tab;
   document.getElementById('tpanel-loops').style.display   = tab === 'loops'   ? '' : 'none';
   document.getElementById('tpanel-drivers').style.display = tab === 'drivers' ? '' : 'none';
-  const jkPanel = document.getElementById('tpanel-jk');
-  if (jkPanel) jkPanel.style.display = tab === 'jk' ? '' : 'none';
-  ['loops','drivers','jk'].forEach(t => document.getElementById('tnav-'+t)?.classList.remove('active'));
+  ['jk','flights'].forEach(t => {
+    const el = document.getElementById('tpanel-'+t);
+    if (el) el.style.display = tab === t ? '' : 'none';
+  });
+  ['loops','drivers','jk','flights'].forEach(t => document.getElementById('tnav-'+t)?.classList.remove('active'));
   document.getElementById('tnav-'+tab)?.classList.add('active');
   const addBtn = document.getElementById('transportAddBtn');
   if (addBtn) {
-    const L = { loops:'+ Add Loop', drivers:'+ Add Driver', jk:'+ Add Jamatkhana' };
-    const F = { loops:openLoopModal, drivers:openDriverModal, jk:openJkModal };
+    const L = { loops:'+ Add Loop', drivers:'+ Add Driver', jk:'+ Add Location', flights:'+ Add Route' };
+    const F = { loops:openLoopModal, drivers:openDriverModal, jk:openJkModal, flights:openFltModal };
     addBtn.textContent = L[tab] || L.loops;
     addBtn.onclick     = F[tab] || F.loops;
   }
-  if (tab === 'jk') window.renderJamatkhanas && window.renderJamatkhanas();
+  if (tab === 'jk')      window.renderJamatkhanas && window.renderJamatkhanas();
+  if (tab === 'flights') window.renderFlights && window.renderFlights();
 }
 window.switchTransportSubTab = switchTransportSubTab;
 
@@ -9442,15 +9476,17 @@ window.renderJamatkhanas = function () {
     `<span>Still to check: <strong style="color:${total - done ? '#b7770d' : '#155724'}">${total - done}</strong></span>`;
 
   if (!all.length) {
-    tb.innerHTML = `<tr><td colspan="8" class="hub-empty">${q ? 'Nothing matches that search.' : 'No jamatkhanas yet. Click <strong>+ Add Jamatkhana</strong>.'}</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="9" class="hub-empty">${q ? 'Nothing matches that search.' : 'Nothing here yet. Click <strong>+ Add Location</strong>.'}</td></tr>`;
     return;
   }
   tb.innerHTML = all.map(([k, v]) => {
     const ok = v.confirmed === 'Yes';
     const badge = `<span class="hbadge" style="background:${ok ? '#d4edda' : '#fff3cd'};color:${ok ? '#155724' : '#856404'}">${ok ? 'Confirmed' : 'Unverified'}</span>`;
-    const hq = /carrollton/i.test(v.city || '') && (parseFloat(v.miles) || 0) === 0;
+    const isAir = (v.type || 'Jamatkhana') === 'Airport';
+    const typeTag = `<span class="hbadge" style="background:${isAir ? '#e8f1fa' : '#f3eee3'};color:${isAir ? '#1a3a5c' : '#7a6417'}">${esc(v.type || 'Jamatkhana')}</span>`;
     return `<tr onclick="openJkModal('${k}')" style="cursor:pointer">
-      <td><strong>${esc(v.name || '—')}</strong>${hq ? ' <span class="hbadge" style="background:#e8f1fa;color:#1a3a5c">HUB</span>' : ''}</td>
+      <td><strong>${esc(v.name || '—')}</strong></td>
+      <td>${typeTag}</td>
       <td style="font-size:11px">${esc(v.city || '—')}</td>
       <td style="font-size:11px;color:#555">${esc(v.address || '—')}</td>
       <td style="font-size:11px">${v.miles ? esc(v.miles) + ' mi' : '—'}</td>
@@ -9467,6 +9503,7 @@ function openJkModal(key) {
   document.getElementById('jkModalTitle').textContent = key ? 'Edit Jamatkhana' : 'Add Jamatkhana';
   document.getElementById('jkKey').value       = key || '';
   document.getElementById('jkName').value      = v.name || '';
+  document.getElementById('jkType').value      = v.type || 'Jamatkhana';
   document.getElementById('jkCity').value      = v.city || '';
   document.getElementById('jkAddress').value   = v.address || '';
   document.getElementById('jkMiles').value     = v.miles || '';
@@ -9483,6 +9520,7 @@ function saveJk() {
   const key = document.getElementById('jkKey').value || hubKey();
   hubSave('jamatkhanas', key, {
     name,
+    type:      document.getElementById('jkType').value,
     city:      document.getElementById('jkCity').value.trim(),
     address:   document.getElementById('jkAddress').value.trim(),
     miles:     document.getElementById('jkMiles').value.trim(),
@@ -9505,18 +9543,173 @@ window.seedJamatkhanas = function () {
   const k = () => 'jk' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
   const seed = {};
   [
-   { name:'Dallas Headquarters Jamatkhana & Ismaili Center', city:'Carrollton, TX', address:'2500 Dickerson Pkwy, Carrollton, TX 75006',
-     miles:'0', drive:'—', confirmed:'No', notes:'The hub. JK Hub ride loop already runs from here.' },
-   { name:'Lewisville Jamatkhana & Center', city:'Lewisville, TX', address:'Lewisville, TX 75056 — street address to confirm',
-     miles:'8', drive:'~20 min', confirmed:'No', notes:'Listed publicly but no street address found. Confirm first.' },
-   { name:'Plano Jamatkhana', city:'Plano, TX', address:'6704 Alma Dr, Plano, TX 75023',
-     miles:'11', drive:'~30 min', confirmed:'No', notes:'Closest JK to Russell Creek Cricket.' },
-   { name:'Euless / Mid-Cities Jamatkhana', city:'Euless, TX', address:'700 E Harwood Rd, Euless, TX 76039',
-     miles:'14', drive:'~35 min', confirmed:'No', notes:'Serves the Mid-Cities. Nearest JK to Gateway Park and DFW airport.' },
+   { type:'Airport', name:'DFW International Airport', city:'DFW Airport, TX', address:'2400 Aviation Dr, DFW Airport, TX 75261',
+     miles:'18', drive:'~45 min', confirmed:'Yes',
+     notes:'Every Canadian delegation lands here — federal law bans international flights from Love Field.' },
+   { type:'Airport', name:'Dallas Love Field', city:'Dallas, TX', address:'8008 Herb Kelleher Way, Dallas, TX 75235',
+     miles:'28', drive:'~70 min', confirmed:'Yes',
+     notes:'Domestic US only. Southwest home base — likely for Houston, Atlanta, Chicago, Phoenix arrivals.' },
    { name:'Tricities Jamatkhana', city:'Colleyville, TX', address:'6219 Colleyville Blvd, Colleyville, TX 76034',
-     miles:'16', drive:'~40 min', confirmed:'No', notes:'Source is a historical archive — may have merged with Euless. Verify it still operates.' }
-  ].forEach(r => { seed[k()] = Object.assign({ updated: new Date().toISOString() }, r); });
+     miles:'15', drive:'~35 min', confirmed:'No',
+     notes:'Closest JK to the hub. Source is a historical archive — may have merged with Euless. Verify it still operates.' },
+   { name:'Lewisville Jamatkhana & Center', city:'Lewisville, TX', address:'Lewisville, TX 75056 — street address to confirm',
+     miles:'18', drive:'~45 min', confirmed:'No',
+     notes:'Listed publicly but no street address found anywhere. Confirm before use.' },
+   { name:'Euless / Mid-Cities Jamatkhana', city:'Euless, TX', address:'700 E Harwood Rd, Euless, TX 76039',
+     miles:'19', drive:'~48 min', confirmed:'No',
+     notes:'Nearest JK to DFW airport — worth pairing with arrivals.' },
+   { name:'Dallas HQ Jamatkhana & Ismaili Center', city:'Carrollton, TX', address:'2500 Dickerson Pkwy, Carrollton, TX 75006',
+     miles:'22', drive:'~55 min', confirmed:'No',
+     notes:'Headquarters JK. The existing JK Hub ride loop runs from here.' },
+   { name:'Plano Jamatkhana', city:'Plano, TX', address:'6704 Alma Dr, Plano, TX 75023',
+     miles:'30', drive:'~70 min', confirmed:'No',
+     notes:'Furthest from the hub, but closest JK to Russell Creek Cricket.' }
+  ].forEach(r => { seed[k()] = Object.assign({ type:'Jamatkhana', updated: new Date().toISOString() }, r); });
   window._dbSet(window._dbRef('naig2027/jamatkhanas'), seed);
+};
+
+/* ══════════════════════════════════════════════
+   INBOUND FLIGHTS — how people actually get here
+   ══════════════════════════════════════════════
+   THE ONE HARD CONSTRAINT: federal law bans nonstop international service from
+   Dallas Love Field, a leftover of the Wright Amendment settlement. Every
+   Canadian delegation therefore lands at DFW, no matter what a booking engine
+   offers. Plan Canadian arrivals as DFW-only.
+
+   ON STALENESS: schedules change seasonally, so every row carries the date it
+   was last checked and the table says out loud when a row has gone stale rather
+   than presenting old data as current. See refreshFlightsHowTo() for wiring this
+   to a live schedule feed. */
+window.renderFlights = function () {
+  const tb = document.getElementById('fltTbody');
+  if (!tb) return;
+  const q  = (document.getElementById('fltSearch')?.value || '').toLowerCase();
+  const cf = document.getElementById('fltCountryFilter')?.value || '';
+  const rows = Object.entries(window._fltData || {})
+    .filter(([, v]) => (!q || JSON.stringify(v).toLowerCase().includes(q)) && (!cf || v.country === cf))
+    .sort((a, b) => (a[1].country || '').localeCompare(b[1].country || '')
+                 || (a[1].origin || '').localeCompare(b[1].origin || ''));
+
+  const all = Object.values(window._fltData || {});
+  const STALE_DAYS = 120;
+  const stale = all.filter(v => {
+    if (!v.checked) return true;
+    return (Date.now() - new Date(v.checked).getTime()) / 86400000 > STALE_DAYS;
+  }).length;
+  const strip = document.getElementById('fltSummary');
+  if (strip) strip.innerHTML =
+    `<span>Routes: <strong>${all.length}</strong></span>` +
+    `<span>Canada: <strong>${all.filter(v => v.country === 'Canada').length}</strong></span>` +
+    `<span>USA: <strong>${all.filter(v => v.country === 'USA').length}</strong></span>` +
+    `<span>Needs rechecking: <strong style="color:${stale ? '#b7770d' : '#155724'}">${stale}</strong></span>`;
+
+  if (!rows.length) {
+    tb.innerHTML = `<tr><td colspan="10" class="hub-empty">${q || cf ? 'Nothing matches those filters.' : 'No routes yet. Click <strong>+ Add Route</strong>.'}</td></tr>`;
+    return;
+  }
+  tb.innerHTML = rows.map(([k, v]) => {
+    const days = v.checked ? Math.floor((Date.now() - new Date(v.checked).getTime()) / 86400000) : null;
+    const old  = days === null || days > STALE_DAYS;
+    const chk  = days === null ? 'never'
+               : days === 0 ? 'today'
+               : days + 'd ago';
+    const dfw = (v.arrives || '') === 'DFW';
+    return `<tr onclick="openFltModal('${k}')" style="cursor:pointer">
+      <td><strong>${esc(v.origin || '—')}</strong></td>
+      <td style="font-size:11px;color:#555">${esc(v.code || '—')}</td>
+      <td style="font-size:11px">${esc(v.country || '—')}</td>
+      <td><span class="hbadge" style="background:${dfw ? '#e8f1fa' : '#fdf0e3'};color:${dfw ? '#1a3a5c' : '#8a5a0b'}">${esc(v.arrives || '—')}</span></td>
+      <td style="font-size:11px">${esc(v.carriers || '—')}</td>
+      <td style="font-size:11px">${esc(v.frequency || '—')}</td>
+      <td style="font-size:11px">${esc(v.duration || '—')}</td>
+      <td style="font-size:11px;color:${old ? '#b7770d' : '#155724'};font-weight:600">${chk}</td>
+      <td style="font-size:11px;color:#888">${esc(v.notes || '')}</td>
+      <td><button class="btn btn-cancel" style="padding:3px 8px;font-size:10px" onclick="event.stopPropagation();deleteHubItem('flights','${k}',window.renderFlights)">×</button></td>
+    </tr>`;
+  }).join('');
+};
+
+function openFltModal(key) {
+  const v = key ? (window._fltData[key] || {}) : {};
+  document.getElementById('fltModalTitle').textContent = key ? 'Edit Route' : 'Add Route';
+  document.getElementById('fltKey').value       = key || '';
+  document.getElementById('fltOrigin').value    = v.origin || '';
+  document.getElementById('fltCode').value      = v.code || '';
+  document.getElementById('fltCountry').value   = v.country || 'USA';
+  document.getElementById('fltArrives').value   = v.arrives || 'DFW';
+  document.getElementById('fltCarriers').value  = v.carriers || '';
+  document.getElementById('fltFrequency').value = v.frequency || '';
+  document.getElementById('fltDuration').value  = v.duration || '';
+  document.getElementById('fltChecked').value   = (v.checked || '').slice(0, 10);
+  document.getElementById('fltNotes').value     = v.notes || '';
+  document.getElementById('fltDeleteBtn').style.display = key ? '' : 'none';
+  document.getElementById('fltOverlay').style.display = 'flex';
+}
+function closeFltModal() { document.getElementById('fltOverlay').style.display = 'none'; }
+function saveFlt() {
+  const origin = document.getElementById('fltOrigin').value.trim();
+  if (!origin) { alert('Origin city is required.'); return; }
+  const key = document.getElementById('fltKey').value || hubKey();
+  hubSave('flights', key, {
+    origin,
+    code:      document.getElementById('fltCode').value.trim().toUpperCase(),
+    country:   document.getElementById('fltCountry').value,
+    arrives:   document.getElementById('fltArrives').value,
+    carriers:  document.getElementById('fltCarriers').value.trim(),
+    frequency: document.getElementById('fltFrequency').value.trim(),
+    duration:  document.getElementById('fltDuration').value.trim(),
+    checked:   document.getElementById('fltChecked').value || new Date().toISOString().slice(0, 10),
+    notes:     document.getElementById('fltNotes').value.trim(),
+    updated:   new Date().toISOString()
+  });
+  logActivity && logActivity('transport', 'Flight route saved: "' + origin + '"', { action:'update', entityKey:key, entityName:origin });
+  closeFltModal();
+}
+window.openFltModal = openFltModal;
+window.closeFltModal = closeFltModal;
+window.saveFlt = saveFlt;
+
+window.seedFlights = function () {
+  const k = () => 'f' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+  const D = '2026-08-31';
+  const seed = {};
+  [
+   // Canada — DFW only, by law
+   { origin:'Toronto',   code:'YYZ', country:'Canada', arrives:'DFW', carriers:'Air Canada · American', frequency:'~21/wk · 3 daily', duration:'~3h 30m', checked:D, notes:'Largest Canadian feed. Departures spread 06:10–19:35.' },
+   { origin:'Vancouver', code:'YVR', country:'Canada', arrives:'DFW', carriers:'American', frequency:'~14/wk · 2 daily', duration:'~4h 15m', checked:D, notes:'Single carrier — a cancellation has no same-day nonstop fallback.' },
+   { origin:'Montreal',  code:'YUL', country:'Canada', arrives:'DFW', carriers:'American · Air Canada', frequency:'~13/wk · 2 daily', duration:'~3h 45m', checked:D, notes:'AA mid-morning, AC around midday.' },
+   { origin:'Calgary',   code:'YYC', country:'Canada', arrives:'DFW', carriers:'American', frequency:'7/wk · 1 daily', duration:'~3h 51m', checked:D, notes:'One flight a day. Miss it and it is a connection.' },
+   { origin:'Edmonton',  code:'YEG', country:'Canada', arrives:'DFW', carriers:'Connecting only', frequency:'No nonstop confirmed', duration:'—', checked:D, notes:'Expect connections via YYC, YYZ or a US hub. Build extra arrival slack.' },
+   { origin:'Ottawa',    code:'YOW', country:'Canada', arrives:'DFW', carriers:'Connecting only', frequency:'No nonstop confirmed', duration:'—', checked:D, notes:'Verify — likely routes via YYZ or ORD.' },
+   // USA
+   { origin:'Houston',      code:'IAH / HOU', country:'USA', arrives:'DFW or DAL', carriers:'American · Southwest · United', frequency:'Very high — hourly', duration:'~1h 15m', checked:D, notes:'Largest US jamat nearby. Many will drive (~3h 45m) rather than fly.' },
+   { origin:'Atlanta',      code:'ATL', country:'USA', arrives:'DFW or DAL', carriers:'American · Delta · Southwest', frequency:'Very high', duration:'~2h 20m', checked:D, notes:'' },
+   { origin:'Chicago',      code:'ORD / MDW', country:'USA', arrives:'DFW or DAL', carriers:'American · United · Southwest', frequency:'Very high', duration:'~2h 30m', checked:D, notes:'Southwest flies MDW–DAL; American flies ORD–DFW.' },
+   { origin:'New York',     code:'JFK / LGA / EWR', country:'USA', arrives:'DFW', carriers:'American · Delta · United', frequency:'High', duration:'~4h', checked:D, notes:'' },
+   { origin:'Los Angeles',  code:'LAX', country:'USA', arrives:'DFW or DAL', carriers:'American · Southwest · Delta', frequency:'High', duration:'~3h 15m', checked:D, notes:'' },
+   { origin:'Orlando',      code:'MCO', country:'USA', arrives:'DFW or DAL', carriers:'American · Southwest', frequency:'High', duration:'~2h 45m', checked:D, notes:'' },
+   { origin:'Phoenix',      code:'PHX', country:'USA', arrives:'DFW or DAL', carriers:'American · Southwest', frequency:'High', duration:'~2h 20m', checked:D, notes:'' },
+   { origin:'Austin',       code:'AUS', country:'USA', arrives:'DFW or DAL', carriers:'American · Southwest', frequency:'Very high — shuttle', duration:'~1h', checked:D, notes:'Short hop; driving (~3h) is common.' },
+   { origin:'San Antonio',  code:'SAT', country:'USA', arrives:'DFW or DAL', carriers:'American · Southwest', frequency:'High', duration:'~1h 10m', checked:D, notes:'Driving (~4h 30m) is common.' },
+   { origin:'Seattle',      code:'SEA', country:'USA', arrives:'DFW', carriers:'American · Alaska', frequency:'Several daily', duration:'~4h', checked:D, notes:'' },
+   { origin:'Boston',       code:'BOS', country:'USA', arrives:'DFW', carriers:'American · JetBlue', frequency:'Several daily', duration:'~4h 15m', checked:D, notes:'' },
+   { origin:'Washington DC',code:'DCA / IAD', country:'USA', arrives:'DFW or DAL', carriers:'American · Southwest · United', frequency:'High', duration:'~3h 15m', checked:D, notes:'' }
+  ].forEach(r => { seed[k()] = Object.assign({ updated: new Date().toISOString() }, r); });
+  window._dbSet(window._dbRef('naig2027/flights'), seed);
+};
+
+/* How to put this table on a live feed.
+   The app cannot call a schedule API directly: every provider worth using
+   (Cirium, Amadeus, AviationStack, FlightAware) needs a secret key, and a key
+   shipped inside a public GitHub Pages file is a key you have given away.
+   The working pattern is the one the Drive Monitor already uses -- an Apps
+   Script on a daily trigger, holding the key in Script Properties, writing the
+   result into naig2027/flights over the REST API. Everyone's browser then picks
+   it up live through the listener below. What is needed from a human: an account
+   with a provider and the key pasted into Script Properties. Until that exists,
+   the "Checked" column tells the truth about how old each row is. */
+window.refreshFlightsHowTo = function () {
+  return 'Needs a schedule-API key in an Apps Script, same pattern as the Drive Monitor. See the comment above this function.';
 };
 
 function renderTransportFAQ() {
@@ -11091,9 +11284,11 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
   <h3 id="jkModalTitle">Add Jamatkhana</h3>
   <input type="hidden" id="jkKey">
   <div class="form-group"><label>Name</label><input id="jkName" placeholder="e.g. Plano Jamatkhana"></div>
+  <div class="form-group"><label>Type</label>
+   <select id="jkType"><option>Jamatkhana</option><option>Airport</option><option>Ismaili Center</option></select></div>
   <div class="form-group"><label>City</label><input id="jkCity" placeholder="e.g. Plano, TX"></div>
   <div class="form-group"><label>Address</label><input id="jkAddress" placeholder="Street, city, ZIP"></div>
-  <div class="form-group"><label>Miles from Carrollton hub</label><input id="jkMiles" placeholder="e.g. 11"></div>
+  <div class="form-group"><label>Miles from hub (StarCenter Northlake)</label><input id="jkMiles" placeholder="e.g. 18"></div>
   <div class="form-group"><label>Drive time</label><input id="jkDrive" placeholder="e.g. ~30 min"></div>
   <div class="form-group"><label>Address confirmed by a person?</label>
    <select id="jkConfirmed"><option value="No">No — still unverified</option><option value="Yes">Yes — checked</option></select></div>
@@ -11102,6 +11297,29 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
    <button class="btn btn-cancel" onclick="closeJkModal()">Cancel</button>
    <button class="btn btn-danger" id="jkDeleteBtn" onclick="deleteHubItem('jamatkhanas',document.getElementById('jkKey').value,closeJkModal)" style="display:none">Delete</button>
    <button class="btn btn-primary" onclick="saveJk()">Save</button>
+  </div>
+ </div>
+</div>
+
+<!-- Inbound Flight Route Modal -->
+<div class="overlay" id="fltOverlay" onclick="closeFltModal()">
+ <div class="modal modal-scroll" style="width:460px" onclick="event.stopPropagation()">
+  <h3 id="fltModalTitle">Add Route</h3>
+  <input type="hidden" id="fltKey">
+  <div class="form-group"><label>Origin city</label><input id="fltOrigin" placeholder="e.g. Toronto"></div>
+  <div class="form-group"><label>Airport code</label><input id="fltCode" placeholder="e.g. YYZ"></div>
+  <div class="form-group"><label>Country</label><select id="fltCountry"><option>USA</option><option>Canada</option></select></div>
+  <div class="form-group"><label>Arrives at</label>
+   <select id="fltArrives"><option>DFW</option><option>DAL</option><option>DFW or DAL</option></select></div>
+  <div class="form-group"><label>Carriers</label><input id="fltCarriers" placeholder="e.g. Air Canada · American"></div>
+  <div class="form-group"><label>Frequency</label><input id="fltFrequency" placeholder="e.g. ~21/wk · 3 daily"></div>
+  <div class="form-group"><label>Flight time</label><input id="fltDuration" placeholder="e.g. ~3h 30m"></div>
+  <div class="form-group"><label>Last checked</label><input type="date" id="fltChecked"></div>
+  <div class="form-group"><label>Notes</label><input id="fltNotes" placeholder="Anything transport needs to know"></div>
+  <div class="modal-actions">
+   <button class="btn btn-cancel" onclick="closeFltModal()">Cancel</button>
+   <button class="btn btn-danger" id="fltDeleteBtn" onclick="deleteHubItem('flights',document.getElementById('fltKey').value,closeFltModal)" style="display:none">Delete</button>
+   <button class="btn btn-primary" onclick="saveFlt()">Save</button>
   </div>
  </div>
 </div>
