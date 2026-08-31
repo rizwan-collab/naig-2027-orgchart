@@ -25,18 +25,46 @@
  */
 
 var CONFIG = {
-  // BOTH addresses. The drive lives on aliriz6683@gmail.com; rizwan@swagprint.com
-  // gets Access Denied on it. Sending only to the work address meant every file
-  // link in the digest hit a permission wall.
-  NOTIFY_EMAILS: ['rizwan@swagprint.com', 'aliriz6683@gmail.com'],
+  // The Core Team, hardcoded.
+  //
+  // Aug 2026: the hub's database rules were locked to signed-in users. The
+  // Directory lookup below is an UNAUTHENTICATED read, so it now returns
+  // 401 Permission denied and falls back to this list. That fallback was
+  // invisible -- the digest reached only Rizwan while everyone assumed the
+  // whole Core Team was on it. Hardcoding the four guarantees delivery no
+  // matter what the rules do; the Directory lookup stays on as a bonus.
+  //
+  // aliriz6683 is on the list because the drive lives there; rizwan@swagprint
+  // gets Access Denied on the file links.
+  NOTIFY_EMAILS: [
+    'rizwan@swagprint.com',
+    'aliriz6683@gmail.com',
+    'kiransurani@gmail.com',   // Kiran Surani    - Logistics Deputy
+    'sohail228@gmail.com',     // Sohail Ali      - Logistics Deputy
+    'hashimazmina@gmail.com',  // Azmina Hashim   - Core Team PMO
+    'shank0827@gmail.com'      // Shan Karowadiya - Core Team PMO
+  ],
 
   // On top of the fixed addresses above, the digest also goes to everyone in the
   // hub Directory whose Vertical is one of these AND who has an email on file.
-  // That is how Shan, Azmina, Sohail and Kiran get added -- put their address on
-  // their Directory card and the next run picks them up. No code change, and no
-  // second list to keep in sync with the org chart.
+  // Put an address on someone's Directory card and the next run picks them up.
+  // REQUIRES DB_SECRET_PROP below -- without it this lookup 401s and is skipped.
   NOTIFY_VERTICALS: ['Core Team'],
   DIRECTORY_URL: 'https://naig-2027-default-rtdb.firebaseio.com/naig2027/prospects.json',
+
+  // Firebase database secret, read from Script Properties under this key.
+  // Leave it unset and the script still works: the digest goes to NOTIFY_EMAILS,
+  // and the Directory lookup and the review-task push are skipped with a visible
+  // note in the email rather than a silent failure.
+  //
+  // To switch the dynamic behaviour back on:
+  //   Firebase console -> Project Settings -> Service accounts
+  //     -> Database secrets -> show or create, copy it
+  //   Apps Script -> Project Settings -> Script Properties
+  //     -> Add property  NAIG_DB_SECRET = <the secret>
+  // Nothing else to change. Treat it like a password -- it grants full
+  // read/write on the entire database.
+  DB_SECRET_PROP: 'NAIG_DB_SECRET',
 
   // Attachment budget. Gmail rejects the whole message over ~25 MB, so this is
   // a hard ceiling, not a preference -- blow it and NOBODY gets the digest.
@@ -79,6 +107,25 @@ var CONFIG = {
   FIREBASE_TASKS_URL: 'https://naig-2027-default-rtdb.firebaseio.com/naig2027/tasks.json',
   HUB_URL: 'https://rizwan-collab.github.io/naig-2027-orgchart/'
 };
+
+/**
+ * The database secret, or '' if none is configured.
+ * Everything that talks to Firebase goes through dbUrl_() below, so setting the
+ * NAIG_DB_SECRET script property is the only step needed to authenticate.
+ */
+function dbSecret_() {
+  try {
+    return String(PropertiesService.getScriptProperties()
+      .getProperty(CONFIG.DB_SECRET_PROP) || '').trim();
+  } catch (e) { return ''; }
+}
+
+/** Appends ?auth=<secret> to a Firebase REST URL when a secret is configured. */
+function dbUrl_(base) {
+  var s = dbSecret_();
+  if (!s) return base;
+  return base + (base.indexOf('?') === -1 ? '?' : '&') + 'auth=' + encodeURIComponent(s);
+}
 
 var PROP_LAST_RUN = 'LAST_RUN_TIMESTAMP';
 var PROP_SHEET_ID = 'TRACKING_SHEET_ID_OVERRIDE';
@@ -320,9 +367,16 @@ function pushLogisticsTasks_(changes) {
   var candidates = changes.filter(function (c) { return c.isLogistics; });
   if (!candidates.length) return [];
 
+  if (!dbSecret_()) {
+    // Since the rules were locked this read/write is a guaranteed 401. Skipping
+    // deliberately beats "read failed, bail out" logged where nobody looks.
+    Logger.log('Task push skipped: no ' + CONFIG.DB_SECRET_PROP + ' script property.');
+    return [];
+  }
+
   var existing = {};
   try {
-    var resp = UrlFetchApp.fetch(CONFIG.FIREBASE_TASKS_URL, { muteHttpExceptions: true });
+    var resp = UrlFetchApp.fetch(dbUrl_(CONFIG.FIREBASE_TASKS_URL), { muteHttpExceptions: true });
     if (resp.getResponseCode() === 200) {
       var data = JSON.parse(resp.getContentText() || 'null') || {};
       Object.keys(data).forEach(function (k) {
@@ -361,7 +415,7 @@ function pushLogisticsTasks_(changes) {
   if (!pushed.length) return [];
 
   try {
-    var res = UrlFetchApp.fetch(CONFIG.FIREBASE_TASKS_URL, {
+    var res = UrlFetchApp.fetch(dbUrl_(CONFIG.FIREBASE_TASKS_URL), {
       method: 'patch',
       contentType: 'application/json',
       payload: JSON.stringify(payload),
@@ -452,8 +506,19 @@ function sendDigest_(changes, sinceIso, pushed) {
     }
   }
 
-  var html = buildDigestHtml_(changes, sinceIso, pushed, today, att);
-  var to = digestRecipients_().join(',');
+  // Recipients FIRST. digestRecipients_() is what sets DIRECTORY_STATUS_, and the
+  // footer below reports it -- build the html the other way round and the status
+  // line always reads "not checked".
+  var recipients = digestRecipients_();
+  var to = recipients.join(',');
+
+  var html = buildDigestHtml_(changes, sinceIso, pushed, today, att) +
+    '<hr style="border:0;border-top:1px solid #e2e8f0;margin:22px 0 10px">' +
+    '<p style="font:12px/1.6 Arial,sans-serif;color:#64748b;margin:0">' +
+    '<strong>Sent to ' + recipients.length + ':</strong> ' +
+    recipients.join(', ') +
+    '<br><strong>Directory lookup:</strong> ' + DIRECTORY_STATUS_ +
+    '</p>';
 
   for (var attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -489,6 +554,18 @@ function sendDigest_(changes, sinceIso, pushed) {
  * unreachable, or nobody has an email yet, the fixed addresses still get the
  * email rather than the whole send collapsing.
  */
+/**
+ * Prints the exact list this run would email, plus whether the Directory lookup
+ * worked. Sends nothing. Run this after changing recipients or the DB secret --
+ * it is the only way to confirm delivery without mailing the whole Core Team.
+ */
+function checkDigestRecipients() {
+  var r = digestRecipients_();
+  Logger.log('Would send to ' + r.length + ': ' + r.join(', '));
+  Logger.log('Directory lookup: ' + DIRECTORY_STATUS_);
+  return r;
+}
+
 function digestRecipients_() {
   var out = [];
   var seen = {};
@@ -499,8 +576,16 @@ function digestRecipients_() {
   }
   (CONFIG.NOTIFY_EMAILS || []).forEach(add);
 
+  if (!dbSecret_()) {
+    // No secret configured. The read would 401. Say so out loud instead of
+    // pretending the Directory was empty.
+    DIRECTORY_STATUS_ = 'skipped — no NAIG_DB_SECRET set, so the digest used the fixed list only';
+    Logger.log('Directory lookup skipped: no ' + CONFIG.DB_SECRET_PROP + ' script property.');
+    return out;
+  }
+
   try {
-    var resp = UrlFetchApp.fetch(CONFIG.DIRECTORY_URL, { muteHttpExceptions: true });
+    var resp = UrlFetchApp.fetch(dbUrl_(CONFIG.DIRECTORY_URL), { muteHttpExceptions: true });
     if (resp.getResponseCode() === 200) {
       var raw = JSON.parse(resp.getContentText() || 'null');
       var list = [];
@@ -521,15 +606,25 @@ function digestRecipients_() {
         if (!seen[String(p.email).trim().toLowerCase()]) added++;
         add(p.email);
       });
+      DIRECTORY_STATUS_ = 'ok — added ' + added + ' recipient(s) from the Directory';
       Logger.log('Directory added ' + added + ' recipient(s).');
     } else {
+      DIRECTORY_STATUS_ = 'FAILED with HTTP ' + resp.getResponseCode() +
+        ' — the digest used the fixed list only' +
+        (resp.getResponseCode() === 401 ? ' (check the NAIG_DB_SECRET value)' : '');
       Logger.log('Directory unreachable (' + resp.getResponseCode() + '); using fixed list only.');
     }
   } catch (e) {
+    DIRECTORY_STATUS_ = 'FAILED (' + e + ') — the digest used the fixed list only';
     Logger.log('Directory lookup failed, using fixed list only: ' + e);
   }
   return out;
 }
+
+// Set by digestRecipients_() on every run so the digest can report, in the email
+// itself, whether the dynamic Directory lookup worked. A failure that only shows
+// up in Apps Script logs is a failure nobody sees.
+var DIRECTORY_STATUS_ = 'not checked';
 
 /**
  * Turns changed files into real email attachments, newest first, within the
