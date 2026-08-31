@@ -1153,6 +1153,48 @@ body.ax-readonly #axGateEmail, body.ax-readonly #prospectSearch { pointer-events
   .hub-toolbar { flex-direction: column; align-items: stretch; }
   .hub-filters { flex-direction: column; align-items: stretch; }
   .hub-search { min-width: 0; }
+
+  /* ── Below here: things that were never sized for a phone ───────────────── */
+
+  /* Every modal carries a hardcoded pixel width in its markup -- 350 up to 720 --
+     so on a 390px screen they hung off the right edge and the Save button was
+     unreachable. Width is now the viewport, whatever the inline style says. */
+  .modal { width: auto !important; max-width: 100%; padding: 16px; }
+  .overlay { padding: 10px; align-items: flex-start; }
+  .modal-scroll { max-height: 88vh; }
+  .modal-actions { flex-wrap: wrap; }
+  .modal-actions .btn { flex: 1 1 auto; }
+  .venue-form-grid, .form-grid { grid-template-columns: 1fr !important; }
+
+  /* Wide data tables blew the whole page out sideways and left the header row
+     scrolled off. Let the CARD scroll instead, so the page itself never does. */
+  .hub-section { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .hub-table { min-width: 640px; }
+  .hub-table th, .hub-table td { padding: 8px 10px; font-size: 12px; }
+
+  /* Grids with a hard minimum wider than a phone */
+  .rnr-grid { grid-template-columns: 1fr; gap: 12px; }
+  .plan-dept-grid { grid-template-columns: 1fr; }
+  .kanban-col { flex: 0 0 82vw; }
+
+  /* Onboarding — the screen most people meet the hub through, usually on a phone */
+  .onboard-screen { padding: 14px 12px 48px; }
+  .ob-hero { padding: 18px 16px; border-radius: 12px; }
+  .ob-hero h1 { font-size: 19px; line-height: 1.25; }
+  .ob-section { padding: 15px 14px; }
+  .ob-stat { min-width: 0; flex: 1 1 calc(50% - 5px); }
+  .ob-form-group input, .ob-form-group select { font-size: 16px; }  /* 16px stops iOS zooming on focus */
+  .ob-item { font-size: 12.5px; }
+
+  /* Sign-in gate */
+  #axGate .modal, #axGate > div { width: auto !important; max-width: 100%; }
+}
+
+@media(max-width:400px) {
+  .stat-card { flex: 1 1 50%; }
+  .tab-btn { padding: 7px 9px; font-size: 10.5px; }
+  .ob-stat { flex: 1 1 100%; }
+  .ob-hero h1 { font-size: 17.5px; }
 }
 
 .custom-q-row { display:flex; gap:8px; margin-bottom:6px; align-items:center; }
@@ -1171,7 +1213,9 @@ html.onboard-mode #mainHub { display: none !important; }
    credential for that view; the gate has no business there. */
 html.onboard-mode #axGate,
 html.onboard-mode #axManage { display: none !important; }
-html.onboard-mode #onboardScreen { display: block !important; }
+/* display:block here overrode the flex centring on .onboard-screen, so the card
+   sat hard against the left edge of every desktop window. Keep it flex. */
+html.onboard-mode #onboardScreen { display: flex !important; }
 .onboard-screen {
   min-height: 100vh;
   background: #f1f5f9;
@@ -5541,7 +5585,7 @@ const NAIG_FACTS = {
     boardUS: 'Tasneem Devani (NYSB Board Member, US)',
     boardCA: 'Alina Lalji (NYSB Board Member, Canada)',
     pms:     'Aziz Hirani and Fariyal Hasham (Co-Project Managers)',
-    ourLine: 'Logistics — Director of Logistics: Rizwan Ali · PMO: Azmina Hashim, Kiran Surani',
+    ourLine: 'Logistics — Director of Logistics: Rizwan Ali · Deputies: Kiran Surani, Sohail Ali · PMO: Azmina Hashim, Shan Karowadiya',
     peers:   ['Command Center', 'Finance', 'Human Resources', 'Sports Operations',
               'Technology', 'Registration & Data', 'Broadcasting', 'Memorabilia',
               'Marketing + Comms', 'Athlete & Spectator Engagement',
@@ -6290,9 +6334,14 @@ function computeEventScopeSummary() {
 // Deliberately shows names only -- no emails, phone numbers or statuses -- since
 // this URL gets forwarded around and the Directory holds personal contact data.
 function renderOnboardPicker(el) {
+  // CONFIRMED PEOPLE ONLY.
+  // This used to list everyone who was not explicitly declined, which meant the
+  // shared link showed prospects we had merely talked to -- names next to roles
+  // they had not accepted, on a URL that gets forwarded around. Anyone still in
+  // the pipeline picks themselves and is told they hold a job nobody gave them.
   const people = (window._prospects || [])
     .filter(p => p && p.name && p.name.trim() && p.name.trim().toLowerCase() !== 'tbd'
-                 && (p.status || '') !== 'declined')
+                 && (p.status === 'ready' || p.status === 'confirmed'))
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
   const F = NAIG_FACTS;
