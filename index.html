@@ -362,6 +362,7 @@
       window.renderBudget && window.renderBudget();
       window.renderDashboard && window.renderDashboard();
       if (!data) window.seedOnce && window.seedOnce('venues', window.seedInitialVenues);
+      window._maybeCricketPrimary && window._maybeCricketPrimary();
     });
     // ── Hub: Vendors ──
     window._fb.listenVendors((data) => {
@@ -397,6 +398,7 @@
       window._hotelsData = data || {};
       window.renderHotels && window.renderHotels();
       if (!data) window.seedOnce && window.seedOnce('hotels', window.seedInitialHotels);
+      window._maybeCricketPrimary && window._maybeCricketPrimary();
     });
     // ── Hub: Transportation ──
     window._fb.listenTransport((data) => {
@@ -408,6 +410,7 @@
       window._loopsData = data || {};
       window.renderLoops && window.renderLoops();
       if (!data) window.seedOnce && window.seedOnce('loops', window.seedInitialLoops);
+      window._maybeCricketPrimary && window._maybeCricketPrimary();
     });
     window._fb.listenDrivers((data) => {
       window._driversData = data || {};
@@ -438,6 +441,7 @@
         window.seedOnce && window.seedOnce('plan', window.initPlanDefaults);
       }
       window.renderPlan && window.renderPlan();
+      window._maybeCricketPrimary && window._maybeCricketPrimary();
     });
 
     // ── Teams / per-team module scoping (foundation only) ──
@@ -9289,6 +9293,168 @@ window.seedInitialLoops = function() {
 
 window.seedInitialTransport = function() {}; // legacy — loops now used
 window.renderTransport = function() {};       // legacy stub
+
+/* ══════════════════════════════════════════════════════════
+   MIGRATION — Texomo (Calera, OK) becomes the PRIMARY cricket ground
+   ──────────────────────────────────────────────────────────
+   Decided 31 Aug 2026. Calera sits ~90 mi / ~90 min from the DFW
+   clusters, so it cannot share either the hotel blocks or the shuttle
+   loops. This migration:
+     • promotes Texomo to primary and demotes Prairie View + Russell Creek
+     • turns the "cricket outlier — decision needed" hotel placeholder into
+       a real Durant/Denison prospect block
+     • splits the single long Calera run into a long-haul transfer loop and
+       a short local Durant shuttle
+     • files the two milestones that fall out of the decision
+   Runs once per project, guarded by seedOnce('cricket-primary-v1').
+══════════════════════════════════════════════════════════ */
+window._migrateCricketPrimary = function () {
+  const now = new Date().toISOString();
+  const V = window._venuesData || {};
+  const H = window._hotelsData || {};
+  const L = window._loopsData  || {};
+  const M = ((window._planData || {}).milestones) || {};
+  const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
+  const findVenue = (re) => Object.keys(V).find(k => re.test(String((V[k] || {}).name || '')));
+
+  // ── Venues ───────────────────────────────────────────────
+  const kTex = findVenue(/texomo/i);
+  if (kTex) {
+    set('naig2027/venues/' + kTex, Object.assign({}, V[kTex], {
+      name: 'Texomo Cricket Ground — Calera, OK (PRIMARY)',
+      sports: 'Cricket (PRIMARY SITE)',
+      cluster: 'Calera / Durant — standalone outlier cluster',
+      driveTime: '~90 mi / ~90 min each way from the DFW clusters',
+      notes: 'PRIMARY cricket ground — confirmed 31 Aug 2026. Cricket plays Day 1 (Thu Mar 25); '
+           + 'pitch prep starts Sat Mar 20. Calera sits outside every DFW hotel cluster and shuttle '
+           + 'loop, so cricket carries its own hotel block (Durant/Denison) and its own transport '
+           + 'loops. Abid Bhai coordinating contract. Still open: layout, lighting and field count. '
+           + String((V[kTex] || {}).notes || ''),
+      updated: now
+    }));
+  }
+  const kPV = findVenue(/prairie\s*view/i);
+  if (kPV) {
+    set('naig2027/venues/' + kPV, Object.assign({}, V[kPV], {
+      sports: 'Cricket (Backup)',
+      notes: 'BACKUP to Texomo (primary). Keep warm as overflow / weather contingency — a second '
+           + 'ground only helps if it can absorb a full day of fixtures. Abid Bhai POC. Not sited yet. '
+           + String((V[kPV] || {}).notes || ''),
+      updated: now
+    }));
+  }
+  const kRC = findVenue(/russell\s*creek/i);
+  if (kRC) {
+    set('naig2027/venues/' + kRC, Object.assign({}, V[kRC], {
+      sports: 'Cricket (Backup — DFW local)',
+      notes: 'BACKUP to Texomo (primary). The only cricket option inside the DFW footprint, so it is '
+           + 'the fallback if the Calera hotel block or the 90-minute coach run proves unworkable. '
+           + 'Not yet approached. ' + String((V[kRC] || {}).notes || ''),
+      updated: now
+    }));
+  }
+
+  // ── Hotels — the outlier gap becomes a real prospect block ──
+  if (H['cluster-cricket-gap']) {
+    set('naig2027/hotels/cluster-cricket-gap', {
+      name: 'Cricket Cluster — Durant, OK / Denison, TX',
+      address: 'Prospect list — Choctaw Casino & Resort Durant, 4216 US-69, Durant OK 74701 (0.2 mi '
+             + 'from casino, ~12 mi to ground) · Holiday Inn Express & Suites Durant, 613 University '
+             + 'Place, Durant OK 74701 · Quality Inn & Suites Durant, 2112 W Main St · La Quinta '
+             + 'Durant, 417 Criswell Dr · Hampton Inn & Suites Denison, 3415 Ansley Rd, Denison TX '
+             + '75020 (~17 mi) · Hilton Garden Inn Denison, 5015 US-75 (~20 mi)',
+      cluster: 'Cricket (Calera outlier)',
+      blockSize: 'TBD — cricket squads, officials and ground crew only',
+      roomsUsed: '0',
+      rate: 'TBD',
+      status: 'Prospecting',
+      checkIn: '2027-03-24',
+      checkOut: '2027-03-29',
+      pocName: 'TBD — Sales Office',
+      pocTitle: '', pocEmail: '', pocPhone: '', contractLink: '',
+      notes: 'Texomo is the PRIMARY cricket ground and sits ~90 min from the DFW clusters, so cricket '
+           + 'cannot share the main blocks. This is a separate contract. Durant is the nearest real '
+           + 'lodging market (~12 mi from the ground); Denison is the Texas-side fallback (~17–20 mi) '
+           + 'and keeps the squads in-state. Ground crew may need to check in Fri 19 Mar for pitch '
+           + 'prep from Sat 20 Mar — confirm before signing. Size the block off the cricket entry '
+           + 'count once Registration closes.',
+      updated: now
+    });
+  }
+
+  // ── Loops — one long-haul transfer + one local shuttle ──
+  if (L['loop-cricket-ok']) {
+    set('naig2027/loops/loop-cricket-ok', Object.assign({}, L['loop-cricket-ok'], {
+      name: 'Calera Cricket — long-haul transfer (DFW ⇄ Durant)',
+      from: 'DFW clusters / DFW Airport',
+      to: 'Durant, OK cricket block',
+      frequency: 'Scheduled transfers, not a rolling loop',
+      firstBus: '07:00',
+      lastBus: '20:00',
+      daysOp: 'Wed Mar 24 (in) · Mon Mar 29 (out) · plus daily officials/spectator runs Mar 25–28',
+      rideTime: '~90 min each way',
+      vehicles: 'TBD — coach, not shuttle',
+      capacity: '55',
+      stops: 'DFW Airport (Terminal C/D)\nNorth cluster hotels\nMid cluster hotels\nDurant cricket block',
+      status: 'Planning',
+      notes: 'Texomo is the PRIMARY cricket ground (confirmed 31 Aug 2026). Cricket squads are housed '
+           + 'in Durant, so this is a transfer service — bulk in on Wed Mar 24, bulk out on Mon Mar 29 '
+           + '— not a daily loop. Day-to-day movement is handled by loop-cricket-local. Keep one daily '
+           + 'run each way for officials, family and anyone who has to be in both places. Longest run '
+           + 'on the plan; price it as coach charter.',
+      updated: now
+    }));
+  }
+  if (!L['loop-cricket-local']) {
+    set('naig2027/loops/loop-cricket-local', {
+      name: 'Durant hotel ⇄ Texomo Cricket Ground (local shuttle)',
+      from: 'Durant, OK cricket block',
+      to: 'Texomo Cricket Ground, Calera OK',
+      frequency: 'Every 45 min',
+      firstBus: '06:30',
+      lastBus: '21:00',
+      daysOp: 'Sat Mar 20 – Sun Mar 28 (pitch prep from Mar 20, play Mar 25–28)',
+      rideTime: '~20 min',
+      vehicles: 'TBD',
+      capacity: '25',
+      stops: 'Durant cricket block hotels\nTexomo Cricket Ground',
+      contractLink: '',
+      status: 'Planning',
+      notes: 'Short local shuttle — the only daily cricket movement once squads are housed in Durant. '
+           + 'Starts five days before play because the ground crew needs pitch prep from Sat Mar 20. '
+           + 'A same-day return to DFW is no longer a constraint on how late cricket can finish, which '
+           + 'was the reason for housing cricket locally in the first place.',
+      updated: now
+    });
+  }
+
+  // ── Milestones that fall out of the decision ──
+  if (M && Object.keys(M).length) {
+    if (!M['cr01']) set('naig2027/plan/milestones/cr01', {
+      createdAt: Date.now(), dept: 'Lodging', due: '2026-11-20', phase: 'pregames',
+      priority: 'critical', status: 'not-started', owner: 'Hotel Lead', wbe: 'C-1',
+      title: 'Contract the Durant/Denison cricket hotel block — cricket cannot share the DFW clusters',
+      notes: 'Follows from Texomo being the primary cricket ground. Separate contract from the main '
+           + 'blocks. Confirm whether ground crew needs a Fri 19 Mar check-in for pitch prep.'
+    });
+    if (!M['cr02']) set('naig2027/plan/milestones/cr02', {
+      createdAt: Date.now(), dept: 'Transport', due: '2026-12-18', phase: 'pregames',
+      priority: 'high', status: 'not-started', owner: 'Transportation Lead', wbe: 'C-2',
+      title: 'Quote and contract the Calera coach transfers + Durant local shuttle',
+      notes: 'Two services: a long-haul DFW⇄Durant coach transfer (Mar 24 in, Mar 29 out, plus a '
+           + 'daily officials run) and a local Durant⇄Texomo shuttle running Mar 20–28. Coach charter '
+           + 'pricing, not shuttle pricing.'
+    });
+  }
+};
+
+window._maybeCricketPrimary = function () {
+  if (!window._venuesData || !Object.keys(window._venuesData).length) return;
+  if (!window._hotelsData || !Object.keys(window._hotelsData).length) return;
+  if (!window._loopsData  || !Object.keys(window._loopsData).length)  return;
+  if (!window._planData   || !window._planData.milestones)            return;
+  window.seedOnce && window.seedOnce('cricket-primary-v1', window._migrateCricketPrimary);
+};
 
 window.openLoopModal    = openLoopModal;
 window.closeLoopModal   = closeLoopModal;
