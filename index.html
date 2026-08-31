@@ -164,6 +164,15 @@
     const code = (err && (err.code || err.message)) || 'unknown';
     const denied = /permission|denied|PERMISSION/i.test(String(code));
     console.error('[NAIG][firebase] ' + what + ' failed:', code, err);
+    // Someone on an onboarding link is signed in anonymously. The rules deny
+    // them everything except their own record, BY DESIGN. Showing them a red
+    // "Database permission denied" banner over the form they were asked to fill
+    // in is alarming and tells them nothing they can act on. Log it, hide it.
+    try {
+      const u = window._auth && window._auth.currentUser;
+      const anon = !u || u.isAnonymous;
+      if (anon && denied) return;
+    } catch (e) { }
     try {
       window._fbErrors = window._fbErrors || [];
       window._fbErrors.push({ what, code: String(code), ts: Date.now() });
@@ -297,6 +306,16 @@
       }
       window._prospectsLoaded = true;
       window._maybeMigrateThenSyncDirectory && window._maybeMigrateThenSyncDirectory();
+      // Re-decide access every time the Directory changes.
+      //
+      // axResolve() matches the signed-in Google address against a Directory
+      // record. It ran once, on sign-in -- and at that moment _prospects is
+      // either empty or a stale localStorage copy. Anyone whose record arrived
+      // after that first pass got told "your address isn't on a record", had an
+      // access request filed for them, and STAYED on the waiting screen even
+      // once the real Directory landed a moment later carrying their email.
+      // Azmina hit this with a record that already had her address on it.
+      window.axResolve && window.axResolve();
     });
 
     // ── Roles & Responsibilities ──
