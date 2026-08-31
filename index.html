@@ -9602,6 +9602,83 @@ window._migrateCricketWindow = function () {
   }
 };
 
+/* ══════════════════════════════════════════════════════════
+   MIGRATION — Track & Field lead is UT Arlington; Skinner is waiting
+   ──────────────────────────────────────────────────────────
+   Rizwan, 31 Aug 2026: "the lead for track and field is UT Arlington,
+   in talks with durl. Skinner site is pending a response from coco."
+   Promotes the open "Track Venue — TBD" search record into a real UTA
+   record (the outreach log is kept in notes so nothing is lost), and
+   moves Skinner from "site visit this week" to "waiting on Coco".
+══════════════════════════════════════════════════════════ */
+window._migrateTrackUTA = function () {
+  const now = new Date().toISOString();
+  const V = window._venuesData || {};
+  const M = ((window._planData || {}).milestones) || {};
+  const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
+  const keys = Object.keys(V);
+  const kTrack   = keys.find(k => /track/i.test(String((V[k] || {}).name || '')));
+  const kSkinner = keys.find(k => /skinner/i.test(String((V[k] || {}).name || '')));
+
+  if (kTrack) {
+    const prior = String((V[kTrack] || {}).notes || '');
+    set('naig2027/venues/' + kTrack, Object.assign({}, V[kTrack], {
+      name: 'UT Arlington — Maverick Stadium (Track & Field LEAD)',
+      type: 'Track / Stadium',
+      sports: 'Track & Field',
+      location: 'Arlington, TX',
+      address: '1307 W Mitchell St, Arlington, TX 76013',
+      capacity: '12,000 seats (≈8,000 west stand, ≈4,500 east)',
+      cluster: 'West — pairs with the Fort Worth cluster',
+      pipelineStatus: 'In Conversation',
+      status: 'In Works',
+      contact: 'Durl — CONFIRM full name, title and contact details',
+      driveTime: '~20 mi to Gateway Park Fort Worth · ~30 mi from the Carrollton JK',
+      notes: 'LEAD VENUE for Track & Field as of 31 Aug 2026 — in talks. Facility: 400m Polytan track, '
+           + 'resurfaced 2025; home of UTA track & field; hosts UIL regional meets ahead of the state '
+           + 'meet in Austin, so it is a proven meet host at our scale. WHY IT HELPS LOGISTICALLY: '
+           + 'Arlington sits west, roughly 20 mi from Gateway Park Fort Worth — track can ride the west '
+           + 'cluster loop and the Fort Worth hotel block instead of needing its own, which is the '
+           + 'opposite of the Calera problem. TO CHECK BEFORE THIS IS REAL: (1) UTA\'s own NCAA outdoor '
+           + 'season runs Mar–May — confirm no home meet or hosted meet on Mar 25–28; (2) Easter weekend '
+           + 'availability and campus access; (3) whether the track comes with infield event areas, '
+           + 'timing system and seating, or those are separate hires; (4) full contact details for Durl. '
+           + 'PRIOR OUTREACH LOG (kept for history): ' + prior,
+      updated: now
+    }));
+  }
+
+  if (kSkinner) {
+    set('naig2027/venues/' + kSkinner, Object.assign({}, V[kSkinner], {
+      pipelineStatus: 'In Conversation',
+      notes: 'STATUS 31 Aug 2026: waiting on a response from Coco Garcia (City of Mansfield). No longer '
+           + 'the track lead — UT Arlington is. Skinner stays live for Soccer / Flag Football. '
+           + String((V[kSkinner] || {}).notes || ''),
+      updated: now
+    }));
+  }
+
+  if (M && Object.keys(M).length) {
+    if (!M['tk01']) set('naig2027/plan/milestones/tk01', {
+      createdAt: Date.now(), dept: 'Venue / Legal', due: '2026-10-16', phase: 'pregames',
+      priority: 'critical', status: 'not-started', owner: 'Logistics Lead', wbe: 'TK-1',
+      title: 'Confirm UT Arlington (Maverick Stadium) for Track & Field — availability Mar 25–28 first',
+      notes: 'Lead venue, in talks with Durl. Before anything else, confirm UTA has no home or hosted '
+           + 'meet on our dates — their NCAA outdoor season overlaps and the stadium hosts UIL regionals. '
+           + 'Then: campus access over Easter weekend, whether infield events, timing and seating are '
+           + 'included, and full contact details for Durl. Track is the last sport without a venue.'
+    });
+    if (!M['tk02']) set('naig2027/plan/milestones/tk02', {
+      createdAt: Date.now(), dept: 'Venue / Legal', due: '2026-09-18', phase: 'pregames',
+      priority: 'high', status: 'not-started', owner: 'Logistics Lead', wbe: 'TK-2',
+      title: 'Chase Coco Garcia (Mansfield) on Skinner Sports Complex — no reply since the site visit',
+      notes: 'Skinner is now a Soccer / Flag Football option, not the track lead. Specs came 8/15 and '
+           + 'dimensionally work; the 8/20–22 site visit went ahead but Coco has not come back. Close it '
+           + 'out one way or the other so the soccer backup list is real.'
+    });
+  }
+};
+
 window._maybeCricketPrimary = function () {
   if (!window._venuesData || !Object.keys(window._venuesData).length) return;
   if (!window._hotelsData || !Object.keys(window._hotelsData).length) return;
@@ -9609,6 +9686,7 @@ window._maybeCricketPrimary = function () {
   if (!window._planData   || !window._planData.milestones)            return;
   window.seedOnce && window.seedOnce('cricket-primary-v1', window._migrateCricketPrimary);
   window.seedOnce && window.seedOnce('cricket-window-v1',  window._migrateCricketWindow);
+  window.seedOnce && window.seedOnce('track-uta-v1',       window._migrateTrackUTA);
 };
 
 window.openLoopModal    = openLoopModal;
