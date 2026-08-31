@@ -209,6 +209,7 @@
     listenHotels:     (cb) => onV(hotelsRef,    'hotels', cb),
     listenTransport:  (cb) => onV(transportRef, 'transport', cb),
     listenLoops:      (cb) => onV(loopsRef,     'loops', cb),
+    listenJamatkhanas:(cb) => onV(ref(db,'naig2027/jamatkhanas'), 'jamatkhanas', cb),
     listenDrivers:    (cb) => onV(driversRef,   'drivers', cb),
     listenDocs:       (cb) => onV(docsRef,      'docs', cb),
     listenPlan:       (cb) => onV(planRef,      'plan', cb),
@@ -316,6 +317,13 @@
       // once the real Directory landed a moment later carrying their email.
       // Azmina hit this with a record that already had her address on it.
       window.axResolve && window.axResolve();
+    });
+
+    // ── Jamatkhanas ──
+    window._fb.listenJamatkhanas((data) => {
+      window._jkData = data || {};
+      window.renderJamatkhanas && window.renderJamatkhanas();
+      if (!data) window.seedOnce && window.seedOnce('jamatkhanas', window.seedJamatkhanas);
     });
 
     // ── Roles & Responsibilities ──
@@ -1876,6 +1884,7 @@ html.onboard-mode #onboardScreen { display: flex !important; }
  <div style="display:flex;gap:8px;margin:12px 0;border-bottom:1px solid #e5e7eb;padding-bottom:10px">
  <button class="tnav-btn active" id="tnav-loops" onclick="switchTransportSubTab('loops')"> Shuttle Loops</button>
  <button class="tnav-btn" id="tnav-drivers" onclick="switchTransportSubTab('drivers')"> Driver Roster</button>
+ <button class="tnav-btn" id="tnav-jk" onclick="switchTransportSubTab('jk')"> Jamatkhanas</button>
  </div>
 
  <!-- Panel: Shuttle Loops -->
@@ -1893,6 +1902,25 @@ html.onboard-mode #onboardScreen { display: flex !important; }
   <th>Loop Name</th><th>Route</th><th>Schedule</th><th>Vehicles</th><th>Stops</th><th>Status</th><th>Contract</th><th></th>
  </tr></thead>
  <tbody id="loopTbody"><tr><td colspan="8" class="hub-empty">Loading…</td></tr></tbody>
+ </table>
+ </div>
+
+ <!-- Panel: Jamatkhanas -->
+ <div id="tpanel-jk" style="display:none">
+ <div style="background:#fffbeb;border:1px solid #e6ce7a;border-left:4px solid #c9a227;border-radius:8px;padding:11px 14px;margin-bottom:12px;font-size:12.5px;color:#6b5a14;line-height:1.55">
+  <strong>These addresses are unverified.</strong> They were assembled from public listings, not from the Council,
+  and at least one may have moved or closed. Jamati Engagement should confirm every row before we plan a single
+  ride against it. Mark a row Confirmed once someone has actually checked it.
+ </div>
+ <div class="hub-filters">
+  <input class="hub-search" id="jkSearch" placeholder=" Search jamatkhanas…" oninput="renderJamatkhanas()">
+ </div>
+ <div class="summary-strip" id="jkSummary"></div>
+ <table class="hub-table">
+ <thead><tr>
+  <th>Jamatkhana</th><th>City</th><th>Address</th><th>From Carrollton</th><th>Drive</th><th>Confirmed</th><th>Notes</th><th></th>
+ </tr></thead>
+ <tbody id="jkTbody"><tr><td colspan="8" class="hub-empty">Loading…</td></tr></tbody>
  </table>
  </div>
 
@@ -9035,10 +9063,18 @@ function switchTransportSubTab(tab) {
   _transportSubTab = tab;
   document.getElementById('tpanel-loops').style.display   = tab === 'loops'   ? '' : 'none';
   document.getElementById('tpanel-drivers').style.display = tab === 'drivers' ? '' : 'none';
-  ['loops','drivers'].forEach(t => document.getElementById('tnav-'+t)?.classList.remove('active'));
+  const jkPanel = document.getElementById('tpanel-jk');
+  if (jkPanel) jkPanel.style.display = tab === 'jk' ? '' : 'none';
+  ['loops','drivers','jk'].forEach(t => document.getElementById('tnav-'+t)?.classList.remove('active'));
   document.getElementById('tnav-'+tab)?.classList.add('active');
   const addBtn = document.getElementById('transportAddBtn');
-  if (addBtn) { addBtn.textContent = tab === 'loops' ? '+ Add Loop' : '+ Add Driver'; addBtn.onclick = tab === 'loops' ? openLoopModal : openDriverModal; }
+  if (addBtn) {
+    const L = { loops:'+ Add Loop', drivers:'+ Add Driver', jk:'+ Add Jamatkhana' };
+    const F = { loops:openLoopModal, drivers:openDriverModal, jk:openJkModal };
+    addBtn.textContent = L[tab] || L.loops;
+    addBtn.onclick     = F[tab] || F.loops;
+  }
+  if (tab === 'jk') window.renderJamatkhanas && window.renderJamatkhanas();
 }
 window.switchTransportSubTab = switchTransportSubTab;
 
@@ -9379,6 +9415,109 @@ const tFaqList = [
   { q:'When do departure shuttles run on Sep 8?', a:'DFW shuttles run every 90 min from 05:30 to 15:30. DAL (Love Field) shuttles run from 06:00 to 13:30. Allow 3 hours before your flight.' },
   { q:'Who do I contact if there is a transport problem?', a:'Contact the NAIG Transport Coordinator on-site at the JK Hub. Emergency contact details will be provided in the athlete guide.' },
 ];
+
+/* ══════════════════════════════════════════════
+   JAMATKHANAS — the fixed points the whole plan orbits
+   ══════════════════════════════════════════════
+   Prayer and meal rhythms do not follow the match schedule, so JK proximity
+   drives hotel clustering and the JK Hub ride loop. This list was assembled
+   from public listings, NOT from the Council: every row starts unconfirmed and
+   somebody has to actually check it. A ride planned against a wrong address is
+   worse than no list at all, which is why "Confirmed" is a column and not an
+   assumption. */
+window.renderJamatkhanas = function () {
+  const tb = document.getElementById('jkTbody');
+  if (!tb) return;
+  const q = (document.getElementById('jkSearch')?.value || '').toLowerCase();
+  const all = Object.entries(window._jkData || {})
+    .filter(([, v]) => !q || JSON.stringify(v).toLowerCase().includes(q))
+    .sort((a, b) => (parseFloat(a[1].miles) || 999) - (parseFloat(b[1].miles) || 999));
+
+  const total = Object.keys(window._jkData || {}).length;
+  const done  = Object.values(window._jkData || {}).filter(v => v && v.confirmed === 'Yes').length;
+  const strip = document.getElementById('jkSummary');
+  if (strip) strip.innerHTML =
+    `<span>Locations: <strong>${total}</strong></span>` +
+    `<span>Confirmed: <strong style="color:${done ? '#155724' : '#b7770d'}">${done}</strong></span>` +
+    `<span>Still to check: <strong style="color:${total - done ? '#b7770d' : '#155724'}">${total - done}</strong></span>`;
+
+  if (!all.length) {
+    tb.innerHTML = `<tr><td colspan="8" class="hub-empty">${q ? 'Nothing matches that search.' : 'No jamatkhanas yet. Click <strong>+ Add Jamatkhana</strong>.'}</td></tr>`;
+    return;
+  }
+  tb.innerHTML = all.map(([k, v]) => {
+    const ok = v.confirmed === 'Yes';
+    const badge = `<span class="hbadge" style="background:${ok ? '#d4edda' : '#fff3cd'};color:${ok ? '#155724' : '#856404'}">${ok ? 'Confirmed' : 'Unverified'}</span>`;
+    const hq = /carrollton/i.test(v.city || '') && (parseFloat(v.miles) || 0) === 0;
+    return `<tr onclick="openJkModal('${k}')" style="cursor:pointer">
+      <td><strong>${esc(v.name || '—')}</strong>${hq ? ' <span class="hbadge" style="background:#e8f1fa;color:#1a3a5c">HUB</span>' : ''}</td>
+      <td style="font-size:11px">${esc(v.city || '—')}</td>
+      <td style="font-size:11px;color:#555">${esc(v.address || '—')}</td>
+      <td style="font-size:11px">${v.miles ? esc(v.miles) + ' mi' : '—'}</td>
+      <td style="font-size:11px">${esc(v.drive || '—')}</td>
+      <td>${badge}</td>
+      <td style="font-size:11px;color:#888">${esc(v.notes || '')}</td>
+      <td><button class="btn btn-cancel" style="padding:3px 8px;font-size:10px" onclick="event.stopPropagation();deleteHubItem('jamatkhanas','${k}',window.renderJamatkhanas)">×</button></td>
+    </tr>`;
+  }).join('');
+};
+
+function openJkModal(key) {
+  const v = key ? (window._jkData[key] || {}) : {};
+  document.getElementById('jkModalTitle').textContent = key ? 'Edit Jamatkhana' : 'Add Jamatkhana';
+  document.getElementById('jkKey').value       = key || '';
+  document.getElementById('jkName').value      = v.name || '';
+  document.getElementById('jkCity').value      = v.city || '';
+  document.getElementById('jkAddress').value   = v.address || '';
+  document.getElementById('jkMiles').value     = v.miles || '';
+  document.getElementById('jkDrive').value     = v.drive || '';
+  document.getElementById('jkConfirmed').value = v.confirmed || 'No';
+  document.getElementById('jkNotes').value     = v.notes || '';
+  document.getElementById('jkDeleteBtn').style.display = key ? '' : 'none';
+  document.getElementById('jkOverlay').style.display = 'flex';
+}
+function closeJkModal() { document.getElementById('jkOverlay').style.display = 'none'; }
+function saveJk() {
+  const name = document.getElementById('jkName').value.trim();
+  if (!name) { alert('Name is required.'); return; }
+  const key = document.getElementById('jkKey').value || hubKey();
+  hubSave('jamatkhanas', key, {
+    name,
+    city:      document.getElementById('jkCity').value.trim(),
+    address:   document.getElementById('jkAddress').value.trim(),
+    miles:     document.getElementById('jkMiles').value.trim(),
+    drive:     document.getElementById('jkDrive').value.trim(),
+    confirmed: document.getElementById('jkConfirmed').value,
+    notes:     document.getElementById('jkNotes').value.trim(),
+    updated:   new Date().toISOString()
+  });
+  logActivity && logActivity('transport', 'Jamatkhana saved: "' + name + '"', { action:'update', entityKey:key, entityName:name });
+  closeJkModal();
+}
+window.openJkModal = openJkModal;
+window.closeJkModal = closeJkModal;
+window.saveJk = saveJk;
+
+// Straight-line miles from the Carrollton hub; drive times are estimates from
+// road-factored distance, not a routing service. Anyone confirming a row should
+// replace the estimate with a real number.
+window.seedJamatkhanas = function () {
+  const k = () => 'jk' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+  const seed = {};
+  [
+   { name:'Dallas Headquarters Jamatkhana & Ismaili Center', city:'Carrollton, TX', address:'2500 Dickerson Pkwy, Carrollton, TX 75006',
+     miles:'0', drive:'—', confirmed:'No', notes:'The hub. JK Hub ride loop already runs from here.' },
+   { name:'Lewisville Jamatkhana & Center', city:'Lewisville, TX', address:'Lewisville, TX 75056 — street address to confirm',
+     miles:'8', drive:'~20 min', confirmed:'No', notes:'Listed publicly but no street address found. Confirm first.' },
+   { name:'Plano Jamatkhana', city:'Plano, TX', address:'6704 Alma Dr, Plano, TX 75023',
+     miles:'11', drive:'~30 min', confirmed:'No', notes:'Closest JK to Russell Creek Cricket.' },
+   { name:'Euless / Mid-Cities Jamatkhana', city:'Euless, TX', address:'700 E Harwood Rd, Euless, TX 76039',
+     miles:'14', drive:'~35 min', confirmed:'No', notes:'Serves the Mid-Cities. Nearest JK to Gateway Park and DFW airport.' },
+   { name:'Tricities Jamatkhana', city:'Colleyville, TX', address:'6219 Colleyville Blvd, Colleyville, TX 76034',
+     miles:'16', drive:'~40 min', confirmed:'No', notes:'Source is a historical archive — may have merged with Euless. Verify it still operates.' }
+  ].forEach(r => { seed[k()] = Object.assign({ updated: new Date().toISOString() }, r); });
+  window._dbSet(window._dbRef('naig2027/jamatkhanas'), seed);
+};
 
 function renderTransportFAQ() {
   const el = document.getElementById('tFaqContainer');
@@ -10943,6 +11082,27 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
  <button class="btn btn-danger" id="taskDeleteBtn" onclick="deleteHubItem('tasks',document.getElementById('taskKey').value,closeTaskModal)" style="display:none">Delete</button>
  <button class="btn btn-primary" onclick="saveTask()">Save Task</button>
  </div>
+ </div>
+</div>
+
+<!-- Jamatkhana Modal -->
+<div class="overlay" id="jkOverlay" onclick="closeJkModal()">
+ <div class="modal modal-scroll" style="width:460px" onclick="event.stopPropagation()">
+  <h3 id="jkModalTitle">Add Jamatkhana</h3>
+  <input type="hidden" id="jkKey">
+  <div class="form-group"><label>Name</label><input id="jkName" placeholder="e.g. Plano Jamatkhana"></div>
+  <div class="form-group"><label>City</label><input id="jkCity" placeholder="e.g. Plano, TX"></div>
+  <div class="form-group"><label>Address</label><input id="jkAddress" placeholder="Street, city, ZIP"></div>
+  <div class="form-group"><label>Miles from Carrollton hub</label><input id="jkMiles" placeholder="e.g. 11"></div>
+  <div class="form-group"><label>Drive time</label><input id="jkDrive" placeholder="e.g. ~30 min"></div>
+  <div class="form-group"><label>Address confirmed by a person?</label>
+   <select id="jkConfirmed"><option value="No">No — still unverified</option><option value="Yes">Yes — checked</option></select></div>
+  <div class="form-group"><label>Notes</label><input id="jkNotes" placeholder="Anything the transport team needs to know"></div>
+  <div class="modal-actions">
+   <button class="btn btn-cancel" onclick="closeJkModal()">Cancel</button>
+   <button class="btn btn-danger" id="jkDeleteBtn" onclick="deleteHubItem('jamatkhanas',document.getElementById('jkKey').value,closeJkModal)" style="display:none">Delete</button>
+   <button class="btn btn-primary" onclick="saveJk()">Save</button>
+  </div>
  </div>
 </div>
 
