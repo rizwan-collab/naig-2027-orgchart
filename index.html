@@ -9448,12 +9448,167 @@ window._migrateCricketPrimary = function () {
   }
 };
 
+/* ══════════════════════════════════════════════════════════
+   MIGRATION — real Calera access window + cricket contract status
+   ──────────────────────────────────────────────────────────
+   Rizwan, 31 Aug 2026: "we get the venue that tuesday or wednesday and
+   games go thursday thru sunday and monday if needed. we have not
+   received the contract so waiting."
+   That replaces the assumed Sat 20 Mar pitch-prep start. Venue handover
+   is Tue 23 / Wed 24 Mar, play Thu 25 – Sun 28, with Mon 29 held as a
+   reserve day. Monday matters: Mon 29 is already the programme's
+   move-out day, so cricket using the reserve day pushes cricket
+   departures to Tue 30 and the hotel block has to be booked for it.
+   Also files: Prairie View is a backup with no detail expected yet, and
+   Dance is being looked at inside Pickler Universe.
+══════════════════════════════════════════════════════════ */
+window._migrateCricketWindow = function () {
+  const now = new Date().toISOString();
+  const V = window._venuesData || {};
+  const H = window._hotelsData || {};
+  const L = window._loopsData  || {};
+  const M = ((window._planData || {}).milestones) || {};
+  const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
+  const findVenue = (re) => Object.keys(V).find(k => re.test(String((V[k] || {}).name || '')));
+
+  // ── Texomo: real access window, and the contract is the blocker ──
+  const kTex = findVenue(/texomo/i);
+  if (kTex) {
+    set('naig2027/venues/' + kTex, Object.assign({}, V[kTex], {
+      notes: 'PRIMARY cricket ground. ACCESS WINDOW (confirmed 31 Aug 2026): venue handover Tue 23 or '
+           + 'Wed 24 Mar · play Thu 25 – Sun 28 Mar · Mon 29 Mar held as a reserve day if fixtures run '
+           + 'over. CONTRACT NOT YET RECEIVED — waiting on Texomo; Abid Bhai coordinating. Nothing '
+           + 'downstream (hotel block, coach charter, ground crew) can be signed until it lands, and '
+           + 'the contract has to name the Tue/Wed handover and the Monday reserve day explicitly. '
+           + 'Still open: layout, lighting, field count. Calera sits ~90 mi / ~90 min from the DFW '
+           + 'clusters, so cricket carries its own hotel block (Durant/Denison) and its own loops.',
+      updated: now
+    }));
+  }
+
+  // ── Prairie View: backup, and nothing expected from it near-term ──
+  const kPV = findVenue(/prairie\s*view/i);
+  if (kPV) {
+    set('naig2027/venues/' + kPV, Object.assign({}, V[kPV], {
+      notes: 'BACKUP to Texomo (primary). Rizwan 31 Aug 2026: not expecting detail from Prairie View '
+           + 'for a while — leave it warm, do not chase. Only worth reviving if Texomo’s contract '
+           + 'falls through or fixtures need a second ground. Abid Bhai POC. Not sited.',
+      updated: now
+    }));
+  }
+
+  // ── Track & Dance: Dance now pointing at Pickler ──
+  const kTD = findVenue(/track\s*&\s*dance|track\s*and\s*dance/i);
+  if (kTD) {
+    set('naig2027/venues/' + kTD, Object.assign({}, V[kTD], {
+      name: 'Track Venue — TBD (Dance → Pickler Universe)',
+      sports: 'Track & Field (Dance moving to Pickler Universe)',
+      notes: 'UPDATE 31 Aug 2026: Dance is being looked at inside Pickler Universe (Carrollton), which '
+           + 'is already at Contract Review for Pickleball — so this record is now a TRACK-ONLY search. '
+           + 'Confirm Pickler can hold a dance floor alongside pickleball courts on the same days before '
+           + 'closing Dance out. Track still has no venue and no contract. '
+           + String((V[kTD] || {}).notes || ''),
+      updated: now
+    }));
+  }
+  const kPick = findVenue(/pickler/i);
+  if (kPick) {
+    set('naig2027/venues/' + kPick, Object.assign({}, V[kPick], {
+      sports: 'Pickleball · Dance (proposed)',
+      notes: 'DANCE PROPOSED HERE 31 Aug 2026 — moving Dance out of the Track search and into Pickler. '
+           + 'Before this is real: confirm floor space and surface for dance, whether it runs alongside '
+           + 'pickleball or needs its own day, and that the contract under review covers both. '
+           + String((V[kPick] || {}).notes || ''),
+      updated: now
+    }));
+  }
+
+  // ── Hotel block: Tue-in for setup crew, Tue-out for the reserve day ──
+  const kH = 'cluster-cricket-gap';
+  if (H[kH]) {
+    set('naig2027/hotels/' + kH, Object.assign({}, H[kH], {
+      checkIn:  '2027-03-23',
+      checkOut: '2027-03-30',
+      notes: 'Texomo is the PRIMARY cricket ground, ~90 min from the DFW clusters, so cricket cannot '
+           + 'share the main blocks. Separate contract. DATES follow the venue access window: handover '
+           + 'Tue 23 / Wed 24 Mar, play Thu 25 – Sun 28, Mon 29 held as a reserve day. So: setup crew '
+           + 'in Tue 23, squads in Wed 24, out Tue 30 — booked through the reserve day. Negotiate a '
+           + 'release-back clause on the Mon 29 night so unused rooms drop without penalty once the '
+           + 'fixture list is final. Durant is the nearest lodging market (~12 mi to the ground); '
+           + 'Denison is the Texas-side fallback (~17–20 mi). CANNOT SIGN until the Texomo contract '
+           + 'arrives. Size the block off the cricket entry count once Registration closes.',
+      updated: now
+    }));
+  }
+
+  // ── Loops: match the real window ──
+  if (L['loop-cricket-local']) {
+    set('naig2027/loops/loop-cricket-local', Object.assign({}, L['loop-cricket-local'], {
+      daysOp: 'Tue Mar 23 – Mon Mar 29 (handover Tue/Wed, play Thu–Sun, Mon reserve)',
+      notes: 'Short local shuttle — the only daily cricket movement once squads are housed in Durant. '
+           + 'Starts Tue 23 Mar with venue handover, not five days out: the ground is not ours before '
+           + 'then. Runs through Mon 29 in case the reserve day is used. A same-day return to DFW is no '
+           + 'longer a constraint on how late cricket can finish — that is the whole point of housing '
+           + 'cricket locally.',
+      updated: now
+    }));
+  }
+  if (L['loop-cricket-ok']) {
+    set('naig2027/loops/loop-cricket-ok', Object.assign({}, L['loop-cricket-ok'], {
+      daysOp: 'Tue Mar 23 (crew) · Wed Mar 24 (squads in) · Mon 29 or Tue 30 (out) · daily officials runs Mar 25–28',
+      notes: 'Transfer service, not a rolling loop. Crew up Tue 23 for venue handover, squads Wed 24. '
+           + 'RETURN IS NOT FIXED: Mon 29 Mar is a reserve play day, so build the bulk-out for Tue 30 '
+           + 'and release it if the reserve day goes unused — the rest of the Games moves out Mon 29, '
+           + 'which means cricket departures sit a day behind everyone else and need their own coaches, '
+           + 'not the shared departures loop. Keep one daily run each way Mar 25–28 for officials and '
+           + 'family. Longest run on the plan; price as coach charter.',
+      updated: now
+    }));
+  }
+
+  // ── Milestones ──
+  if (M['wk00']) {
+    set('naig2027/plan/milestones/wk00', Object.assign({}, M['wk00'], {
+      due: '2027-03-23',
+      wbe: 'T-2 days',
+      title: 'Cricket ground handover at Texomo — venue is ours Tue 23 / Wed 24 Mar, play starts Thu 25',
+      notes: 'Corrected 31 Aug 2026. We do not get the ground five days early — handover is Tue 23 or '
+           + 'Wed 24 Mar. All pitch prep, kit drop and line marking has to fit in that window. Play '
+           + 'Thu 25 – Sun 28, Mon 29 held in reserve.'
+    }));
+  }
+  if (M && Object.keys(M).length && !M['cr03']) {
+    set('naig2027/plan/milestones/cr03', {
+      createdAt: Date.now(), dept: 'Venue / Legal', due: '2026-10-16', phase: 'pregames',
+      priority: 'critical', status: 'blocked', owner: 'Logistics Lead', wbe: 'C-0',
+      title: 'Receive and sign the Texomo cricket ground contract — everything downstream is waiting on it',
+      notes: 'As of 31 Aug 2026 the contract has not been received. Blocks the Durant hotel block '
+           + '(cr01) and the coach charter (cr02). Contract must state the Tue 23 / Wed 24 Mar handover, '
+           + 'play Thu 25 – Sun 28, and the Mon 29 reserve day. Also close out layout, lighting and '
+           + 'field count. Abid Bhai coordinating.'
+    });
+  }
+  if (M && Object.keys(M).length && !M['cr04']) {
+    set('naig2027/plan/milestones/cr04', {
+      createdAt: Date.now(), dept: 'Venue / Legal', due: '2026-10-30', phase: 'pregames',
+      priority: 'high', status: 'not-started', owner: 'Logistics Lead', wbe: 'C-3',
+      title: 'Confirm Pickler Universe can host Dance alongside Pickleball, or restart the Dance search',
+      notes: 'Dance moved out of the Track search on 31 Aug 2026 and is being looked at inside Pickler '
+           + 'Universe, which is already at Contract Review for Pickleball. Confirm floor space, surface '
+           + 'and whether Dance shares days with Pickleball or needs its own — and get both sports named '
+           + 'in the one contract. If Pickler cannot hold it, Dance goes back to an open search with no '
+           + 'venue and less runway.'
+    });
+  }
+};
+
 window._maybeCricketPrimary = function () {
   if (!window._venuesData || !Object.keys(window._venuesData).length) return;
   if (!window._hotelsData || !Object.keys(window._hotelsData).length) return;
   if (!window._loopsData  || !Object.keys(window._loopsData).length)  return;
   if (!window._planData   || !window._planData.milestones)            return;
   window.seedOnce && window.seedOnce('cricket-primary-v1', window._migrateCricketPrimary);
+  window.seedOnce && window.seedOnce('cricket-window-v1',  window._migrateCricketWindow);
 };
 
 window.openLoopModal    = openLoopModal;
