@@ -1594,6 +1594,7 @@ html.onboard-mode #onboardScreen { display: block !important; }
     <option value="in-progress">🔵 In Progress</option>
     <option value="done">✅ Done</option>
     <option value="at-risk">🟡 At Risk</option>
+    <option value="behind">🔴 Behind</option>
     <option value="blocked">🔴 Blocked</option>
    </select>
   </div>
@@ -6823,7 +6824,11 @@ function renderPlan() {
       grp.innerHTML += `<div style="padding:12px 14px;color:#94a3b8;font-size:12px">No milestones in this phase — <a href="#" onclick="openPlanModal('${ph}');return false">add one</a></div>`;
     } else {
       phMs.forEach(m => {
-        const statusMap = { 'done':'✅','in-progress':'🔵','at-risk':'🟡','blocked':'🔴','not-started':'⚪' };
+        // 'behind' is not in the Status dropdown but 13 milestones carry it --
+        // it arrived with the WBE import. It was missing from this map, so the
+        // thirteen MOST overdue milestones on the plan drew the same white
+        // "Not Started" dot as work nobody has picked up yet. Map it.
+        const statusMap = { 'done':'✅','in-progress':'🔵','at-risk':'🟡','blocked':'🔴','behind':'🔴','not-started':'⚪' };
         const icon = statusMap[m.status] || '⚪';
         const today = new Date().toISOString().slice(0,10);
         let dueBadge = '';
@@ -7299,12 +7304,27 @@ function _buildBriefModel(windowDays) {
     const du = _daysUntil(ms.due);
     if (du === null) return;
     const row = { title: ms.title, dept: ms.dept, owner: ms.owner, due: ms.due,
-                  wbe: ms.wbe, priority: ms.priority, daysUntil: du };
+                  wbe: ms.wbe, priority: ms.priority, daysUntil: du,
+                  blocked: String(ms.status || '') === 'blocked' };
     if (du < 0) { row.daysOverdue = -du; milestonesOverdue.push(row); }
     else if (du <= 21) milestonesDueSoon.push(row);
   });
   milestonesOverdue.sort((a,b) => b.daysOverdue - a.daysOverdue);
   milestonesDueSoon.sort((a,b) => a.daysUntil - b.daysUntil);
+
+  // Blocked is not the same as late. Reporting "4 milestones 130 days overdue"
+  // when the team physically cannot start reads as the team failing, and it
+  // buries the thing that IS on the critical path. Split them out.
+  const milestonesBlocked = milestonesOverdue.filter(r => r.blocked);
+  const milestonesLate    = milestonesOverdue.filter(r => !r.blocked);
+
+  // The specific dependency behind the blocked hotel work: cluster geography
+  // cannot be set until we know which sports venues are actually in play.
+  const _venuesAll  = Object.values(window._venuesData || {});
+  const _venuesOpen = _venuesAll.filter(v => !/confirm|signed|executed|ops ready|walk done/i.test(String(v.status || '')));
+  const venueBlocker = (milestonesBlocked.length && _venuesOpen.length)
+    ? { open: _venuesOpen.length, total: _venuesAll.length, waiting: milestonesBlocked.length }
+    : null;
 
   // ── Vacancies that are actually blocking dated work ─────────────────────────
   // An empty seat is only news if something is waiting on it. Match Open Roles in
@@ -7330,6 +7350,8 @@ function _buildBriefModel(windowDays) {
     milestonesTotal:   Object.keys(milestones).length,
     milestonesDone:    Object.values(milestones).filter(ms => ms && msDone(ms.status)).length,
     milestonesOverdue: milestonesOverdue.length,
+    milestonesLate:    milestonesLate.length,
+    milestonesBlocked: milestonesBlocked.length,
     venues:       Object.keys(venues).length,
     venuesConfirmed:    Object.values(venues).filter(v => _briefTierOf(v.status) === 'Confirmed').length,
     venuesPending:      Object.values(venues).filter(v => _briefTierOf(v.status) === 'Pending Deposit').length,
@@ -7345,6 +7367,9 @@ function _buildBriefModel(windowDays) {
     window: { days: windowDays, start: new Date(windowStart), end: new Date(now) },
     stats,
     milestonesOverdue,
+    milestonesLate,
+    milestonesBlocked,
+    venueBlocker,
     milestonesDueSoon,
     openRoles,
     blockers,
@@ -7388,9 +7413,23 @@ function _briefHtml(m) {
     <div style="font-weight:700;margin-bottom:4px">📅 Where we are</div>
     <div><strong>${m.stats.daysToGames} days</strong> to Games Week (Mar 25–28, 2027) — that is <strong>WBE ${m.stats.wbe}</strong> on the planning timeline.</div>
     ${m.stats.milestonesOverdue > 0
-      ? `<div style="color:${wbeTone};margin-top:4px"><strong>${m.stats.milestonesOverdue} milestones are past due.</strong> The oldest has been open ${m.milestonesOverdue[0] ? m.milestonesOverdue[0].daysOverdue : 0} days.</div>`
+      ? `<div style="color:${wbeTone};margin-top:4px"><strong>${m.stats.milestonesLate} milestones are past due.</strong>${m.stats.milestonesBlocked ? ` A further <strong>${m.stats.milestonesBlocked}</strong> are past due but <strong>blocked</strong> — see below.` : ''} The oldest has been open ${m.milestonesOverdue[0] ? m.milestonesOverdue[0].daysOverdue : 0} days.</div>`
       : `<div style="color:${wbeTone};margin-top:4px">Nothing past due.</div>`}
   </div>`);
+
+  // The one dependency that explains the blocked work. Stated once, plainly,
+  // above the milestone lists -- so nobody reads four red hotel rows as four
+  // separate failures when it is one upstream decision.
+  if (m.venueBlocker) {
+    h.push(`<div style="background:#fffbeb;border-left:4px solid #b7770d;border-radius:6px;padding:12px 14px;margin-bottom:20px;font-size:13px;color:#1e293b">
+      <div style="font-weight:700;margin-bottom:4px">⛔ What is holding us up</div>
+      <div><strong>Hotel clusters cannot start until sports venues are confirmed.</strong>
+      Cluster geography depends on which venues are actually in play, so
+      <strong>${m.venueBlocker.waiting}</strong> hotel milestone${m.venueBlocker.waiting === 1 ? '' : 's'}
+      ${m.venueBlocker.waiting === 1 ? 'is' : 'are'} waiting rather than late.</div>
+      <div style="margin-top:4px"><strong>${m.venueBlocker.open} of ${m.venueBlocker.total} venues</strong> are still unconfirmed. That is the critical path.</div>
+    </div>`);
+  }
 
   function section(title, count, body) {
     if (!count) return `<div style="margin-bottom:22px"><div style="font-weight:700;color:#94a3b8;font-size:12px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px">${title}</div><div style="color:#94a3b8;font-size:13px;font-style:italic">No activity this window.</div></div>`;
@@ -7401,10 +7440,14 @@ function _briefHtml(m) {
   }
   const esc2 = s => String(s == null ? '' : s).replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-  h.push(section('🔴 Plan Milestones Past Due', m.milestonesOverdue.length,
-    bullets(m.milestonesOverdue.slice(0, 12), ms =>
+  h.push(section('🔴 Plan Milestones Past Due', m.milestonesLate.length,
+    bullets(m.milestonesLate.slice(0, 12), ms =>
       `<strong>${esc2(ms.title)}</strong> — <span style="color:#b91c1c">${ms.daysOverdue}d overdue</span> · ${esc2(ms.wbe || '')} · ${esc2(ms.owner || 'unassigned')}${ms.priority === 'critical' ? ' <span style="color:#b91c1c;font-weight:700">CRITICAL</span>' : ''}`)
-    + (m.milestonesOverdue.length > 12 ? `<div style="font-size:12px;color:#64748b;margin-top:6px">…and ${m.milestonesOverdue.length - 12} more in the Project Plan tab.</div>` : '')));
+    + (m.milestonesLate.length > 12 ? `<div style="font-size:12px;color:#64748b;margin-top:6px">…and ${m.milestonesLate.length - 12} more in the Project Plan tab.</div>` : '')));
+
+  h.push(section('⛔ Blocked — Waiting, Not Late', m.milestonesBlocked.length,
+    bullets(m.milestonesBlocked.slice(0, 10), ms =>
+      `<strong>${esc2(ms.title)}</strong> — <span style="color:#b7770d">waiting ${ms.daysOverdue}d</span> · ${esc2(ms.wbe || '')} · ${esc2(ms.owner || 'unassigned')}`)));
 
   h.push(section('📌 Milestones Landing in the Next 3 Weeks', m.milestonesDueSoon.length,
     bullets(m.milestonesDueSoon.slice(0, 10), ms =>
@@ -7478,11 +7521,19 @@ function _briefMarkdown(m) {
     out.push('');
   }
 
-  out.push(`**Where we are** — ${m.stats.daysToGames} days to Games Week (Mar 25–28, 2027), which is WBE ${m.stats.wbe}. Plan: ${m.stats.milestonesDone}/${m.stats.milestonesTotal} milestones done, ${m.stats.milestonesOverdue} past due.`);
+  out.push(`**Where we are** — ${m.stats.daysToGames} days to Games Week (Mar 25–28, 2027), which is WBE ${m.stats.wbe}. Plan: ${m.stats.milestonesDone}/${m.stats.milestonesTotal} milestones done, ${m.stats.milestonesLate} past due${m.stats.milestonesBlocked ? `, plus ${m.stats.milestonesBlocked} blocked` : ''}.`);
   out.push('');
 
-  sec('Plan Milestones Past Due', m.milestonesOverdue.slice(0, 12), ms =>
+  if (m.venueBlocker) {
+    out.push(`**What is holding us up** — Hotel clusters cannot start until sports venues are confirmed; cluster geography depends on which venues are in play. ${m.venueBlocker.waiting} hotel milestone${m.venueBlocker.waiting === 1 ? '' : 's'} ${m.venueBlocker.waiting === 1 ? 'is' : 'are'} waiting rather than late. ${m.venueBlocker.open} of ${m.venueBlocker.total} venues are still unconfirmed — that is the critical path.`);
+    out.push('');
+  }
+
+  sec('Plan Milestones Past Due', m.milestonesLate.slice(0, 12), ms =>
     `**${ms.title}** — ${ms.daysOverdue}d overdue · ${ms.wbe || ''} · ${ms.owner || 'unassigned'}${ms.priority === 'critical' ? ' · CRITICAL' : ''}`);
+
+  sec('Blocked — Waiting, Not Late', m.milestonesBlocked.slice(0, 10), ms =>
+    `**${ms.title}** — waiting ${ms.daysOverdue}d · ${ms.wbe || ''} · ${ms.owner || 'unassigned'}`);
 
   sec('Milestones Landing in the Next 3 Weeks', m.milestonesDueSoon.slice(0, 10), ms =>
     `**${ms.title}** — due ${ms.due} (in ${ms.daysUntil}d) · ${ms.wbe || ''} · ${ms.owner || 'unassigned'}${ms.priority === 'critical' ? ' · CRITICAL' : ''}`);
