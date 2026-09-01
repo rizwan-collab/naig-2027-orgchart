@@ -1906,7 +1906,7 @@ html.onboard-mode #onboardScreen { display: flex !important; }
  <input class="hub-search" id="loopSearch" placeholder=" Search loops…" oninput="renderLoops()">
  <select class="hub-filter-select" id="loopStatusFilter" onchange="renderLoops()">
   <option value="">All Statuses</option>
-  <option>Planning</option><option>Confirmed</option><option>Active</option><option>Cancelled</option>
+  <option>Planning</option><option>On Hold</option><option>Confirmed</option><option>Active</option><option>Cancelled</option>
  </select>
  </div>
  <div class="summary-strip" id="loopSummary"></div>
@@ -9117,17 +9117,17 @@ function switchTransportSubTab(tab) {
 window.switchTransportSubTab = switchTransportSubTab;
 
 /* ── Loop status tag rail ── */
-const _loopStatusFlow = ['Planning','Confirmed','Active','Cancelled'];
+const _loopStatusFlow = ['Planning','On Hold','Confirmed','Active','Cancelled'];
 function updateLoopStatusFlow(forcedStatus) {
   const cur = forcedStatus || document.getElementById('loopStatus').value || 'Planning';
   document.getElementById('loopStatus').value = cur;
   const rail = document.getElementById('loopStatusFlow');
   if (!rail) return;
   rail.innerHTML = _loopStatusFlow.map(s => {
-    const active = s === cur, cancelled = s === 'Cancelled';
-    const bg = active ? (cancelled ? '#fee2e2' : '#dbeafe') : '#f1f5f9';
-    const border = active ? (cancelled ? '#fca5a5' : '#93c5fd') : '#e2e8f0';
-    const color = active ? (cancelled ? '#dc2626' : '#1d4ed8') : '#64748b';
+    const active = s === cur, cancelled = s === 'Cancelled', held = s === 'On Hold';
+    const bg = active ? (cancelled ? '#fee2e2' : held ? '#fef3c7' : '#dbeafe') : '#f1f5f9';
+    const border = active ? (cancelled ? '#fca5a5' : held ? '#fcd34d' : '#93c5fd') : '#e2e8f0';
+    const color = active ? (cancelled ? '#dc2626' : held ? '#92400e' : '#1d4ed8') : '#64748b';
     return `<span onclick="selectLoopStatus('${s}')" style="cursor:pointer;padding:4px 10px;border-radius:20px;font-size:12px;border:1.5px solid ${border};background:${bg};color:${color};font-weight:${active?'700':'400'}">${s}</span>`;
   }).join('');
 }
@@ -9736,6 +9736,41 @@ window._migrateTrackUTAv2 = function () {
   }
 };
 
+/* ══════════════════════════════════════════════════════════
+   MIGRATION — airport workstream paused
+   ──────────────────────────────────────────────────────────
+   Rizwan, 1 Sep 2026: "airport is paused."
+   Puts the three airport loops On Hold so they stop reading as live
+   planning work, and records why they were paused and what has to be
+   true before they restart. The Jamatkhana/airport distance rows and
+   the inbound flight-route table stay live — they are reference data
+   the rest of Transportation uses, not airport operations.
+══════════════════════════════════════════════════════════ */
+window._migrateAirportPause = function () {
+  const now = new Date().toISOString();
+  const L = window._loopsData || {};
+  const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
+  const note = 'PAUSED 1 Sep 2026 — airport workstream on hold, no greeting owner assigned for DFW or '
+             + 'DAL. RESTART DEPENDS ON: registration numbers and an arrival manifest, without which '
+             + 'the run count, vehicle count and staffing are all guesswork. Nothing here is cancelled '
+             + 'and nothing is contracted. WATCH ITEM: every Canadian delegation lands at DFW — Love '
+             + 'Field cannot take nonstop international flights — so DFW arrivals carry the whole '
+             + 'international load whenever this restarts. ';
+
+  Object.keys(L).forEach(k => {
+    const l = L[k] || {};
+    const nm = String(l.name || '');
+    // Cricket's long-haul loop has "DFW" in its name but is not airport work — never pause it.
+    if (/cricket|calera|texomo|durant/i.test(nm)) return;
+    if (!/airport|love field|\(DAL\)/i.test(nm)) return;
+    set('naig2027/loops/' + k, Object.assign({}, l, {
+      status: 'On Hold',
+      notes: note + String(l.notes || ''),
+      updated: now
+    }));
+  });
+};
+
 window._maybeCricketPrimary = function () {
   if (!window._venuesData || !Object.keys(window._venuesData).length) return;
   if (!window._hotelsData || !Object.keys(window._hotelsData).length) return;
@@ -9745,6 +9780,7 @@ window._maybeCricketPrimary = function () {
   window.seedOnce && window.seedOnce('cricket-window-v1',  window._migrateCricketWindow);
   window.seedOnce && window.seedOnce('track-uta-v1',       window._migrateTrackUTA);
   window.seedOnce && window.seedOnce('track-uta-v2',       window._migrateTrackUTAv2);
+  window.seedOnce && window.seedOnce('airport-paused-v1',  window._migrateAirportPause);
 };
 
 window.openLoopModal    = openLoopModal;
