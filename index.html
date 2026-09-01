@@ -348,6 +348,7 @@
       window.renderTasks && window.renderTasks();
       window.renderDashboard && window.renderDashboard();
       if (!data) window.seedOnce && window.seedOnce('tasks', window.seedInitialTasks);
+      window._maybeCricketPrimary && window._maybeCricketPrimary();
     });
     // ── Hub: Venues ──
     window._fb.listenVenues((data) => {
@@ -10258,6 +10259,138 @@ window._migrateDriveRecon = function () {
   }));
 };
 
+/* ══════════════════════════════════════════════════════════
+   MIGRATION — logistics action items out of the registration call
+   ──────────────────────────────────────────────────────────
+   Registration call notes, 1 Sep 2026. Most of it belongs to Sumair,
+   Tasneem, Faheem and Sonia; this files only what Logistics owns or is
+   blocked by. The two urgent ones are field specs: registration opens
+   15 Sep, and any field not in the portal before wave 1 means chasing
+   athletes for it afterwards.
+   Also files the registration calendar as milestones, because it is the
+   thing that finally dates our own sizing work — and it collides with
+   the 30–45 day order lead time the call flagged.
+══════════════════════════════════════════════════════════ */
+window._migrateRegCall = function () {
+  const now = new Date().toISOString();
+  const T = window._tasksData || {};
+  const M = ((window._planData || {}).milestones) || {};
+  const L = window._loopsData || {};
+  const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
+  const task = (key, o) => { if (!T[key]) set('naig2027/tasks/' + key, Object.assign({
+    department: 'Logistics', estHours: '', linkedTo: '', parentTask: '', tags: 'registration-call',
+    status: 'todo', updated: now
+  }, o)); };
+
+  task('reg-flight-fields', {
+    title: 'Spec the flight fields Transportation needs — before registration opens 15 Sep',
+    owner: 'Rizwan Ali', due: '2026-09-08', priority: 'High', scopeArea: 'Transportation',
+    notes: 'The call agreed to add a way for athletes to enter flight information. Logistics has to say '
+         + 'WHICH fields or we get free text we cannot plan against. Ask for: airline, flight number, '
+         + 'arrival airport (DFW or DAL — they behave completely differently), arrival date and local '
+         + 'time, departure date and time, and whether they are arranging their own ground transport. '
+         + 'WHY THE DATE MATTERS: registration opens 15 Sep in waves. Anything not in the portal at '
+         + 'launch has to be chased from wave-1 athletes afterwards, one at a time. '
+         + 'THIS IS ALSO THE AIRPORT RESTART TRIGGER — the airport loops are On Hold pending an arrival '
+         + 'manifest, and this field is that manifest.'
+  });
+  task('reg-hotel-fields', {
+    title: 'Spec the hotel fields — block sizing and shuttle eligibility both depend on them',
+    owner: 'Rizwan Ali', due: '2026-09-08', priority: 'High', scopeArea: 'Hotels',
+    notes: 'The call flagged that hotel information will be needed and a field may be added. What '
+         + 'Logistics needs: staying in a NAIG block or self-booked, which property, check-in and '
+         + 'check-out dates. Without the block-or-self-booked answer we cannot size the blocks, and we '
+         + 'cannot tell who is entitled to ride a cluster shuttle — someone self-booked outside the '
+         + 'clusters is not on any loop we have drawn. Same 15 Sep deadline as the flight fields.'
+  });
+  task('reg-portal-walkthrough', {
+    title: 'Portal walkthrough — bring the flight and hotel field asks',
+    owner: 'Rizwan Ali', due: '2026-09-02', priority: 'High', scopeArea: 'Registration',
+    notes: 'Sumair is running a portal walkthrough at 8:30pm Central the day after the call. This is '
+         + 'the moment to get the Transportation and Hotels fields into the build, while the portal is '
+         + 'still open for changes and before the 15 Sep launch. Go in with the field list written down.'
+  });
+  task('reg-venue-sport-map', {
+    title: 'Provide venue-to-sport mapping for the registration dashboard',
+    owner: 'Rizwan Ali', due: '2026-09-08', priority: 'Medium', scopeArea: 'Venues',
+    notes: 'Rizwan\'s action item from the call. The Scope tab already holds sport → venue for all 14 '
+         + 'sports, so this is an export, not new work. ONE CATCH BEFORE SENDING: the org onboarding '
+         + 'deck counts Cricket as two sports (Hardball, Tapeball) and Soccer as one, while this hub '
+         + 'has one Cricket and two Soccers. Say which taxonomy the mapping uses or the dashboard will '
+         + 'not reconcile with registration counts. Also note Track (UT Arlington) and Cricket (Calera) '
+         + 'are still unsigned, and Tennis sits at McKinney.'
+  });
+  task('reg-wave4-support', {
+    title: 'Back the Wave 4 move from 15 Jan to 31 Dec — Logistics has the strongest reason',
+    owner: 'Rizwan Ali', due: '2026-09-15', priority: 'Medium', scopeArea: 'Registration',
+    notes: 'The call floated moving the Wave 4 alternates deadline from 15 Jan to 31 Dec. Logistics '
+         + 'should push for it. Food, hospitality and memorabilia need 30–45 days of order lead time. '
+         + 'With Games on 25 Mar, a 45-day order has to be placed by 8 Feb. Final counts at 15 Jan '
+         + 'leaves 24 days of slack; at 31 Dec it is 39. Any slip in Wave 4 eats that slack directly '
+         + 'and forces us to order on estimates instead of actuals.'
+  });
+  task('reg-hotel-size-dec1', {
+    title: 'Size hotel blocks off the 1 Dec Canadian slot counts, not the final 15 Jan numbers',
+    owner: 'Kiran Surani', due: '2026-12-05', priority: 'High', scopeArea: 'Hotels',
+    notes: 'Hotel contracts have to be signed long before registration closes — the LOI milestone sits '
+         + 'in November. The first real number available is the Canadian slot count due 1 Dec, plus US '
+         + 'actuals which complete earlier. Size on that and negotiate an attrition clause so the block '
+         + 'can shrink against the 15 Jan finals without penalty. Do not wait for final counts; the '
+         + 'rooms will be gone.'
+  });
+
+  if (M && Object.keys(M).length) {
+    if (!M['rg01']) set('naig2027/plan/milestones/rg01', {
+      createdAt: Date.now(), dept: 'Dependency', due: '2026-09-14', phase: 'registration',
+      priority: 'critical', status: 'not-started', owner: 'Logistics Lead', wbe: 'RG-1',
+      title: 'Logistics fields live in the registration portal before it opens 15 Sep',
+      notes: 'Hard gate. Flight details and hotel block/self-booked must be in the portal at launch. '
+           + 'Registration runs in waves from 15 Sep, so any field added later misses everyone who has '
+           + 'already registered and turns into manual chasing across 14 regions.'
+    });
+    if (!M['rg02']) set('naig2027/plan/milestones/rg02', {
+      createdAt: Date.now(), dept: 'Dependency', due: '2026-12-01', phase: 'registration',
+      priority: 'high', status: 'not-started', owner: 'Logistics Lead', wbe: 'RG-2',
+      title: 'Canadian slot counts due — first real number Logistics can size against',
+      notes: 'Canada qualifiers assumed complete by 1 Dec and slot counts due the same day; US '
+           + 'registration completes earlier. This is the earliest defensible basis for hotel block '
+           + 'size, coach counts and food volumes. Everything before this is an estimate.'
+    });
+    if (!M['rg03']) set('naig2027/plan/milestones/rg03', {
+      createdAt: Date.now(), dept: 'Dependency', due: '2027-01-15', phase: 'registration',
+      priority: 'high', status: 'not-started', owner: 'Logistics Lead', wbe: 'RG-3',
+      title: 'Registration portal closes — final athlete counts (Wave 4 alternates)',
+      notes: 'Tentative. Canada wave closes 31 Dec; Wave 4 extra slots and alternates close 15 Jan, '
+           + 'with a live proposal to pull that back to 31 Dec. Refund cutoff also lands around 15 Jan '
+           + 'with partial refunds to 15 Feb, so numbers can still move after this date.'
+    });
+    if (!M['rg04']) set('naig2027/plan/milestones/rg04', {
+      createdAt: Date.now(), dept: 'Food/F&B', due: '2027-02-08', phase: 'pregames',
+      priority: 'critical', status: 'not-started', owner: 'F&B Lead', wbe: 'RG-4',
+      title: 'Last day to place 45-day lead orders — food, hospitality, memorabilia',
+      notes: 'The call put order lead times at 30–45 days. Games start 25 Mar, so a 45-day item has to '
+           + 'be ordered by 8 Feb and a 30-day item by 23 Feb. Final counts arrive 15 Jan, which leaves '
+           + '24 days of slack on the longest-lead items. That is the tightest coupling in the whole '
+           + 'plan: if registration slips, these orders go out on estimates.'
+    });
+  }
+
+  // The airport restart condition now has a name and a date.
+  Object.keys(L).forEach(k => {
+    const l = L[k] || {};
+    if (String(l.status || '') !== 'On Hold') return;
+    if (!/airport|love field|\(DAL\)/i.test(String(l.name || ''))) return;
+    set('naig2027/loops/' + k, Object.assign({}, l, {
+      notes: 'RESTART TRIGGER IDENTIFIED (1 Sep 2026): the registration portal is adding a flight-details '
+           + 'field, which is the arrival manifest this workstream was waiting on. It has to be specced '
+           + 'before registration opens 15 Sep — see task "Spec the flight fields Transportation needs". '
+           + 'Usable arrival data should exist from the first wave onward, with the bulk after the '
+           + '1 Dec Canadian slot counts. ' + String(l.notes || ''),
+      updated: now
+    }));
+  });
+};
+
 window._maybeCricketPrimary = function () {
   if (!window._venuesData || !Object.keys(window._venuesData).length) return;
   if (!window._hotelsData || !Object.keys(window._hotelsData).length) return;
@@ -10274,6 +10407,9 @@ window._maybeCricketPrimary = function () {
     if (window._docsData && Object.keys(window._docsData).length &&
         window._scopeData && Object.keys(window._scopeData).length) {
       window.seedOnce && window.seedOnce('drive-recon-v1', window._migrateDriveRecon);
+    }
+    if (window._tasksData && Object.keys(window._tasksData).length) {
+      window.seedOnce && window.seedOnce('reg-call-v1', window._migrateRegCall);
     }
   }
 };
