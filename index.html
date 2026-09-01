@@ -416,6 +416,7 @@
       window._transportModelData = data || null;
       window.renderTransportModel && window.renderTransportModel();
       if (!data) window.seedOnce && window.seedOnce('transportModel', window.seedTransportModel);
+      window._maybeCricketPrimary && window._maybeCricketPrimary();
     });
     window._fb.listenDrivers((data) => {
       window._driversData = data || {};
@@ -10019,6 +10020,117 @@ window._migrateTransportModel = function () {
   }
 };
 
+/* ══════════════════════════════════════════════════════════
+   MIGRATION — Registration Hub assumed to be StarCenter Northlake
+   ──────────────────────────────────────────────────────────
+   Rizwan, 1 Sep 2026: "we will assume northlake for now as hub."
+   Resolves the Registration Hub gap onto a site already in the venue
+   list, and records the trade-off honestly: Northlake is close to DFW
+   (18 mi, the recorded figure) but far from the hotel clusters, so
+   leg 1 is short and leg 2 is long. The detour numbers are written in
+   so nobody has to rediscover them when this gets costed.
+══════════════════════════════════════════════════════════ */
+window._migrateRegHubNorthlake = function () {
+  const now = new Date().toISOString();
+  const V = window._venuesData || {};
+  const L = window._loopsData  || {};
+  const M = ((window._planData || {}).milestones) || {};
+  const TM = window._transportModelData;
+  const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
+
+  // Retire the gap record — the hub now has a name.
+  if (V['reg-hub-gap']) set('naig2027/venues/reg-hub-gap', null);
+
+  // Northlake picks up a second role.
+  const kNL = Object.keys(V).find(k => /northlake/i.test(String((V[k] || {}).name || '')));
+  if (kNL) {
+    set('naig2027/venues/' + kNL, Object.assign({}, V[kNL], {
+      notes: 'ALSO THE REGISTRATION HUB (assumed, 1 Sep 2026). On Wed 24 Mar this site takes every '
+           + 'arrival: airport → here to register → rounds out to cluster hotels. '
+           + 'WHY IT FITS: DFW is 18 mi / ~45 min away — the shortest airport leg of any live venue, '
+           + 'and it is already under contract so registration costs no new negotiation. '
+           + 'WHY IT COSTS: it sits at the far north-west edge, so leg 2 is long. Recorded and '
+           + 'estimated drives from here — Lewisville ~18 mi/45 min, Carrollton ~22 mi/55 min, '
+           + 'Farmers Branch ~26 mi, Addison ~28 mi, Frisco ~30 mi, Fort Worth ~30 mi. '
+           + 'THE DETOUR: DFW → Farmers Branch direct is about 16 mi. Via Northlake it is 18 + 26 = '
+           + '44 mi. Roughly a three-fold detour for the largest hotel cluster, on arrival day. '
+           + 'Worth deciding whether Mid and West cluster arrivals register on site at their hotel '
+           + 'instead, or whether registration itself moves somewhere more central. '
+           + 'ALSO NOTE: Wed 24 Mar is the day before play, so this building is being set up for '
+           + 'Badminton, Basketball, Volleyball, Throwball and TT while registration is running in it. '
+           + 'Those two jobs need separate space and separate people. '
+           + String((V[kNL] || {}).notes || ''),
+      updated: now
+    }));
+  }
+
+  // Loops now point at a real place.
+  if (L['loop-reg-hub-out']) set('naig2027/loops/loop-reg-hub-out', Object.assign({}, L['loop-reg-hub-out'], {
+    name: 'Registration Hub (Northlake) → cluster hotels',
+    from: 'StarCenter Northlake — Registration Hub (assumed)',
+    rideTime: '~45 min Lewisville · ~55 min Carrollton · ~60 min Farmers Branch / Addison / Frisco / Fort Worth',
+    notes: 'Second leg on registration day. Hub is assumed to be StarCenter Northlake (1 Sep 2026). '
+         + 'Every cluster is 18–30 mi out, so a full round of this loop is long — that drives vehicle '
+         + 'count more than the passenger numbers do. THE OPEN QUESTION: DFW → Farmers Branch direct is '
+         + 'about 16 mi; via Northlake it is 44 mi. For the Mid and West clusters the hub adds more '
+         + 'travel than it saves, so consider registering those arrivals at their hotel instead of '
+         + 'routing them north. Distances beyond Lewisville and Carrollton are estimates — verify '
+         + 'before costing.',
+    updated: now
+  }));
+  Object.keys(L).forEach(k => {
+    const l = L[k] || {};
+    if (!/DFW Airport Arrivals/i.test(String(l.name || ''))) return;
+    set('naig2027/loops/' + k, Object.assign({}, l, {
+      to: 'StarCenter Northlake — Registration Hub (assumed)',
+      rideTime: '~45 min (18 mi, recorded)',
+      stops: 'DFW Terminal C\nDFW Terminal D\nStarCenter Northlake — Registration Hub',
+      notes: 'Leg 1 of registration day: airport → Registration Hub, assumed to be StarCenter Northlake '
+           + '(1 Sep 2026). At 18 mi this is the shortest airport run available. ' + String(l.notes || ''),
+      updated: now
+    }));
+  });
+
+  // Transport model card reflects the decision.
+  if (TM && TM.phases) {
+    const phases = TM.phases.map(p => {
+      if (!/registration day/i.test(String(p.name || ''))) return p;
+      return Object.assign({}, p, {
+        legs: [
+          { n: '1', t: 'Airport → <strong>StarCenter Northlake</strong> (Registration Hub)' },
+          { n: '2', t: 'Northlake → <strong>cluster hotels</strong> (rounds)' }
+        ],
+        flags: [
+          'Hub assumed, not decided. Northlake is 18 mi from DFW — the shortest airport leg — but 18–30 mi from every hotel cluster.',
+          'DFW → Farmers Branch is ~16 mi direct and ~44 mi via Northlake. For the Mid and West clusters the hub adds more travel than it saves.',
+          'Wed 24 Mar is also load-in day at Northlake for five sports. Registration and venue setup need separate space and separate people.'
+        ]
+      });
+    });
+    set('naig2027/transportModel', Object.assign({}, TM, {
+      phases,
+      openQuestions: [
+        'Northlake is assumed as the Registration Hub — does it survive the leg-2 numbers, or do Mid and West clusters register at their hotel?',
+        'Which venues count as "large" (direct from hotels) and which as "small" (second leg)?',
+        'Does the second leg run venue-to-venue, or back through a hub — venue-to-venue is faster but needs far more vehicles.',
+        'Bag storage on departure day: which venues can hold it, and who staffs it.',
+        'Round frequency drives vehicle count more than anything else here. 30 min versus 60 min is roughly double the fleet.'
+      ],
+      updatedNote: 'Hub assumed: Northlake · route detail still TBD',
+      updated: now
+    }));
+  }
+
+  if (M['tp01']) set('naig2027/plan/milestones/tp01', Object.assign({}, M['tp01'], {
+    title: 'Validate StarCenter Northlake as the Registration Hub, or move it',
+    notes: 'Assumed 1 Sep 2026. Test it against leg 2, not leg 1: Northlake is 18 mi from DFW but '
+         + '18–30 mi from every hotel cluster, and DFW → Farmers Branch runs ~16 mi direct against '
+         + '~44 mi via Northlake. Either accept the detour, register Mid and West arrivals at their '
+         + 'hotels, or move registration somewhere more central. Also confirm Northlake can run '
+         + 'registration and five-sport load-in on the same day without the two colliding.'
+  }));
+};
+
 window._maybeCricketPrimary = function () {
   if (!window._venuesData || !Object.keys(window._venuesData).length) return;
   if (!window._hotelsData || !Object.keys(window._hotelsData).length) return;
@@ -10030,6 +10142,9 @@ window._maybeCricketPrimary = function () {
   window.seedOnce && window.seedOnce('track-uta-v2',       window._migrateTrackUTAv2);
   window.seedOnce && window.seedOnce('airport-paused-v1',  window._migrateAirportPause);
   window.seedOnce && window.seedOnce('transport-model-v1', window._migrateTransportModel);
+  if (window._transportModelData) {
+    window.seedOnce && window.seedOnce('reghub-northlake-v1', window._migrateRegHubNorthlake);
+  }
 };
 
 window.openLoopModal    = openLoopModal;
