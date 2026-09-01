@@ -10131,6 +10131,133 @@ window._migrateRegHubNorthlake = function () {
   }));
 };
 
+/* ══════════════════════════════════════════════════════════
+   MIGRATION — reconcile against the NAIG shared drive
+   ──────────────────────────────────────────────────────────
+   Read the master drive on 1 Sep 2026. One file had changed in 30 days:
+   "NAIG Team Onboarding.pptx" (27 Aug, Aziz Hirani). Its programme flow
+   does NOT match this hub's, and the difference moves everything
+   downstream, so it is filed as a blocking conflict rather than quietly
+   applied. NO DATES ARE CHANGED HERE — that is Rizwan's call.
+   Also files three things the org deck contains that this hub did not:
+   the Legends 45+ pilot, the Ismaili Centre visit, and cricket being
+   two separate formats. Fixes one stale Scope row (Track).
+══════════════════════════════════════════════════════════ */
+window._migrateDriveRecon = function () {
+  const now = new Date().toISOString();
+  const M = ((window._planData || {}).milestones) || {};
+  const D = window._docsData   || {};
+  const S = window._scopeData  || {};
+  const TM = window._transportModelData;
+  const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
+  const DECK = 'https://docs.google.com/presentation/d/1dlpfAOxjTHqLoyTeSUwe5AHw-EryqRr5/edit';
+
+  if (!D['doc-org-onboarding']) set('naig2027/docs/doc-org-onboarding', {
+    area: 'Overall',
+    name: 'NAIG Team Onboarding (org deck) — Aziz Hirani, 27 Aug 2026',
+    type: 'Reference',
+    status: 'Review',
+    owner: 'Core Team PMO',
+    link: DECK,
+    expiry: '',
+    createdAt: Date.now(),
+    notes: 'The org-level deck in the NAIG shared drive. Read 1 Sep 2026 — the only file changed in '
+         + 'the drive in 30 days. WHERE IT DISAGREES WITH THIS HUB: (1) PROGRAMME — the deck says '
+         + '"Thursday 25 – Sunday 28 March, 4-day programme", with Thu 25 as ARRIVAL & CHECK-IN and '
+         + 'competition on Fri 26, Sat 27 and Sun 28 only. This hub has play running Thu 25 – Sun 28 '
+         + 'with check-in Wed 24. Three competition days versus four. (2) SPORTS — the deck lists '
+         + 'Cricket as two sports, Hardball and Tapeball, and Soccer as one; this hub has one Cricket '
+         + 'and two Soccers. Both total 14. (3) The deck lists ~8 venues across 5 host cities '
+         + '(Northlake, Little Elm, Farmers Branch, Fort Worth, Cricket TBD); this hub has 13 live '
+         + 'venues, and UT Arlington plus Calera OK sit outside that list. (4) The deck adds a Legends '
+         + '45+ pilot and an Ismaili Centre visit, neither of which was in this hub. '
+         + 'Treat the deck as the org\'s public statement of the programme until the calendar is '
+         + 'reconciled — it is what the wider team has been shown.',
+    updated: now
+  });
+
+  if (M && Object.keys(M).length) {
+    if (!M['xr01']) set('naig2027/plan/milestones/xr01', {
+      createdAt: Date.now(), dept: 'Overall', due: '2026-09-11', phase: 'pregames',
+      priority: 'critical', status: 'blocked', owner: 'Exec Committee', wbe: 'X-1',
+      title: 'Reconcile the competition calendar — org deck says 3 play days, this hub says 4',
+      notes: 'Found 1 Sep 2026 in the org onboarding deck (27 Aug, Aziz Hirani). The deck: Thu 25 Mar '
+           + 'is ARRIVAL & CHECK-IN, competition Fri 26 – Sun 28. This hub: check-in Wed 24, play Thu 25 '
+           + '– Sun 28. BLOCKS EVERYTHING DOWNSTREAM — if the deck is right then registration day moves '
+           + 'to Thursday, cricket does not play Day 1, the Texomo access window shifts, the Durant '
+           + 'hotel block dates shift, and every loop\'s operating days change. Nothing has been altered '
+           + 'in this hub pending the decision. Settle which document is authoritative first, then '
+           + 'apply once. The org deck is what the wider team has already been shown.'
+    });
+    if (!M['xr02']) set('naig2027/plan/milestones/xr02', {
+      createdAt: Date.now(), dept: 'Venue / Legal', due: '2026-10-09', phase: 'pregames',
+      priority: 'high', status: 'not-started', owner: 'Logistics Lead', wbe: 'X-2',
+      title: 'Size the Legends (45+) pilot — extra court time for Table Tennis, Badminton, Pickleball',
+      notes: 'The org deck announces a Legends 45+ pilot across three individual sports. A third '
+           + 'division in those sports means more entries and more court-hours in the same building on '
+           + 'the same days. Table Tennis and Badminton both sit at StarCenter Northlake, which is also '
+           + 'the assumed Registration Hub. Confirm the court and session count before the venue '
+           + 'contracts are signed, not after.'
+    });
+    if (!M['xr03']) set('naig2027/plan/milestones/xr03', {
+      createdAt: Date.now(), dept: 'Transport', due: '2026-11-06', phase: 'pregames',
+      priority: 'high', status: 'not-started', owner: 'Transportation Lead', wbe: 'X-3',
+      title: 'Plan the Ismaili Centre visit — an unbudgeted movement of the whole delegation',
+      notes: 'The org deck states a visit to an Ismaili Centre is part of the programme. Nothing in '
+           + 'Transportation covers it. The Dallas HQ Jamatkhana & Ismaili Centre is 22 mi / ~55 min '
+           + 'from Northlake, so moving even a fraction of ~3,000 people there is a major operation on '
+           + 'a day already full. Establish which day, how many people, and whether it runs in waves '
+           + 'before the coach contract is priced.'
+    });
+    if (!M['xr04']) set('naig2027/plan/milestones/xr04', {
+      createdAt: Date.now(), dept: 'Venue / Legal', due: '2026-10-09', phase: 'pregames',
+      priority: 'high', status: 'not-started', owner: 'Logistics Lead', wbe: 'X-4',
+      title: 'Cricket is two formats — confirm Calera can hold Hardball and Tapeball',
+      notes: 'The org deck lists Cricket (Hardball) and Cricket (Tapeball) as two separate sports. '
+           + 'Texomo is the single primary ground and its field count is still unknown. Two formats on '
+           + 'one site is roughly double the field-time, which is the strongest argument yet that '
+           + 'Prairie View or Russell Creek is a real requirement rather than a contingency. Settle '
+           + 'this with Abid Bhai in the same conversation as the Texomo contract.'
+    });
+  }
+
+  // Scope: Track is stale, and Cricket needs the two-format note.
+  Object.keys(S).forEach(k => {
+    const s = S[k] || {};
+    if (/track/i.test(s.sport || '')) {
+      set('naig2027/scope/' + k, Object.assign({}, s, {
+        venue: 'UT Arlington — Maverick Stadium (lead)',
+        status: 'Planning',
+        notes: 'Lead venue as of 31 Aug 2026, in talks with Durl (drather@uta.edu). 400m Polytan track '
+             + 'resurfaced 2025. Replaces the Carroll ISD prospect. ' + String(s.notes || ''),
+        updated: now
+      }));
+    }
+    if (/^cricket/i.test(s.sport || '')) {
+      set('naig2027/scope/' + k, Object.assign({}, s, {
+        sport: 'Cricket (Hardball + Tapeball)',
+        notes: 'ORG DECK 27 Aug 2026 lists these as TWO separate sports. Roughly double the field-time '
+             + 'on one ground. Texomo field count still unknown — see milestone X-4. ' + String(s.notes || ''),
+        updated: now
+      }));
+    }
+  });
+
+  // Flag the disputed calendar on the transport model card.
+  if (TM) set('naig2027/transportModel', Object.assign({}, TM, {
+    status: 'Tentative — CALENDAR DISPUTED, see milestone X-1',
+    summary: 'Hub-and-spoke, not point-to-point. Every leg feeds the next, so a delay early in a day '
+           + 'compounds down the chain. WARNING: the org onboarding deck (27 Aug) puts arrival on Thu 25 '
+           + 'and competition Fri–Sun, which would move every day below by one. Do not cost this until '
+           + 'the calendar is settled.',
+    openQuestions: [(
+      'CALENDAR CONFLICT — the org deck says Thu 25 is arrival and play runs Fri 26 – Sun 28. This '
+      + 'model assumes reg on Wed 24 and play from Thu 25. Settle this before anything else.'
+    )].concat((TM.openQuestions || [])),
+    updated: now
+  }));
+};
+
 window._maybeCricketPrimary = function () {
   if (!window._venuesData || !Object.keys(window._venuesData).length) return;
   if (!window._hotelsData || !Object.keys(window._hotelsData).length) return;
@@ -10144,6 +10271,10 @@ window._maybeCricketPrimary = function () {
   window.seedOnce && window.seedOnce('transport-model-v1', window._migrateTransportModel);
   if (window._transportModelData) {
     window.seedOnce && window.seedOnce('reghub-northlake-v1', window._migrateRegHubNorthlake);
+    if (window._docsData && Object.keys(window._docsData).length &&
+        window._scopeData && Object.keys(window._scopeData).length) {
+      window.seedOnce && window.seedOnce('drive-recon-v1', window._migrateDriveRecon);
+    }
   }
 };
 
