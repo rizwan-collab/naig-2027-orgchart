@@ -412,6 +412,11 @@
       if (!data) window.seedOnce && window.seedOnce('loops', window.seedInitialLoops);
       window._maybeCricketPrimary && window._maybeCricketPrimary();
     });
+    onV(ref(db, 'naig2027/transportModel'), 'transportModel', (data) => {
+      window._transportModelData = data || null;
+      window.renderTransportModel && window.renderTransportModel();
+      if (!data) window.seedOnce && window.seedOnce('transportModel', window.seedTransportModel);
+    });
     window._fb.listenDrivers((data) => {
       window._driversData = data || {};
       window.renderDrivers && window.renderDrivers();
@@ -1902,6 +1907,7 @@ html.onboard-mode #onboardScreen { display: flex !important; }
 
  <!-- Panel: Shuttle Loops -->
  <div id="tpanel-loops">
+ <div id="transportModel"></div>
  <div class="hub-filters">
  <input class="hub-search" id="loopSearch" placeholder=" Search loops…" oninput="renderLoops()">
  <select class="hub-filter-select" id="loopStatusFilter" onchange="renderLoops()">
@@ -9116,6 +9122,122 @@ function switchTransportSubTab(tab) {
 }
 window.switchTransportSubTab = switchTransportSubTab;
 
+/* ══════════════════════════════════════════════════════════
+   TRANSPORT MODEL — the shape of the whole plan, above the loop list
+   ──────────────────────────────────────────────────────────
+   Rizwan's tentative model, 1 Sep 2026. Three days, four legs, all of it
+   hub-and-spoke rather than point-to-point. The loop table below shows
+   individual routes; this card shows the model they have to add up to,
+   so a new route that does not fit one of these legs is visibly odd.
+══════════════════════════════════════════════════════════ */
+window._transportModelData = null;
+
+window.renderTransportModel = function () {
+  const el = document.getElementById('transportModel');
+  if (!el) return;
+  const m = window._transportModelData;
+  if (!m || !m.phases) { el.innerHTML = ''; return; }
+
+  const card = (p) => {
+    const legs = (p.legs || []).map(l =>
+      `<div style="display:flex;gap:8px;align-items:baseline;padding:3px 0">
+         <span style="color:#94a3b8;font-size:11px;min-width:14px">${l.n || '→'}</span>
+         <span style="font-size:12.5px;color:#0f172a;line-height:1.45">${l.t || ''}</span>
+       </div>`).join('');
+    const flags = (p.flags || []).map(f =>
+      `<div style="font-size:11.5px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;
+                   border-radius:6px;padding:5px 8px;margin-top:6px;line-height:1.45">${f}</div>`).join('');
+    return `<div style="flex:1 1 240px;min-width:230px;background:#fff;border:1px solid #e2e8f0;
+                        border-radius:10px;padding:12px 13px">
+      <div style="font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:#64748b;
+                  font-weight:700">${p.when || ''}</div>
+      <div style="font-size:14px;font-weight:700;color:#0f172a;margin:2px 0 8px">${p.name || ''}</div>
+      ${legs}
+      <div style="font-size:11.5px;color:#475569;margin-top:8px;padding-top:7px;
+                  border-top:1px dashed #e2e8f0">Cadence: <strong>${p.cadence || 'TBD'}</strong></div>
+      ${flags}
+    </div>`;
+  };
+
+  el.innerHTML = `
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin:12px 0 16px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-size:15px;font-weight:700;color:#0f172a">Transport model — ${m.status || 'Tentative'}</div>
+          <div style="font-size:12px;color:#64748b;margin-top:2px">${m.summary || ''}</div>
+        </div>
+        <div style="font-size:11px;color:#94a3b8">${m.updatedNote || ''}</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+        ${(m.phases || []).map(card).join('')}
+      </div>
+      ${(m.openQuestions && m.openQuestions.length) ? `
+        <div style="margin-top:12px;padding-top:10px;border-top:1px solid #e2e8f0">
+          <div style="font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:#64748b;
+                      font-weight:700;margin-bottom:6px">Open before this can be costed</div>
+          ${m.openQuestions.map(q =>
+            `<div style="font-size:12.5px;color:#334155;line-height:1.5;padding:2px 0">• ${q}</div>`).join('')}
+        </div>` : ''}
+    </div>`;
+};
+
+window.seedTransportModel = function () {
+  const seed = {
+    status: 'Tentative — Rizwan, 1 Sep 2026',
+    summary: 'Hub-and-spoke, not point-to-point. Every leg feeds the next one, so a delay early in a '
+           + 'day compounds down the chain.',
+    updatedNote: 'Ideal plan · route detail still TBD',
+    cadenceDefault: 'Rounds every 30–60 min, flexes either way',
+    phases: [
+      { name: 'Registration day', when: 'Wed 24 Mar',
+        cadence: 'Rounds every 30–60 min',
+        legs: [
+          { n: '1', t: 'Airport → <strong>Registration Hub</strong>' },
+          { n: '2', t: 'Registration Hub → <strong>cluster hotels</strong> (rounds)' }
+        ],
+        flags: [
+          'No Registration Hub venue exists in the hub yet — every arrival on this day routes through a place we have not named.',
+          'Routing West-cluster (Fort Worth) arrivals via a north-side hub adds roughly an hour each way. Worth checking before it is locked.'
+        ] },
+      { name: 'Game days', when: 'Thu 25 – Sun 28 Mar',
+        cadence: 'Rounds every 30–60 min',
+        legs: [
+          { n: '1', t: 'Cluster hotels → <strong>large venues</strong>' },
+          { n: '2', t: 'Large venue → <strong>small venue</strong> (second leg, as needed)' }
+        ],
+        flags: [
+          'Two legs means small-venue athletes wait for a transfer. At 30–60 min rounds the worst case is two full waits — an 8am start could mean a 6am hotel pickup.',
+          'Time the second leg off the first leg\'s arrival, not its own clock, or the connection is luck.',
+          '"Large" and "small" are not defined yet — that split decides the whole day.'
+        ] },
+      { name: 'Departure day', when: 'Mon 29 Mar',
+        cadence: 'Rounds every 30–60 min',
+        legs: [{ n: '1', t: '<strong>Venues → airports</strong>' }],
+        flags: [
+          'Flying out from venues means bags come to the venue that morning — secure bag storage at every large venue on the 29th, which is an equipment line nobody has costed.',
+          'Cricket cannot do this. Calera is 90 min the wrong way, and Mon 29 is also their reserve play day.'
+        ] },
+      { name: 'Standing', when: 'Throughout',
+        cadence: 'On demand / scheduled',
+        legs: [
+          { n: '·', t: 'JK Hub rides — daily' },
+          { n: '·', t: 'Officials, staff and equipment floaters' },
+          { n: '·', t: 'Calera cricket — its own transfers, outside this model' }
+        ],
+        flags: [] }
+    ],
+    openQuestions: [
+      'Where is the Registration Hub, and is it one of the venues we already have or a separate site?',
+      'Which venues count as "large" (direct from hotels) and which as "small" (second leg)?',
+      'Does the second leg run venue-to-venue, or back through a hub — venue-to-venue is faster but needs far more vehicles.',
+      'Bag storage on departure day: which venues can hold it, and who staffs it.',
+      'Round frequency drives vehicle count more than anything else here. 30 min versus 60 min is roughly double the fleet.'
+    ],
+    updated: new Date().toISOString()
+  };
+  window._dbSet(window._dbRef('naig2027/transportModel'), seed);
+};
+
 /* ── Loop status tag rail ── */
 const _loopStatusFlow = ['Planning','On Hold','Confirmed','Active','Cancelled'];
 function updateLoopStatusFlow(forcedStatus) {
@@ -9159,7 +9281,7 @@ window.renderLoops = function() {
     const stopCount = l.stops ? l.stops.split('\n').filter(s=>s.trim()).length : 0;
     const contractIcon = l.contractLink ? `<a href="${esc(l.contractLink)}" target="_blank" onclick="event.stopPropagation()" style="color:#2563eb;font-size:11px"> Contract</a>` : `<span style="color:#9ca3af;font-size:11px">—</span>`;
     return `<tr onclick="openLoopModal('${k}')" style="cursor:pointer">
- <td><strong>${esc(l.name||'—')}</strong>${l.daysOp?`<div style="font-size:10px;color:#6366f1;margin-top:2px">${esc(l.daysOp)}</div>`:''}</td>
+ <td><strong>${esc(l.name||'—')}</strong>${l.phase?`<div style="display:inline-block;margin-left:6px;font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;font-weight:700;color:#475569;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:20px;padding:1px 7px;vertical-align:middle">${esc(l.phase)}</div>`:''}${l.daysOp?`<div style="font-size:10px;color:#6366f1;margin-top:2px">${esc(l.daysOp)}</div>`:''}</td>
  <td style="font-size:11px">${esc(l.from||'—')} → ${esc(l.to||'—')}${l.rideTime?`<div style="color:#64748b;font-size:10px"> ${esc(l.rideTime)}</div>`:''}</td>
  <td style="font-size:11px">${esc(sched||'—')}</td>
  <td style="font-size:11px">${esc(veStr||'—')}</td>
@@ -9771,6 +9893,132 @@ window._migrateAirportPause = function () {
   });
 };
 
+/* ══════════════════════════════════════════════════════════
+   MIGRATION — map the existing loops onto the tentative model
+   ──────────────────────────────────────────────────────────
+   Every loop gets a phase so it is obvious which leg it serves, and
+   anything that does not fit one is visible as a gap rather than a
+   quiet omission. Also files the Registration Hub, which the model
+   depends on and which does not exist anywhere in the hub yet.
+══════════════════════════════════════════════════════════ */
+window._migrateTransportModel = function () {
+  const now = new Date().toISOString();
+  const L = window._loopsData || {};
+  const V = window._venuesData || {};
+  const M = ((window._planData || {}).milestones) || {};
+  const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
+
+  const phaseFor = (nm) => {
+    if (/cricket|calera|texomo|durant/i.test(nm))            return 'Cricket';
+    if (/departure/i.test(nm))                               return 'Departure day';
+    if (/arrival|airport|love field|\(DAL\)/i.test(nm))       return 'Reg day';
+    if (/floater|officials|jk hub/i.test(nm))                return 'Standing';
+    return 'Game days';
+  };
+  Object.keys(L).forEach(k => {
+    const l = L[k] || {};
+    const p = phaseFor(String(l.name || ''));
+    if (l.phase === p) return;
+    set('naig2027/loops/' + k, Object.assign({}, l, { phase: p, updated: now }));
+  });
+
+  // The two legs the model needs and the loop table does not have yet.
+  if (!L['loop-reg-hub-out']) set('naig2027/loops/loop-reg-hub-out', {
+    name: 'Registration Hub → cluster hotels',
+    phase: 'Reg day',
+    from: 'Registration Hub — SITE NOT YET CHOSEN',
+    to: 'North / Central / Mid / West cluster hotels',
+    frequency: 'Rounds every 30–60 min',
+    firstBus: 'TBD', lastBus: 'TBD',
+    daysOp: 'Wed 24 Mar (Registration day)',
+    rideTime: 'Depends entirely on where the hub lands',
+    vehicles: 'TBD', capacity: 'TBD',
+    stops: 'Registration Hub\nMid cluster\nCentral cluster\nNorth cluster\nWest cluster (Fort Worth)',
+    contractLink: '', status: 'Planning',
+    notes: 'Second leg of the model on registration day: everyone lands, registers at the hub, then '
+         + 'rounds carry them out to their cluster hotel. BLOCKED ON THE HUB SITE — no Registration Hub '
+         + 'venue exists in the hub yet, so ride time, vehicle count and round length are all unknown. '
+         + 'WATCH: the West cluster is Fort Worth. If the hub sits north, a Fort Worth arrival travels '
+         + 'north to register and then back south-west to sleep — roughly an extra hour each way on the '
+         + 'day people are most tired. Either site the hub centrally or run West arrivals direct.',
+    updated: now
+  });
+  if (!L['loop-venue-second-leg']) set('naig2027/loops/loop-venue-second-leg', {
+    name: 'Large venue → small venue (second leg)',
+    phase: 'Game days',
+    from: 'Large venues',
+    to: 'Small venues',
+    frequency: 'Rounds every 30–60 min, timed off the inbound leg',
+    firstBus: 'TBD', lastBus: 'TBD',
+    daysOp: 'Thu 25 – Sun 28 Mar (play days)',
+    rideTime: 'TBD',
+    vehicles: 'TBD', capacity: 'TBD',
+    stops: 'TBD — depends on the large/small split',
+    contractLink: '', status: 'Planning',
+    notes: 'The connecting leg. Athletes at small venues ride to a large venue first, then transfer. '
+         + 'TWO THINGS TO SETTLE: (1) which venues are "large" and which are "small" — that split '
+         + 'defines this whole route; (2) whether the transfer runs venue-to-venue or back through a '
+         + 'hub. Venue-to-venue is much faster for athletes and needs many more vehicles. '
+         + 'TIMING RULE: schedule this leg off the first leg\'s ARRIVAL, not its own independent clock. '
+         + 'On an independent clock a 30–60 min round can mean a full extra round of waiting, so an 8am '
+         + 'start becomes a 6am hotel pickup.',
+    updated: now
+  });
+
+  // Registration Hub — the model routes every arrival through a site we have not named.
+  const hasReg = Object.keys(V).some(k => /registration hub/i.test(String((V[k] || {}).name || '')));
+  if (!hasReg && Object.keys(V).length) {
+    set('naig2027/venues/reg-hub-gap', {
+      name: 'Registration Hub — SITE NOT YET CHOSEN',
+      type: 'Registration / Check-in',
+      sports: 'N/A — registration and accreditation',
+      location: 'DFW Area — TBD',
+      address: 'TBD',
+      capacity: 'Must absorb a full day of arrivals in waves',
+      cluster: 'Should be central to all four hotel clusters',
+      pipelineStatus: 'Exploring',
+      status: 'In Works',
+      contact: 'TBD',
+      notes: 'GAP RECORD, filed 1 Sep 2026. The tentative transport model routes every arrival through '
+           + 'a Registration Hub on Wed 24 Mar — airport to hub, then rounds out to cluster hotels — '
+           + 'but no such site exists in the hub. Until it is named, registration-day transport cannot '
+           + 'be costed or scheduled. SITING TEST: it should sit central to all four hotel clusters, '
+           + 'not just convenient to the north ones, because the West cluster is Fort Worth. It needs '
+           + 'indoor waiting space for people arriving faster than the outbound rounds can clear them, '
+           + 'plus bag handling. Candidates worth testing: a venue we are already contracting (adds no '
+           + 'new negotiation), or the JK Hub.',
+      updated: now
+    });
+  }
+
+  if (M && Object.keys(M).length) {
+    if (!M['tp01']) set('naig2027/plan/milestones/tp01', {
+      createdAt: Date.now(), dept: 'Transport', due: '2026-10-30', phase: 'pregames',
+      priority: 'critical', status: 'not-started', owner: 'Transportation Lead', wbe: 'TP-1',
+      title: 'Choose the Registration Hub site — registration-day transport cannot be planned without it',
+      notes: 'The model sends every arrival through the hub before they reach a hotel. Site it central '
+           + 'to all four clusters, including West / Fort Worth. Prefer a venue already under contract '
+           + 'so it costs no new negotiation.'
+    });
+    if (!M['tp02']) set('naig2027/plan/milestones/tp02', {
+      createdAt: Date.now(), dept: 'Transport', due: '2026-11-13', phase: 'pregames',
+      priority: 'high', status: 'not-started', owner: 'Transportation Lead', wbe: 'TP-2',
+      title: 'Define which venues are "large" (direct) and which are "small" (second leg)',
+      notes: 'The two-leg game-day model turns on this split and nothing downstream can be scheduled '
+           + 'without it. Decide too whether the second leg runs venue-to-venue or back through a hub — '
+           + 'venue-to-venue is faster for athletes and needs materially more vehicles.'
+    });
+    if (!M['tp03']) set('naig2027/plan/milestones/tp03', {
+      createdAt: Date.now(), dept: 'Supplies', due: '2026-12-11', phase: 'pregames',
+      priority: 'standard', status: 'not-started', owner: 'Equipment Lead', wbe: 'TP-3',
+      title: 'Bag storage at every large venue on departure day (Mon 29 Mar)',
+      notes: 'Departure day runs venues → airports, which means athletes check out of hotels and bring '
+           + 'luggage to the venue that morning. Secure, staffed storage at each large venue for a full '
+           + 'day. Not currently in the equipment list or the budget.'
+    });
+  }
+};
+
 window._maybeCricketPrimary = function () {
   if (!window._venuesData || !Object.keys(window._venuesData).length) return;
   if (!window._hotelsData || !Object.keys(window._hotelsData).length) return;
@@ -9781,6 +10029,7 @@ window._maybeCricketPrimary = function () {
   window.seedOnce && window.seedOnce('track-uta-v1',       window._migrateTrackUTA);
   window.seedOnce && window.seedOnce('track-uta-v2',       window._migrateTrackUTAv2);
   window.seedOnce && window.seedOnce('airport-paused-v1',  window._migrateAirportPause);
+  window.seedOnce && window.seedOnce('transport-model-v1', window._migrateTransportModel);
 };
 
 window.openLoopModal    = openLoopModal;
