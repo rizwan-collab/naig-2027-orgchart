@@ -417,6 +417,7 @@
       window._orgWatchData = data || null;
       window.renderOrgWatch && window.renderOrgWatch();
       if (!data) window.seedOnce && window.seedOnce('orgWatch', window.seedOrgWatch);
+      window._maybeCricketPrimary && window._maybeCricketPrimary();
     });
     onV(ref(db, 'naig2027/transportModel'), 'transportModel', (data) => {
       window._transportModelData = data || null;
@@ -8029,7 +8030,10 @@ function renderDashboard() {
   const venues = Object.values(window._venuesData || {});
   const venueStatusCounts = {};
   venues.forEach(v => { const s = v.status || 'Unknown'; venueStatusCounts[s] = (venueStatusCounts[s]||0) + 1; });
-  const confirmedVenues = venues.filter(v => /confirm|contract.*sign|booked/i.test(v.status||'')).length;
+  // "Contracted" = a contract exists, whether or not the deposit has cleared.
+  // Reading 0 while two StarCenters are signed was misleading.
+  const confirmedVenues = venues.filter(v =>
+    /confirm|signed|executed|contract.*sign|booked/i.test(v.status||'')).length;
 
   // ── Budget snapshot (mirrors renderBudget aggregation) ──
   let venueC=0, venueP=0;
@@ -8042,7 +8046,7 @@ function renderDashboard() {
   // ── KPI row ──
   const kpiRow = document.getElementById('dashKpiRow');
   if (kpiRow) kpiRow.innerHTML = `
-    <div class="sum-chip"><strong>${venues.length}</strong><span>Venues (${confirmedVenues} confirmed)</span></div>
+    <div class="sum-chip"><strong>${venues.length}</strong><span>Venues (${confirmedVenues} contracted)</span></div>
     <div class="sum-chip"><strong>${openTasks.length}</strong><span>Open Tasks</span></div>
     <div class="sum-chip" style="${overdue.length ? 'color:#BF1B2A' : ''}"><strong>${overdue.length}</strong><span>Overdue</span></div>
     <div class="sum-chip"><strong>${fmt(grandC)}</strong><span>Total Committed</span></div>
@@ -10747,6 +10751,82 @@ window._migrateLensDates = function () {
   }));
 };
 
+/* ══════════════════════════════════════════════════════════
+   MIGRATION — two contracts signed, the rest genuinely TBD
+   ──────────────────────────────────────────────────────────
+   Rizwan, 1 Sep 2026: "only contract we have so far is for northlake and
+   farmers branch. rest is tbd" · "we will create the schedule and adjust
+   as we go but the baseline will be there" · "82 - tbd".
+   Marks the two StarCenters as Signed (deposit still outstanding), closes
+   the schedule-sequencing worry with the baseline-then-iterate approach,
+   and parks the volunteer-count item as awaiting a number.
+══════════════════════════════════════════════════════════ */
+window._migrateVenuesContracted = function () {
+  const now = new Date().toISOString();
+  const V = window._venuesData || {};
+  const M = ((window._planData || {}).milestones) || {};
+  const W = window._orgWatchData;
+  const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
+
+  Object.keys(V).forEach(k => {
+    const v = V[k] || {};
+    const nm = String(v.name || '');
+    if (!/starcenter/i.test(nm)) return;
+    if (!/northlake|farmers branch/i.test(nm)) return;
+    set('naig2027/venues/' + k, Object.assign({}, v, {
+      status: 'Signed',
+      notes: 'CONTRACT SIGNED 18 Aug 2026 — one of only two signed venues on the whole programme as of '
+           + '1 Sep. Deposit still outstanding; Sumair coordinating payment through the portal. '
+           + String(v.notes || ''),
+      updated: now
+    }));
+  });
+
+  if (M['xr07']) set('naig2027/plan/milestones/xr07', Object.assign({}, M['xr07'], {
+    title: 'Org #14 Venue Contracts Executed has no owner — 11 of our 13 venues sit behind it',
+    notes: 'Watch item, not our task. Updated 1 Sep 2026: TWO venues are contracted — StarCenter '
+         + 'Northlake and StarCenter Farmers Branch, both signed 18 Aug, both still awaiting deposit. '
+         + 'Everything else is TBD, including Texomo (primary cricket), UT Arlington (track), Gateway '
+         + 'Park, Pickler and Little Elm. All of it is contracted through org item #14, which sits under '
+         + 'Legal with NO OWNER NAMED and is due 15 Oct 2026. Two signed out of thirteen, six weeks from '
+         + 'the deadline, with nobody assigned. Escalate until it has a name.'
+  }));
+
+  if (M['xr09']) set('naig2027/plan/milestones/xr09', Object.assign({}, M['xr09'], {
+    priority: 'standard', status: 'not-started', due: '2026-12-18',
+    title: 'Build the baseline transport schedule in December; refine timings once the programme lands',
+    notes: 'RESOLVED IN APPROACH 1 Sep 2026 — Rizwan: build the schedule and adjust as we go, but the '
+         + 'baseline will be there. So the org #64 / #83 sequencing gap is handled deliberately rather '
+         + 'than being a blocker: routes, fleet size and headways get set in December off slot counts, '
+         + 'and departure times are tuned against the min-by-min programme when PMO publishes it (org '
+         + '#83, 1 Feb). ONE THING TO PROTECT: the coach contract (org #65) should price vehicles and '
+         + 'hours, not fixed timetables, or every schedule change becomes a variation order.'
+  }));
+
+  if (M['xr08']) set('naig2027/plan/milestones/xr08', Object.assign({}, M['xr08'], {
+    status: 'blocked',
+    notes: 'TBD as of 1 Sep 2026 — no volunteer count yet. Still on the board because org #82 freezes all '
+         + 'vertical volunteer assignments on 6 Feb 2027 and HR cannot allocate what we have not asked '
+         + 'for. The count becomes derivable once the loops are costed and the play days are confirmed: '
+         + 'marshals per loop, greeters per airport, registration desk cover, and bag storage per large '
+         + 'venue on departure day. Revisit after the December baseline schedule.'
+  }));
+
+  // Keep the Org Watch card honest about where venue contracting actually stands.
+  if (W && W.dependencies) {
+    const deps = W.dependencies.map(d => {
+      if (!/#14 Venue Contracts/i.test(String(d.title || ''))) return d;
+      return Object.assign({}, d, {
+        why: 'Our largest external dependency. TWO venues are contracted — StarCenter Northlake and '
+           + 'Farmers Branch, signed 18 Aug, deposits outstanding. The other eleven are TBD, Texomo and '
+           + 'UT Arlington included, and all of them are contracted through this one unowned Legal item '
+           + 'due 15 Oct.'
+      });
+    });
+    set('naig2027/orgWatch', Object.assign({}, W, { dependencies: deps, updated: now }));
+  }
+};
+
 window._maybeCricketPrimary = function () {
   if (!window._venuesData || !Object.keys(window._venuesData).length) return;
   if (!window._hotelsData || !Object.keys(window._hotelsData).length) return;
@@ -10769,6 +10849,9 @@ window._maybeCricketPrimary = function () {
       if (window._docsData && Object.keys(window._docsData).length) {
         window.seedOnce && window.seedOnce('orgplan-v1', window._migrateOrgPlan);
         window.seedOnce && window.seedOnce('lens-dates-v1', window._migrateLensDates);
+        if (window._orgWatchData) {
+          window.seedOnce && window.seedOnce('venues-contracted-v1', window._migrateVenuesContracted);
+        }
       }
     }
   }
