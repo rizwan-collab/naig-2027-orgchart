@@ -2255,6 +2255,11 @@ html.onboard-mode #onboardScreen { display: flex !important; }
    <div class="hub-subtitle" id="briefSubtitle">Rollup of hub activity — copy and email every Monday.</div>
   </div>
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+   <label style="font-size:12px;color:#475569">Audience:</label>
+   <select id="briefAudience" onchange="renderWeeklyBrief()" style="font-size:12px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;background:#fff">
+     <option value="team" selected>Logistics team</option>
+     <option value="leadership">Leadership</option>
+   </select>
    <label style="font-size:12px;color:#475569">Window:</label>
    <select id="briefWindow" onchange="renderWeeklyBrief()" style="font-size:12px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;background:#fff">
      <option value="7" selected>Last 7 days</option>
@@ -7563,7 +7568,7 @@ function _briefHtml(m) {
   const wbeTone = m.stats.milestonesOverdue > 0 ? '#b91c1c' : '#155724';
   h.push(`<div style="background:${m.stats.milestonesOverdue>0?'#fef2f2':'#f0fdf4'};border-left:4px solid ${wbeTone};border-radius:6px;padding:12px 14px;margin-bottom:20px;font-size:13px;color:#1e293b">
     <div style="font-weight:700;margin-bottom:4px">📅 Where we are</div>
-    <div><strong>${m.stats.daysToGames} days</strong> to Games Week (Mar 25–28, 2027) — that is <strong>WBE ${m.stats.wbe}</strong> on the planning timeline.</div>
+    <div><strong>${m.stats.daysToGames} days</strong> to Games Week — that is <strong>WBE ${m.stats.wbe}</strong> on the planning timeline. Logistics operates <strong>Wed 24 – Mon 29 Mar 2027</strong>; the athlete programme is shorter at both ends.</div>
     ${m.stats.milestonesOverdue > 0
       ? `<div style="color:${wbeTone};margin-top:4px"><strong>${m.stats.milestonesLate} milestones are past due.</strong>${m.stats.milestonesBlocked ? ` A further <strong>${m.stats.milestonesBlocked}</strong> are past due but <strong>blocked</strong> — see below.` : ''} The oldest has been open ${m.milestonesOverdue[0] ? m.milestonesOverdue[0].daysOverdue : 0} days.</div>`
       : `<div style="color:${wbeTone};margin-top:4px">Nothing past due.</div>`}
@@ -7673,7 +7678,7 @@ function _briefMarkdown(m) {
     out.push('');
   }
 
-  out.push(`**Where we are** — ${m.stats.daysToGames} days to Games Week (Mar 25–28, 2027), which is WBE ${m.stats.wbe}. Plan: ${m.stats.milestonesDone}/${m.stats.milestonesTotal} milestones done, ${m.stats.milestonesLate} past due${m.stats.milestonesBlocked ? `, plus ${m.stats.milestonesBlocked} blocked` : ''}.`);
+  out.push(`**Where we are** — ${m.stats.daysToGames} days to Games Week (WBE ${m.stats.wbe}). Logistics operates Wed 24 – Mon 29 Mar 2027; the athlete programme is shorter at both ends. Plan: ${m.stats.milestonesDone}/${m.stats.milestonesTotal} milestones done, ${m.stats.milestonesLate} past due${m.stats.milestonesBlocked ? `, plus ${m.stats.milestonesBlocked} blocked` : ''}.`);
   out.push('');
 
   if (m.venueBlocker) {
@@ -7740,6 +7745,133 @@ function _briefMarkdown(m) {
   return out.join('\n');
 }
 
+/* ══════════════════════════════════════════════════════════
+   LEADERSHIP BRIEF — a different document, not a reformat
+   ──────────────────────────────────────────────────────────
+   The team brief reports activity: what moved, what is late, whose task
+   is whose. Leadership does not need that and will not read it. What
+   they can act on is: are we on track, what will we not be able to fix
+   ourselves, and what decision is sitting with them.
+   So this one leads with the asks and keeps the activity out.
+══════════════════════════════════════════════════════════ */
+function _leadershipModel(m) {
+  const M = ((window._planData || {}).milestones) || {};
+  const V = window._venuesData || {};
+  const W = window._orgWatchData || null;
+
+  const contracted = Object.values(V).filter(v =>
+    /confirm|signed|executed|booked/i.test(v.status || '')).length;
+  const liveVenues = Object.values(V).filter(v =>
+    !/dropped|declined|not selected|closed|cancelled/i.test(v.status || '')).length;
+
+  // An "ask" is anything blocked, or critical and owned outside Logistics.
+  const asks = Object.entries(M)
+    .filter(([, x]) => x && x.status === 'blocked')
+    .map(([k, x]) => ({ k, ...x }))
+    .sort((a, b) => String(a.due).localeCompare(String(b.due)));
+
+  const soon = Object.entries(M)
+    .filter(([, x]) => x && x.status !== 'done' && x.priority === 'critical' && x.due)
+    .map(([k, x]) => ({ k, ...x }))
+    .filter(x => { const d = _daysUntil(x.due); return d !== null && d >= 0 && d <= 60; })
+    .sort((a, b) => String(a.due).localeCompare(String(b.due)))
+    .slice(0, 6);
+
+  return { contracted, liveVenues, asks, soon, watch: W };
+}
+
+function _leadershipHtml(m) {
+  const L = _leadershipModel(m);
+  const fmt = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const esc2 = s => String(s == null ? '' : s).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const h = [];
+
+  h.push(`<div style="font-size:12px;color:#64748b;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid #e2e8f0">
+    <strong>NAIG 2027 Logistics — Leadership Brief</strong><br>
+    ${fmt(m.window.start)} – ${fmt(m.window.end)} · Rizwan Ali, Director of Logistics</div>`);
+
+  h.push(`<div style="background:#f8fafc;border-radius:8px;padding:13px 15px;margin-bottom:18px;font-size:13px;color:#334155;line-height:1.6">
+    <div style="font-weight:700;color:#0f172a;margin-bottom:5px">Where Logistics stands</div>
+    <strong>${m.stats.daysToGames} days</strong> to the Games. Logistics operates
+    <strong>Wed 24 – Mon 29 March</strong> — wider than the athlete programme at both ends.
+    <strong>${L.contracted} of ${L.liveVenues}</strong> live venues are contracted.
+    Plan: <strong>${m.stats.milestonesDone}/${m.stats.milestonesTotal}</strong> milestones closed,
+    <strong>${m.stats.milestonesLate}</strong> past due${m.stats.milestonesBlocked ? `, <strong>${m.stats.milestonesBlocked}</strong> blocked on others` : ''}.
+  </div>`);
+
+  if (L.asks.length) {
+    h.push(`<div style="background:#fef2f2;border-left:4px solid #b91c1c;border-radius:6px;padding:13px 15px;margin-bottom:18px">
+      <div style="font-weight:700;color:#0f172a;font-size:13px;margin-bottom:7px">We need a decision or an owner</div>
+      ${L.asks.slice(0, 6).map(a => `<div style="font-size:12.5px;color:#1f2937;line-height:1.55;margin-bottom:7px">
+        <strong>${esc2(a.title)}</strong>
+        <span style="color:#64748b">· ${esc2(a.owner || 'unassigned')} · due ${esc2(a.due || 'TBD')}</span>
+      </div>`).join('')}
+      <div style="font-size:11.5px;color:#7f1d1d;margin-top:2px">These are not late through our own work — each one is waiting on a decision, an owner, or another vertical.</div>
+    </div>`);
+  }
+
+  if (L.soon.length) {
+    h.push(`<div style="margin-bottom:18px">
+      <div style="font-weight:700;color:#0f172a;font-size:13px;margin-bottom:7px">Critical in the next 60 days</div>
+      ${L.soon.map(s => {
+        const d = _daysUntil(s.due);
+        return `<div style="font-size:12.5px;color:#1f2937;line-height:1.55;margin-bottom:5px">
+          <strong>${esc2(s.title)}</strong>
+          <span style="color:#64748b">· ${esc2(s.owner || 'unassigned')} · ${d} days</span></div>`;
+      }).join('')}
+    </div>`);
+  }
+
+  if (L.watch && L.watch.dependencies) {
+    h.push(`<div style="background:#fffbeb;border-left:4px solid #b7770d;border-radius:6px;padding:13px 15px;margin-bottom:18px">
+      <div style="font-weight:700;color:#0f172a;font-size:13px;margin-bottom:7px">Owned elsewhere, lands on Logistics if it slips</div>
+      ${L.watch.dependencies.slice(0, 4).map(d => `<div style="font-size:12.5px;color:#1f2937;line-height:1.55;margin-bottom:6px">
+        <strong>${esc2(d.title)}</strong> <span style="color:#64748b">· ${esc2(d.owner || '')} · ${esc2(d.due || '')}</span></div>`).join('')}
+    </div>`);
+  }
+
+  h.push(`<div style="font-size:11.5px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:12px;line-height:1.6">
+    Generated from the live Logistics Hub — figures update as the team works, so this is current at the moment of sending.
+    Detail behind any line is in the hub.</div>`);
+
+  return h.join('');
+}
+
+function _leadershipMarkdown(m) {
+  const L = _leadershipModel(m);
+  const fmt = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const o = [];
+  o.push('# NAIG 2027 Logistics — Leadership Brief');
+  o.push(`${fmt(m.window.start)} – ${fmt(m.window.end)} · Rizwan Ali, Director of Logistics`);
+  o.push('');
+  o.push(`**Where Logistics stands** — ${m.stats.daysToGames} days to the Games. Logistics operates Wed 24 – Mon 29 March, wider than the athlete programme at both ends. ${L.contracted} of ${L.liveVenues} live venues are contracted. Plan: ${m.stats.milestonesDone}/${m.stats.milestonesTotal} milestones closed, ${m.stats.milestonesLate} past due${m.stats.milestonesBlocked ? `, ${m.stats.milestonesBlocked} blocked on others` : ''}.`);
+  o.push('');
+  if (L.asks.length) {
+    o.push('## We need a decision or an owner');
+    L.asks.slice(0, 6).forEach(a => o.push(`- **${a.title}** — ${a.owner || 'unassigned'}, due ${a.due || 'TBD'}`));
+    o.push('');
+    o.push('_These are not late through our own work — each is waiting on a decision, an owner, or another vertical._');
+    o.push('');
+  }
+  if (L.soon.length) {
+    o.push('## Critical in the next 60 days');
+    L.soon.forEach(s => o.push(`- **${s.title}** — ${s.owner || 'unassigned'}, ${_daysUntil(s.due)} days`));
+    o.push('');
+  }
+  if (L.watch && L.watch.dependencies) {
+    o.push('## Owned elsewhere, lands on Logistics if it slips');
+    L.watch.dependencies.slice(0, 4).forEach(d => o.push(`- **${d.title}** — ${d.owner || ''}, ${d.due || ''}`));
+    o.push('');
+  }
+  o.push('_Generated from the live Logistics Hub. Detail behind any line is in the hub._');
+  return o.join('\n');
+}
+
+window._briefAudience = function () {
+  const s = document.getElementById('briefAudience');
+  return (s && s.value) || 'team';
+};
+
 window.renderWeeklyBrief = function() {
   const el = document.getElementById('briefContent');
   const statusEl = document.getElementById('briefStatus');
@@ -7747,24 +7879,31 @@ window.renderWeeklyBrief = function() {
   const days = parseInt((winSel && winSel.value) || '7', 10);
   const model = _buildBriefModel(days);
   window._lastBriefModel = model;
-  if (el) el.innerHTML = _briefHtml(model);
+  const lead = window._briefAudience() === 'leadership';
+  if (el) el.innerHTML = lead ? _leadershipHtml(model) : _briefHtml(model);
+  const sub = document.getElementById('briefSubtitle');
+  if (sub) sub.textContent = lead
+    ? 'Short, decision-first. What leadership can act on — no task-level detail.'
+    : 'Rollup of hub activity — copy and email every Monday.';
   if (statusEl) {
-    statusEl.textContent = `${model.stats.logEntries} activity-log entries in the last ${days} days. Latest brief generated ${new Date().toLocaleString()}.`;
+    statusEl.textContent = `${model.stats.logEntries} activity-log entries in the last ${days} days. Generated ${new Date().toLocaleString()}.`;
   }
 };
 
 window.copyBriefEmail = async function() {
   const model = window._lastBriefModel || _buildBriefModel(parseInt(document.getElementById('briefWindow').value,10));
-  const html = _briefHtml(model);
+  const lead = window._briefAudience && window._briefAudience() === 'leadership';
+  const html = lead ? _leadershipHtml(model) : _briefHtml(model);
+  const md   = lead ? _leadershipMarkdown(model) : _briefMarkdown(model);
   // Wrap in a minimal email-friendly shell
   const emailHtml = `<div style="font-family:-apple-system,'Segoe UI',Arial,sans-serif;font-size:14px;line-height:1.6;color:#1f2937;max-width:720px">${html}</div>`;
   try {
     if (navigator.clipboard && window.ClipboardItem) {
       const blob = new Blob([emailHtml], { type: 'text/html' });
-      const textBlob = new Blob([_briefMarkdown(model)], { type: 'text/plain' });
+      const textBlob = new Blob([md], { type: 'text/plain' });
       await navigator.clipboard.write([new ClipboardItem({ 'text/html': blob, 'text/plain': textBlob })]);
     } else {
-      await navigator.clipboard.writeText(_briefMarkdown(model));
+      await navigator.clipboard.writeText(md);
     }
     _briefFlash('Copied as rich email — paste into Gmail with Cmd+V.');
   } catch (e) {
@@ -7775,7 +7914,8 @@ window.copyBriefEmail = async function() {
 
 window.copyBriefMarkdown = async function() {
   const model = window._lastBriefModel || _buildBriefModel(parseInt(document.getElementById('briefWindow').value,10));
-  const md = _briefMarkdown(model);
+  const md = (window._briefAudience && window._briefAudience() === 'leadership')
+    ? _leadershipMarkdown(model) : _briefMarkdown(model);
   try {
     await navigator.clipboard.writeText(md);
     _briefFlash('Copied as markdown.');
