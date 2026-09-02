@@ -413,6 +413,11 @@
       if (!data) window.seedOnce && window.seedOnce('loops', window.seedInitialLoops);
       window._maybeCricketPrimary && window._maybeCricketPrimary();
     });
+    onV(ref(db, 'naig2027/orgWatch'), 'orgWatch', (data) => {
+      window._orgWatchData = data || null;
+      window.renderOrgWatch && window.renderOrgWatch();
+      if (!data) window.seedOnce && window.seedOnce('orgWatch', window.seedOrgWatch);
+    });
     onV(ref(db, 'naig2027/transportModel'), 'transportModel', (data) => {
       window._transportModelData = data || null;
       window.renderTransportModel && window.renderTransportModel();
@@ -1201,6 +1206,7 @@ body.ax-readonly #axGateEmail, body.ax-readonly #prospectSearch { pointer-events
 
   /* Grids with a hard minimum wider than a phone */
   .rnr-grid { grid-template-columns: 1fr; gap: 12px; }
+  .ow-grid  { grid-template-columns: 1fr !important; gap: 12px !important; }
   .plan-dept-grid { grid-template-columns: 1fr; }
   .kanban-col { flex: 0 0 82vw; }
 
@@ -1590,6 +1596,7 @@ html.onboard-mode #onboardScreen { display: flex !important; }
    </div>
   </div>
  </div>
+ <div id="orgWatch"></div>
 </div>
 
 <!-- Tasks — Kanban Board -->
@@ -7852,6 +7859,148 @@ function requestNotifPermission() {
 
 /* ── Command Center Dashboard ── */
 const GAMES_DATE = new Date('2027-03-25T00:00:00');
+/* ══════════════════════════════════════════════════════════
+   ORG WATCH — progress across every vertical, and what lands on us
+   ──────────────────────────────────────────────────────────
+   Logistics is oversight, not delivery, for most of the Games. This panel
+   answers the two questions that matter from that seat: how is the whole
+   programme tracking, and which items owned by OTHER verticals will land
+   on Logistics if they slip. Sourced from the org master project plan.
+══════════════════════════════════════════════════════════ */
+window._orgWatchData = null;
+
+window.renderOrgWatch = function () {
+  const el = document.getElementById('orgWatch');
+  if (!el) return;
+  const w = window._orgWatchData;
+  if (!w) { el.innerHTML = ''; return; }
+
+  const pct = (n, d) => d ? Math.round((n / d) * 100) : 0;
+  const bar = (c) => {
+    const p = pct(c.complete, c.total);
+    const tone = p >= 50 ? '#16a34a' : p > 0 ? '#ca8a04' : '#cbd5e1';
+    return `<tr>
+      <td style="padding:5px 8px;font-size:12.5px;color:#0f172a">${c.name}
+        ${c.ours ? '<span style="font-size:9.5px;font-weight:700;letter-spacing:.04em;color:#1d4ed8;background:#dbeafe;border-radius:20px;padding:1px 6px;margin-left:5px">OURS</span>' : ''}</td>
+      <td style="padding:5px 8px;width:120px">
+        <div style="height:6px;background:#eef2f7;border-radius:20px;overflow:hidden">
+          <div style="height:100%;width:${p}%;background:${tone};border-radius:20px"></div></div></td>
+      <td style="padding:5px 8px;font-size:11.5px;color:#64748b;text-align:right;white-space:nowrap">${c.complete}/${c.total}</td>
+      <td style="padding:5px 8px;font-size:11.5px;text-align:right;white-space:nowrap;color:${c.critical ? '#b91c1c' : '#94a3b8'}">${c.critical || '—'}</td>
+    </tr>`;
+  };
+
+  const dep = (d) => `<div style="border:1px solid #e2e8f0;border-left:3px solid ${d.tone || '#94a3b8'};
+       border-radius:8px;padding:10px 12px;background:#fff">
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap">
+      <div style="font-size:13px;font-weight:650;color:#0f172a">${d.title}</div>
+      <div style="font-size:11px;color:#64748b;white-space:nowrap">${d.owner || 'no owner'} · due ${d.due}</div>
+    </div>
+    <div style="font-size:11.5px;color:#475569;line-height:1.5;margin-top:5px">${d.why}</div>
+  </div>`;
+
+  el.innerHTML = `
+  <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:15px;margin-top:18px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
+      <div>
+        <div style="font-size:15px;font-weight:700;color:#0f172a">Org watch — every vertical</div>
+        <div style="font-size:12px;color:#64748b;margin-top:2px">${w.summary || ''}</div>
+      </div>
+      <div style="font-size:11px;color:#94a3b8">${w.sourceNote || ''}</div>
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin:13px 0">
+      ${(w.kpis || []).map(k => `<div style="flex:1 1 120px;background:#fff;border:1px solid #e2e8f0;
+          border-radius:10px;padding:10px 12px">
+        <div style="font-size:20px;font-weight:700;color:${k.tone || '#0f172a'}">${k.v}</div>
+        <div style="font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:#64748b;
+             font-weight:650;margin-top:2px">${k.k}</div></div>`).join('')}
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1.25fr;gap:16px;align-items:start" class="ow-grid">
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 4px 6px">
+        <div style="font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:#64748b;
+             font-weight:700;padding:0 10px 6px">Progress by vertical</div>
+        <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+          <tr><th></th><th></th>
+            <th style="font-size:9.5px;color:#94a3b8;text-align:right;padding:0 8px;font-weight:650">DONE</th>
+            <th style="font-size:9.5px;color:#94a3b8;text-align:right;padding:0 8px;font-weight:650">CRIT</th></tr>
+          ${(w.categories || []).map(bar).join('')}
+        </table></div>
+      </div>
+      <div>
+        <div style="font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:#64748b;
+             font-weight:700;margin-bottom:7px">Owned elsewhere — lands on us if it slips</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${(w.dependencies || []).map(dep).join('')}
+        </div>
+      </div>
+    </div>
+  </div>`;
+};
+
+window.seedOrgWatch = function () {
+  const C = (name, total, complete, critical, ours) => ({ name, total, complete, critical, ours: !!ours });
+  const seed = {
+    summary: '98 tasks across the programme · 9 complete · 53 critical, 44 still open. Logistics owns 15 '
+           + 'of them; the rest are other people\'s work that we depend on.',
+    sourceNote: 'Org master project plan v9.1.26 · read 1 Sep 2026',
+    kpis: [
+      { k: 'Programme complete', v: '9%',  tone: '#b91c1c' },
+      { k: 'Open critical',      v: '44',  tone: '#b91c1c' },
+      { k: 'Ours (Logistics)',   v: '15',  tone: '#1d4ed8' },
+      { k: 'Days to Games',      v: '206', tone: '#0f172a' }
+    ],
+    categories: [
+      C('Project Executive Team', 9, 5, 9), C('Marketing', 7, 3, 6), C('Sports', 20, 1, 7),
+      C('Registration', 7, 0, 4), C('Procurement', 4, 0, 4), C('Logistics — Hospitality', 5, 0, 2, 1),
+      C('Logistics', 4, 0, 2, 1), C('Logistics — Food & Beverage', 3, 0, 2, 1),
+      C('Logistics — Transportation', 2, 0, 2, 1), C('Logistics — Signage', 1, 0, 0, 1),
+      C('HR', 6, 0, 2), C('Athlete & Spectator Engagement', 6, 0, 1), C('Command Center', 5, 0, 3),
+      C('Memorabilia', 4, 0, 1), C('Finance', 3, 0, 1), C('Health Board', 3, 0, 1), C('PMO', 3, 0, 2),
+      C('Fair Play / Conflict Resolution', 2, 0, 2), C('Legal', 1, 0, 1), C('Safety & Security', 1, 0, 1),
+      C('Media — Broadcasting', 1, 0, 0), C('Media / AV / Production', 1, 0, 0)
+    ],
+    dependencies: [
+      { title: '#14 Venue Contracts Executed', owner: 'Legal — NO OWNER NAMED', due: '15 Oct 2026', tone: '#dc2626',
+        why: 'The single biggest external dependency we have. Every venue on our board — 13 live, none '
+           + 'confirmed — gets contracted under this one unowned Legal item, 43 days out. Texomo, UT '
+           + 'Arlington and the StarCenters all sit behind it.' },
+      { title: '#83 Finalize min-by-min and overall programme schedule', owner: 'PMO — TBD', due: '1 Feb 2027', tone: '#dc2626',
+        why: 'SEQUENCING IS BACKWARDS. Our transport plan (#64) and coach contracts (#65) are both due '
+           + '15 Jan — two weeks BEFORE the schedule they have to serve exists. You cannot time shuttles '
+           + 'against a programme nobody has written.' },
+      { title: '#98 Procure, test & set up on-site radios', owner: 'Command Center', due: '25 Mar 2027', tone: '#dc2626',
+        why: 'Radios are how shuttle drivers, venue leads and the hub talk to each other. Due the day '
+           + 'athletes arrive. If this slips even a day, day one runs on mobile phones.' },
+      { title: '#82 Finalize all HR volunteer assignments from each vertical', owner: 'HR', due: '6 Feb 2027', tone: '#ca8a04',
+        why: 'Shuttle marshals, airport greeters, registration desk, bag storage — all Logistics roles '
+           + 'filled through this. Nothing in our hub yet states how many volunteers we need, and HR '
+           + 'cannot allocate what we have not asked for.' },
+      { title: '#31 Regional qualification window closes + final roster due', owner: 'Registration — no owner', due: '31 Oct 2026', tone: '#ca8a04',
+        why: 'CONFLICTS WITH THE REGISTRATION CALL, which had Canada closing 31 Dec and the portal open '
+           + 'to 15 Jan. Two and a half months apart, and it decides when we can size blocks and coaches.' },
+      { title: '#58 Athlete & volunteer registration opens', owner: 'Registration — no owner', due: '1 Nov 2026', tone: '#ca8a04',
+        why: 'The registration call said the portal opens 15 Sep in waves. This says 1 Nov. Our flight '
+           + 'and hotel field specs are pinned to the earlier date — worth confirming which is real.' },
+      { title: '#30 / #57 / #60 Slot allocation rounds', owner: 'Sports — Sonia + Faheem', due: '1 Oct – 31 Dec 2026', tone: '#ca8a04',
+        why: 'Slot counts are the first real athlete numbers we get. Note Round 2 (#60, 15 Dec) is dated '
+           + 'BEFORE Round 1 (#57, 31 Dec) in the sheet.' },
+      { title: '#67 / #68 Memorabilia, jerseys and medals ordered', owner: 'Procurement — no owner', due: '11 Jan 2027', tone: '#94a3b8',
+        why: 'Once ordered it has to be received, stored and distributed — all Logistics. No storage '
+           + 'location has been named, and none of it is in the equipment list.' },
+      { title: '#55 Health Board — medical staff & nearby hospitals', owner: 'Health Board — TBD', due: '1 Feb 2027', tone: '#94a3b8',
+        why: 'Medical positions and ambulance access shape every venue site plan and the Calera outlier '
+           + 'especially — it is 90 minutes from the rest of the Games.' },
+      { title: '#29 National Leadership Kickoff (in person) · #88 Final walk-through', owner: 'Aziz + Fariyal', due: '25–27 Sep 2026 · 6 Feb 2027', tone: '#94a3b8',
+        why: 'Kickoff is in Dallas 25–27 Sep and already in progress. The February walk-through is the '
+           + 'last chance to change anything physical before the Games.' }
+    ],
+    updated: new Date().toISOString()
+  };
+  window._dbSet(window._dbRef('naig2027/orgWatch'), seed);
+};
+
 function renderDashboard() {
   const sec = document.getElementById('sectionDashboard');
   if (!sec) return;
@@ -10512,6 +10661,92 @@ window._migrateOrgPlan = function () {
   });
 };
 
+/* ══════════════════════════════════════════════════════════
+   MIGRATION — the dates were a lens difference, not an error
+   ──────────────────────────────────────────────────────────
+   Rizwan, 1 Sep 2026: "dates are 24-29 from a volunteer lens. Keep any
+   dates from a logistics lens on our tool as current."
+   So this hub's 24–29 window stands. X-1 stops being a blocking conflict
+   and becomes a reference note recording all three lenses, with one
+   genuine open item kept alive: the org master plan calls the tournament
+   27–29, which is not the same as our play days, and venue contracts get
+   written against play days.
+   Also promotes the Org Watch panel and files the cross-vertical items
+   that land on Logistics if they slip.
+══════════════════════════════════════════════════════════ */
+window._migrateLensDates = function () {
+  const now = new Date().toISOString();
+  const M = ((window._planData || {}).milestones) || {};
+  const TM = window._transportModelData;
+  const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
+
+  if (M['xr01']) set('naig2027/plan/milestones/xr01', Object.assign({}, M['xr01'], {
+    status: 'done', priority: 'standard', due: '2026-09-01',
+    title: 'Date lenses reconciled — Logistics works 24–29 Mar and that stays',
+    notes: 'RESOLVED 1 Sep 2026 by Rizwan. The three date sets are different LENSES, not a contradiction: '
+         + 'VOLUNTEER / LOGISTICS LENS — Wed 24 to Mon 29 Mar. This is our operating window and every date '
+         + 'in this hub is built on it. It stays as-is. '
+         + 'ATHLETE / PUBLIC LENS — the onboarding deck\'s "Thu 25 – Sun 28, 4-day programme". '
+         + 'ORG MASTER PLAN — header reads "Tournament: March 27-29". '
+         + 'Logistics runs wider at both ends than the athletes see, which is why our window is longer. '
+         + 'STILL WORTH ONE CHECK (see X-6): venue contracts are written against PLAY days, and the master '
+         + 'plan\'s 27–29 is not the same span as play Thu 25 – Sun 28. Confirm the play days before '
+         + 'Venue Contracts Executed (org #14) lands on 15 Oct.'
+  }));
+
+  if (M && Object.keys(M).length && !M['xr06']) set('naig2027/plan/milestones/xr06', {
+    createdAt: Date.now(), dept: 'Venue / Legal', due: '2026-10-10', phase: 'pregames',
+    priority: 'high', status: 'not-started', owner: 'Logistics Lead', wbe: 'X-6',
+    title: 'Confirm the competition days before venue contracts are executed (org #14, due 15 Oct)',
+    notes: 'Our 24–29 operating window is settled. What is not settled is which days inside it are PLAY '
+         + 'days — the onboarding deck says Fri 26 – Sun 28, this hub says Thu 25 – Sun 28, the org master '
+         + 'plan header says 27–29. Venues are booked and priced by play day, so the answer has to be firm '
+         + 'before org item #14 (Venue Contracts Executed, Legal, currently unowned) is signed on 15 Oct. '
+         + 'A one-day error across 13 venues is expensive and hard to unwind.'
+  });
+
+  if (M && Object.keys(M).length && !M['xr07']) set('naig2027/plan/milestones/xr07', {
+    createdAt: Date.now(), dept: 'Dependency', due: '2026-10-15', phase: 'pregames',
+    priority: 'critical', status: 'blocked', owner: 'Exec Committee', wbe: 'X-7',
+    title: 'Org #14 Venue Contracts Executed has no owner — every venue we track sits behind it',
+    notes: 'Watch item, not our task. The org master plan carries "#14 Venue Contracts Executed" under '
+         + 'Legal with NO OWNER NAMED, due 15 Oct 2026. All 13 live venues on our board — none of them '
+         + 'confirmed — are contracted through it, Texomo and UT Arlington included. This is the largest '
+         + 'external dependency Logistics has. Escalate until it has a name against it.'
+  });
+
+  if (M && Object.keys(M).length && !M['xr08']) set('naig2027/plan/milestones/xr08', {
+    createdAt: Date.now(), dept: 'Dependency', due: '2026-12-11', phase: 'pregames',
+    priority: 'high', status: 'not-started', owner: 'Logistics Lead', wbe: 'X-8',
+    title: 'Submit Logistics volunteer numbers into HR before assignments are frozen (org #82, 6 Feb)',
+    notes: 'Shuttle marshals, airport greeters, registration desk staff, bag storage cover — all Logistics '
+         + 'roles, all filled through org #82. Nothing in this hub yet states how many people we need or '
+         + 'where. HR cannot allocate what we have not asked for, and 6 Feb is late to discover a gap. '
+         + 'Build the count off the loops and the venue list once the play days are confirmed.'
+  });
+
+  if (M && Object.keys(M).length && !M['xr09']) set('naig2027/plan/milestones/xr09', {
+    createdAt: Date.now(), dept: 'Transport', due: '2026-12-18', phase: 'pregames',
+    priority: 'high', status: 'not-started', owner: 'Transportation Lead', wbe: 'X-9',
+    title: 'Sequencing problem — our transport plan is due before the programme schedule exists',
+    notes: 'Org #64 (Transportation Plan) and #65 (Contracts Signed) are both due 15 Jan 2027. Org #83 '
+         + '(min-by-min and overall programme schedule, PMO, owner TBD) is due 1 Feb — two weeks LATER. '
+         + 'Shuttle timings are derived from the programme, so as written we would be contracting coaches '
+         + 'against a schedule nobody has produced. Either pull #83 forward or split our plan into a '
+         + 'December route-and-fleet version and a February timing version.'
+  });
+
+  // Transport model card: the calendar warning can come down.
+  if (TM) set('naig2027/transportModel', Object.assign({}, TM, {
+    status: 'Tentative — operating window 24–29 Mar (confirmed)',
+    summary: 'Hub-and-spoke, not point-to-point. Every leg feeds the next, so a delay early in a day '
+           + 'compounds down the chain. Logistics works Wed 24 – Mon 29 Mar; athletes see a shorter window.',
+    openQuestions: (TM.openQuestions || []).filter(q => !/CALENDAR CONFLICT/i.test(String(q)))
+      .concat(['Which days inside 24–29 are PLAY days? Venues are priced by play day and org #14 signs 15 Oct — see X-6.']),
+    updated: now
+  }));
+};
+
 window._maybeCricketPrimary = function () {
   if (!window._venuesData || !Object.keys(window._venuesData).length) return;
   if (!window._hotelsData || !Object.keys(window._hotelsData).length) return;
@@ -10533,6 +10768,7 @@ window._maybeCricketPrimary = function () {
       window.seedOnce && window.seedOnce('reg-call-v1', window._migrateRegCall);
       if (window._docsData && Object.keys(window._docsData).length) {
         window.seedOnce && window.seedOnce('orgplan-v1', window._migrateOrgPlan);
+        window.seedOnce && window.seedOnce('lens-dates-v1', window._migrateLensDates);
       }
     }
   }
