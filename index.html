@@ -10391,6 +10391,127 @@ window._migrateRegCall = function () {
   });
 };
 
+/* ══════════════════════════════════════════════════════════
+   MIGRATION — the org master project plan (NAIG Project Plan_2027_9.1.26)
+   ──────────────────────────────────────────────────────────
+   Read 1 Sep 2026. This is the org's live plan: 98 tasks, 9 complete,
+   5 in progress, 44 open critical. Its Logistics tab holds 15 open
+   items, 14 of them owned by Rizwan.
+   THE HEADLINE: its header reads "Tournament: March 27-29, 2027", which
+   is a THIRD set of dates. Together with the onboarding deck and this
+   hub, three org documents now disagree on when the Games are played —
+   and the public host-city-and-dates announcement is due 15 Sep.
+   Imports the 15 items, flags three date-entry errors in the sheet, and
+   escalates X-1 from a two-way to a three-way conflict.
+══════════════════════════════════════════════════════════ */
+window._migrateOrgPlan = function () {
+  const now = new Date().toISOString();
+  const T = window._tasksData || {};
+  const M = ((window._planData || {}).milestones) || {};
+  const D = window._docsData || {};
+  const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
+  const SHEET = 'https://docs.google.com/spreadsheets/d/1qwjxKTpPHwKV_ldVts9DmjCLmrNAZPZZmd_9K-LTidg/edit';
+  const t = (id, o) => { const k = 'org-' + id; if (!T[k]) set('naig2027/tasks/' + k, Object.assign({
+    department: 'Logistics', estHours: '', linkedTo: 'Org plan #' + id, parentTask: '',
+    tags: 'org-project-plan', status: 'todo', owner: 'Rizwan Ali', notes: '', updated: now
+  }, o)); };
+
+  t(22, { title: 'Food & Beverage vendor contracts', scopeArea: 'Food / F&B', due: '2026-12-31', priority: 'High',
+    notes: 'Org plan #22, Critical, starts 1 Nov. Sits before final athlete counts (15 Jan), so contract on the '
+         + '1 Dec Canadian slot counts with volume flexibility rather than a fixed head count.' });
+  t(43, { title: 'Designated hotel page on the NAIG website', scopeArea: 'Hotels', due: '2026-10-01', priority: 'Medium',
+    notes: 'Org plan #43. DUE THE SAME DAY as #46 Hotel Contracts Finalized — the page has nothing to publish '
+         + 'until the contracts exist, so these two cannot both land on 1 Oct. Sequence them.' });
+  t(46, { title: 'Hotel contracts finalized', scopeArea: 'Hotels', due: '2026-10-01', priority: 'High',
+    notes: 'Org plan #46, Critical. TENSION WORTH RAISING: the first defensible athlete number is the 1 Dec '
+         + 'Canadian slot count, two months after this date, and hotel registration does not even launch until '
+         + '#59 on 1 Dec. Signing on 1 Oct means sizing on an estimate — so negotiate attrition clauses hard, or '
+         + 'move the date. This hub also still shows the min-100-room LOI (WBE 03) as blocked from 21 May.' });
+  t(48, { title: 'All-body in-person meeting — IV / Safety / Security + Logistics (F&B + Hospitality)', scopeArea: 'Org / Staffing', due: '2026-11-30', priority: 'High',
+    notes: 'Org plan #48, Critical, window 1 Oct – 30 Nov. Separate from the National Leadership Kickoff '
+         + '(org plan #29, in progress, due 27 Sep).' });
+  t(56, { title: 'Signage design & production', scopeArea: 'Equipment / Signage', due: '2027-02-28', priority: 'Medium', owner: 'TBD',
+    notes: 'Org plan #56 — the ONLY Logistics item with no owner. Starts 1 Oct. The 336-item Equipment & Signage '
+         + 'master list already built is the input for this; it needs a name against it.' });
+  t(59, { title: 'Launch hotel registration for athletes, spectators + chaperones', scopeArea: 'Hotels', due: '2026-12-01', priority: 'High',
+    notes: 'Org plan #59, Critical, starts 15 Nov. Lines up with the registration portal work — the hotel field '
+         + 'spec (block vs self-booked) has to exist before this launches or we cannot tell who is in our blocks.' });
+  t(64, { title: 'Transportation plan — airport, hotel, site shuttle schedule & process', scopeArea: 'Transportation', due: '2027-01-15', priority: 'High',
+    notes: 'Org plan #64, Critical, starts 1 Dec. THE HUB IS ALREADY AHEAD OF THIS — the tentative model, loops '
+         + 'and the Northlake reg-hub assumption are live on the Transportation tab. What is missing is the '
+         + 'large/small venue split and the fleet sizing, which needs counts.' });
+  t(65, { title: 'Transportation contracts signed', scopeArea: 'Transportation', due: '2027-01-15', priority: 'High',
+    notes: 'Org plan #65, Critical, starts 1 Jan. PROBLEM: due the SAME DAY as #64, the plan it depends on, and '
+         + 'the same day registration closes. You cannot finalise a plan and sign coach charters against it in '
+         + 'one day. Pull the plan back to early December on estimates, or push contracts into February.' });
+  t(66, { title: 'Capacity plan — airport welcome, on-site registration, athlete lounge', scopeArea: 'Hospitality', due: '2027-02-01', priority: 'Medium',
+    notes: 'Org plan #66, starts 1 Dec. NOTE ON THE AIRPORT PAUSE: this is the org deadline for airport welcome, '
+         + 'and it does not start until 1 Dec — so pausing that workstream now costs nothing, provided the flight '
+         + 'field is in the registration portal by 15 Sep.' });
+  t(76, { title: 'Food menu & logistics plan finalized', scopeArea: 'Food / F&B', due: '2027-02-28', priority: 'High',
+    notes: 'Org plan #76, Critical, starts 1 Jan. Lands AFTER the 8 Feb cutoff for 45-day lead orders and just '
+         + 'after the 23 Feb cutoff for 30-day orders. If the menu is not fixed until 28 Feb, nothing on it can '
+         + 'have a lead time longer than 25 days.' });
+  t(84, { title: 'Finalize supply list from all verticals', scopeArea: 'Equipment / Signage', due: '2026-12-31', priority: 'Medium',
+    notes: 'Org plan #84. DATE ERROR IN THE SHEET: start date reads 1 Feb 2027, after the 31 Dec 2026 due date. '
+         + 'Assuming the due date is right. This is the item the 336-line Equipment & Signage master list feeds.' });
+  t(85, { title: 'Finalize needs list for Operations — tables, chairs, power, extensions, games, food and water stations', scopeArea: 'Equipment / Signage', due: '2026-12-31', priority: 'Medium',
+    notes: 'Org plan #85. SAME DATE ERROR — start 1 Feb 2027 against a 31 Dec 2026 due date. Already largely '
+         + 'covered by the equipment master list; this is about confirming counts per venue.' });
+  t(93, { title: 'Purchase non-perishable food, water, Gatorade and paper products', scopeArea: 'Food / F&B', due: '2026-12-31', priority: 'Medium',
+    notes: 'Org plan #93. THIRD DATE ERROR — start reads 1 Mar 2027 against a 31 Dec 2026 due date. Worth '
+         + 'resolving: a 1 Mar start is only 24 days before the Games, which is inside the lead time for almost '
+         + 'anything ordered in bulk.' });
+  t(96, { title: 'Hospitality welcome & check-in plan / flow', scopeArea: 'Hospitality', due: '2027-03-01', priority: 'Medium',
+    notes: 'Org plan #96. Depends on the Registration Hub decision — currently assumed to be StarCenter Northlake.' });
+  t(99, { title: 'Site preparation & setup coordination', scopeArea: 'Site Management', due: '2027-03-26', priority: 'High',
+    notes: 'Org plan #99, Critical, starts 1 Mar. CHECK AGAINST THE CALENDAR: a 26 Mar completion is the Friday. '
+         + 'Under this hub\'s calendar that is day 2 of play; under the onboarding deck it is day 1. Either way '
+         + 'setup finishing then is too late. Cricket at Texomo already has a Tue 23 Mar handover.' });
+
+  if (!D['doc-org-project-plan']) set('naig2027/docs/doc-org-project-plan', {
+    area: 'Overall', name: 'NAIG Project Plan 2027 (org master, v9.1.26)', type: 'Reference',
+    status: 'Review', owner: 'Core Team PMO', link: SHEET, expiry: '', createdAt: Date.now(),
+    notes: 'THE ORG\'S LIVE MASTER PLAN — treat as current and re-read on every review. 98 tasks, 9 complete, '
+         + '5 in progress, 84 not started, 44 open critical. Tabs: Links, Directory, Sub-Team Directory, RST, '
+         + 'Sites, Scheduling, Vendors, RB Cheatsheet, NAIG Status Summary, NAIG Project Plan, and one per '
+         + 'vertical including Logistics. The Logistics tab holds 15 open items, 0 closed, 0 past due — all '
+         + 'imported here as tasks tagged org-project-plan and keyed org-<id>. '
+         + 'HEADER READS "Tournament: March 27-29, 2027" — a third date set. See milestone X-1. '
+         + 'THREE DATE-ENTRY ERRORS on the Logistics tab: items 84, 85 and 93 all have start dates AFTER their '
+         + 'due dates. Signage (#56) is the only unowned Logistics item.',
+    updated: now
+  });
+
+  if (M['xr01']) set('naig2027/plan/milestones/xr01', Object.assign({}, M['xr01'], {
+    due: '2026-09-08',
+    title: 'THREE-WAY DATE CONFLICT — three org documents disagree on when the Games are played',
+    notes: 'Escalated 1 Sep 2026 after reading the org master project plan. '
+         + '(1) THIS HUB: check-in Wed 24 Mar, play Thu 25 – Sun 28. '
+         + '(2) ONBOARDING DECK (27 Aug, Aziz Hirani): arrival Thu 25, play Fri 26 – Sun 28. '
+         + '(3) ORG MASTER PROJECT PLAN (v9.1.26) header: "Tournament: March 27-29, 2027" — Sat, Easter Sunday, '
+         + 'Easter Monday. '
+         + 'Three documents, three windows, spanning Thu 25 through Mon 29. '
+         + 'WHY THIS IS NOW URGENT: org plan items #13 and #15 — "Marketing Announcement: Release Host City + '
+         + 'Dates" and "Launch Save The Date" — are both Critical, both due 15 Sep, and both still Not Started '
+         + 'with owner TBD. The dates go public in roughly two weeks. A wrong public date is very hard to walk '
+         + 'back once regions and families start booking flights. '
+         + 'Settle this before the announcement, not after. Nothing in this hub has been re-dated pending the '
+         + 'decision; once it is made, apply it everywhere at once — venue windows, hotel blocks, every loop, '
+         + 'and the cricket handover.'
+  }));
+
+  if (M && Object.keys(M).length && !M['xr05']) set('naig2027/plan/milestones/xr05', {
+    createdAt: Date.now(), dept: 'Dependency', due: '2026-09-15', phase: 'pregames',
+    priority: 'critical', status: 'blocked', owner: 'Exec Committee', wbe: 'X-5',
+    title: 'Public host city + dates announcement — blocked by the three-way date conflict',
+    notes: 'Org plan #13 and #15, both Critical, both due 15 Sep, both Not Started with owner TBD. The '
+         + 'announcement cannot go out while three internal documents disagree on the competition days. '
+         + 'Logistics cares because every venue window, hotel block and coach charter is priced off whatever '
+         + 'gets announced, and because regions and families book flights from it.'
+  });
+};
+
 window._maybeCricketPrimary = function () {
   if (!window._venuesData || !Object.keys(window._venuesData).length) return;
   if (!window._hotelsData || !Object.keys(window._hotelsData).length) return;
@@ -10410,6 +10531,9 @@ window._maybeCricketPrimary = function () {
     }
     if (window._tasksData && Object.keys(window._tasksData).length) {
       window.seedOnce && window.seedOnce('reg-call-v1', window._migrateRegCall);
+      if (window._docsData && Object.keys(window._docsData).length) {
+        window.seedOnce && window.seedOnce('orgplan-v1', window._migrateOrgPlan);
+      }
     }
   }
 };
