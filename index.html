@@ -11104,6 +11104,209 @@ window._migrateVenuesContracted = function () {
   }
 };
 
+/* ══════════════════════════════════════════════════════════
+   MIGRATION — the play days, settled
+   ──────────────────────────────────────────────────────────
+   Rizwan, 3 Sep 2026: "cricket is thursday to sunday. monday as a rain
+   day makeup. all other sports are friday to sunday."
+   This reconciles all three documents at once: the onboarding deck's
+   Fri–Sun was right for every sport EXCEPT cricket, and this hub's
+   Thu–Sun was right for cricket only.
+   THE CONSEQUENCES ARE BIGGER THAN THE DATES:
+     • Thu 25 becomes a split day — registration for everyone while
+       cricket is already playing 90 minutes away.
+     • Cricket squads therefore CANNOT register on Thursday. They have to
+       arrive and register Wed 24.
+     • The ten non-cricket venues need three play days, not four. That is
+       a day of hire cost off each one, and org #14 signs on 15 Oct.
+     • Thu 25 doubles as load-in day for those venues, which is free.
+══════════════════════════════════════════════════════════ */
+window._migratePlayDays = function () {
+  const now = new Date().toISOString();
+  const V = window._venuesData || {};
+  const L = window._loopsData  || {};
+  const H = window._hotelsData || {};
+  const M = ((window._planData || {}).milestones) || {};
+  const TM = window._transportModelData;
+  const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
+  const isCricket = (v) => /cricket|texomo|calera|prairie view|russell creek/i.test(
+    String((v && v.name) || '') + ' ' + String((v && v.sports) || ''));
+  const isDead = (v) => /dropped|declined|not selected|closed|cancelled|not available/i.test(
+    String((v && v.status) || ''));
+
+  // ── Venues ───────────────────────────────────────────────
+  Object.keys(V).forEach(k => {
+    const v = V[k] || {};
+    if (isDead(v)) return;
+    if (isCricket(v)) {
+      if (!/texomo/i.test(String(v.name || ''))) return;   // only the primary ground
+      set('naig2027/venues/' + k, Object.assign({}, v, {
+        notes: 'PLAY DAYS CONFIRMED 3 Sep 2026 — cricket plays Thu 25 – Sun 28 Mar, with Mon 29 held as '
+             + 'a RAIN-DAY MAKEUP. Cricket is the only sport playing Thursday; everything else starts '
+             + 'Friday. So this contract needs the widest window of any venue: handover Tue 23 or Wed 24, '
+             + 'four scheduled match days, and a fifth contingency day on Mon 29 that we may not use. '
+             + 'Negotiate Mon 29 as an option we release rather than a day we pay for outright. '
+             + 'KNOCK-ON: cricket squads cannot register on Thursday because they are playing — they '
+             + 'must arrive and register Wed 24, a day ahead of everyone else. '
+             + String(v.notes || ''),
+        updated: now
+      }));
+      return;
+    }
+    // Every other live venue: three play days, Thursday for load-in.
+    set('naig2027/venues/' + k, Object.assign({}, v, {
+      notes: 'PLAY DAYS CONFIRMED 3 Sep 2026 — competition here runs Fri 26 – Sun 28 Mar, THREE days, '
+           + 'not four. Cricket is the only sport playing Thu 25. CONTRACT FOR THREE PLAY DAYS plus '
+           + 'access on Thu 25 for load-in and setup, which is convenient rather than costly: the day '
+           + 'we are not competing is the day we build. Check the quote is not priced for Thursday '
+           + 'competition — that is a day of hire off every one of these venues, and org item #14 '
+           + 'executes on 15 Oct. '
+           + String(v.notes || ''),
+      updated: now
+    }));
+  });
+
+  // ── Hotels: the Monday night now has a reason ─────────────
+  if (H['cluster-cricket-gap']) set('naig2027/hotels/cluster-cricket-gap', Object.assign({}, H['cluster-cricket-gap'], {
+    notes: 'DATES CONFIRMED 3 Sep 2026. Cricket plays Thu 25 – Sun 28 with Mon 29 as a rain-day makeup, '
+         + 'so this block runs later than every other cluster: crew in Tue 23, squads in WED 24 (they '
+         + 'register a day early because they play Thursday), out Tue 30. The Mon 29 night is the rain '
+         + 'day — negotiate it as a release-back option, not a committed night, since we only need it if '
+         + 'weather forces a makeup. Every other cluster checks out Mon 29. '
+         + String(H['cluster-cricket-gap'].notes || ''),
+    updated: now
+  }));
+
+  // ── Loops ────────────────────────────────────────────────
+  Object.keys(L).forEach(k => {
+    const l = L[k] || {};
+    const nm = String(l.name || '');
+    if (/^Cluster →/i.test(nm) || /large venue → small venue/i.test(nm)) {
+      set('naig2027/loops/' + k, Object.assign({}, l, {
+        daysOp: 'Fri 26 – Sun 28 Mar (play days — non-cricket sports)',
+        notes: 'Three days, not four. Cricket is the only sport playing Thu 25, and it runs on its own '
+             + 'loops out of Durant. Thursday here is load-in traffic, not athlete traffic. '
+             + String(l.notes || ''),
+        updated: now
+      }));
+    }
+    if (/loop-cricket-local/i.test(k)) {
+      set('naig2027/loops/' + k, Object.assign({}, l, {
+        daysOp: 'Tue 23 – Mon 29 Mar (handover Tue/Wed · play Thu 25 – Sun 28 · Mon 29 rain day)',
+        updated: now
+      }));
+    }
+    if (/loop-cricket-ok/i.test(k)) {
+      set('naig2027/loops/' + k, Object.assign({}, l, {
+        daysOp: 'Tue 23 (crew) · Wed 24 (squads in — they register early) · Mon 29 or Tue 30 (out)',
+        updated: now
+      }));
+    }
+    if (/loop-reg-hub-out/i.test(k)) {
+      set('naig2027/loops/' + k, Object.assign({}, l, {
+        daysOp: 'Wed 24 (cricket squads) · Thu 25 (everyone else)',
+        notes: 'TWO registration days, not one. Cricket squads register Wed 24 because they play '
+             + 'Thursday; every other sport registers Thu 25 and starts Friday. '
+             + String(l.notes || ''),
+        updated: now
+      }));
+    }
+  });
+
+  // ── Transport model card ─────────────────────────────────
+  if (TM) set('naig2027/transportModel', Object.assign({}, TM, {
+    status: 'Play days confirmed — 3 Sep 2026',
+    summary: 'Hub-and-spoke, not point-to-point. Cricket plays Thu 25 – Sun 28 (Mon 29 rain day); every '
+           + 'other sport Fri 26 – Sun 28. That makes Thursday a split day and gives cricket its own '
+           + 'calendar throughout.',
+    updatedNote: 'Cricket Thu–Sun · all others Fri–Sun',
+    phases: [
+      { name: 'Cricket arrivals', when: 'Wed 24 Mar', cadence: 'Scheduled transfers',
+        legs: [{ n: '1', t: 'Airport → registration → <strong>Durant block</strong>' }],
+        flags: ['Cricket squads register a day early — they are playing on Thursday when everyone else registers.'] },
+      { name: 'Split day', when: 'Thu 25 Mar', cadence: 'Rounds every 30–60 min',
+        legs: [
+          { n: '1', t: 'Airport → <strong>Northlake</strong> (Registration Hub)' },
+          { n: '2', t: 'Northlake → <strong>cluster hotels</strong> (rounds)' },
+          { n: '·', t: '<strong>Cricket match day 1</strong> at Calera, on its own loops' },
+          { n: '·', t: 'Load-in at the ten non-cricket venues' }
+        ],
+        flags: [
+          'Two full operations at once, 90 minutes apart: registration in DFW and a live cricket match day in Calera.',
+          'Northlake is both the Registration Hub and a five-sport load-in site on this day. Separate space, separate people.'
+        ] },
+      { name: 'Game days', when: 'Fri 26 – Sun 28 Mar', cadence: 'Rounds every 30–60 min',
+        legs: [
+          { n: '1', t: 'Cluster hotels → <strong>large venues</strong>' },
+          { n: '2', t: 'Large venue → <strong>small venue</strong> (second leg, as needed)' },
+          { n: '·', t: 'Cricket continues on the Durant shuttle' }
+        ],
+        flags: [
+          'Time the second leg off the first leg\'s arrival, not its own clock, or the connection is luck.',
+          '"Large" and "small" are still undefined — that split decides the whole day.'
+        ] },
+      { name: 'Departures', when: 'Mon 29 Mar', cadence: 'Rounds every 30–60 min',
+        legs: [
+          { n: '1', t: '<strong>Venues → airports</strong> (all non-cricket sports)' },
+          { n: '·', t: 'Cricket: rain-day makeup if needed, otherwise depart' }
+        ],
+        flags: [
+          'Bag storage at every large venue on the 29th — athletes check out and bring luggage to the venue. Not costed anywhere.',
+          'Cricket may still be playing while everyone else leaves. Build their coach out for Tue 30 and release it if the rain day goes unused.'
+        ] }
+    ],
+    openQuestions: [
+      'Which venues count as "large" (direct from hotels) and which as "small" (second leg)?',
+      'Does the second leg run venue-to-venue, or back through a hub — venue-to-venue is faster but needs far more vehicles.',
+      'Thu 25: who runs registration and who runs the cricket match day? Same team cannot do both.',
+      'Bag storage on departure day: which venues can hold it, and who staffs it.',
+      'Round frequency drives vehicle count more than anything else. 30 min versus 60 min is roughly double the fleet.'
+    ],
+    updated: now
+  }));
+
+  // ── Milestones ───────────────────────────────────────────
+  if (M['xr06']) set('naig2027/plan/milestones/xr06', Object.assign({}, M['xr06'], {
+    status: 'done', priority: 'standard',
+    title: 'Play days confirmed — cricket Thu–Sun (+Mon rain day), all other sports Fri–Sun',
+    notes: 'RESOLVED 3 Sep 2026 by Rizwan. Cricket plays Thu 25 – Sun 28 Mar with Mon 29 as a rain-day '
+         + 'makeup; every other sport plays Fri 26 – Sun 28. This reconciles all three documents — the '
+         + 'onboarding deck\'s Fri–Sun was right for everything except cricket, and this hub\'s Thu–Sun '
+         + 'was right for cricket only. Applied across venues, hotels, loops and the transport model.'
+  }));
+
+  if (M && Object.keys(M).length && !M['pd01']) set('naig2027/plan/milestones/pd01', {
+    createdAt: Date.now(), dept: 'Venue / Legal', due: '2026-10-09', phase: 'pregames',
+    priority: 'critical', status: 'not-started', owner: 'Logistics Lead', wbe: 'PD-1',
+    title: 'Re-quote the ten non-cricket venues for THREE play days, not four — before org #14 signs 15 Oct',
+    notes: 'Competition at every non-cricket venue is Fri 26 – Sun 28. If any quote was built on a Thu–Sun '
+         + 'window we are paying for a day we do not compete, ten times over. Ask instead for Thu 25 as '
+         + 'load-in access, which is usually cheaper or free. Texomo is the exception and goes the other '
+         + 'way: it needs Thu–Sun plus a Mon 29 contingency day, priced as a release-back option.'
+  });
+
+  if (M && Object.keys(M).length && !M['pd02']) set('naig2027/plan/milestones/pd02', {
+    createdAt: Date.now(), dept: 'Site Mgmt', due: '2027-01-15', phase: 'pregames',
+    priority: 'high', status: 'not-started', owner: 'Site Management Lead', wbe: 'PD-2',
+    title: 'Thu 25 runs two operations at once — staff registration and the cricket match day separately',
+    notes: 'Cricket plays its first match on Thursday while every other delegation is arriving and '
+         + 'registering, 90 minutes away. One team cannot cover both. Northlake is simultaneously the '
+         + 'Registration Hub and a five-sport load-in site that day. Name the cricket day-one crew and '
+         + 'the registration crew as separate rosters, and feed both counts into the HR volunteer ask '
+         + '(org #82, freezes 6 Feb).'
+  });
+
+  if (M && Object.keys(M).length && !M['pd03']) set('naig2027/plan/milestones/pd03', {
+    createdAt: Date.now(), dept: 'Lodging', due: '2026-11-20', phase: 'pregames',
+    priority: 'high', status: 'not-started', owner: 'Hotel Lead', wbe: 'PD-3',
+    title: 'Cricket squads arrive and register Wed 24 — a day before everyone else',
+    notes: 'They play Thursday, so they cannot be in the Thursday registration queue. That means their '
+         + 'hotel block starts a night earlier than the DFW clusters and their registration happens on a '
+         + 'day with no other arrivals — which is actually easier to staff. Confirm with Registration '
+         + 'that the portal and accreditation can run a day early for one sport.'
+  });
+};
+
 window._maybeCricketPrimary = function () {
   if (!window._venuesData || !Object.keys(window._venuesData).length) return;
   if (!window._hotelsData || !Object.keys(window._hotelsData).length) return;
@@ -11128,6 +11331,9 @@ window._maybeCricketPrimary = function () {
         window.seedOnce && window.seedOnce('lens-dates-v1', window._migrateLensDates);
         if (window._orgWatchData) {
           window.seedOnce && window.seedOnce('venues-contracted-v1', window._migrateVenuesContracted);
+          if (window._hotelsData && Object.keys(window._hotelsData).length) {
+            window.seedOnce && window.seedOnce('playdays-v1', window._migratePlayDays);
+          }
         }
       }
     }
