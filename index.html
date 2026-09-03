@@ -1823,6 +1823,8 @@ html.onboard-mode #onboardScreen { display: flex !important; }
  <div class="hub-subtitle">6 primary venues · 4 backup sites — DFW, Texas. All In Conversation. Track &amp; Chess TBD.</div>
  </div>
  <div class="section-actions">
+ <button class="btn btn-light" id="vviewCards" onclick="setVenueView('cards')">▦ Pipeline</button>
+ <button class="btn btn-light" id="vviewSpecs" onclick="setVenueView('specs')">☰ Facility Specs</button>
  <button class="btn btn-light" onclick="exportVenuesCSV()">⬇ CSV</button>
  <button class="btn btn-primary" onclick="openVenueModal()">+ Add Venue</button>
  </div>
@@ -1832,6 +1834,7 @@ html.onboard-mode #onboardScreen { display: flex !important; }
  </div>
  <div class="summary-strip" id="venueSummary"></div>
  <div id="venuesTierWrap"></div>
+ <div id="venuesSpecsWrap" style="display:none"></div>
 </div>
 
 <!-- Vendors -->
@@ -8750,6 +8753,124 @@ window.quickChangeVenueStatus = function(key, newStatus, selectEl) {
   }
 };
 
+/* ══════════════════════════════════════════════════════════
+   FACILITY SPECS VIEW
+   ──────────────────────────────────────────────────────────
+   The card view answers "where is each venue in the pipeline". It cannot
+   answer "which of these has four fields and drainage", because you
+   cannot compare specs that are on separate cards.
+   This is the same ten columns as the Sports Facilities sheet, so what we
+   collect here can go straight back to whoever owns that template.
+   Blank cells are the point: an empty column is a visible gap to chase,
+   not a hidden one.
+══════════════════════════════════════════════════════════ */
+window._venueView = 'cards';
+
+window.setVenueView = function (v) {
+  window._venueView = v;
+  const cards = document.getElementById('venuesTierWrap');
+  const specs = document.getElementById('venuesSpecsWrap');
+  if (cards) cards.style.display = v === 'specs' ? 'none' : '';
+  if (specs) specs.style.display = v === 'specs' ? '' : 'none';
+  const bc = document.getElementById('vviewCards'), bs = document.getElementById('vviewSpecs');
+  [[bc, v === 'cards'], [bs, v === 'specs']].forEach(([b, on]) => {
+    if (!b) return;
+    b.style.background = on ? '#14304C' : '';
+    b.style.color = on ? '#fff' : '';
+    b.style.borderColor = on ? '#14304C' : '';
+  });
+  window.renderVenues && window.renderVenues();
+};
+
+/* Outdoor sites are the only ones where drainage is a real question.
+   Marking the rest N/A stops anyone chasing a spec that does not exist. */
+function _isOutdoorVenue(v) {
+  return /field|outdoor|park|stadium|soccer|cricket|track|complex|grounds/i.test(
+    String(v.type || '') + ' ' + String(v.name || '') + ' ' + String(v.sports || ''));
+}
+
+window.renderVenueSpecs = function () {
+  const wrap = document.getElementById('venuesSpecsWrap');
+  if (!wrap) return;
+  const q = (document.getElementById('venueSearch')?.value || '').toLowerCase();
+  let rows = Object.entries(window._venuesData || {})
+    .filter(([, v]) => !/dropped|declined|not selected|closed|cancelled|not available/i.test(v.status || ''));
+  if (q) rows = rows.filter(([, v]) => JSON.stringify(v).toLowerCase().includes(q));
+  rows.sort((a, b) => String(a[1].name || '').localeCompare(String(b[1].name || '')));
+
+  const COLS = [
+    ['Facility Name',      v => esc(v.name || '')],
+    ['Dates Available',    v => esc(v.datesAvailable || '')],
+    ['Dates of Readiness', v => esc(v.datesReady || '')],
+    ['Qty of Fields',      v => esc(v.fieldCount || '')],
+    ['Type of Pitch',      v => esc(v.pitchType || v.floorType || '')],
+    ['Site Address',       v => esc(v.address || '')],
+    ['Field Dimensions',   v => esc(v.fieldDims || '')],
+    ['Drainage System',    v => esc(v.drainage || (_isOutdoorVenue(v) ? '' : 'N/A — indoor'))],
+    ['Pricing',            v => esc(v.rentalFee || '')],
+    ['Contact Info',       v => esc([v.primaryContact, v.primaryPhone, v.primaryEmail].filter(Boolean).join(' · '))]
+  ];
+
+  // Count what is actually missing — the number is the whole point of the view.
+  let gaps = 0;
+  rows.forEach(([, v]) => COLS.forEach(([lbl, fn]) => {
+    if (lbl === 'Facility Name') return;
+    if (!String(fn(v) || '').trim()) gaps++;
+  }));
+
+  const head = COLS.map(c =>
+    `<th style="text-align:left;padding:7px 9px;font-size:10.5px;letter-spacing:.04em;
+     text-transform:uppercase;color:#475569;font-weight:700;white-space:nowrap;
+     border-bottom:2px solid #e2e8f0;background:#f8fafc;position:sticky;top:0">${c[0]}</th>`).join('');
+
+  const body = rows.map(([k, v]) => `<tr onclick="openVenueModal('${k}')" style="cursor:pointer"
+      onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+    ${COLS.map(([lbl, fn]) => {
+      const val = String(fn(v) || '').trim();
+      const missing = !val;
+      const strong = lbl === 'Facility Name';
+      return `<td style="padding:7px 9px;font-size:12px;border-bottom:1px solid #eef2f7;
+        vertical-align:top;${strong ? 'font-weight:650;color:#0f172a;white-space:nowrap' : 'color:#334155'}">
+        ${missing ? '<span style="color:#cbd5e1;font-style:italic">—</span>' : val}</td>`;
+    }).join('')}
+  </tr>`).join('');
+
+  wrap.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+         flex-wrap:wrap;margin:2px 0 10px">
+      <div style="font-size:12px;color:#64748b">
+        ${rows.length} live facilities · <strong style="color:${gaps ? '#b91c1c' : '#166534'}">${gaps}</strong>
+        empty cells to chase. Click any row to fill it in.
+      </div>
+      <button class="btn btn-light" style="font-size:11px;padding:4px 12px"
+        onclick="exportVenueSpecsCSV()">⬇ Export as the Sports Facilities sheet</button>
+    </div>
+    <div style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:10px;background:#fff">
+      <table style="width:100%;border-collapse:collapse;min-width:1180px">
+        <thead><tr>${head}</tr></thead><tbody>${body}</tbody>
+      </table>
+    </div>`;
+};
+
+window.exportVenueSpecsCSV = function () {
+  const hdr = ['Facility Name','Dates Available','Dates of Readiness','Qty of Fields','Type of Pitch',
+               'Site Address','Field Dimensions','Drainage System','Pricing','Contact Info'];
+  const out = [hdr];
+  Object.values(window._venuesData || {})
+    .filter(v => !/dropped|declined|not selected|closed|cancelled|not available/i.test(v.status || ''))
+    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+    .forEach(v => out.push([
+      v.name || '', v.datesAvailable || '', v.datesReady || '', v.fieldCount || '',
+      v.pitchType || v.floorType || '', v.address || '', v.fieldDims || '',
+      v.drainage || (_isOutdoorVenue(v) ? '' : 'N/A — indoor'), v.rentalFee || '',
+      [v.primaryContact, v.primaryPhone, v.primaryEmail].filter(Boolean).join(' · ')
+    ]));
+  const csv = out.map(r => r.map(x => '"' + String(x).replace(/"/g, '""') + '"').join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'NAIG-Sports-Facilities.csv'; a.click();
+};
+
 /* Last-contact chip for a venue card. Silent on venues that are done — a
    signed venue does not need chasing — and loud on the ones drifting. */
 function _touchChip(v) {
@@ -8866,6 +8987,9 @@ window.renderVenues = function() {
     tier('Pending Deposit', pendingDeposit, 'tier-pending-deposit', false, 'pending-deposit') +
     tier('In Works', inWorks, 'tier-inworks', false, 'in-works') +
     tier('Closed / Out', closed, 'tier-closed', true, 'closed');
+
+  // The specs table reads the same data and the same search box.
+  window.renderVenueSpecs && window.renderVenueSpecs();
 };
 
 // ── Drag & drop between venue tiers ──────────────────────────────
@@ -9070,6 +9194,13 @@ function openVenueModal(editKey) {
   document.getElementById('venueSports').value = v.sports || '';
   document.getElementById('venueDriveLink').value = v.driveLink || '';
   document.getElementById('venueNotes').value = v.notes || '';
+  // Facility specs — the Sports Facilities sheet columns
+  document.getElementById('venueDatesAvailable').value = v.datesAvailable || '';
+  document.getElementById('venueDatesReady').value     = v.datesReady || '';
+  document.getElementById('venueFieldCount').value     = v.fieldCount || '';
+  document.getElementById('venuePitchType').value      = v.pitchType || '';
+  document.getElementById('venueFieldDims').value      = v.fieldDims || '';
+  document.getElementById('venueDrainage').value       = v.drainage || '';
   // Logistics
   document.getElementById('venueParking').value = v.parking || '';
   document.getElementById('venueFloorType').value = v.floorType || '';
@@ -9115,6 +9246,12 @@ function saveVenue() {
     sports: document.getElementById('venueSports').value.trim(),
     driveLink: document.getElementById('venueDriveLink').value.trim(),
     notes: document.getElementById('venueNotes').value.trim(),
+    datesAvailable: document.getElementById('venueDatesAvailable').value.trim(),
+    datesReady: document.getElementById('venueDatesReady').value.trim(),
+    fieldCount: document.getElementById('venueFieldCount').value.trim(),
+    pitchType: document.getElementById('venuePitchType').value.trim(),
+    fieldDims: document.getElementById('venueFieldDims').value.trim(),
+    drainage: document.getElementById('venueDrainage').value.trim(),
     parking: document.getElementById('venueParking').value.trim(),
     floorType: document.getElementById('venueFloorType').value.trim(),
     av: document.getElementById('venueAV').value.trim(),
@@ -11560,6 +11697,53 @@ window._migrateSourceOfTruth = function () {
   });
 };
 
+/* ══════════════════════════════════════════════════════════
+   MIGRATION — prefill the facility-spec columns we already know
+   ──────────────────────────────────────────────────────────
+   The Sports Facilities sheet arrived blank in all ten columns. Two of
+   them we can fill from the play-day decision without asking anyone:
+   Dates Available and Dates of Readiness. Pitch type carries over from
+   the floor/surface field where it was already captured, and drainage is
+   marked N/A on indoor sites so nobody chases a spec that cannot exist.
+   Everything else stays empty on purpose — an empty cell is a visible
+   gap to chase, and the specs view counts them.
+══════════════════════════════════════════════════════════ */
+window._migrateFacilitySpecs = function () {
+  const now = new Date().toISOString();
+  const V = window._venuesData || {};
+  const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
+  const isCricket = (v) => /cricket|texomo|calera|prairie view|russell creek/i.test(
+    String((v && v.name) || '') + ' ' + String((v && v.sports) || ''));
+  const isDead = (v) => /dropped|declined|not selected|closed|cancelled|not available/i.test(
+    String((v && v.status) || ''));
+  const outdoor = (v) => /field|outdoor|park|stadium|soccer|cricket|track|complex|grounds/i.test(
+    String(v.type || '') + ' ' + String(v.name || '') + ' ' + String(v.sports || ''));
+
+  Object.keys(V).forEach(k => {
+    const v = V[k] || {};
+    if (isDead(v)) return;
+    const patch = {};
+    const texomo = /texomo/i.test(String(v.name || ''));
+
+    if (!v.datesAvailable) {
+      patch.datesAvailable = texomo
+        ? 'Thu 25 – Sun 28 Mar 2027 (play) + Mon 29 rain-day option'
+        : (isCricket(v) ? '' : 'Fri 26 – Sun 28 Mar 2027 (play)');
+    }
+    if (!v.datesReady) {
+      patch.datesReady = texomo
+        ? 'Tue 23 or Wed 24 Mar — handover, ground prep before Thu play'
+        : (isCricket(v) ? '' : 'Thu 25 Mar — setup day, full access needed');
+    }
+    if (!v.pitchType && v.floorType) patch.pitchType = v.floorType;
+    if (!v.drainage && !outdoor(v))  patch.drainage  = 'N/A — indoor';
+
+    if (!Object.keys(patch).length) return;
+    patch.updated = now;
+    set('naig2027/venues/' + k, Object.assign({}, v, patch));
+  });
+};
+
 window._maybeCricketPrimary = function () {
   if (!window._venuesData || !Object.keys(window._venuesData).length) return;
   if (!window._hotelsData || !Object.keys(window._hotelsData).length) return;
@@ -11589,6 +11773,7 @@ window._maybeCricketPrimary = function () {
             window.seedOnce && window.seedOnce('setupday-v1', window._migrateSetupDay);
             if (window._tasksData && Object.keys(window._tasksData).length) {
               window.seedOnce && window.seedOnce('source-of-truth-v1', window._migrateSourceOfTruth);
+              window.seedOnce && window.seedOnce('facility-specs-v1', window._migrateFacilitySpecs);
             }
           }
         }
@@ -13755,6 +13940,35 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
  <!-- Panel: Logistics -->
  <div class="vmodal-panel" id="vp-logistics">
  <div class="venue-form-grid">
+ <div class="form-group" style="grid-column:1/-1;background:#f8fafc;border:1px solid #e0e7ef;border-radius:8px;padding:10px 12px;margin-bottom:4px">
+  <div style="font-size:.78rem;font-weight:700;color:#1a3a5c;margin-bottom:8px">Facility Specs <span style="font-weight:500;color:#64748b">— the ten columns on the Sports Facilities sheet</span></div>
+  <div class="venue-form-grid" style="gap:8px">
+   <div class="form-group">
+    <label>Dates Available</label>
+    <input type="text" id="venueDatesAvailable" placeholder="e.g. Fri 26 – Sun 28 Mar 2027" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+   </div>
+   <div class="form-group">
+    <label>Dates of Readiness</label>
+    <input type="text" id="venueDatesReady" placeholder="When we get the keys — e.g. Thu 25 Mar (setup day)" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+   </div>
+   <div class="form-group">
+    <label>Qty of Fields / Courts</label>
+    <input type="text" id="venueFieldCount" placeholder="e.g. 5 fields · 8 courts" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+   </div>
+   <div class="form-group">
+    <label>Type of Pitch</label>
+    <input type="text" id="venuePitchType" placeholder="e.g. Natural grass, Turf, Matting, Hardwood" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+   </div>
+   <div class="form-group">
+    <label>Field Dimensions</label>
+    <input type="text" id="venueFieldDims" placeholder="e.g. 210' × 360'" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+   </div>
+   <div class="form-group">
+    <label>Drainage System</label>
+    <input type="text" id="venueDrainage" placeholder="Outdoor sites only — leave blank if indoor" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+   </div>
+  </div>
+ </div>
  <div class="form-group" style="grid-column:1/-1">
  <label>Parking Notes</label>
  <input type="text" id="venueParking" placeholder="Lot capacity, ADA spaces, coach parking…" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
