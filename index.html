@@ -12377,7 +12377,12 @@ function axDefaultTier(p) {
   const vert = String(p.vertical || '').toLowerCase();
   if (!p.reportsTo && rt === 'lead') return 'admin';     // whoever sits at the top
   if (vert === 'core team') return 'core';
-  if (rt === 'lead' || rt === 'deputy') return 'lead';
+  // 'pmo' was missing here. Every PMO outside Core Team fell through to
+  // 'member' and landed read-only — which meant the two Site Management PMOs
+  // could not log a site visit, update a venue or add a contact-log entry.
+  // That is their job. A PMO gets the same reach as a deputy: everything but
+  // Budget, with edit rights.
+  if (rt === 'lead' || rt === 'deputy' || rt === 'pmo') return 'lead';
   return 'member';
 }
 
