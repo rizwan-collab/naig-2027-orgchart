@@ -11307,6 +11307,111 @@ window._migratePlayDays = function () {
   });
 };
 
+/* ══════════════════════════════════════════════════════════
+   MIGRATION — Thursday is setup day, and that is a requirement
+   ──────────────────────────────────────────────────────────
+   Rizwan, 3 Sep 2026: "non cricket, thursday is setup day."
+   This firms up what was previously written as a nice-to-have. Thursday
+   access is not a discount to negotiate for — it is a day we need, at
+   ten venues at once, and it has to be named in every contract.
+   IT ALSO BREAKS AN ORG DATE. Org item #99 "Site Preparation & Setup
+   Coordination" is dated 26 Mar — the Friday. If setup happens Thursday,
+   that item completes the day AFTER the work has to be finished.
+══════════════════════════════════════════════════════════ */
+window._migrateSetupDay = function () {
+  const now = new Date().toISOString();
+  const V = window._venuesData || {};
+  const T = window._tasksData  || {};
+  const M = ((window._planData || {}).milestones) || {};
+  const TM = window._transportModelData;
+  const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
+  const isCricket = (v) => /cricket|texomo|calera|prairie view|russell creek/i.test(
+    String((v && v.name) || '') + ' ' + String((v && v.sports) || ''));
+  const isDead = (v) => /dropped|declined|not selected|closed|cancelled|not available/i.test(
+    String((v && v.status) || ''));
+
+  let touched = 0;
+  Object.keys(V).forEach(k => {
+    const v = V[k] || {};
+    if (isDead(v) || isCricket(v)) return;
+    touched++;
+    set('naig2027/venues/' + k, Object.assign({}, v, {
+      notes: 'THU 25 MAR IS SETUP DAY — confirmed 3 Sep 2026. Competition here is Fri 26 – Sun 28 '
+           + '(three days). Thursday is not spare capacity we might ask for: we need full access to '
+           + 'build, and it must be written into the contract as setup/load-in access, not left to '
+           + 'goodwill. Get it in the agreement alongside the three play days — a venue that hands us '
+           + 'the keys Friday morning cannot be made ready in time. '
+           + String(v.notes || ''),
+      updated: now
+    }));
+  });
+
+  // The org plan dates setup completion the day after it has to be done.
+  if (T['org-99']) set('naig2027/tasks/org-99', Object.assign({}, T['org-99'], {
+    priority: 'High',
+    notes: 'DATE CONFLICT FOUND 3 Sep 2026. Org plan #99 is dated 26 Mar 2027 — that is the Friday, '
+         + 'day one of competition for every non-cricket sport. But Thursday 25 Mar is setup day, so '
+         + 'this work has to be COMPLETE by the end of Thursday, not the Friday. Raise it with PMO and '
+         + 'move the date to 25 Mar. Cricket is the exception in the other direction: Texomo needs its '
+         + 'ground ready by Wed 24 because they play Thursday. '
+         + String(T['org-99'].notes || ''),
+    updated: now
+  }));
+
+  if (M['pd01']) set('naig2027/plan/milestones/pd01', Object.assign({}, M['pd01'], {
+    notes: 'Competition at every non-cricket venue is Fri 26 – Sun 28 — three days. If any quote was '
+         + 'built on a Thu–Sun window we are paying for a day we do not compete, ten times over. '
+         + 'BUT THURSDAY IS STILL REQUIRED: it is setup day, so the contract needs three play days PLUS '
+         + 'named setup access on Thu 25. Do not trade Thursday away to save money — trade its PRICE, '
+         + 'from a competition day to a load-in day. Texomo is the exception and goes the other way: '
+         + 'Thu–Sun play plus a Mon 29 contingency, priced as a release-back option.'
+  }));
+
+  if (M['pd02']) set('naig2027/plan/milestones/pd02', Object.assign({}, M['pd02'], {
+    priority: 'critical',
+    title: 'Thu 25 runs THREE operations at once — registration, cricket day one, and ten venue setups',
+    notes: 'Confirmed 3 Sep 2026 that Thursday is setup day for the non-cricket venues. So Thursday '
+         + 'carries three separate operations simultaneously: (1) registration and arrivals across the '
+         + 'DFW clusters, (2) cricket match day one at Calera, 90 minutes away, and (3) build-out at ten '
+         + 'venues. Northlake is doing two of the three by itself — Registration Hub and five-sport '
+         + 'load-in. This is the single most overloaded day on the plan and it needs three named '
+         + 'rosters, not one team moving between jobs. All three counts feed the HR volunteer ask '
+         + '(org #82, freezes 6 Feb).'
+  }));
+
+  if (M && Object.keys(M).length && !M['pd04']) set('naig2027/plan/milestones/pd04', {
+    createdAt: Date.now(), dept: 'Supplies', due: '2027-03-24', phase: 'gamesweek',
+    priority: 'critical', status: 'not-started', owner: 'Equipment Lead', wbe: 'PD-4',
+    title: 'All equipment and signage on site by Wed 24 — setup crews build Thursday, not unload it',
+    notes: 'Thursday is setup day at ten venues. If deliveries land Thursday the crews spend the day '
+         + 'receiving instead of building, and there is no second chance before Friday play. Everything '
+         + 'from the 336-line equipment and signage list has to be at its venue by end of Wed 24. '
+         + 'Cricket is earlier again: Texomo needs its kit by Tue 23 to be ready for Thursday play. '
+         + 'Build the delivery schedule backwards from these two dates, not from the Games start.'
+  });
+
+  if (TM && TM.phases) {
+    const phases = TM.phases.map(p => {
+      if (!/split day/i.test(String(p.name || ''))) return p;
+      return Object.assign({}, p, {
+        name: 'Split day — three operations',
+        legs: [
+          { n: '1', t: 'Airport → <strong>Northlake</strong> (Registration Hub)' },
+          { n: '2', t: 'Northlake → <strong>cluster hotels</strong> (rounds)' },
+          { n: '·', t: '<strong>Cricket match day 1</strong> at Calera, on its own loops' },
+          { n: '·', t: '<strong>SETUP DAY</strong> — build-out at all ten non-cricket venues' }
+        ],
+        flags: [
+          'The most overloaded day on the plan: registration, a live cricket match 90 minutes away, and ten venue builds — all at once.',
+          'Northlake is doing two of the three by itself: Registration Hub and five-sport load-in.',
+          'Equipment must arrive Wed 24 or earlier. Crews cannot receive and build on the same day.'
+        ]
+      });
+    });
+    set('naig2027/transportModel', Object.assign({}, TM, { phases, updated: now }));
+  }
+};
+
 window._maybeCricketPrimary = function () {
   if (!window._venuesData || !Object.keys(window._venuesData).length) return;
   if (!window._hotelsData || !Object.keys(window._hotelsData).length) return;
@@ -11333,6 +11438,7 @@ window._maybeCricketPrimary = function () {
           window.seedOnce && window.seedOnce('venues-contracted-v1', window._migrateVenuesContracted);
           if (window._hotelsData && Object.keys(window._hotelsData).length) {
             window.seedOnce && window.seedOnce('playdays-v1', window._migratePlayDays);
+            window.seedOnce && window.seedOnce('setupday-v1', window._migrateSetupDay);
           }
         }
       }
