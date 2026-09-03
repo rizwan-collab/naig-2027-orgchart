@@ -11744,6 +11744,123 @@ window._migrateFacilitySpecs = function () {
   });
 };
 
+/* ══════════════════════════════════════════════════════════
+   MIGRATION — Russell Creek gets a named POC and a decision date,
+               Prairie View goes back to being a live backup
+   ──────────────────────────────────────────────────────────
+   Rizwan, 3 Sep 2026: "Russel creek, poc is Inara Shakur Jamal, will
+   know availability by september 15th. will be used for soccer, ff or
+   cricket / prairie view is back up venue to okc".
+
+   Two things change here.
+
+   RUSSELL CREEK stops being a cricket-only backup. It is now a live
+   conversation with a named person and a date on which we find out.
+   The sport is genuinely undecided — soccer, flag football or cricket —
+   and that is not a detail we can round off, because the three want
+   different things from the same ground: flag football needs a marked
+   100-yard field, soccer needs a full pitch and goals, cricket needs a
+   22-yard strip and a boundary rope. Availability comes first; the
+   sport assignment is downstream of it. So the record carries all three
+   and the specs stay blank on purpose until Inara answers.
+
+   PRAIRIE VIEW goes back to warm-backup status behind Texomo (Calera,
+   OK). I had closed it out on distance grounds and Rizwan has put it
+   back — his call, and it stands. The distance finding is kept on the
+   record rather than deleted, so whoever reaches for this backup in a
+   hurry sees the drive before they commit to it rather than after.
+══════════════════════════════════════════════════════════ */
+window._migrateVenuePOCs = function () {
+  const now = new Date().toISOString();
+  const V = window._venuesData || {};
+  const T = window._tasksData  || {};
+  const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
+  const findVenue = (re) => Object.keys(V).find(k => re.test(String((V[k] || {}).name || '')));
+
+  // Append to whatever contact history already exists rather than replacing it.
+  const withTouch = (v, entry) => {
+    const t = (window._touchesOf ? window._touchesOf(v) : []).slice();
+    if (t.some(x => x && x.date === entry.date && x.note === entry.note)) return v.touchLog || '';
+    t.push(entry);
+    return JSON.stringify(t);
+  };
+
+  // ── Russell Creek: named POC, real answer date, three candidate sports ──
+  const kRC = findVenue(/russell\s*creek|russel\s*creek/i);
+  if (kRC) {
+    const v = V[kRC] || {};
+    set('naig2027/venues/' + kRC, Object.assign({}, v, {
+      name: 'Russell Creek Park — Plano',
+      location: 'Plano, TX',
+      status: 'In Conversation',
+      sports: 'Soccer · Flag Football · Cricket (one of the three — TBD)',
+      primaryContact: 'Inara Shakur Jamal',
+      poc: 'Inara Shakur Jamal',
+      notes: 'UPDATE 3 Sep 2026 (Rizwan): POC is INARA SHAKUR JAMAL. She will know AVAILABILITY BY '
+           + '15 SEP 2026. Candidate use is soccer, flag football OR cricket — not yet decided, and the '
+           + 'decision is downstream of availability, not ahead of it. WHY THE SPORT MATTERS HERE: the '
+           + 'three need different things from the same ground — flag football wants a marked 100-yd '
+           + 'field, soccer a full pitch with goals, cricket a 22-yd strip plus a boundary. Russell Creek '
+           + 'does not appear on Plano Parks & Rec’s cricket facility listing, so if cricket is the '
+           + 'answer it most likely means a matting wicket laid on a multi-use field, which is a '
+           + 'setup-day cost and a permit question, not a booking. Do not fill the facility-spec columns '
+           + 'until the sport is settled — a spec for the wrong sport is worse than a blank. '
+           + 'NEXT: Inara by 15 Sep on availability, then assign the sport, then spec it. '
+           + String(v.notes || ''),
+      touchLog: withTouch(v, {
+        date: '2026-09-03',
+        channel: 'Note',
+        who: 'Inara Shakur Jamal',
+        note: 'POC confirmed as Inara Shakur Jamal. She will come back with availability by 15 Sep 2026. '
+            + 'Intended use is soccer, flag football or cricket — undecided pending availability.',
+        awaiting: true,
+        loggedBy: 'Rizwan Ali',
+        loggedAt: now
+      }),
+      updated: now
+    }));
+  }
+
+  // ── Prairie View: back to a live backup behind Texomo ──
+  const kPV = findVenue(/prairie\s*view/i);
+  if (kPV) {
+    const v = V[kPV] || {};
+    set('naig2027/venues/' + kPV, Object.assign({}, v, {
+      status: 'In Works',
+      sports: 'Cricket (backup)',
+      notes: 'REINSTATED 3 Sep 2026 (Rizwan): "prairie view is back up venue to okc" — this is the '
+           + 'BACKUP behind Texomo Cricket Ground in Calera, OK. Keep it warm; do not chase it while '
+           + 'Texomo holds. KNOWN TRADE-OFF, recorded so it is not rediscovered under pressure: the '
+           + 'Prairie View ground sits in Waller County, roughly 240 mi / ~4 hrs from the DFW clusters '
+           + 'and further still from the Durant/Denison cricket block. Falling back to it is not a venue '
+           + 'swap — it is a second hotel market, a second coach charter and a travel day. That is '
+           + 'survivable as a contingency and expensive as a plan, which is exactly why it stays a '
+           + 'backup. TRIGGER TO REVIVE: the Texomo contract fails to land, or fixtures need a second '
+           + 'ground. If either looks likely, raise it early — the lead time is the whole problem. '
+           + String(v.notes || ''),
+      updated: now
+    }));
+  }
+
+  // ── The 15 Sep answer is a date somebody has to own ──
+  if (!T['venue-russell-creek-sep15']) {
+    set('naig2027/tasks/venue-russell-creek-sep15', {
+      title: 'Russell Creek — get availability answer from Inara Shakur Jamal',
+      department: 'Logistics', status: 'todo', priority: 'High',
+      owner: 'Rizwan Ali', due: '2026-09-15', scopeArea: 'Venues',
+      estHours: '', linkedTo: '', parentTask: '', tags: 'venues,russell-creek',
+      notes: 'Inara said she would know availability by 15 Sep. Two questions, in this order: (1) is the '
+           + 'park available Thu 25 – Sun 28 Mar 2027, and (2) which of soccer / flag football / cricket '
+           + 'can it actually take on those dates. Answer (2) is what unblocks the facility specs, the '
+           + 'setup-day plan and the loop that serves it. If the answer is cricket, immediately ask '
+           + 'whether the wicket is matting on a multi-use field and who lays it — that is a setup cost '
+           + 'nobody has budgeted. If 15 Sep passes with no answer, chase the same day: this is one of '
+           + 'the few venue conversations with a date attached, and letting it slip wastes the date.',
+      updated: now
+    });
+  }
+};
+
 window._maybeCricketPrimary = function () {
   if (!window._venuesData || !Object.keys(window._venuesData).length) return;
   if (!window._hotelsData || !Object.keys(window._hotelsData).length) return;
@@ -11774,6 +11891,7 @@ window._maybeCricketPrimary = function () {
             if (window._tasksData && Object.keys(window._tasksData).length) {
               window.seedOnce && window.seedOnce('source-of-truth-v1', window._migrateSourceOfTruth);
               window.seedOnce && window.seedOnce('facility-specs-v1', window._migrateFacilitySpecs);
+              window.seedOnce && window.seedOnce('venue-pocs-v1',     window._migrateVenuePOCs);
             }
           }
         }
@@ -13262,12 +13380,68 @@ function axRenderRequests() {
           ${unmatched.map(p => `<option value="${esc(p.id)}">${esc(p.name)} · ${esc(p.role || '')}</option>`).join('')}
           <option value="__new__">+ Add as a new person</option>
         </select>
-        <button onclick="axApproveRequest('${esc(k)}')" style="font-size:11px;padding:5px 12px;border-radius:6px;border:1px solid #a8d9c0;background:#e9f7ef;color:#1e7e46;font-weight:600;cursor:pointer">Approve</button>
+        <button onclick="axApproveRequest('${esc(k)}')" style="font-size:11px;padding:5px 12px;border-radius:6px;border:1px solid #a8d9c0;background:#e9f7ef;color:#1e7e46;font-weight:600;cursor:pointer">Approve as team</button>
+        <button onclick="axApproveObserver('${esc(k)}')" title="Read-only across the working tabs. No Budget, no editing, and they do NOT appear on the org chart." style="font-size:11px;padding:5px 12px;border-radius:6px;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;font-weight:600;cursor:pointer">Give view access</button>
         <button onclick="axDenyRequest('${esc(k)}')" style="font-size:11px;padding:5px 10px;border-radius:6px;border:1px solid #e8a0a0;background:#fff0f0;color:#c0392b;cursor:pointer">Deny</button>
-      </div>`;
+      </div>
+      ${_axSharedMailboxWarning(r.email)}`;
     }).join('')}
   </div>`;
 }
+
+/* A request from a shared or role mailbox is not a person. Anyone holding that
+   inbox inherits the access, and the activity log will say "NAIG" rather than
+   who actually did the thing. Worth seeing before you click, not after. */
+function _axSharedMailboxWarning(email) {
+  const local = String(email || '').split('@')[0].toLowerCase();
+  const shared = ['naig','info','admin','team','contact','office','hello','support',
+                  'events','logistics','registration','no-reply','noreply'];
+  if (!shared.some(s => local === s || local.startsWith(s + '.') || local.startsWith(s + '-'))) return '';
+  return `<div style="margin:2px 0 6px 0;font-size:11.5px;color:#92400e;background:#fffbeb;
+      border:1px solid #fde68a;border-radius:6px;padding:6px 9px;line-height:1.5">
+      This looks like a <strong>shared mailbox</strong>, not one person. Everyone with access to it
+      inherits this account, and the activity log will show the mailbox name rather than who acted.
+      If it is meant to be one individual, ask them to sign in with their own address instead.</div>`;
+}
+
+/* One click: read-only access for someone outside the Logistics team.
+   Creates the Directory record too, because approval matches on a record and
+   without one they bounce straight back into this queue. Status stays
+   'prospect' on purpose — the org chart is confirmed-only, so an observer
+   gets in without appearing on the chart as team. */
+window.axApproveObserver = function (key) {
+  const r = (window._axRequests || {})[key];
+  if (!r) return;
+  const email = String(r.email || '').trim().toLowerCase();
+  if (!email) return;
+
+  const existing = (window._prospects || []).find(p =>
+    p && String(p.email || '').trim().toLowerCase() === email);
+
+  if (!existing) {
+    (window._prospects = window._prospects || []).push({
+      id: 'observer-' + email.replace(/[^a-z0-9]+/g, '-').slice(0, 40),
+      name: r.name || email,
+      email,
+      phone: '', role: 'Observer — view only', roleType: 'observer',
+      vertical: 'Observer', reportsTo: '', status: 'prospect',
+      region: '', city: '', ageRange: '', gender: '',
+      added: new Date().toISOString(),
+      notes: 'View-only access granted ' + new Date().toLocaleDateString('en-US') + '. Not on the '
+           + 'Logistics team. Status is deliberately left as prospect so they do not appear on the org '
+           + 'chart — the chart is confirmed-only, while the access gate matches on email regardless of '
+           + 'status. Resolves to the member tier: read-only across the working tabs, no Budget, no '
+           + 'editing. Promote only if they actually join Logistics.'
+    });
+    window.saveProspectsLocal && window.saveProspectsLocal();
+  }
+
+  window.hubSave && window.hubSave('accessRequests', key,
+    Object.assign({}, r, { status: 'approved', decidedAt: Date.now(), grantedAs: 'observer' }));
+  window.logActivity && window.logActivity('access',
+    'View-only access granted to ' + (r.name || email) + ' (observer — not on the org chart)');
+  axResolve();
+};
 
 function axApproveRequest(key) {
   const r = (window._axRequests || {})[key];
