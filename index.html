@@ -11412,6 +11412,154 @@ window._migrateSetupDay = function () {
   }
 };
 
+/* ══════════════════════════════════════════════════════════
+   MIGRATION — precedence: this hub is the source of truth
+   ──────────────────────────────────────────────────────────
+   Rizwan, 3 Sep 2026: "use our timeline as the source of truth for
+   logistics work. the other doc might be a working doc with assumptions."
+   So the org master project plan stops being treated as an authority we
+   conflict with, and becomes a reference we watch.
+   ONE DISTINCTION WORTH HOLDING, because flattening it would lose
+   something real:
+     • DATES for logistics work — ours win. Full stop.
+     • ACTIONS owned by other verticals — still real dependencies no
+       matter whose document they live in. Legal still has to execute
+       venue contracts; HR still freezes volunteer assignments; PMO still
+       publishes the programme schedule. Our precedence over dates does
+       not make someone else's deliverable ours, and it does not make it
+       go away. We watch those and hold our own dates.
+══════════════════════════════════════════════════════════ */
+window._migrateSourceOfTruth = function () {
+  const now = new Date().toISOString();
+  const D = window._docsData || {};
+  const M = ((window._planData || {}).milestones) || {};
+  const T = window._tasksData || {};
+  const W = window._orgWatchData;
+  const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
+
+  if (D['doc-org-project-plan']) set('naig2027/docs/doc-org-project-plan', Object.assign({}, D['doc-org-project-plan'], {
+    name: 'NAIG Project Plan 2027 (org master) — REFERENCE ONLY',
+    status: 'Reference',
+    notes: 'PRECEDENCE RULE, set by Rizwan 3 Sep 2026: THIS HUB IS THE SOURCE OF TRUTH FOR LOGISTICS '
+         + 'WORK. The org master plan is treated as a working document that may still carry assumptions, '
+         + 'so where its dates differ from ours, ours stand and we do not chase the difference. '
+         + 'WHAT WE DO STILL TAKE FROM IT: the actions other verticals own. Legal executing venue '
+         + 'contracts, HR freezing volunteer assignments, PMO publishing the programme schedule, Command '
+         + 'Center standing up radios — those are real deliverables regardless of which document holds '
+         + 'them, and Logistics is exposed if they slip. Read it for those, not for our dates. '
+         + 'Known soft spots observed 1–3 Sep: three Logistics rows had start dates after their due '
+         + 'dates; item #99 dates setup completion to the Friday when setup is Thursday; #58 and #31 '
+         + 'disagree with the registration call on when the portal opens and when rosters close; #60 is '
+         + 'dated before #57. Treat any single date in it as unconfirmed until someone owns it.',
+    updated: now
+  }));
+
+  // Reframe the items that were filed as conflicts against their plan.
+  if (M['xr07']) set('naig2027/plan/milestones/xr07', Object.assign({}, M['xr07'], {
+    title: 'Org #14 Venue Contracts Executed still has no owner — 11 of our 13 venues sit behind it',
+    notes: 'WATCH ITEM — a real external dependency, not a date dispute. Our hub is the source of truth '
+         + 'for logistics dates, but it cannot sign a contract for us. Legal executes venue agreements '
+         + 'under org item #14, currently with NO OWNER NAMED and dated 15 Oct 2026. Two venues are '
+         + 'contracted (both StarCenters, signed 18 Aug, deposits outstanding); the other eleven are not, '
+         + 'Texomo and UT Arlington included. Whoever picks this up needs the corrected play-day windows '
+         + 'from PD-1 BEFORE they sign — three play days plus Thursday setup for the ten non-cricket '
+         + 'venues, Thu–Sun plus a released Monday for Texomo. Escalate until it has a name.'
+  }));
+
+  if (M['xr09']) set('naig2027/plan/milestones/xr09', Object.assign({}, M['xr09'], {
+    notes: 'Our sequencing governs: baseline transport schedule in December off slot counts, timings '
+         + 'refined when the programme schedule lands. We do not need to match org #64/#65 dates — this '
+         + 'hub is the source of truth for logistics work. What we still depend on is the programme '
+         + 'schedule itself (org #83, PMO, owner TBD) actually being produced, because shuttle timings '
+         + 'derive from it. Watch that it happens; ignore the date it carries. '
+         + 'PROTECT THIS: price the coach contract in vehicles and hours, not fixed timetables, or every '
+         + 'schedule change becomes a variation order.'
+  }));
+
+  if (T['org-99']) set('naig2027/tasks/org-99', Object.assign({}, T['org-99'], {
+    notes: 'OUR DATE IS THU 25 MAR — setup day for the ten non-cricket venues, and Wed 24 for Texomo so '
+         + 'it is ready for Thursday cricket. The org plan carries 26 Mar, the Friday, which is day one '
+         + 'of play; that is one of the assumptions in their working doc rather than a date we follow. '
+         + 'Worth telling PMO so their sheet stops disagreeing with the build, but it does not change '
+         + 'what we do. '
+         + String(T['org-99'].notes || '').replace(/^DATE CONFLICT FOUND[^.]*\.\s*/, ''),
+    updated: now
+  }));
+
+  if (W) set('naig2027/orgWatch', Object.assign({}, W, {
+    summary: '98 tasks across the programme · 9 complete · 53 critical, 44 still open. THIS HUB IS THE '
+           + 'SOURCE OF TRUTH FOR LOGISTICS DATES — the org plan is a working document, read here for '
+           + 'what other verticals owe us, not for our own timeline.',
+    sourceNote: 'Org master plan v9.1.26 · reference only · read 1 Sep 2026',
+    updated: now
+  }));
+
+  /* ── Contract work belongs to Azmina ──────────────────────
+     Rizwan, 3 Sep 2026: "for all contract related work, it will be managed by
+     Azmina from core... from logistics." So every contract, LOI, quote and
+     contract-review item moves to her. Delivery ownership does not move — the
+     Hotel Lead still runs hotels and the Transportation Lead still runs
+     transport; Azmina owns the paper. Her Core Team tier already carries edit
+     rights and Budget visibility, which contract work needs, so no access
+     change is required.
+  ─────────────────────────────────────────────────────────── */
+  const AZ = 'Azmina Hashim';
+  const azNote = 'CONTRACT OWNER: Azmina Hashim (Core Team PMO) — all contract-related work sits with '
+               + 'her as of 3 Sep 2026. Delivery of the underlying workstream stays with its lead; '
+               + 'Azmina owns the agreement, the redlines and the signature path. ';
+
+  ['org-22', 'org-46', 'org-65'].forEach(k => {
+    if (!T[k]) return;
+    set('naig2027/tasks/' + k, Object.assign({}, T[k], {
+      owner: AZ, notes: azNote + String(T[k].notes || ''), updated: now
+    }));
+  });
+
+  ['cr01', 'cr02', 'cr03', 'pd01', 'wbe03', 'wbe08', 'wbe25'].forEach(k => {
+    if (!M[k]) return;
+    set('naig2027/plan/milestones/' + k, Object.assign({}, M[k], {
+      owner: AZ, notes: azNote + String(M[k].notes || '')
+    }));
+  });
+
+  if (M['xr07']) set('naig2027/plan/milestones/xr07', Object.assign({}, M['xr07'], {
+    owner: AZ,
+    notes: 'AZMINA OWNS THIS FROM OUR SIDE (3 Sep 2026) — all contract-related work is hers. What is '
+         + 'still missing is an owner on the ORG side: Legal executes venue agreements under org item '
+         + '#14, dated 15 Oct 2026, with no name against it. Azmina\'s job here is to find that person '
+         + 'and get the corrected windows to them before signature: three play days plus Thursday setup '
+         + 'access for the ten non-cricket venues, Thu–Sun plus a released Monday for Texomo (see PD-1). '
+         + 'Two venues are already contracted — both StarCenters, signed 18 Aug, deposits outstanding. '
+         + 'The other eleven, Texomo and UT Arlington included, are not.'
+  }));
+
+  if (M && Object.keys(M).length && !M['gv02']) set('naig2027/plan/milestones/gv02', {
+    createdAt: Date.now(), dept: 'Venue / Legal', due: '2026-09-18', phase: 'pregames',
+    priority: 'high', status: 'not-started', owner: AZ, wbe: 'GV-2',
+    title: 'Azmina to take the contract file — find who owns org #14 and hand them the corrected windows',
+    notes: 'First job now that contract work is consolidated. Two things in one conversation: (1) get a '
+         + 'name against org item #14, which signs eleven venue contracts on 15 Oct and currently has '
+         + 'none; (2) give them the play-day correction before they sign — ten non-cricket venues need '
+         + 'three play days (Fri 26 – Sun 28) plus named setup access on Thu 25, and Texomo needs '
+         + 'Thu 25 – Sun 28 with Mon 29 as a release-back rain day. Signing on the old Thu–Sun '
+         + 'assumption buys a day we do not compete, ten times over, and it is far harder to unwind '
+         + 'after signature than before.'
+  });
+
+  if (M && Object.keys(M).length && !M['gv01']) set('naig2027/plan/milestones/gv01', {
+    createdAt: Date.now(), dept: 'Overall', due: '2026-09-30', phase: 'pregames',
+    priority: 'standard', status: 'not-started', owner: 'Logistics Lead', wbe: 'GV-1',
+    title: 'Tell PMO which logistics dates we hold, so the two plans stop drifting apart',
+    notes: 'Precedence is settled internally — this hub governs logistics work. But nobody outside '
+         + 'Logistics knows that, and the org sheet will keep showing different dates until someone '
+         + 'says so. Send PMO the short list: operating window Wed 24 – Mon 29; cricket plays Thu 25 – '
+         + 'Sun 28 with Mon 29 as rain makeup; all other sports Fri 26 – Sun 28; Thu 25 is setup day; '
+         + 'equipment on site Wed 24. Ask them to align items #99, #64 and #65, and to fix the three '
+         + 'rows whose start dates fall after their due dates. Low effort, and it stops us re-litigating '
+         + 'the same four dates every month.'
+  });
+};
+
 window._maybeCricketPrimary = function () {
   if (!window._venuesData || !Object.keys(window._venuesData).length) return;
   if (!window._hotelsData || !Object.keys(window._hotelsData).length) return;
@@ -11439,6 +11587,9 @@ window._maybeCricketPrimary = function () {
           if (window._hotelsData && Object.keys(window._hotelsData).length) {
             window.seedOnce && window.seedOnce('playdays-v1', window._migratePlayDays);
             window.seedOnce && window.seedOnce('setupday-v1', window._migrateSetupDay);
+            if (window._tasksData && Object.keys(window._tasksData).length) {
+              window.seedOnce && window.seedOnce('source-of-truth-v1', window._migrateSourceOfTruth);
+            }
           }
         }
       }
