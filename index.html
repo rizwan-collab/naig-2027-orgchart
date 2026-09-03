@@ -525,6 +525,11 @@
     // seed has already run for this project and does not re-create placeholders.
     onValue(ref(db, 'naig2027/seeded'), (snap) => { window._seededFlags = snap.val() || {}; });
 
+    // ── Config (endpoints and switches that must change without a redeploy) ──
+    onValue(ref(db, 'naig2027/config'), (snap) => {
+      window._configData = snap.val() || {};
+    });
+
     // ── Access requests (people waiting on Rizwan's approval) ──
     onValue(ref(db, 'naig2027/accessRequests'), (snap) => {
       window._axRequests = snap.val() || {};
@@ -1208,6 +1213,7 @@ body.ax-readonly #axGateEmail, body.ax-readonly #prospectSearch { pointer-events
   /* Grids with a hard minimum wider than a phone */
   .rnr-grid { grid-template-columns: 1fr; gap: 12px; }
   .ow-grid  { grid-template-columns: 1fr !important; gap: 12px !important; }
+  .tl-row   { grid-template-columns: 1fr !important; }
   .plan-dept-grid { grid-template-columns: 1fr; }
   .kanban-col { flex: 0 0 82vw; }
 
@@ -8744,6 +8750,32 @@ window.quickChangeVenueStatus = function(key, newStatus, selectEl) {
   }
 };
 
+/* Last-contact chip for a venue card. Silent on venues that are done — a
+   signed venue does not need chasing — and loud on the ones drifting. */
+function _touchChip(v) {
+  const tier = window._briefTierOf ? window._briefTierOf(v.status) : 'In Works';
+  if (tier === 'Closed / Out' || tier === 'Confirmed') return '';
+  const last = window._lastTouch(v);
+  const days = window._daysSinceTouch(v);
+
+  if (!last) {
+    return `<div style="font-size:10.5px;font-weight:650;color:#7c2d12;background:#fff7ed;
+      border:1px solid #fed7aa;border-radius:6px;padding:3px 7px;margin-top:6px;display:inline-block">
+      No contact logged</div>`;
+  }
+  let bg = '#f1f5f9', bd = '#e2e8f0', fg = '#475569', label = '';
+  if (days === null)      { label = 'Last contact: ' + esc(last.date || '—'); }
+  else if (days <= 7)     { label = days === 0 ? 'Contacted today' : `Contacted ${days}d ago`; bg = '#f0fdf4'; bd = '#bbf7d0'; fg = '#166534'; }
+  else if (days <= 21)    { label = `Last contact ${days}d ago`; }
+  else if (days <= 45)    { label = `Quiet ${days} days`; bg = '#fffbeb'; bd = '#fde68a'; fg = '#92400e'; }
+  else                    { label = `Quiet ${days} days`; bg = '#fef2f2'; bd = '#fecaca'; fg = '#991b1b'; }
+
+  const awaiting = last.awaiting ? ' · awaiting reply' : '';
+  return `<div title="${esc((last.channel||'') + (last.who ? ' — ' + last.who : ''))}"
+     style="font-size:10.5px;font-weight:650;color:${fg};background:${bg};border:1px solid ${bd};
+     border-radius:6px;padding:3px 7px;margin-top:6px;display:inline-block">${label}${awaiting}</div>`;
+}
+
 window.renderVenues = function() {
   const wrap = document.getElementById('venuesTierWrap');
   if (!wrap) return;
@@ -8814,6 +8846,7 @@ window.renderVenues = function() {
       <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">${statusBadge}${statusInline}</div>
       ${v.sports?`<div class="vc-sports">${esc(v.sports)}</div>`:''}
       ${poc}
+      ${_touchChip(v)}
       ${v.notes?`<div class="vc-notes">${esc(v.notes.slice(0,120))}${v.notes.length>120?'…':''}</div>`:''}
     </div>`;
   }
@@ -8881,9 +8914,16 @@ window._venueDrop = function(e, tierId) {
 };
 
 function exportVenuesCSV() {
-  const rows = [['Name','Type','Location','Status','Sports','Notes']];
+  const rows = [['Name','Type','Location','Status','Sports',
+                 'Last Contact','Days Since','Channel','Who','Awaiting Reply','Last Contact Note','Notes']];
   Object.values(window._venuesData||{}).forEach(v => {
-    rows.push([v.name||'',v.type||'',v.location||'',v.status||'',v.sports||'',v.notes||'']);
+    const last = window._lastTouch ? window._lastTouch(v) : null;
+    const days = window._daysSinceTouch ? window._daysSinceTouch(v) : null;
+    rows.push([v.name||'',v.type||'',v.location||'',v.status||'',v.sports||'',
+      last ? (last.date||'') : '', days === null ? '' : days,
+      last ? (last.channel||'') : '', last ? (last.who||'') : '',
+      last && last.awaiting ? 'Yes' : '', last ? (last.note||'') : '',
+      v.notes||'']);
   });
   const csv = rows.map(r=>r.map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(',')).join('\n');
   const a = document.createElement('a');
@@ -8919,9 +8959,105 @@ function renderCustomQList() {
   ).join('');
 }
 
+/* ══════════════════════════════════════════════════════════
+   VENUE CONTACT LOG
+   ──────────────────────────────────────────────────────────
+   Stored as a JSON string on the venue record (like customQA) so it travels
+   with the venue and needs no new database node or rules change.
+   Entries are newest-first. The point is not record-keeping for its own sake:
+   with 11 venues unsigned and org #14 signing on 15 Oct, the useful signal is
+   which ones have gone quiet — so the card shows days since last contact and
+   turns amber, then red, as that number grows.
+══════════════════════════════════════════════════════════ */
+let _venueTouches = [];
+
+window._touchesOf = function (v) {
+  try {
+    const t = (v && v.touchLog) ? JSON.parse(v.touchLog) : [];
+    return Array.isArray(t) ? t : [];
+  } catch (e) { return []; }
+};
+
+window._lastTouch = function (v) {
+  const t = window._touchesOf(v);
+  if (!t.length) return null;
+  // Sort defensively — entries can be back-dated after the fact.
+  const sorted = t.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  return sorted[0];
+};
+
+window._daysSinceTouch = function (v) {
+  const last = window._lastTouch(v);
+  if (!last || !last.date) return null;
+  const d = new Date(last.date + 'T12:00:00');
+  if (isNaN(d)) return null;
+  return Math.floor((Date.now() - d.getTime()) / 86400000);
+};
+
+function renderTouchLog() {
+  const box = document.getElementById('touchLogList');
+  if (!box) return;
+  if (!_venueTouches.length) {
+    box.innerHTML = '<div style="padding:9px 11px;color:#94a3b8;font-size:.79rem;background:#f8fafc;' +
+                    'border:1px dashed #e0e7ef;border-radius:8px">No contact logged yet.</div>';
+    return;
+  }
+  const sorted = _venueTouches.slice()
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  box.innerHTML = sorted.map((t) => {
+    const i = _venueTouches.indexOf(t);
+    const when = t.date
+      ? new Date(t.date + 'T12:00:00').toLocaleDateString('en-US',
+          { month: 'short', day: 'numeric', year: 'numeric' })
+      : 'no date';
+    return `<div style="border:1px solid #e2e8f0;border-left:3px solid ${t.awaiting ? '#ca8a04' : '#cbd5e1'};
+         border-radius:7px;padding:9px 11px;margin-bottom:7px;background:#fff">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap">
+        <div style="font-size:12.5px;font-weight:650;color:#0f172a">
+          ${esc(t.channel || 'Contact')} · ${esc(when)}
+          ${t.awaiting ? '<span style="font-size:9.5px;font-weight:700;letter-spacing:.04em;color:#92400e;background:#fef3c7;border-radius:20px;padding:1px 6px;margin-left:5px">AWAITING REPLY</span>' : ''}
+        </div>
+        <button class="btn btn-cancel" style="padding:1px 7px;font-size:10px"
+          onclick="removeTouch(${i})" title="Remove this entry">×</button>
+      </div>
+      ${t.who ? `<div style="font-size:11.5px;color:#64748b;margin-top:2px">${esc(t.who)}</div>` : ''}
+      ${t.note ? `<div style="font-size:12.5px;color:#334155;line-height:1.5;margin-top:5px;white-space:pre-wrap">${esc(t.note)}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+window.addTouch = function () {
+  const date = (document.getElementById('tlDate').value || '').trim();
+  const note = (document.getElementById('tlNote').value || '').trim();
+  const who  = (document.getElementById('tlWho').value || '').trim();
+  if (!date) { alert('Pick the date you made contact.'); return; }
+  if (!note && !who) { alert('Add a note or who you spoke to — an empty entry tells us nothing.'); return; }
+  _venueTouches.push({
+    date, note, who,
+    channel: document.getElementById('tlChannel').value,
+    awaiting: !!document.getElementById('tlAwaiting').checked,
+    loggedBy: (window._axUser && (window._axUser.name || window._axUser.email)) || '',
+    loggedAt: new Date().toISOString()
+  });
+  document.getElementById('tlNote').value = '';
+  document.getElementById('tlWho').value = '';
+  document.getElementById('tlAwaiting').checked = false;
+  renderTouchLog();
+};
+
+window.removeTouch = function (i) {
+  if (i < 0 || i >= _venueTouches.length) return;
+  _venueTouches.splice(i, 1);
+  renderTouchLog();
+};
+
 function openVenueModal(editKey) {
   const v = editKey ? (window._venuesData[editKey] || {}) : {};
   _venueCustomQA = v.customQA ? JSON.parse(v.customQA) : [];
+  _venueTouches = window._touchesOf(v);
+  const tlDate = document.getElementById('tlDate');
+  if (tlDate) tlDate.value = new Date().toISOString().slice(0, 10);
+  renderTouchLog();
   document.getElementById('venueModalTitle').textContent = editKey ? ' Edit Venue' : ' Add Venue';
   document.getElementById('venueKey').value = editKey || '';
   // Basic Info
@@ -8997,6 +9133,7 @@ function saveVenue() {
     contractStatus: document.getElementById('venueContractStatus').value,
     poc: document.getElementById('venuePOC').value.trim(),
     customQA: _venueCustomQA.length ? JSON.stringify(_venueCustomQA) : '',
+    touchLog: _venueTouches.length ? JSON.stringify(_venueTouches) : '',
     updated: new Date().toISOString()
   });
   if (_isNewVenue) {
@@ -12344,9 +12481,45 @@ function axResolve() {
       email: gu.email, name: gu.name || '', photo: gu.photo || '',
       uid: gu.uid, requestedAt: Date.now(), status: 'pending'
     });
+    // Email Rizwan straight away. Until now the ONLY signal was a red badge on
+    // the Access button, which is invisible unless the hub is open on screen —
+    // so a request could sit for days. Fire-and-forget: if the notifier is not
+    // configured or is down, the request is still saved and the badge still
+    // shows. Never let this block the gate.
+    window.axNotifyRequest && window.axNotifyRequest(gu);
   }
   axShowGateState(existing && existing.status === 'denied' ? 'denied' : 'pending');
 }
+
+/* ══════════════════════════════════════════════════════════
+   ACCESS REQUEST → EMAIL
+   ──────────────────────────────────────────────────────────
+   A browser cannot send mail, so this POSTs to a small Apps Script web app
+   which sends it. The endpoint lives in the database at
+   naig2027/config/accessNotifyUrl, NOT in this file — so the URL can be set,
+   changed or revoked without a redeploy, and no secret ever ships in the HTML.
+   The request is written to the database first and this runs after, so if the
+   notifier is missing or fails nothing is lost: the request still queues and
+   the Access badge still turns red.
+══════════════════════════════════════════════════════════ */
+window.axNotifyRequest = function (gu) {
+  try {
+    const url = ((window._configData || {}).accessNotifyUrl || '').trim();
+    if (!url || !/^https:\/\/script\.google\.com\//.test(url)) return;
+    const body = JSON.stringify({
+      kind: 'access-request',
+      email: gu.email || '',
+      name: gu.name || '',
+      requestedAt: new Date().toISOString(),
+      hubUrl: location.origin + location.pathname
+    });
+    // text/plain keeps this a CORS "simple request" — no preflight, which Apps
+    // Script web apps do not answer. no-cors because we do not read the reply.
+    fetch(url, { method: 'POST', mode: 'no-cors',
+                 headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body })
+      .catch(() => {});
+  } catch (e) { /* never block the gate on a notifier problem */ }
+};
 
 function axShowGateState(state) {
   const box = document.getElementById('axGateBody');
@@ -13042,6 +13215,7 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
  <button class="vmodal-tab active" onclick="switchVenueTab('basic',this)">Basic Info</button>
  <button class="vmodal-tab" onclick="switchVenueTab('logistics',this)">Logistics</button>
  <button class="vmodal-tab" onclick="switchVenueTab('contacts',this)">Contacts</button>
+ <button class="vmodal-tab" onclick="switchVenueTab('touchlog',this)">Contact Log</button>
  <button class="vmodal-tab" onclick="switchVenueTab('financials',this)">Financials</button>
  <button class="vmodal-tab" onclick="switchVenueTab('customqa',this)">Custom Q&amp;A</button>
  </div>
@@ -13201,6 +13375,30 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
  </div>
 
  <!-- Panel: Custom Q&A -->
+ <!-- Panel: Contact Log -->
+ <div class="vmodal-panel" id="vp-touchlog">
+ <p style="font-size:.81rem;color:#555;margin:0 0 10px">Every time someone reaches out — who, when, how, and what came back. Newest first. This is what tells us a venue has gone quiet.</p>
+ <div id="touchLogList"></div>
+ <div style="margin-top:10px;background:#f8fafc;border-radius:8px;padding:11px;border:1px solid #e0e7ef">
+  <p style="font-size:.78rem;font-weight:700;margin:0 0 8px;color:#1a3a5c">+ Log a contact</p>
+  <div style="display:grid;grid-template-columns:auto auto 1fr;gap:7px;margin-bottom:7px" class="tl-row">
+   <input type="date" id="tlDate" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12.5px">
+   <select id="tlChannel" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12.5px">
+    <option>Email</option><option>Call</option><option>Voicemail</option><option>Text</option>
+    <option>Site visit</option><option>In person</option><option>Portal / form</option><option>Other</option>
+   </select>
+   <input type="text" id="tlWho" placeholder="Who we spoke to (and who from our side)" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12.5px">
+  </div>
+  <textarea id="tlNote" placeholder="What came out of it. Be specific — “left VM, no reply” is worth recording." style="width:100%;padding:7px 9px;border:1px solid #ddd;border-radius:6px;font-size:12.5px;min-height:58px;resize:vertical;font-family:inherit;line-height:1.5"></textarea>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:7px;flex-wrap:wrap">
+   <label style="font-size:12px;color:#475569;display:flex;align-items:center;gap:6px">
+    <input type="checkbox" id="tlAwaiting"> Waiting on them to come back to us
+   </label>
+   <button class="btn btn-primary" onclick="addTouch()" style="font-size:.79rem;padding:5px 12px">+ Add entry</button>
+  </div>
+ </div>
+ </div>
+
  <div class="vmodal-panel" id="vp-customqa">
  <p style="font-size:.81rem;color:#555;margin:0 0 10px">Add any custom questions or details specific to this venue — e.g. "Does venue provide tables?", "Number of change rooms", etc.</p>
  <div class="custom-q-list" id="customQList"><div style="padding:8px 10px;color:#aaa;font-size:.79rem">No custom questions yet.</div></div>
