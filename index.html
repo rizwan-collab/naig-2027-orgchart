@@ -11861,6 +11861,132 @@ window._migrateVenuePOCs = function () {
   }
 };
 
+/* ══════════════════════════════════════════════════════════
+   MIGRATION — LB Houston Tennis & Pickleball Center
+   ──────────────────────────────────────────────────────────
+   This venue was NOT in the tracker. Raj Thakur ran the whole
+   conversation from his own inbox between 19 Jun and 6 Sep 2026 and it
+   never reached the hub — five exchanges, a full requirements list, and
+   a decision, none of it visible here. Recording it now, including the
+   outcome, so the next person who asks "did we try a tennis venue?"
+   gets an answer instead of a shrug.
+
+   THE OUTCOME. Kelly Lim (Impact Activities) 6 Sep 2026: "we
+   unfortunately cannot accommodate all 12 courts for the entire time
+   frame." Rizwan's call is to treat that as unavailable and move on, so
+   the status says Not Available. But read the sentence carefully — it is
+   a no to ALL TWELVE for the WHOLE WINDOW, not a no to the venue. A
+   reduced footprint or a shorter window was never priced. That door is
+   recorded here rather than lost, because it is the only 12-court tennis
+   facility anyone has found.
+
+   THE THING THAT OUTLIVES THIS VENUE. Their published hours are
+   8am–10pm weekdays and 8am–8pm WEEKENDS. We asked for 7am–10pm Fri and
+   Sat and 7am–7pm Sun. So three of the four requested days sat outside
+   their operating hours before court availability was even discussed:
+   the 7am starts on Fri/Sat/Sun, and the 10pm finish on Sat. Any court
+   venue we approach next needs the ask checked against published hours
+   first — and if 7am starts are genuinely needed for the fixture list,
+   that is an early-open request that costs money, not an assumption.
+══════════════════════════════════════════════════════════ */
+window._migrateLBHouston = function () {
+  const now = new Date().toISOString();
+  const V = window._venuesData || {};
+  const T = window._tasksData  || {};
+  const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
+
+  // Don't duplicate if a record already exists under any spelling.
+  const existing = Object.keys(V).find(k =>
+    /lb\s*houston|luna\s*rd|impact\s*activities/i.test(
+      String((V[k] || {}).name || '') + ' ' + String((V[k] || {}).address || '')));
+  const key = existing || 'venue-lb-houston';
+
+  const touches = [
+    { date:'2026-06-19', channel:'Email', who:'LB Houston (general inbox)',
+      note:'Raj Thakur opened the inquiry on behalf of Jubilee Monuments Corp — interest in hosting '
+         + 'pickleball AND tennis over Easter weekend, 25–28 Mar 2027. Asked for availability and '
+         + 'rental pricing.', awaiting:false },
+    { date:'2026-07-01', channel:'Email', who:'Kelly Lim — kellyl@impactactivities.com',
+      note:'Kelly replied with the facility inventory: 12 TENNIS COURTS + 2 hybrid; 8 dedicated '
+         + 'PICKLEBALL courts + 6 hybrid. Facility hours 8am–10pm weekdays, 8am–8pm weekends. Said '
+         + 'their schedule is quite full and asked us to confirm exact court counts and times.',
+      awaiting:false },
+    { date:'2026-07-20', channel:'Email', who:'Kelly Lim',
+      note:'Raj sent the ask: indoor pickleball, at least 12 tennis courts, and the window — Thu 25 '
+         + 'Mar 12pm–10pm setup, Fri 26 and Sat 27 Mar 7am–10pm play, Sun 28 Mar 7am–7pm play plus '
+         + 'breakdown. Requested pricing and contract detail. Also asked whether outside food is '
+         + 'allowed — never answered, in this reply or any later one.', awaiting:false },
+    { date:'2026-09-04', channel:'Email', who:'Kelly Lim',
+      note:'Raj chased — resent the request and left a voicemail with their office staff. Six weeks '
+         + 'of silence between 20 Jul and this chase.', awaiting:false },
+    { date:'2026-09-06', channel:'Email', who:'Kelly Lim',
+      note:'DECLINED: "After reviewing our schedule and speaking with my manager, we unfortunately '
+         + 'cannot accommodate all 12 courts for the entire time frame." No counter-offer given, and '
+         + 'no pricing was ever quoted. Note this is a no to all 12 courts across the whole window — '
+         + 'not explicitly a no to fewer courts or a shorter window.', awaiting:false }
+  ];
+
+  set('naig2027/venues/' + key, Object.assign({}, V[key] || {}, {
+    name: 'LB Houston Tennis & Pickleball Center (Dallas)',
+    type: 'Tennis / Pickleball Courts',
+    cluster: 'West Dallas',
+    location: 'Dallas, TX',
+    address: '11225 Luna Rd, Dallas, TX 75229',
+    status: 'Not Available',
+    pipelineStatus: 'Not Available',
+    sports: 'Tennis · Pickleball (declined)',
+    fieldCount: '12 tennis + 2 hybrid · 8 pickleball + 6 hybrid',
+    primaryContact: 'Kelly Lim (Impact Activities)',
+    primaryEmail: 'kellyl@impactactivities.com',
+    primaryPhone: '972-654-2844 (cell) · 214-670-6367 (landline)',
+    poc: 'Kelly Lim',
+    contractStatus: 'Not Started',
+    datesAvailable: 'DECLINED for 25–28 Mar 2027',
+    datesReady: '—',
+    notes: 'NOT AVAILABLE as asked. Kelly Lim, 6 Sep 2026: "we unfortunately cannot accommodate all '
+         + '12 courts for the entire time frame." Rizwan’s call: treat as unavailable. '
+         + 'DESPITE THE NAME THIS IS IN DALLAS — 11225 Luna Rd, 75229, off Luna near the Elm Fork. '
+         + 'It is named after L.B. Houston, not the city, so it is a local option and not a 240-mile '
+         + 'one. Operator is Impact Activities. INVENTORY (confirmed by Kelly 1 Jul 2026): 12 tennis '
+         + 'courts + 2 hybrid, 8 dedicated pickleball courts + 6 hybrid — the largest tennis count '
+         + 'anyone has found for this event. FACILITY HOURS: 8am–10pm weekdays, 8am–8pm weekends. '
+         + 'OUR ASK EXCEEDED THOSE HOURS on three of four days: 7am starts Fri/Sat/Sun and a 10pm '
+         + 'finish Sat. That was never raised by either side, so we do not know whether the refusal '
+         + 'was about courts, hours, or both. STILL OPEN IF ANYONE REVIVES THIS: (1) they never '
+         + 'quoted a price, at any point; (2) the outside-food question was asked twice and never '
+         + 'answered; (3) a reduced footprint — say 8 courts, or Fri–Sun only — was never put to '
+         + 'them. WHY IT MATTERS THAT THIS IS CLOSED: Tennis now rests on McKinney Courts alone, '
+         + 'which is still In Conversation with no confirmed court count.',
+    touchLog: JSON.stringify(touches),
+    updated: now
+  }));
+
+  // The tennis search just lost its biggest candidate. The existing task was
+  // dated 1 Jan 2027 and unowned — that was survivable while a 12-court option
+  // was live. It is not survivable now.
+  const kTennis = Object.keys(T).find(k =>
+    /source tennis|racquet venue/i.test(String((T[k] || {}).title || '')));
+  if (kTennis) {
+    set('naig2027/tasks/' + kTennis, Object.assign({}, T[kTennis], {
+      priority: 'High',
+      due: '2026-10-01',
+      notes: 'ESCALATED 7 Sep 2026: LB Houston has declined, and it was the only facility found with '
+           + '12 tennis courts. Tennis now depends entirely on McKinney Courts, which is still In '
+           + 'Conversation with no confirmed court count — a single point of failure for the sport. '
+           + 'The old 1 Jan 2027 due date assumed a fallback existed; it no longer does, so this is '
+           + 'pulled to 1 Oct to sit alongside the venue-contracts deadline. WHEN APPROACHING THE '
+           + 'NEXT FACILITY: check published operating hours against the fixture window BEFORE '
+           + 'asking for courts. LB Houston opens at 8am and closes at 8pm on weekends; we asked for '
+           + '7am–10pm. That mismatch was never discussed and may have been part of the refusal. '
+           + 'ALSO WORTH DOING: go back to Kelly Lim with a smaller ask (fewer courts, or Fri–Sun '
+           + 'only, or inside their published hours) — she declined all 12 for the whole window, not '
+           + 'the venue itself, and no price was ever quoted. '
+           + String((T[kTennis] || {}).notes || ''),
+      updated: now
+    }));
+  }
+};
+
 window._maybeCricketPrimary = function () {
   if (!window._venuesData || !Object.keys(window._venuesData).length) return;
   if (!window._hotelsData || !Object.keys(window._hotelsData).length) return;
@@ -11892,6 +12018,7 @@ window._maybeCricketPrimary = function () {
               window.seedOnce && window.seedOnce('source-of-truth-v1', window._migrateSourceOfTruth);
               window.seedOnce && window.seedOnce('facility-specs-v1', window._migrateFacilitySpecs);
               window.seedOnce && window.seedOnce('venue-pocs-v1',     window._migrateVenuePOCs);
+              window.seedOnce && window.seedOnce('lb-houston-v1',     window._migrateLBHouston);
             }
           }
         }
