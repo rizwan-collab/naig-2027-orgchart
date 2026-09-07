@@ -1825,6 +1825,7 @@ html.onboard-mode #onboardScreen { display: flex !important; }
  <div class="section-actions">
  <button class="btn btn-light" id="vviewCards" onclick="setVenueView('cards')">▦ Pipeline</button>
  <button class="btn btn-light" id="vviewSpecs" onclick="setVenueView('specs')">☰ Facility Specs</button>
+ <button class="btn btn-light" id="vviewFit" onclick="setVenueView('fit')" title="Can each venue actually take our window? Hours, lights, courts, exclusivity — side by side.">◪ Fit Matrix</button>
  <button class="btn btn-light" onclick="exportVenuesCSV()">⬇ CSV</button>
  <button class="btn btn-primary" onclick="openVenueModal()">+ Add Venue</button>
  </div>
@@ -8770,16 +8771,100 @@ window.setVenueView = function (v) {
   window._venueView = v;
   const cards = document.getElementById('venuesTierWrap');
   const specs = document.getElementById('venuesSpecsWrap');
-  if (cards) cards.style.display = v === 'specs' ? 'none' : '';
-  if (specs) specs.style.display = v === 'specs' ? '' : 'none';
-  const bc = document.getElementById('vviewCards'), bs = document.getElementById('vviewSpecs');
-  [[bc, v === 'cards'], [bs, v === 'specs']].forEach(([b, on]) => {
+  let fit = document.getElementById('venuesFitWrap');
+  // The Fit Matrix pane is created on demand so this works even on a page whose
+  // markup predates it — no dependency on the container existing in the HTML.
+  if (!fit && specs && specs.parentNode) {
+    fit = document.createElement('div');
+    fit.id = 'venuesFitWrap';
+    fit.style.display = 'none';
+    specs.parentNode.insertBefore(fit, specs.nextSibling);
+  }
+  if (cards) cards.style.display = (v === 'cards') ? '' : 'none';
+  if (specs) specs.style.display = (v === 'specs') ? '' : 'none';
+  if (fit)   fit.style.display   = (v === 'fit')   ? '' : 'none';
+  const bc = document.getElementById('vviewCards'),
+        bs = document.getElementById('vviewSpecs'),
+        bf = document.getElementById('vviewFit');
+  [[bc, v === 'cards'], [bs, v === 'specs'], [bf, v === 'fit']].forEach(([b, on]) => {
     if (!b) return;
     b.style.background = on ? '#14304C' : '';
     b.style.color = on ? '#fff' : '';
     b.style.borderColor = on ? '#14304C' : '';
   });
   window.renderVenues && window.renderVenues();
+};
+
+/* ── THE ASK, in one place ──────────────────────────────────────────────
+   Rizwan, 7 Sep 2026: "our timings and ask is not going to change". So this
+   is a constant, not a setting. Every fit verdict is measured against it.
+   Times are minutes from midnight so the comparison is arithmetic, not string
+   matching. Thursday is setup only, which is why it starts at noon. */
+window.NAIG_WINDOW = [
+  { day:'Thu 25', kind:'weekday', open: 12*60, close: 22*60, label:'setup' },
+  { day:'Fri 26', kind:'weekday', open:  7*60, close: 22*60, label:'play'  },
+  { day:'Sat 27', kind:'weekend', open:  7*60, close: 22*60, label:'play'  },
+  { day:'Sun 28', kind:'weekend', open:  7*60, close: 19*60, label:'play + breakdown' }
+];
+
+/* Parse the loose things people actually type: "8am-10pm", "8:00 am – 10:00 pm",
+   "07:00-22:00", "8a-8p". Returns {open, close} in minutes, or null if we
+   cannot read it — null means "ask", never "fails". */
+window._parseHours = function (s) {
+  const raw = String(s || '').trim();
+  if (!raw) return null;
+  if (/24\s*(\/|-)?\s*7|24 hours|any time|anytime/i.test(raw)) return { open: 0, close: 24*60 };
+  const m = raw.match(/(\d{1,2})(?::(\d{2}))?\s*([ap])?\.?m?\.?\s*(?:-|–|—|to)\s*(\d{1,2})(?::(\d{2}))?\s*([ap])?\.?m?\.?/i);
+  if (!m) return null;
+  const toMin = (h, mm, ap, isEnd) => {
+    let hr = parseInt(h, 10);
+    if (isNaN(hr)) return null;
+    const min = parseInt(mm || '0', 10);
+    if (ap) {
+      const pm = ap.toLowerCase() === 'p';
+      if (hr === 12) hr = pm ? 12 : 0; else if (pm) hr += 12;
+    } else if (isEnd && hr <= 12 && hr < 8) {
+      // "8-10" with no meridiem: a 10 that closes before it opens means 10pm.
+      hr += 12;
+    }
+    return hr * 60 + min;
+  };
+  let open = toMin(m[1], m[2], m[3], false);
+  let close = toMin(m[4], m[5], m[6] || m[3], true);
+  if (open == null || close == null) return null;
+  if (close <= open) close += 12 * 60;          // "8-10" → 08:00–22:00
+  if (close > 24 * 60) close = 24 * 60;
+  return { open, close };
+};
+
+const _hhmm = (m) => {
+  const h24 = Math.floor(m / 60), mm = m % 60;
+  const ap = h24 >= 12 ? 'pm' : 'am';
+  let h = h24 % 12; if (h === 0) h = 12;
+  return h + (mm ? ':' + String(mm).padStart(2, '0') : '') + ap;
+};
+
+/* Does this venue's published day cover what we need? Returns a verdict plus
+   the specific shortfalls, because "no" is useless without "by how much". */
+window._venueFit = function (v) {
+  const wd = window._parseHours(v.hoursWeekday);
+  const we = window._parseHours(v.hoursWeekend);
+  if (!wd && !we) return { code:'ask', label:'Hours not asked', gaps:[], detail:
+    'Nobody has established this venue’s operating hours. That is the single question that killed LB Houston.' };
+  const gaps = [];
+  window.NAIG_WINDOW.forEach(w => {
+    const h = (w.kind === 'weekend') ? we : wd;
+    if (!h) { gaps.push(w.day + ': hours unknown'); return; }
+    if (h.open  > w.open)  gaps.push(w.day + ': opens ' + _hhmm(h.open)  + ', we need ' + _hhmm(w.open));
+    if (h.close < w.close) gaps.push(w.day + ': closes ' + _hhmm(h.close) + ', we need ' + _hhmm(w.close));
+  });
+  const unknown = gaps.some(g => /unknown/.test(g));
+  if (!gaps.length) return { code:'fits', label:'Covers the window', gaps:[], detail:
+    'Published hours cover all four days as asked. Still get it in writing.' };
+  if (unknown && gaps.length === gaps.filter(g => /unknown/.test(g)).length)
+    return { code:'ask', label:'Partly unknown', gaps, detail:'Half the week is unestablished.' };
+  return { code:'gap', label:gaps.length + ' gap' + (gaps.length > 1 ? 's' : ''), gaps, detail:
+    'The venue closes before, or opens after, what the fixture window needs. This is a paid concession to ask for, not an assumption.' };
 };
 
 /* Outdoor sites are the only ones where drainage is a real question.
@@ -8849,6 +8934,98 @@ window.renderVenueSpecs = function () {
       <table style="width:100%;border-collapse:collapse;min-width:1180px">
         <thead><tr>${head}</tr></thead><tbody>${body}</tbody>
       </table>
+    </div>`;
+};
+
+/* ══════════════════════════════════════════════════════════
+   FIT MATRIX — one row per venue, one question: can it take our ask?
+   The Facility Specs view mirrors the Sports Facilities spreadsheet, which is
+   an inventory. This is different: it is a screen. Every column here is
+   something that has already cost us a venue or nearly did — hours (LB
+   Houston), lights (a 10pm finish in late March is two hours after sunset),
+   concurrent use (15 courts is not 15 courts if only 10 run at once),
+   exclusive use (a city facility may not be able to close to the public).
+   Click any row to open that venue and fill the gaps in.
+══════════════════════════════════════════════════════════ */
+window.renderVenueFit = function () {
+  const wrap = document.getElementById('venuesFitWrap');
+  if (!wrap) return;
+  const q = (document.getElementById('venueSearch')?.value || '').toLowerCase();
+  let rows = Object.entries(window._venuesData || {})
+    .filter(([, v]) => !/dropped|declined|not selected|closed|cancelled|not available/i.test(v.status || ''));
+  if (q) rows = rows.filter(([, v]) => JSON.stringify(v).toLowerCase().includes(q));
+
+  const rank = { fits: 0, gap: 1, ask: 2 };
+  rows = rows.map(([k, v]) => [k, v, window._venueFit(v)])
+             .sort((a, b) => (rank[a[2].code] - rank[b[2].code])
+                          || String(a[1].name || '').localeCompare(String(b[1].name || '')));
+
+  const pill = (txt, bg, fg, bd) => `<span style="display:inline-block;font-size:10.5px;font-weight:700;
+      padding:2px 8px;border-radius:20px;background:${bg};color:${fg};border:1px solid ${bd};
+      white-space:nowrap">${txt}</span>`;
+  const verdict = (f) => f.code === 'fits' ? pill('✓ ' + f.label, '#e9f7ef', '#166534', '#a8d9c0')
+                       : f.code === 'gap'  ? pill('✕ ' + f.label, '#fef2f2', '#b91c1c', '#fecaca')
+                                           : pill('? ' + f.label, '#fffbeb', '#92400e', '#fde68a');
+  const val = (s, warn) => {
+    const t = String(s || '').trim();
+    if (!t) return '<span style="color:#cbd5e1;font-style:italic">ask</span>';
+    return warn && warn.test(t)
+      ? `<span style="color:#b91c1c;font-weight:600">${esc(t)}</span>` : esc(t);
+  };
+
+  const counts = { fits:0, gap:0, ask:0 };
+  rows.forEach(([, , f]) => counts[f.code]++);
+
+  const head = ['Venue','Fit vs our window','Courts / Fields','Lights','In/Out','Weekday hrs',
+                'Weekend hrs','All at once','Exclusive','Price quoted','Site lead']
+    .map(h => `<th style="text-align:left;padding:7px 9px;font-size:10.5px;letter-spacing:.04em;
+       text-transform:uppercase;color:#475569;font-weight:700;white-space:nowrap;
+       border-bottom:2px solid #e2e8f0;background:#f8fafc;position:sticky;top:0">${h}</th>`).join('');
+
+  const td = 'padding:7px 9px;font-size:12px;border-bottom:1px solid #eef2f7;vertical-align:top;color:#334155';
+  const body = rows.map(([k, v, f]) => `
+    <tr onclick="openVenueModal('${k}')" style="cursor:pointer"
+        onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+      <td style="${td};font-weight:650;color:#0f172a;min-width:180px">${esc(v.name || '')}
+        <div style="font-size:10.5px;color:#94a3b8;font-weight:400">${esc(v.status || '')}</div></td>
+      <td style="${td}">${verdict(f)}
+        ${f.gaps.length ? `<div style="font-size:10.5px;color:#b91c1c;margin-top:3px;line-height:1.45">
+          ${f.gaps.map(g => esc(g)).join('<br>')}</div>` : ''}</td>
+      <td style="${td};min-width:150px">${val(v.fieldCount)}</td>
+      <td style="${td}">${val(v.lights, /^no$/i)}</td>
+      <td style="${td}">${val(v.indoorOutdoor)}</td>
+      <td style="${td}">${val(v.hoursWeekday)}</td>
+      <td style="${td}">${val(v.hoursWeekend)}</td>
+      <td style="${td}">${val(v.concurrentUse, /^(no|partial)$/i)}</td>
+      <td style="${td}">${val(v.exclusiveUse, /^no/i)}</td>
+      <td style="${td}">${val(v.rentalFee)}</td>
+      <td style="${td}">${val(v.siteLead)}</td>
+    </tr>`).join('');
+
+  wrap.innerHTML = `
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:11px 13px;margin-bottom:10px">
+      <div style="font-size:12px;font-weight:700;color:#0f172a;margin-bottom:4px">Measured against the fixed ask</div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:#475569">
+        ${window.NAIG_WINDOW.map(w => `<span><strong style="color:#0f172a">${w.day}</strong>
+          ${_hhmm(w.open)}–${_hhmm(w.close)} <span style="color:#94a3b8">${w.label}</span></span>`).join('')}
+      </div>
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+        ${pill(counts.fits + ' cover it', '#e9f7ef', '#166534', '#a8d9c0')}
+        ${pill(counts.gap + ' fall short', '#fef2f2', '#b91c1c', '#fecaca')}
+        ${pill(counts.ask + ' never asked', '#fffbeb', '#92400e', '#fde68a')}
+      </div>
+      ${counts.ask ? `<div style="margin-top:7px;font-size:11px;color:#92400e;line-height:1.5">
+        Amber is not neutral. LB Houston sat amber for eleven weeks and five emails, then declined —
+        and we still do not know whether it was the courts or the hours. Ask early.</div>` : ''}
+    </div>
+    <div style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:10px;background:#fff">
+      <table style="width:100%;border-collapse:collapse;min-width:1320px">
+        <thead><tr>${head}</tr></thead><tbody>${body}</tbody>
+      </table>
+    </div>
+    <div style="font-size:11px;color:#94a3b8;margin-top:7px">
+      Click any row to open the venue and fill in what is missing. Verdicts come from the two hours
+      fields — everything else is shown so you can compare, not scored.
     </div>`;
 };
 
@@ -8988,8 +9165,9 @@ window.renderVenues = function() {
     tier('In Works', inWorks, 'tier-inworks', false, 'in-works') +
     tier('Closed / Out', closed, 'tier-closed', true, 'closed');
 
-  // The specs table reads the same data and the same search box.
+  // The specs table and the fit matrix read the same data and the same search box.
   window.renderVenueSpecs && window.renderVenueSpecs();
+  window.renderVenueFit && window.renderVenueFit();
 };
 
 // ── Drag & drop between venue tiers ──────────────────────────────
@@ -9201,6 +9379,12 @@ function openVenueModal(editKey) {
   document.getElementById('venuePitchType').value      = v.pitchType || '';
   document.getElementById('venueFieldDims').value      = v.fieldDims || '';
   document.getElementById('venueDrainage').value       = v.drainage || '';
+  document.getElementById('venueHoursWeekday').value   = v.hoursWeekday || '';
+  document.getElementById('venueHoursWeekend').value   = v.hoursWeekend || '';
+  document.getElementById('venueLights').value         = v.lights || '';
+  document.getElementById('venueInOut').value          = v.indoorOutdoor || '';
+  document.getElementById('venueConcurrent').value     = v.concurrentUse || '';
+  document.getElementById('venueExclusive').value      = v.exclusiveUse || '';
   // Logistics
   document.getElementById('venueParking').value = v.parking || '';
   document.getElementById('venueFloorType').value = v.floorType || '';
@@ -9252,6 +9436,12 @@ function saveVenue() {
     pitchType: document.getElementById('venuePitchType').value.trim(),
     fieldDims: document.getElementById('venueFieldDims').value.trim(),
     drainage: document.getElementById('venueDrainage').value.trim(),
+    hoursWeekday: document.getElementById('venueHoursWeekday').value.trim(),
+    hoursWeekend: document.getElementById('venueHoursWeekend').value.trim(),
+    lights: document.getElementById('venueLights').value,
+    indoorOutdoor: document.getElementById('venueInOut').value,
+    concurrentUse: document.getElementById('venueConcurrent').value,
+    exclusiveUse: document.getElementById('venueExclusive').value,
     parking: document.getElementById('venueParking').value.trim(),
     floorType: document.getElementById('venueFloorType').value.trim(),
     av: document.getElementById('venueAV').value.trim(),
@@ -11987,6 +12177,47 @@ window._migrateLBHouston = function () {
   }
 };
 
+/* ══════════════════════════════════════════════════════════
+   MIGRATION — seed the Fit Matrix with what we already know
+   ──────────────────────────────────────────────────────────
+   Only facts anyone actually told us go in here. Hours are set for exactly one
+   venue — LB Houston — because Kelly Lim published them in writing on 1 Jul
+   2026. Every other venue's hours stay blank, which is the honest answer and
+   is what puts them in the amber "never asked" column where they belong.
+   Indoor/outdoor is filled where the venue type settles it beyond doubt.
+══════════════════════════════════════════════════════════ */
+window._migrateFitMatrix = function () {
+  const now = new Date().toISOString();
+  const V = window._venuesData || {};
+  const set = (k, patch) => window._dbSet &&
+    window._dbSet(window._dbRef('naig2027/venues/' + k), Object.assign({}, V[k] || {}, patch, { updated: now }));
+  const find = (re) => Object.keys(V).find(k => re.test(String((V[k] || {}).name || '')));
+
+  const kLB = find(/lb\s*houston/i);
+  if (kLB) set(kLB, {
+    hoursWeekday:'8am-10pm', hoursWeekend:'8am-8pm',
+    indoorOutdoor:'Both', concurrentUse:'No', exclusiveUse:''
+  });
+
+  const kBirch = find(/birch/i);
+  if (kBirch) set(kBirch, {
+    lights:'Yes — some', indoorOutdoor:'Both', concurrentUse:''
+  });
+
+  const kArl = find(/arlington tennis center/i);
+  if (kArl) set(kArl, { lights:'Yes — all', indoorOutdoor:'Outdoor' });
+
+  // Indoor/outdoor where the venue type leaves no room for doubt.
+  [[/starcenter|athletic club|badminton center|pickler/i, 'Indoor'],
+   [/gateway park|little elm soccer|texomo|russell creek|railroad park|maverick stadium|skinner/i, 'Outdoor']
+  ].forEach(([re, io]) => {
+    Object.keys(V).forEach(k => {
+      const v = V[k] || {};
+      if (!v.indoorOutdoor && re.test(String(v.name || ''))) set(k, { indoorOutdoor: io });
+    });
+  });
+};
+
 window._maybeCricketPrimary = function () {
   if (!window._venuesData || !Object.keys(window._venuesData).length) return;
   if (!window._hotelsData || !Object.keys(window._hotelsData).length) return;
@@ -12019,6 +12250,7 @@ window._maybeCricketPrimary = function () {
               window.seedOnce && window.seedOnce('facility-specs-v1', window._migrateFacilitySpecs);
               window.seedOnce && window.seedOnce('venue-pocs-v1',     window._migrateVenuePOCs);
               window.seedOnce && window.seedOnce('lb-houston-v1',     window._migrateLBHouston);
+              window.seedOnce && window.seedOnce('fit-matrix-v1',     window._migrateFitMatrix);
             }
           }
         }
@@ -14267,6 +14499,49 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
    <div class="form-group">
     <label>Drainage System</label>
     <input type="text" id="venueDrainage" placeholder="Outdoor sites only — leave blank if indoor" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+   </div>
+  </div>
+ </div>
+ <div class="form-group" style="grid-column:1/-1;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;margin-bottom:4px">
+  <div style="font-size:.78rem;font-weight:700;color:#92400e;margin-bottom:3px">Can it actually take our ask? <span style="font-weight:500;color:#a16207">— these five decide it</span></div>
+  <div style="font-size:11px;color:#a16207;line-height:1.5;margin-bottom:8px">
+   Fill the two hours boxes and the Fit Matrix works out whether the venue covers our window on its own.
+   LB Houston ran eleven weeks and died because nobody established that they close at 8pm on weekends.
+   Ask for these before court counts and pricing.
+  </div>
+  <div class="venue-form-grid" style="gap:8px">
+   <div class="form-group">
+    <label>Weekday hours (Thu / Fri)</label>
+    <input type="text" id="venueHoursWeekday" placeholder="e.g. 8am-10pm  ·  or 07:00-22:00" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+   </div>
+   <div class="form-group">
+    <label>Weekend hours (Sat / Sun)</label>
+    <input type="text" id="venueHoursWeekend" placeholder="e.g. 8am-8pm — this is the one that bites" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+   </div>
+   <div class="form-group">
+    <label>Lights</label>
+    <select id="venueLights" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+     <option value="">— unknown —</option><option>Yes — all</option><option>Yes — some</option>
+     <option>No</option><option>N/A — indoor</option>
+    </select>
+   </div>
+   <div class="form-group">
+    <label>Indoor / Outdoor</label>
+    <select id="venueInOut" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+     <option value="">— unknown —</option><option>Indoor</option><option>Outdoor</option><option>Both</option>
+    </select>
+   </div>
+   <div class="form-group">
+    <label>All courts/fields usable at once?</label>
+    <select id="venueConcurrent" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+     <option value="">— unknown —</option><option>Yes</option><option>No</option><option>Partial</option>
+    </select>
+   </div>
+   <div class="form-group">
+    <label>Exclusive use / can close to public?</label>
+    <select id="venueExclusive" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+     <option value="">— unknown —</option><option>Yes</option><option>No — shared</option><option>Partial</option>
+    </select>
    </div>
   </div>
  </div>
