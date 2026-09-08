@@ -8825,6 +8825,47 @@ window.NAIG_WINDOW = [
   { day:'Mon 29', kind:'weekday', open: null,  close: null,   label:'breakdown',        test:false }
 ];
 
+/* CRICKET IS THE ONE EXCEPTION. Rizwan, 8 Sep 2026: "thursday to sunday for
+   cricket". So cricket plays Thu 25 – Sun 28 while every other sport plays
+   Fri–Sun, and Mon 29 stays cricket's rain-day makeup rather than a pure
+   breakdown day. This is not a rounding difference: it moves the Durant /
+   Denison hotel block and the cricket coach charter, both of which sit ~90 min
+   from the DFW clusters and are contracted separately. */
+window.NAIG_CRICKET = {
+  play: 'Thu 25 – Sun 28 Mar 2027, 8:00am–6:00pm',
+  extra: 'Mon 29 Mar held as the rain-day makeup',
+  test: /cricket|texomo|calera|prairie view|russell creek/i
+};
+
+/* MINIMUM COURT COUNTS. Rizwan, 8 Sep 2026: "for pb we need 14-16 and tennis
+   we need 12-14 as minimum". A venue below the floor is out regardless of how
+   good its hours are — which is exactly why LB Houston was closed on 8 Sep
+   even after the new hours model made its opening times work. Watch for
+   hybrid courts being counted twice: a facility advertising "12 tennis + 2
+   hybrid" and "8 pickleball + 6 hybrid" is usually describing the same
+   physical courts twice over, so it cannot deliver both sports at once. */
+window.NAIG_MINIMUMS = {
+  tennis:     { min: 12, ideal: 14, label: 'Tennis' },
+  pickleball: { min: 14, ideal: 16, label: 'Pickleball' }
+};
+
+/* Does the court count clear the floor for the sports this venue is meant to
+   host? Returns null when we do not know the count — silence, not a pass. */
+window._courtCheck = function (v) {
+  const sports = String(v.sports || '') + ' ' + String(v.name || '');
+  const out = [];
+  [['tennis', /tennis/i], ['pickleball', /pickle|\bpb\b/i]].forEach(([key, re]) => {
+    if (!re.test(sports)) return;
+    const n = parseInt(v[key === 'tennis' ? 'courtsTennis' : 'courtsPickleball'], 10);
+    const m = window.NAIG_MINIMUMS[key];
+    if (isNaN(n)) { out.push({ key, label: m.label, state: 'unknown', text: m.label + ': count unknown (need ' + m.min + '–' + m.ideal + ')' }); return; }
+    if (n < m.min)   out.push({ key, label: m.label, state: 'under', text: m.label + ': ' + n + ' — below the ' + m.min + ' minimum' });
+    else if (n < m.ideal) out.push({ key, label: m.label, state: 'ok',  text: m.label + ': ' + n + ' — clears ' + m.min + ', short of ' + m.ideal });
+    else out.push({ key, label: m.label, state: 'good', text: m.label + ': ' + n + ' — clears ' + m.ideal });
+  });
+  return out.length ? out : null;
+};
+
 /* Parse the loose things people actually type: "8am-10pm", "8:00 am – 10:00 pm",
    "07:00-22:00", "8a-8p". Returns {open, close} in minutes, or null if we
    cannot read it — null means "ask", never "fails". */
@@ -8997,7 +9038,7 @@ window.renderVenueFit = function () {
   const counts = { fits:0, gap:0, ask:0 };
   rows.forEach(([, , f]) => counts[f.code]++);
 
-  const head = ['Venue','Fit vs our window','Courts / Fields','Lights','In/Out','Weekday hrs',
+  const head = ['Venue','Fit vs our window','Courts vs minimum','Courts / Fields','Lights','In/Out','Weekday hrs',
                 'Weekend hrs','All at once','Exclusive','Price quoted','Site lead']
     .map(h => `<th style="text-align:left;padding:7px 9px;font-size:10.5px;letter-spacing:.04em;
        text-transform:uppercase;color:#475569;font-weight:700;white-space:nowrap;
@@ -9012,6 +9053,13 @@ window.renderVenueFit = function () {
       <td style="${td}">${verdict(f)}
         ${f.gaps.length ? `<div style="font-size:10.5px;color:#b91c1c;margin-top:3px;line-height:1.45">
           ${f.gaps.map(g => esc(g)).join('<br>')}</div>` : ''}</td>
+      <td style="${td};min-width:150px">${(() => {
+        const cc = window._courtCheck(v);
+        if (!cc) return '<span style="color:#cbd5e1;font-style:italic">n/a</span>';
+        const col = { under:'#b91c1c', unknown:'#94a3b8', ok:'#a16207', good:'#166534' };
+        return cc.map(c => `<div style="color:${col[c.state]};font-weight:${c.state==='under'?'700':'500'};
+          font-size:11.5px;line-height:1.45">${esc(c.text)}</div>`).join('');
+      })()}</td>
       <td style="${td};min-width:150px">${val(v.fieldCount)}</td>
       <td style="${td}">${val(v.lights, /^no$/i)}</td>
       <td style="${td}">${val(v.indoorOutdoor)}</td>
@@ -9033,7 +9081,14 @@ window.renderVenueFit = function () {
       </div>
       <div style="margin-top:6px;font-size:11px;color:#64748b;line-height:1.5">
         Six days of occupancy, three of play. Verdicts test the play hours only — setup and breakdown
-        hours have not been set, so a green row still needs access confirmed for Wed 24 to Mon 29.
+        hours have not been set, so a green row still needs access confirmed for Wed 24 to Mon 29.<br>
+        <strong style="color:#334155">Cricket is the exception:</strong> ${esc(window.NAIG_CRICKET.play)},
+        ${esc(window.NAIG_CRICKET.extra)}.<br>
+        <strong style="color:#334155">Court minimums:</strong>
+        Tennis ${window.NAIG_MINIMUMS.tennis.min}–${window.NAIG_MINIMUMS.tennis.ideal} ·
+        Pickleball ${window.NAIG_MINIMUMS.pickleball.min}–${window.NAIG_MINIMUMS.pickleball.ideal}.
+        Below the floor is out regardless of hours. Beware hybrid courts counted under both sports —
+        they are usually the same physical courts and cannot serve both at once.
       </div>
       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
         ${pill(counts.fits + ' cover it', '#e9f7ef', '#166534', '#a8d9c0')}
@@ -9411,6 +9466,8 @@ function openVenueModal(editKey) {
   document.getElementById('venueInOut').value          = v.indoorOutdoor || '';
   document.getElementById('venueConcurrent').value     = v.concurrentUse || '';
   document.getElementById('venueExclusive').value      = v.exclusiveUse || '';
+  document.getElementById('venueCourtsTennis').value   = v.courtsTennis || '';
+  document.getElementById('venueCourtsPB').value       = v.courtsPickleball || '';
   // Logistics
   document.getElementById('venueParking').value = v.parking || '';
   document.getElementById('venueFloorType').value = v.floorType || '';
@@ -9468,6 +9525,8 @@ function saveVenue() {
     indoorOutdoor: document.getElementById('venueInOut').value,
     concurrentUse: document.getElementById('venueConcurrent').value,
     exclusiveUse: document.getElementById('venueExclusive').value,
+    courtsTennis: document.getElementById('venueCourtsTennis').value.trim(),
+    courtsPickleball: document.getElementById('venueCourtsPB').value.trim(),
     parking: document.getElementById('venueParking').value.trim(),
     floorType: document.getElementById('venueFloorType').value.trim(),
     av: document.getElementById('venueAV').value.trim(),
@@ -14603,6 +14662,14 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
     <select id="venueConcurrent" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
      <option value="">— unknown —</option><option>Yes</option><option>No</option><option>Partial</option>
     </select>
+   </div>
+   <div class="form-group">
+    <label>Tennis courts (number) <span style="font-weight:400;color:#a16207">— min 12, ideal 14</span></label>
+    <input type="number" min="0" id="venueCourtsTennis" placeholder="dedicated tennis only" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+   </div>
+   <div class="form-group">
+    <label>Pickleball courts (number) <span style="font-weight:400;color:#a16207">— min 14, ideal 16</span></label>
+    <input type="number" min="0" id="venueCourtsPB" placeholder="dedicated pickleball only" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
    </div>
    <div class="form-group">
     <label>Exclusive use / can close to public?</label>
