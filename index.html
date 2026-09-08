@@ -8795,16 +8795,34 @@ window.setVenueView = function (v) {
   window.renderVenues && window.renderVenues();
 };
 
-/* ── THE ASK, in one place ──────────────────────────────────────────────
-   Rizwan, 7 Sep 2026: "our timings and ask is not going to change". So this
-   is a constant, not a setting. Every fit verdict is measured against it.
-   Times are minutes from midnight so the comparison is arithmetic, not string
-   matching. Thursday is setup only, which is why it starts at noon. */
+/* ── THE SITE MODEL, in one place ───────────────────────────────────────
+   REVISED 8 Sep 2026 by Rizwan, replacing the 7am–10pm model that stood
+   until 7 Sep: "Friday through Sunday, from 8:00 AM to 6:00 PM each day…
+   Wednesday and Thursday for setup days and Sunday to Monday for breakdown
+   and cleanup… we will use the hours here for all sites."
+
+   SIX DAYS, THREE OF THEM PLAY. Wed 24 and Thu 25 are setup — tents and
+   equipment, no games. Fri 26 / Sat 27 / Sun 28 are play, 8am–6pm. Breakdown
+   starts as Sunday's play ends and runs into Mon 29. A venue is needed for
+   the whole six-day span, not the three play days, and that is what a
+   contract has to say.
+
+   ONLY THE PLAY DAYS ARE SCORED (test:true). Setup and breakdown hours have
+   not been set, so scoring them would be inventing a requirement. They are
+   listed so nobody quotes a three-day booking for a six-day occupancy.
+
+   WHAT THIS CHANGED: the old model needed a 7am open and a 10pm close, which
+   almost no facility publishes. 8am–6pm sits inside ordinary opening hours
+   nearly everywhere, and finishes well before the ~7:45pm late-March sunset —
+   so floodlights stop being a hard filter. Venues screened out under the old
+   model deserve a second look. LB Houston is the obvious one. */
 window.NAIG_WINDOW = [
-  { day:'Thu 25', kind:'weekday', open: 12*60, close: 22*60, label:'setup' },
-  { day:'Fri 26', kind:'weekday', open:  7*60, close: 22*60, label:'play'  },
-  { day:'Sat 27', kind:'weekend', open:  7*60, close: 22*60, label:'play'  },
-  { day:'Sun 28', kind:'weekend', open:  7*60, close: 19*60, label:'play + breakdown' }
+  { day:'Wed 24', kind:'weekday', open: null,  close: null,   label:'setup',            test:false },
+  { day:'Thu 25', kind:'weekday', open: null,  close: null,   label:'setup',            test:false },
+  { day:'Fri 26', kind:'weekday', open:  8*60, close: 18*60,  label:'play',             test:true  },
+  { day:'Sat 27', kind:'weekend', open:  8*60, close: 18*60,  label:'play',             test:true  },
+  { day:'Sun 28', kind:'weekend', open:  8*60, close: 18*60,  label:'play → breakdown', test:true  },
+  { day:'Mon 29', kind:'weekday', open: null,  close: null,   label:'breakdown',        test:false }
 ];
 
 /* Parse the loose things people actually type: "8am-10pm", "8:00 am – 10:00 pm",
@@ -8852,15 +8870,18 @@ window._venueFit = function (v) {
   if (!wd && !we) return { code:'ask', label:'Hours not asked', gaps:[], detail:
     'Nobody has established this venue’s operating hours. That is the single question that killed LB Houston.' };
   const gaps = [];
-  window.NAIG_WINDOW.forEach(w => {
+  // Only the play days carry a required open/close. Setup and breakdown days
+  // are occupancy, not hours — scoring them would invent a requirement.
+  window.NAIG_WINDOW.filter(w => w.test).forEach(w => {
     const h = (w.kind === 'weekend') ? we : wd;
     if (!h) { gaps.push(w.day + ': hours unknown'); return; }
     if (h.open  > w.open)  gaps.push(w.day + ': opens ' + _hhmm(h.open)  + ', we need ' + _hhmm(w.open));
     if (h.close < w.close) gaps.push(w.day + ': closes ' + _hhmm(h.close) + ', we need ' + _hhmm(w.close));
   });
   const unknown = gaps.some(g => /unknown/.test(g));
-  if (!gaps.length) return { code:'fits', label:'Covers the window', gaps:[], detail:
-    'Published hours cover all four days as asked. Still get it in writing.' };
+  if (!gaps.length) return { code:'fits', label:'Covers play hours', gaps:[], detail:
+    'Published hours cover 8am–6pm on all three play days. Still get it in writing — and confirm ' +
+    'access on the setup and breakdown days, which this verdict does not test.' };
   if (unknown && gaps.length === gaps.filter(g => /unknown/.test(g)).length)
     return { code:'ask', label:'Partly unknown', gaps, detail:'Half the week is unestablished.' };
   return { code:'gap', label:gaps.length + ' gap' + (gaps.length > 1 ? 's' : ''), gaps, detail:
@@ -9006,8 +9027,13 @@ window.renderVenueFit = function () {
     <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:11px 13px;margin-bottom:10px">
       <div style="font-size:12px;font-weight:700;color:#0f172a;margin-bottom:4px">Measured against the fixed ask</div>
       <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:#475569">
-        ${window.NAIG_WINDOW.map(w => `<span><strong style="color:#0f172a">${w.day}</strong>
-          ${_hhmm(w.open)}–${_hhmm(w.close)} <span style="color:#94a3b8">${w.label}</span></span>`).join('')}
+        ${window.NAIG_WINDOW.map(w => `<span><strong style="color:${w.test ? '#0f172a' : '#94a3b8'}">${w.day}</strong>
+          ${w.test ? _hhmm(w.open) + '–' + _hhmm(w.close) : '<span style="color:#94a3b8">access</span>'}
+          <span style="color:#94a3b8">${w.label}</span></span>`).join('')}
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:#64748b;line-height:1.5">
+        Six days of occupancy, three of play. Verdicts test the play hours only — setup and breakdown
+        hours have not been set, so a green row still needs access confirmed for Wed 24 to Mon 29.
       </div>
       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
         ${pill(counts.fits + ' cover it', '#e9f7ef', '#166534', '#a8d9c0')}
@@ -12218,6 +12244,46 @@ window._migrateFitMatrix = function () {
   });
 };
 
+/* ══════════════════════════════════════════════════════════
+   MIGRATION — the 8 Sep site model, stamped on every venue as a placeholder
+   ──────────────────────────────────────────────────────────
+   Rizwan, 8 Sep 2026: "we will use the hours here for all sites… so for all
+   venues use this as placeholders."
+
+   WHAT GOES WHERE, AND WHY IT MATTERS. Two different kinds of fact live on a
+   venue record and they must not be mixed:
+     · datesAvailable / datesReady = WHAT WE ARE ASKING FOR. Ours to state.
+       These get the placeholder.
+     · hoursWeekday / hoursWeekend = WHAT THE VENUE PUBLISHES. Theirs to tell
+       us. These stay EMPTY until someone actually asks.
+   Filling the venue-hours fields with our own requested hours would make every
+   row in the Fit Matrix read "fits" — the tool would stop asking the one
+   question that killed LB Houston. So it is left blank on purpose, and the
+   matrix keeps showing amber until a real answer arrives.
+
+   Marked PLACEHOLDER in the text so nobody mistakes it for a confirmation.
+══════════════════════════════════════════════════════════ */
+window._migrateSiteModel = function () {
+  const now = new Date().toISOString();
+  const V = window._venuesData || {};
+  const set = (k, patch) => window._dbSet &&
+    window._dbSet(window._dbRef('naig2027/venues/' + k), Object.assign({}, V[k] || {}, patch, { updated: now }));
+  const dead = (v) => /dropped|declined|not selected|closed|cancelled|not available/i.test(String(v.status || ''));
+
+  const AVAIL = 'PLACEHOLDER — Fri 26, Sat 27, Sun 28 Mar 2027, 8:00am–6:00pm each day (play). Not yet confirmed by the venue.';
+  const READY = 'PLACEHOLDER — access Wed 24 + Thu 25 Mar (setup, tents and equipment), and Sun 28 → Mon 29 Mar (breakdown and cleanup). Six days total.';
+
+  Object.keys(V).forEach(k => {
+    const v = V[k] || {};
+    if (dead(v)) return;
+    const patch = {};
+    // Only overwrite our own assumptions, never a real answer from a venue.
+    if (!v.datesAvailable || /^placeholder|^unknown|^tbd/i.test(v.datesAvailable)) patch.datesAvailable = AVAIL;
+    if (!v.datesReady     || /^placeholder|^unknown|^tbd|^—$/i.test(v.datesReady)) patch.datesReady = READY;
+    if (Object.keys(patch).length) set(k, patch);
+  });
+};
+
 window._maybeCricketPrimary = function () {
   if (!window._venuesData || !Object.keys(window._venuesData).length) return;
   if (!window._hotelsData || !Object.keys(window._hotelsData).length) return;
@@ -12251,6 +12317,7 @@ window._maybeCricketPrimary = function () {
               window.seedOnce && window.seedOnce('venue-pocs-v1',     window._migrateVenuePOCs);
               window.seedOnce && window.seedOnce('lb-houston-v1',     window._migrateLBHouston);
               window.seedOnce && window.seedOnce('fit-matrix-v1',     window._migrateFitMatrix);
+              window.seedOnce && window.seedOnce('site-model-v1',     window._migrateSiteModel);
             }
           }
         }
