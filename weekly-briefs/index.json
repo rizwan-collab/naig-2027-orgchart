@@ -1,0 +1,20 @@
+{
+  "briefs": [
+    {
+      "date": "2026-09-09",
+      "label": "September 9, 2026",
+      "files": [
+        {
+          "type": "PDF",
+          "name": "NAIG Logistics Weekly Update",
+          "path": "./weekly-briefs/2026/september/2026-09-09/NAIG_Logistics_Weekly_Update_2026-09-09.pdf"
+        },
+        {
+          "type": "DOCX",
+          "name": "NAIG Logistics Weekly Update - Editable",
+          "path": "./weekly-briefs/2026/september/2026-09-09/NAIG_Logistics_Weekly_Update_2026-09-09_EDITABLE.docx"
+        }
+      ]
+    }
+  ]
+}

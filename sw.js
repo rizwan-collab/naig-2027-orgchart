@@ -1,7 +1,7 @@
 // Cache version — BUMP THIS ON EVERY DEPLOY that changes cached assets.
 // The activate handler deletes every cache whose name !== CACHE_NAME, so
 // bumping the version is what forces stale entries out of existing installs.
-const CACHE_NAME = 'naig2027-v2';
+const CACHE_NAME = 'naig2027-v3';
 const APP_SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
@@ -46,6 +46,9 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin || event.request.method !== 'GET') {
     return; // let the browser handle it normally
   }
+
+  // Weekly briefs change every week and should always come directly from Pages.
+  if (url.pathname.includes('/weekly-briefs/')) return;
 
   if (isAppCode(event.request, url)) {
     event.respondWith(
