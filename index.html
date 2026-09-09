@@ -12343,6 +12343,70 @@ window._migrateSiteModel = function () {
   });
 };
 
+/* ══════════════════════════════════════════════════════════
+   MIGRATION — back-fill the matrix from text we already hold
+   ──────────────────────────────────────────────────────────
+   Court counts, lights and indoor/outdoor have been sitting inside free-text
+   fields (fieldCount, capacity, type, name) since before those columns
+   existed. This reads them out rather than making anyone retype them.
+
+   TWO RULES, both about not inventing:
+     · DEDICATED COURTS ONLY. "12 tennis + 2 hybrid" yields 12, not 14. The
+       hybrids get counted under pickleball too, so adding them would let one
+       physical court satisfy two sports at once — the exact arithmetic that
+       made LB Houston look bigger than it is.
+     · EMPTY FIELDS ONLY. Anything already answered is left alone. A parse of
+       marketing copy must never overwrite something a human confirmed.
+   Anything ambiguous is skipped and stays visibly unknown in the matrix.
+══════════════════════════════════════════════════════════ */
+window._migrateBackfillCourts = function () {
+  const now = new Date().toISOString();
+  const V = window._venuesData || {};
+  const set = (k, patch) => window._dbSet &&
+    window._dbSet(window._dbRef('naig2027/venues/' + k), Object.assign({}, V[k] || {}, patch, { updated: now }));
+
+  // "20 tennis", "12 tennis courts", "8 pickleball", "8 PB" → the number before the word.
+  const countOf = (txt, re) => {
+    const m = String(txt || '').match(re);
+    return m ? parseInt(m[1], 10) : null;
+  };
+  const TENNIS = /(\d{1,3})\s*(?:dedicated\s*)?tennis/i;
+  const PICKLE = /(\d{1,3})\s*(?:dedicated\s*)?(?:pickleball|pickle|pb\b)/i;
+
+  Object.keys(V).forEach(k => {
+    const v = V[k] || {};
+    const blob = [v.fieldCount, v.capacity, v.notes].filter(Boolean).join(' ');
+    const patch = {};
+
+    if (!v.courtsTennis) {
+      const n = countOf(blob, TENNIS);
+      if (n != null && n > 0 && n < 200) patch.courtsTennis = String(n);
+    }
+    if (!v.courtsPickleball) {
+      const n = countOf(blob, PICKLE);
+      if (n != null && n > 0 && n < 200) patch.courtsPickleball = String(n);
+    }
+
+    if (!v.lights) {
+      const src = [v.fieldCount, v.capacity, v.type, v.name].filter(Boolean).join(' ');
+      if (/\bno\s+light|unlit\b/i.test(src))            patch.lights = 'No';
+      else if (/all\s+light|fully\s+light/i.test(src))  patch.lights = 'Yes — all';
+      else if (/light/i.test(src))                      patch.lights = 'Yes — some';
+    }
+
+    if (!v.indoorOutdoor) {
+      const src = [v.type, v.name, v.fieldCount].filter(Boolean).join(' ');
+      const hasIn  = /indoor|arena|center\b.*indoor/i.test(src);
+      const hasOut = /outdoor|field|park|stadium|grounds|complex/i.test(src);
+      if (hasIn && hasOut)      patch.indoorOutdoor = 'Both';
+      else if (hasIn)           patch.indoorOutdoor = 'Indoor';
+      else if (hasOut)          patch.indoorOutdoor = 'Outdoor';
+    }
+
+    if (Object.keys(patch).length) set(k, patch);
+  });
+};
+
 window._maybeCricketPrimary = function () {
   if (!window._venuesData || !Object.keys(window._venuesData).length) return;
   if (!window._hotelsData || !Object.keys(window._hotelsData).length) return;
@@ -12377,6 +12441,7 @@ window._maybeCricketPrimary = function () {
               window.seedOnce && window.seedOnce('lb-houston-v1',     window._migrateLBHouston);
               window.seedOnce && window.seedOnce('fit-matrix-v1',     window._migrateFitMatrix);
               window.seedOnce && window.seedOnce('site-model-v1',     window._migrateSiteModel);
+              window.seedOnce && window.seedOnce('backfill-courts-v1', window._migrateBackfillCourts);
             }
           }
         }
