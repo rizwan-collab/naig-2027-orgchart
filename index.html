@@ -1075,6 +1075,8 @@ body.ax-readonly #axGateEmail, body.ax-readonly #prospectSearch { pointer-events
 .task-dep-editor { display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:8px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:7px; }
 .task-dep-row { display:flex; align-items:center; gap:6px; min-height:35px; padding:5px 7px; background:#fff; border:1px solid #e2e8f0; border-radius:6px; }
 .task-dep-row.selected { border-color:#8eb4dc; background:#f2f7fc; }
+.task-dep-row.owning { background:#f1f5f9; color:#64748b; }
+.task-dep-row.owning label { cursor:default; }
 .task-dep-row label { flex:1; display:flex; align-items:center; gap:6px; margin:0; color:#334155; font-size:11px; cursor:pointer; }
 .task-dep-row input { width:14px; height:14px; margin:0; }
 .task-dep-row select { width:104px; padding:4px 5px; border:1px solid #cbd5e1; border-radius:5px; background:#fff; font-size:10px; }
@@ -1810,6 +1812,40 @@ html.onboard-mode #onboardScreen { display: flex !important; }
  <button class="btn btn-primary" onclick="openTaskModal()">+ Add Task</button>
  </div>
  </div>
+ <!-- View switcher + all task filters -->
+ <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0 12px;border-bottom:1px solid #e5e7eb;padding-bottom:10px">
+  <div style="display:flex;gap:4px">
+   <button class="tnav-btn active" id="tvw-table" onclick="switchTaskView('table')">Table</button>
+   <button class="tnav-btn" id="tvw-kanban" onclick="switchTaskView('kanban')">Kanban</button>
+   <button class="tnav-btn" id="tvw-grouped" onclick="switchTaskView('grouped')">By Person</button>
+  </div>
+  <div class="hub-filters" style="flex:1;margin:0;padding:0;border:none">
+   <input class="hub-search" id="taskSearch" placeholder="Search tasks..." oninput="renderTasks()">
+   <select class="hub-filter-select" id="filterStatus" onchange="renderTasks()">
+    <option value="">All Statuses</option>
+    <option value="todo">To Do</option><option value="inprogress">In Progress</option>
+    <option value="blocked">Blocked</option><option value="done">Done</option>
+   </select>
+   <select class="hub-filter-select" id="filterPriority" onchange="renderTasks()">
+    <option value="">All Priorities</option>
+    <option value="Urgent">Urgent</option><option value="High">High</option>
+    <option value="Medium">Medium</option><option value="Low">Low</option>
+   </select>
+   <select class="hub-filter-select" id="filterWorkstream" onchange="renderTasks()">
+    <option value="">All Workstreams</option>
+    <option>Core Team</option><option>Food &amp; Beverage</option><option>Hotels &amp; Accommodations</option>
+    <option>Transportation</option><option>Site Management</option><option>Equipment &amp; Signage</option>
+   </select>
+   <select class="hub-filter-select" id="filterVertical" onchange="renderTasks()">
+    <option value="">All Verticals</option>
+    <option>Sports</option><option>Registration</option><option>Finance</option><option>Legal</option>
+    <option>HR / IVS</option><option>Technology</option><option>Marketing</option><option>Command Center</option>
+   </select>
+   <select class="hub-filter-select" id="filterOwner" onchange="setTaskAssigneeLens(this.value)">
+    <option value="">All Assignees</option>
+   </select>
+  </div>
+ </div>
  <!-- Progress bar -->
  <div class="task-progress-label">
  <span id="progressLabel">Loading…</span>
@@ -1831,12 +1867,12 @@ html.onboard-mode #onboardScreen { display: flex !important; }
  <!-- The matrices and list below are two views of the same live Firebase tasks. -->
  <div class="task-matrices" id="taskDependencyMatrices">
   <div class="task-matrix-card">
-   <div class="task-matrix-head"><div><div class="task-matrix-title">Internal Logistics</div><div class="task-matrix-note">Rows own the task. Columns show the Logistics team needed.</div></div><span class="task-matrix-count" id="taskInternalCount">Loading...</span></div>
+    <div class="task-matrix-head"><div><div class="task-matrix-title">Internal Logistics</div><div class="task-matrix-note">Rows are owning workstreams. Columns show supporting workstreams.</div></div><span class="task-matrix-count" id="taskInternalCount">Loading...</span></div>
    <div class="task-matrix-scroll"><table class="task-matrix-table" id="taskInternalMatrix"></table></div>
    <div class="task-matrix-legend"><span><i class="task-matrix-dot" style="background:#d98a0b"></i>To do</span><span><i class="task-matrix-dot" style="background:#2563eb"></i>In progress</span><span><i class="task-matrix-dot" style="background:#dc2626"></i>Blocked</span><span><i class="task-matrix-dot" style="background:#18794e"></i>Done</span><span>Diagonal = owned within team</span></div>
   </div>
   <div class="task-matrix-card">
-   <div class="task-matrix-head"><div><div class="task-matrix-title">Cross-Vertical</div><div class="task-matrix-note">Rows own the task. Columns show the NAIG partner named in the task.</div></div><span class="task-matrix-count" id="taskCrossCount">Loading...</span></div>
+    <div class="task-matrix-head"><div><div class="task-matrix-title">Cross-Vertical</div><div class="task-matrix-note">Rows are owning workstreams. Columns show vertical dependencies.</div></div><span class="task-matrix-count" id="taskCrossCount">Loading...</span></div>
    <div class="task-matrix-scroll"><table class="task-matrix-table cross" id="taskCrossMatrix"></table></div>
    <div class="task-matrix-legend"><span><i class="task-matrix-dot" style="background:#d98a0b"></i>To do</span><span><i class="task-matrix-dot" style="background:#2563eb"></i>In progress</span><span><i class="task-matrix-dot" style="background:#dc2626"></i>Blocked</span><span><i class="task-matrix-dot" style="background:#18794e"></i>Done</span><span>Blank = no task relationship</span></div>
   </div>
@@ -1844,39 +1880,6 @@ html.onboard-mode #onboardScreen { display: flex !important; }
  <div class="task-relation-filter" id="taskRelationFilter"><span id="taskRelationFilterText"></span><button class="hub-filter-btn" onclick="clearTaskRelationFilter()">Show all tasks</button></div>
  <!-- Workload chips -->
  <div id="taskWorkloadStrip" style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px"></div>
- <!-- View switcher + filters -->
- <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0 6px;border-bottom:1px solid #e5e7eb;padding-bottom:10px">
- <div style="display:flex;gap:4px">
- <button class="tnav-btn active" id="tvw-table"   onclick="switchTaskView('table')">≡ Table</button>
- <button class="tnav-btn"        id="tvw-kanban"  onclick="switchTaskView('kanban')"> Kanban</button>
- <button class="tnav-btn"        id="tvw-grouped" onclick="switchTaskView('grouped')"> By Person</button>
- </div>
- <div class="hub-filters" style="flex:1;margin:0;padding:0;border:none">
- <input class="hub-search" id="taskSearch" placeholder=" Search tasks…" oninput="renderTasks()">
- <select class="hub-filter-select" id="filterStatus" onchange="renderTasks()">
- <option value="">All Statuses</option>
- <option value="todo">To Do</option><option value="inprogress">In Progress</option>
- <option value="blocked">Blocked</option><option value="done">Done</option>
- </select>
- <select class="hub-filter-select" id="filterPriority" onchange="renderTasks()">
- <option value="">All Priorities</option>
- <option value="Urgent">🔴 Urgent</option><option value="High">🟠 High</option>
- <option value="Medium">🟡 Medium</option><option value="Low">🟢 Low</option>
- </select>
- <select class="hub-filter-select" id="filterDept" onchange="renderTasks()">
- <option value="">All Departments</option>
- <option>Leadership</option><option>F&amp;B</option><option>Hotels &amp; Accommodations</option>
- <option>Transportation</option><option>Site Management</option><option>Equipment &amp; Signage</option>
- </select>
- <select class="hub-filter-select" id="filterOwner" onchange="setTaskAssigneeLens(this.value)">
- <option value="">All Assignees</option>
- <option>Rizwan Ali</option><option>Azmina Hashim</option><option>Sohail Ali</option>
- <option>Humera Kabani</option><option>Maleka Surani</option><option>Akil Momin</option>
- <option>Shehzad Ali</option><option>Raj Thakur</option><option>Kiran Surani</option>
- <option>Shah</option><option>Anil</option><option>Shahneel Kanji</option><option>Sharez Prasla</option>
- </select>
- </div>
- </div>
  <!-- TABLE VIEW -->
  <div id="tpanel-tasktable">
  <table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -1885,7 +1888,7 @@ html.onboard-mode #onboardScreen { display: flex !important; }
  <th style="padding:8px 10px;font-weight:600;color:#475569">Status</th>
  <th style="padding:8px 10px;font-weight:600;color:#475569">Priority</th>
  <th style="padding:8px 10px;font-weight:600;color:#475569">Assignee</th>
- <th style="padding:8px 10px;font-weight:600;color:#475569">Department</th>
+ <th style="padding:8px 10px;font-weight:600;color:#475569">Workstream</th>
  <th style="padding:8px 10px;font-weight:600;color:#475569">Due</th>
  <th style="padding:8px 10px;font-weight:600;color:#475569">Scope / Relationships</th>
  <th style="padding:8px 10px;font-weight:600;color:#475569">Hrs</th>
@@ -8466,7 +8469,6 @@ function _toggleOwnerPill(name) {
   h.value = cur.join(',');
   _renderOwnerPills(cur);
 }
-const _DEPTS = ['Leadership','F&B','Hotels & Accommodations','Transportation','Site Management','Equipment & Signage'];
 const _PRI_ORDER = {Urgent:0, High:1, Medium:2, Low:3};
 const _PRI_ICON  = {Urgent:'🔴', High:'🟠', Medium:'🟡', Low:'🟢'};
 const _STATUS_LABEL = {todo:'To Do', inprogress:'In Progress', blocked:'Blocked', done:'Done'};
@@ -8478,6 +8480,7 @@ const _STATUS_COLOR = {
 };
 
 const _LOGISTICS_STREAMS = ['Core Team','Food & Beverage','Hotels & Accommodations','Transportation','Site Management','Equipment & Signage'];
+const _LOGISTICS_STREAM_KEYS = {'Core Team':'core_team','Food & Beverage':'food_beverage','Hotels & Accommodations':'hotels_accommodations','Transportation':'transportation','Site Management':'site_management','Equipment & Signage':'equipment_signage'};
 const _CROSS_TEAMS = ['Sports','Registration','Finance','Legal','HR / IVS','Technology','Marketing','Command Center'];
 const _CROSS_TEAM_KEYS = {'Sports':'sports','Registration':'registration','Finance':'finance','Legal':'legal','HR / IVS':'hr_ivs','Technology':'technology','Marketing':'marketing','Command Center':'command_center'};
 let _taskRelationFilter = null;
@@ -8492,12 +8495,12 @@ function _taskOwningStream(t) {
   const dept = String(t.department || '').toLowerCase();
   const scope = String(t.scopeArea || '').toLowerCase();
   const title = String(t.title || '').toLowerCase();
-  if (dept === 'f&b') return 'Food & Beverage';
+  if (dept === 'core team' || dept === 'leadership') return 'Core Team';
+  if (dept === 'food & beverage' || dept === 'f&b') return 'Food & Beverage';
   if (dept === 'hotels & accommodations') return 'Hotels & Accommodations';
   if (dept === 'transportation') return 'Transportation';
   if (dept === 'site management') return 'Site Management';
   if (dept === 'equipment & signage') return 'Equipment & Signage';
-  if (dept === 'leadership') return 'Core Team';
   if (['food / f&b','food','f&b'].includes(scope)) return 'Food & Beverage';
   if (['hotels','hospitality'].includes(scope)) return 'Hotels & Accommodations';
   if (scope === 'transportation' || title.includes('transportation')) return 'Transportation';
@@ -8508,7 +8511,7 @@ function _taskOwningStream(t) {
   return 'Core Team';
 }
 
-function _taskInternalDeps(t, owner) {
+function _inferTaskInternalDeps(t, owner) {
   const text = _taskText(t);
   const title = String(t.title || '').toLowerCase();
   const deps = new Set([owner]);
@@ -8528,6 +8531,44 @@ function _taskInternalDeps(t, owner) {
   if (owner === 'Site Management' && /contract|signing|deposit|payment terms/.test(text)) deps.add('Core Team');
   if (/sports equipment procurement|equipment list/.test(title)) deps.add('Equipment & Signage');
   return _LOGISTICS_STREAMS.filter(x => deps.has(x));
+}
+
+function _taskStoredWorkstreamDeps(t) {
+  const explicit = t.workstreamDependenciesExplicit === true || Object.prototype.hasOwnProperty.call(t, 'workstreamDependencies');
+  if (!explicit) return null;
+  const raw = Array.isArray(t.workstreamDependencies)
+    ? t.workstreamDependencies
+    : (t.workstreamDependencies && typeof t.workstreamDependencies === 'object' ? Object.values(t.workstreamDependencies) : []);
+  const seen = new Set();
+  return raw.map(dep => {
+    const team = typeof dep === 'string' ? dep : dep && dep.team;
+    const status = dep && typeof dep === 'object' ? dep.status : 'todo';
+    return {team, status:['todo','inprogress','blocked','done'].includes(status) ? status : 'todo'};
+  }).filter(dep => {
+    if (!_LOGISTICS_STREAMS.includes(dep.team) || seen.has(dep.team)) return false;
+    seen.add(dep.team);
+    return true;
+  });
+}
+
+function _taskWorkstreamDepsObject(deps) {
+  const out = {};
+  deps.forEach(dep => { out[_LOGISTICS_STREAM_KEYS[dep.team]] = {team:dep.team, status:dep.status}; });
+  return out;
+}
+
+function _taskInternalDeps(t, owner) {
+  const stored = _taskStoredWorkstreamDeps(t);
+  const dependencies = stored === null ? _inferTaskInternalDeps(t, owner) : stored.map(dep => dep.team);
+  return [owner].concat(dependencies.filter(team => team !== owner));
+}
+
+function _taskWorkstreamDependencyStatus(t, team, owner) {
+  if (team === owner) return t.status || 'todo';
+  const stored = _taskStoredWorkstreamDeps(t);
+  if (stored === null) return t.status || 'todo';
+  const dep = stored.find(item => item.team === team);
+  return dep ? dep.status : 'todo';
 }
 
 function _inferTaskCrossDeps(t) {
@@ -8602,9 +8643,19 @@ function _taskNeedsAttention(t) {
 
 function _taskMetricFocusEntries() {
   const owner = document.getElementById('taskMatrixOwner')?.value || '';
+  const q = (document.getElementById('taskSearch')?.value || '').toLowerCase();
+  const status = document.getElementById('filterStatus')?.value || '';
+  const priority = document.getElementById('filterPriority')?.value || '';
+  const workstream = document.getElementById('filterWorkstream')?.value || '';
+  const vertical = document.getElementById('filterVertical')?.value || '';
   return Object.entries(window._tasksData || {}).filter(([,t]) => {
     if (owner && !taskOwners(t).some(name => _taskNameKey(name) === _taskNameKey(owner))) return false;
     if (_taskAttentionOnly && !_taskNeedsAttention(t)) return false;
+    if (q && !JSON.stringify(t).toLowerCase().includes(q)) return false;
+    if (status && (t.status || 'todo') !== status) return false;
+    if (priority && (t.priority || 'Medium') !== priority) return false;
+    if (workstream && _taskOwningStream(t) !== workstream) return false;
+    if (vertical && !_taskCrossDeps(t).includes(vertical)) return false;
     return true;
   });
 }
@@ -8625,12 +8676,14 @@ function _renderTaskMatrix(id, columns, depKey, kind) {
   const table = document.getElementById(id);
   if (!table) return;
   const records = _taskMetricFocusEntries().map(([key,t]) => ({key,t,c:_taskCollaboration(t)}));
-  let html = `<thead><tr><th>Owning team</th>${columns.map(x => `<th>${esc(_shortTeam(x))}</th>`).join('')}</tr></thead><tbody>`;
+  let html = `<thead><tr><th>Owning workstream</th>${columns.map(x => `<th>${esc(_shortTeam(x))}</th>`).join('')}</tr></thead><tbody>`;
   _LOGISTICS_STREAMS.forEach(stream => {
     html += `<tr><td><span class="task-matrix-row">${esc(stream)}</span></td>`;
     columns.forEach(column => {
       const matches = records.filter(r => r.c.owner === stream && r.c[depKey].includes(column));
-      const statuses = matches.map(r => kind === 'cross' ? _taskVerticalDependencyStatus(r.t, column) : (r.t.status || 'todo'));
+      const statuses = matches.map(r => kind === 'cross'
+        ? _taskVerticalDependencyStatus(r.t, column)
+        : _taskWorkstreamDependencyStatus(r.t, column, r.c.owner));
       const status = _taskMatrixStatus(statuses);
       const selected = _taskRelationFilter && _taskRelationFilter.kind === kind && _taskRelationFilter.stream === stream && _taskRelationFilter.column === column;
       const titles = matches.map(r => r.t.title || 'Untitled').join(' | ');
@@ -8640,7 +8693,7 @@ function _renderTaskMatrix(id, columns, depKey, kind) {
   });
   table.innerHTML = html + '</tbody>';
   table.querySelectorAll('[data-task-matrix-kind]:not(:disabled)').forEach(button => button.addEventListener('click', () => {
-    ['taskSearch','filterStatus','filterPriority','filterDept'].forEach(id => {
+    ['taskSearch','filterStatus','filterPriority','filterWorkstream','filterVertical'].forEach(id => {
       const input = document.getElementById(id);
       if (input) input.value = '';
     });
@@ -8765,7 +8818,13 @@ window.addEventListener('popstate', () => {
 
 function _taskRelationChips(t) {
   const c = _taskCollaboration(t);
-  const internal = c.internal.map(dep => `<span class="task-relation-chip">${dep === c.owner ? 'Owned within ' + _shortTeam(dep) : 'Needs ' + _shortTeam(dep)}</span>`);
+  const storedInternal = _taskStoredWorkstreamDeps(t);
+  const internal = c.internal.map(team => {
+    if (team === c.owner) return `<span class="task-relation-chip">Owned within ${_shortTeam(team)}</span>`;
+    if (storedInternal === null) return `<span class="task-relation-chip">Needs ${_shortTeam(team)} · Inferred</span>`;
+    const status = _taskWorkstreamDependencyStatus(t, team, c.owner);
+    return `<span class="task-relation-chip dep-${status}">${_shortTeam(team)} · ${_STATUS_LABEL[status] || status}</span>`;
+  });
   const stored = _taskStoredVerticalDeps(t);
   const cross = c.cross.map(team => {
     if (stored === null) return `<span class="task-relation-chip cross">With ${_shortTeam(team)} · Inferred</span>`;
@@ -8776,23 +8835,12 @@ function _taskRelationChips(t) {
 }
 
 function _taskFiltered() {
-  const q    = (document.getElementById('taskSearch')?.value || '').toLowerCase();
-  const stF  = document.getElementById('filterStatus')?.value || '';
-  const priF = document.getElementById('filterPriority')?.value || '';
-  const dptF = document.getElementById('filterDept')?.value || '';
-  const ownF = document.getElementById('filterOwner')?.value || '';
-  return Object.entries(window._tasksData || {}).filter(([,t]) => {
-    if (_taskAttentionOnly && !_taskNeedsAttention(t)) return false;
+  return _taskMetricFocusEntries().filter(([,t]) => {
     if (_taskRelationFilter) {
       const c = _taskCollaboration(t);
       const deps = _taskRelationFilter.kind === 'internal' ? c.internal : c.cross;
       if (c.owner !== _taskRelationFilter.stream || !deps.includes(_taskRelationFilter.column)) return false;
     }
-    if (q && !JSON.stringify(t).toLowerCase().includes(q)) return false;
-    if (stF && (t.status||'todo') !== stF) return false;
-    if (priF && (t.priority||'Medium') !== priF) return false;
-    if (dptF && (t.department||'') !== dptF) return false;
-    if (ownF && !taskOwners(t).some(name => _taskNameKey(name) === _taskNameKey(ownF))) return false;
     return true;
   });
 }
@@ -8855,7 +8903,7 @@ function renderTaskTable() {
  <td style="padding:8px 10px"><span style="padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:${sc.bg};color:${sc.color}">${_STATUS_LABEL[st]||st}</span></td>
  <td style="padding:8px 10px;font-size:12px">${_PRI_ICON[pri]||''} ${pri}</td>
  <td style="padding:8px 10px;font-size:12px">${taskOwners(t).length ? taskOwners(t).map(o=>`<span style="display:inline-block;padding:1px 7px;margin:1px;border-radius:10px;background:#e0e7ff;color:#3730a3;font-size:11px">${esc(o)}</span>`).join('') : '—'}</td>
- <td style="padding:8px 10px;font-size:11px;color:#64748b">${esc(t.department||'—')}</td>
+  <td style="padding:8px 10px;font-size:11px;color:#64748b">${esc(_taskOwningStream(t))}</td>
  <td style="padding:8px 10px;font-size:11px${ovd?' color:#dc2626;font-weight:600':''}">${t.due||'—'}${ovd?' ⚠️':''}</td>
  <td style="padding:8px 10px;font-size:11px;color:#64748b"><div>${esc(t.scopeArea||'—')}</div><div>${_taskRelationChips(t)}</div></td>
  <td style="padding:8px 10px;font-size:11px;color:#64748b">${t.estHours?t.estHours+'h':'—'}</td>
@@ -8886,7 +8934,7 @@ window.renderKanban = function() {
  <div style="flex:1">
  <div class="task-card-title">${esc(t.title||'Untitled')}</div>
  <div class="task-card-meta">
-   ${t.department?`<span class="t-tag">${esc(t.department)}</span>`:''}
+    <span class="t-tag">${esc(_taskOwningStream(t))}</span>
    <span class="t-tag">${_PRI_ICON[pri]||''} ${pri}</span>
    ${taskOwners(t).map(o=>`<span class="t-tag"> ${esc(o)}</span>`).join('')}
    ${t.due?`<span class="t-tag${isOverdue?' overdue-badge':''}">${t.due}${isOverdue?' ⚠️':''}</span>`:''}
@@ -8936,7 +8984,7 @@ function renderGrouped() {
  <td style="padding:6px 10px;width:40%"><strong>${esc(t.title||'—')}</strong>${t.linkedTo?`<span style="margin-left:6px;font-size:10px;color:#6366f1"> ${esc(t.linkedTo)}</span>`:''}</td>
  <td style="padding:6px 10px"><span style="padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:${sc.bg};color:${sc.color}">${_STATUS_LABEL[st]||st}</span></td>
  <td style="padding:6px 10px">${_PRI_ICON[t.priority||'Medium']||''} ${t.priority||'Medium'}</td>
- <td style="padding:6px 10px;color:#64748b">${esc(t.department||'—')}</td>
+ <td style="padding:6px 10px;color:#64748b">${esc(_taskOwningStream(t))}</td>
  <td style="padding:6px 10px${ovd?' color:#dc2626;font-weight:600':''}">${t.due||'—'}${ovd?' ⚠️':''}</td>
  <td style="padding:6px 6px"><button class="btn btn-cancel" style="padding:2px 7px;font-size:10px" onclick="event.stopPropagation();quickComplete('${k}')">✓</button></td>
  </tr>`;
@@ -9017,14 +9065,24 @@ window.seedInitialTasks = function() {
 };
 
 let _taskEditorOriginalDeps = [];
+let _taskEditorOriginalWorkstreamDeps = [];
 let _taskEditorOriginalStatus = 'todo';
 let _taskDependencyEditorTouched = false;
+let _taskWorkstreamDependencyEditorTouched = false;
 
 function _taskDepsForEditor(t) {
   const stored = _taskStoredVerticalDeps(t);
   if (stored !== null) return {deps:stored, inferred:false};
   const fallbackStatus = ['todo','inprogress','blocked','done'].includes(t.status) ? t.status : 'todo';
   return {deps:_inferTaskCrossDeps(t).map(team => ({team, status:fallbackStatus})), inferred:true};
+}
+
+function _taskWorkstreamDepsForEditor(t) {
+  const owner = _taskOwningStream(t);
+  const stored = _taskStoredWorkstreamDeps(t);
+  if (stored !== null) return {deps:stored.filter(dep => dep.team !== owner), inferred:false};
+  const fallbackStatus = ['todo','inprogress','blocked','done'].includes(t.status) ? t.status : 'todo';
+  return {deps:_inferTaskInternalDeps(t, owner).filter(team => team !== owner).map(team => ({team, status:fallbackStatus})), inferred:true};
 }
 
 function _renderTaskVerticalDependencyEditor(t) {
@@ -9055,8 +9113,60 @@ function _renderTaskVerticalDependencyEditor(t) {
       _enforceTaskDependencyStatus();
     });
   });
+}
+
+function _renderTaskWorkstreamDependencyEditor(t) {
+  const editor = document.getElementById('taskWorkstreamDependencies');
+  if (!editor) return;
+  const initial = _taskWorkstreamDepsForEditor(t);
+  const owner = document.getElementById('taskWorkstream')?.value || _taskOwningStream(t);
+  _taskWorkstreamDependencyEditorTouched = false;
+  const selected = new Map(initial.deps.map(dep => [dep.team, dep.status]));
+  editor.dataset.inferred = initial.inferred && initial.deps.length ? '1' : '';
+  editor.innerHTML = _LOGISTICS_STREAMS.map(team => {
+    const status = selected.get(team) || 'todo';
+    const checked = selected.has(team) && team !== owner;
+    const owning = team === owner;
+    return `<div class="task-dep-row${checked?' selected':''}${owning?' owning':''}" data-team="${esc(team)}">
+      <label><input type="checkbox" ${checked?'checked':''} ${owning?'disabled':''}>${esc(team)}${owning?' (owning)':''}</label>
+      <select aria-label="${esc(team)} dependency status" ${owning?'disabled':''}>
+        ${['todo','inprogress','blocked','done'].map(value => `<option value="${value}"${status===value?' selected':''}>${_STATUS_LABEL[value]}</option>`).join('')}
+      </select>
+    </div>`;
+  }).join('');
+  editor.querySelectorAll('.task-dep-row').forEach(row => {
+    row.querySelector('input').addEventListener('change', () => {
+      _taskWorkstreamDependencyEditorTouched = true;
+      row.classList.toggle('selected', row.querySelector('input').checked);
+      _enforceTaskDependencyStatus();
+    });
+    row.querySelector('select').addEventListener('change', () => {
+      _taskWorkstreamDependencyEditorTouched = true;
+      _enforceTaskDependencyStatus();
+    });
+  });
+}
+
+function _syncTaskWorkstreamDependencyRows() {
+  const owner = document.getElementById('taskWorkstream')?.value || 'Core Team';
+  document.querySelectorAll('#taskWorkstreamDependencies .task-dep-row').forEach(row => {
+    const input = row.querySelector('input');
+    const select = row.querySelector('select');
+    const owning = row.dataset.team === owner;
+    if (owning && input.checked) {
+      input.checked = false;
+      _taskWorkstreamDependencyEditorTouched = true;
+    }
+    input.disabled = owning;
+    select.disabled = owning;
+    row.classList.toggle('owning', owning);
+    row.classList.toggle('selected', !owning && input.checked);
+    const label = row.querySelector('label');
+    label.lastChild.textContent = row.dataset.team + (owning ? ' (owning)' : '');
+  });
   _enforceTaskDependencyStatus();
 }
+window._syncTaskWorkstreamDependencyRows = _syncTaskWorkstreamDependencyRows;
 
 function _readTaskVerticalDependencies() {
   const editor = document.getElementById('taskVerticalDependencies');
@@ -9067,27 +9177,41 @@ function _readTaskVerticalDependencies() {
   }));
 }
 
-function _enforceTaskDependencyStatus() {
-  const summary = document.getElementById('taskDependencySummary');
-  const statusInput = document.getElementById('taskStatus');
-  if (!summary || !statusInput) return;
-  const deps = _readTaskVerticalDependencies();
-  const inferred = document.getElementById('taskVerticalDependencies')?.dataset.inferred === '1';
+function _readTaskWorkstreamDependencies() {
+  const editor = document.getElementById('taskWorkstreamDependencies');
+  if (!editor) return [];
+  return Array.from(editor.querySelectorAll('.task-dep-row')).filter(row => row.querySelector('input').checked).map(row => ({
+    team:row.dataset.team,
+    status:row.querySelector('select').value
+  }));
+}
+
+function _renderTaskDependencySummary(summary, deps, inferred, noun) {
   summary.className = 'task-dep-summary';
   if (!deps.length) {
-    summary.textContent = 'No cross-vertical dependencies selected. Task status is managed manually.';
+    summary.textContent = `No ${noun} dependencies selected.`;
     return;
   }
   const done = deps.filter(dep => dep.status === 'done').length;
   const prefix = inferred ? 'Suggested from existing task text. Change a dependency to confirm these links. ' : '';
-  if (done === deps.length) {
+  summary.classList.add(done === deps.length ? 'complete' : 'warning');
+  summary.textContent = `${prefix}${done}/${deps.length} ${noun} dependencies complete.`;
+}
+
+function _enforceTaskDependencyStatus() {
+  const verticalSummary = document.getElementById('taskDependencySummary');
+  const workstreamSummary = document.getElementById('taskWorkstreamDependencySummary');
+  const statusInput = document.getElementById('taskStatus');
+  if (!verticalSummary || !workstreamSummary || !statusInput) return;
+  const verticalDeps = _readTaskVerticalDependencies();
+  const workstreamDeps = _readTaskWorkstreamDependencies();
+  _renderTaskDependencySummary(verticalSummary, verticalDeps, document.getElementById('taskVerticalDependencies')?.dataset.inferred === '1', 'vertical');
+  _renderTaskDependencySummary(workstreamSummary, workstreamDeps, document.getElementById('taskWorkstreamDependencies')?.dataset.inferred === '1', 'workstream');
+  const deps = workstreamDeps.concat(verticalDeps);
+  if (deps.length && deps.every(dep => dep.status === 'done')) {
     statusInput.value = 'done';
-    summary.classList.add('complete');
-    summary.textContent = `${prefix}${done}/${deps.length} verticals complete. The overall task will be Done.`;
-  } else {
+  } else if (deps.length) {
     if (statusInput.value === 'done') statusInput.value = 'inprogress';
-    summary.classList.add('warning');
-    summary.textContent = `${prefix}${done}/${deps.length} verticals complete. Finish every selected vertical before the overall task can be Done.`;
   }
 }
 window._enforceTaskDependencyStatus = _enforceTaskDependencyStatus;
@@ -9099,7 +9223,7 @@ function openTaskModal(defaultStatus, editKey) {
   document.getElementById('taskTitle').value = t.title || '';
   document.getElementById('taskStatus').value = t.status || defaultStatus || 'todo';
   document.getElementById('taskPriority').value = t.priority || 'Medium';
-  document.getElementById('taskDept').value = t.department || '';
+  document.getElementById('taskWorkstream').value = _taskOwningStream(t);
   document.getElementById('taskScopeArea').value = t.scopeArea || '';
   document.getElementById('taskLinkedTo').value = t.linkedTo || '';
   const _curOwners = taskOwners(t);
@@ -9109,7 +9233,10 @@ function openTaskModal(defaultStatus, editKey) {
   document.getElementById('taskEstHours').value = t.estHours || '';
   document.getElementById('taskTags').value = t.tags || '';
   document.getElementById('taskNotes').value = t.notes || '';
+  _renderTaskWorkstreamDependencyEditor(t);
   _renderTaskVerticalDependencyEditor(t);
+  _enforceTaskDependencyStatus();
+  _taskEditorOriginalWorkstreamDeps = _readTaskWorkstreamDependencies().map(dep => ({...dep}));
   _taskEditorOriginalDeps = _readTaskVerticalDependencies().map(dep => ({...dep}));
   _taskEditorOriginalStatus = t.status || defaultStatus || 'todo';
   // Populate parent task dropdown (exclude self and tasks that are already subtasks of this task)
@@ -9140,6 +9267,23 @@ function _mergeTaskVerticalDeps(currentTask, submitted, originalDeps) {
   return _CROSS_TEAMS.filter(team => merged.has(team)).map(team => merged.get(team));
 }
 
+function _mergeTaskWorkstreamDeps(currentTask, submitted, originalDeps) {
+  if (!currentTask) return submitted;
+  const latestStored = _taskStoredWorkstreamDeps(currentTask);
+  const latest = latestStored === null ? _taskWorkstreamDepsForEditor(currentTask).deps : latestStored;
+  const merged = new Map(latest.map(dep => [dep.team, {...dep}]));
+  const original = new Map(originalDeps.map(dep => [dep.team, dep]));
+  const form = new Map(submitted.map(dep => [dep.team, dep]));
+  _LOGISTICS_STREAMS.forEach(team => {
+    const before = original.get(team);
+    const after = form.get(team);
+    if (!before && after) merged.set(team, {...after});
+    else if (before && !after) merged.delete(team);
+    else if (before && after && before.status !== after.status) merged.set(team, {...after});
+  });
+  return _LOGISTICS_STREAMS.filter(team => merged.has(team)).map(team => merged.get(team));
+}
+
 function saveTask() {
   const title = document.getElementById('taskTitle').value.trim();
   if (!title) { alert('Task title required.'); return; }
@@ -9154,15 +9298,18 @@ function saveTask() {
   const oldTaskSource = editKey ? (window._tasksData[editKey] || {}) : null;
   const _oldTask = oldTaskSource ? JSON.parse(JSON.stringify(oldTaskSource)) : null;
   const submittedDependencies = _readTaskVerticalDependencies();
+  const submittedWorkstreamDependencies = _readTaskWorkstreamDependencies();
   const originalDependencies = _taskEditorOriginalDeps.map(dep => ({...dep}));
+  const originalWorkstreamDependencies = _taskEditorOriginalWorkstreamDeps.map(dep => ({...dep}));
   const originalStatus = _taskEditorOriginalStatus;
   const dependencyEditorTouched = _taskDependencyEditorTouched;
+  const workstreamDependencyEditorTouched = _taskWorkstreamDependencyEditorTouched;
   const requestedStatus = document.getElementById('taskStatus').value;
   const formData = {
     title,
     status:     requestedStatus,
     priority:   document.getElementById('taskPriority').value,
-    department: document.getElementById('taskDept').value,
+    department: document.getElementById('taskWorkstream').value,
     scopeArea:  document.getElementById('taskScopeArea').value,
     linkedTo:   document.getElementById('taskLinkedTo').value.trim(),
     owners:     newOwners,
@@ -9179,28 +9326,39 @@ function saveTask() {
   if (saveBtn) saveBtn.disabled = true;
   window._dbTransaction(window._dbRef('naig2027/tasks/' + key), current => {
     if (editKey && !current) return;
-    const verticalDependencies = _mergeTaskVerticalDeps(current, submittedDependencies, originalDependencies);
     const persistDependencies = !editKey || dependencyEditorTouched || _taskStoredVerticalDeps(current || {}) !== null;
+    const persistWorkstreamDependencies = !editKey || workstreamDependencyEditorTouched || _taskStoredWorkstreamDeps(current || {}) !== null;
     let mergedTask = {...(current || {})};
     if (!editKey) {
       mergedTask = {...mergedTask, ...formData};
     } else {
       Object.keys(formData).forEach(field => {
-        const originalValue = field === 'owners' ? taskOwners(_oldTask || {}) : ((_oldTask || {})[field] || '');
+        const originalValue = field === 'owners'
+          ? taskOwners(_oldTask || {})
+          : (field === 'department' ? _taskOwningStream(_oldTask || {}) : ((_oldTask || {})[field] || ''));
         const changed = JSON.stringify(formData[field]) !== JSON.stringify(originalValue);
         if (changed) mergedTask[field] = formData[field];
       });
       if (JSON.stringify(newOwners) !== JSON.stringify(taskOwners(_oldTask || {}))) mergedTask.owner = newOwners[0] || '';
     }
+    const verticalDependencies = _mergeTaskVerticalDeps(current, submittedDependencies, originalDependencies);
+    const finalWorkstream = _taskOwningStream(mergedTask);
+    const workstreamDependencies = _mergeTaskWorkstreamDeps(current, submittedWorkstreamDependencies, originalWorkstreamDependencies)
+      .filter(dep => dep.team !== finalWorkstream);
     let status = requestedStatus;
     if (editKey && requestedStatus === originalStatus && current && current.status !== originalStatus) status = current.status || 'todo';
-    if (verticalDependencies.length && verticalDependencies.every(dep => dep.status === 'done')) status = 'done';
-    else if (verticalDependencies.length && status === 'done') status = 'inprogress';
+    const allDependencies = workstreamDependencies.concat(verticalDependencies);
+    if (allDependencies.length && allDependencies.every(dep => dep.status === 'done')) status = 'done';
+    else if (allDependencies.length && status === 'done') status = 'inprogress';
     mergedTask.status = status;
     mergedTask.updated = formData.updated;
     if (persistDependencies) {
       mergedTask.verticalDependenciesExplicit = true;
       mergedTask.verticalDependencies = _taskVerticalDepsObject(verticalDependencies);
+    }
+    if (persistWorkstreamDependencies) {
+      mergedTask.workstreamDependenciesExplicit = true;
+      mergedTask.workstreamDependencies = _taskWorkstreamDepsObject(workstreamDependencies);
     }
     return mergedTask;
   }).then(result => {
@@ -9245,39 +9403,50 @@ function saveTask() {
 function quickComplete(key) {
   const t = window._tasksData[key];
   if (!t) return;
-  const deps = _taskStoredVerticalDeps(t);
-  if (deps === null && _inferTaskCrossDeps(t).length) {
-    alert('Confirm the suggested vertical dependencies and their statuses before completing this task.');
+  const verticalDeps = _taskStoredVerticalDeps(t);
+  const workstreamDeps = _taskStoredWorkstreamDeps(t);
+  const inferredWorkstreamDeps = _inferTaskInternalDeps(t, _taskOwningStream(t)).filter(team => team !== _taskOwningStream(t));
+  if ((verticalDeps === null && _inferTaskCrossDeps(t).length) || (workstreamDeps === null && inferredWorkstreamDeps.length)) {
+    alert('Confirm the suggested workstream and vertical dependencies before completing this task.');
     openTaskModal(null, key);
     return;
   }
-  if (deps && deps.some(dep => dep.status !== 'done')) {
-    alert('Complete every selected vertical dependency before marking this task Done.');
+  if ((verticalDeps && verticalDeps.some(dep => dep.status !== 'done')) || (workstreamDeps && workstreamDeps.some(dep => dep.status !== 'done'))) {
+    alert('Complete every selected workstream and vertical dependency before marking this task Done.');
     openTaskModal(null, key);
     return;
   }
   if (!window._dbRef || !window._dbTransaction) { alert('Firebase not ready yet — try again in a moment.'); return; }
   window._dbTransaction(window._dbRef('naig2027/tasks/' + key), current => {
     if (!current) return current;
-    const latest = _taskStoredVerticalDeps(current);
-    if (latest === null && _inferTaskCrossDeps(current).length) return current;
-    if (latest && latest.some(dep => dep.status !== 'done')) return current;
+    const latestVertical = _taskStoredVerticalDeps(current);
+    const latestWorkstream = _taskStoredWorkstreamDeps(current);
+    const latestInferredWorkstream = _inferTaskInternalDeps(current, _taskOwningStream(current)).filter(team => team !== _taskOwningStream(current));
+    if (latestVertical === null && _inferTaskCrossDeps(current).length) return;
+    if (latestWorkstream === null && latestInferredWorkstream.length) return;
+    if (latestVertical && latestVertical.some(dep => dep.status !== 'done')) return;
+    if (latestWorkstream && latestWorkstream.some(dep => dep.status !== 'done')) return;
     return {...current, status:'done', updated:new Date().toISOString()};
   }).then(result => {
-    if (result.snapshot.val()?.status !== 'done') {
-      alert('A vertical dependency changed before completion. Review the task and try again.');
+    if (!result.committed || result.snapshot.val()?.status !== 'done') {
+      alert('A dependency changed before completion. Review the task and try again.');
       openTaskModal(null, key);
     }
   }).catch(() => {});
 }
 function exportTasksCSV() {
-  const rows = [['Title','Status','Priority','Department','Scope Area','Assignee','Due','Est Hours','Tags','Vertical Dependencies','Notes']];
+  const rows = [['Title','Status','Priority','Workstream','Scope Area','Assignee','Due','Est Hours','Tags','Workstream Dependencies','Vertical Dependencies','Notes']];
   Object.values(window._tasksData||{}).forEach(t => {
-    const deps = _taskStoredVerticalDeps(t);
-    const depText = deps === null
+    const verticalDeps = _taskStoredVerticalDeps(t);
+    const verticalText = verticalDeps === null
       ? _inferTaskCrossDeps(t).map(team => `${team}: Inferred`).join('; ')
-      : deps.map(dep => `${dep.team}: ${_STATUS_LABEL[dep.status] || dep.status}`).join('; ');
-    rows.push([t.title,t.status,t.priority,t.department||'',t.scopeArea||'',taskOwners(t).join('; '),t.due||'',t.estHours||'',t.tags||'',depText,t.notes||'']);
+      : verticalDeps.map(dep => `${dep.team}: ${_STATUS_LABEL[dep.status] || dep.status}`).join('; ');
+    const owner = _taskOwningStream(t);
+    const workstreamDeps = _taskStoredWorkstreamDeps(t);
+    const workstreamText = workstreamDeps === null
+      ? _inferTaskInternalDeps(t, owner).filter(team => team !== owner).map(team => `${team}: Inferred`).join('; ')
+      : workstreamDeps.map(dep => `${dep.team}: ${_STATUS_LABEL[dep.status] || dep.status}`).join('; ');
+    rows.push([t.title,t.status,t.priority,owner,t.scopeArea||'',taskOwners(t).join('; '),t.due||'',t.estHours||'',t.tags||'',workstreamText,verticalText,t.notes||'']);
   });
   downloadCSV(rows, 'naig-tasks.csv');
 }
@@ -11696,10 +11865,11 @@ window._migrateRegCall = function () {
   const M = ((window._planData || {}).milestones) || {};
   const L = window._loopsData || {};
   const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
-  const task = (key, o) => { if (!T[key]) set('naig2027/tasks/' + key, Object.assign({
-    department: 'Logistics', estHours: '', linkedTo: '', parentTask: '', tags: 'registration-call',
-    status: 'todo', updated: now
-  }, o)); };
+  const task = (key, o) => { if (!T[key]) {
+    const value = Object.assign({estHours: '', linkedTo: '', parentTask: '', tags: 'registration-call', status: 'todo', updated: now}, o);
+    value.department = _taskOwningStream(value);
+    set('naig2027/tasks/' + key, value);
+  } };
 
   task('reg-flight-fields', {
     title: 'Spec the flight fields Transportation needs — before registration opens 15 Sep',
@@ -11830,10 +12000,12 @@ window._migrateOrgPlan = function () {
   const D = window._docsData || {};
   const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
   const SHEET = 'https://docs.google.com/spreadsheets/d/1qwjxKTpPHwKV_ldVts9DmjCLmrNAZPZZmd_9K-LTidg/edit';
-  const t = (id, o) => { const k = 'org-' + id; if (!T[k]) set('naig2027/tasks/' + k, Object.assign({
-    department: 'Logistics', estHours: '', linkedTo: 'Org plan #' + id, parentTask: '',
-    tags: 'org-project-plan', status: 'todo', owner: 'Rizwan Ali', notes: '', updated: now
-  }, o)); };
+  const t = (id, o) => { const k = 'org-' + id; if (!T[k]) {
+    const value = Object.assign({estHours: '', linkedTo: 'Org plan #' + id, parentTask: '',
+      tags: 'org-project-plan', status: 'todo', owner: 'Rizwan Ali', notes: '', updated: now}, o);
+    value.department = _taskOwningStream(value);
+    set('naig2027/tasks/' + k, value);
+  } };
 
   t(22, { title: 'Food & Beverage vendor contracts', scopeArea: 'Food / F&B', due: '2026-12-31', priority: 'High',
     notes: 'Org plan #22, Critical, starts 1 Nov. Sits before final athlete counts (15 Jan), so contract on the '
@@ -12698,7 +12870,7 @@ window._migrateVenuePOCs = function () {
   if (!T['venue-russell-creek-sep15']) {
     set('naig2027/tasks/venue-russell-creek-sep15', {
       title: 'Russell Creek — get availability answer from Inara Shakur Jamal',
-      department: 'Logistics', status: 'todo', priority: 'High',
+      department: 'Site Management', status: 'todo', priority: 'High',
       owner: 'Rizwan Ali', due: '2026-09-15', scopeArea: 'Venues',
       estHours: '', linkedTo: '', parentTask: '', tags: 'venues,russell-creek',
       notes: 'Inara said she would know availability by 15 Sep. Two questions, in this order: (1) is the '
@@ -15061,10 +15233,9 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
  <input type="hidden" id="taskOwnerHidden">
  </div>
  <div class="form-group">
- <label>Department</label>
- <select id="taskDept" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
- <option value="">— None —</option>
- <option>Leadership</option><option>F&amp;B</option><option>Hotels &amp; Accommodations</option>
+ <label>Workstream</label>
+ <select id="taskWorkstream" onchange="_syncTaskWorkstreamDependencyRows()" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ <option>Core Team</option><option>Food &amp; Beverage</option><option>Hotels &amp; Accommodations</option>
  <option>Transportation</option><option>Site Management</option><option>Equipment &amp; Signage</option>
  </select>
  </div>
@@ -15093,6 +15264,11 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
  <div class="form-group" style="grid-column:1/-1">
  <label>Tags <span style="font-weight:400;color:#94a3b8">(comma-separated)</span></label>
  <input type="text" id="taskTags" placeholder="e.g. venue, contract, urgent" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ </div>
+ <div class="form-group" style="grid-column:1/-1">
+  <label>Internal Workstream Dependencies <span style="font-weight:400;color:#94a3b8">(select supporting Logistics teams and track status)</span></label>
+  <div id="taskWorkstreamDependencies" class="task-dep-editor"></div>
+  <div id="taskWorkstreamDependencySummary" class="task-dep-summary" aria-live="polite">No workstream dependencies selected.</div>
  </div>
  <div class="form-group" style="grid-column:1/-1">
   <label>Cross-Vertical Dependencies <span style="font-weight:400;color:#94a3b8">(select each team and track its status)</span></label>
