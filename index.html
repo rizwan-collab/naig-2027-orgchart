@@ -1034,6 +1034,15 @@ body.ax-readonly #axGateEmail, body.ax-readonly #prospectSearch { pointer-events
 .task-matrix-title { color:#1a3a5c; font-size:12px; font-weight:700; }
 .task-matrix-note { color:#7b8794; font-size:9px; line-height:1.35; margin-top:2px; }
 .task-matrix-count { flex:none; padding:3px 7px; color:#1a3a5c; background:#e8f1fb; border-radius:10px; font-size:9px; font-weight:700; white-space:nowrap; }
+.task-focusbar { margin:12px 0 14px; padding:10px 12px; display:flex; align-items:center; justify-content:space-between; gap:12px; background:#fff; border:1px solid #dbe4ee; border-left:4px solid #BF1B2A; border-radius:9px; box-shadow:0 2px 8px rgba(0,0,0,.05); }
+.task-focus-copy { min-width:170px; }
+.task-focus-title { color:#1a3a5c; font-size:11px; font-weight:700; }
+.task-focus-status { margin-top:2px; color:#7b8794; font-size:9px; }
+.task-focus-controls { display:flex; align-items:center; justify-content:flex-end; gap:6px; flex-wrap:wrap; }
+.task-focus-label { color:#718096; font-size:8px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; }
+.task-focus-btn { min-height:31px; padding:5px 9px; color:#1a3a5c; background:#fff; border:1px solid #cbd5e1; border-radius:7px; font-size:9px; font-weight:700; cursor:pointer; }
+.task-focus-btn:hover,.task-focus-btn.active { color:#fff; background:#1a3a5c; border-color:#1a3a5c; }
+.task-focus-btn.attention.active { background:#BF1B2A; border-color:#BF1B2A; }
 .task-matrix-scroll { overflow-x:auto; }
 .task-matrix-table { width:100%; min-width:620px; border-collapse:collapse; table-layout:fixed; }
 .task-matrix-table.cross { min-width:700px; }
@@ -1057,6 +1066,9 @@ body.ax-readonly #axGateEmail, body.ax-readonly #prospectSearch { pointer-events
 .task-relation-chip.cross { color:#79500d; background:#fff5e4; border-color:#efd7ab; }
 @media(max-width:1050px) { .task-matrices { grid-template-columns:1fr; } }
 @media(max-width:700px) {
+  .task-focusbar { align-items:flex-start; flex-direction:column; }
+  .task-focus-controls { width:100%; justify-content:flex-start; }
+  #taskMatrixOwner { flex:1; min-width:150px; }
   .task-matrix-cell { min-height:36px; font-size:11px; }
   .task-matrix-table th { font-size:8px; }
   .task-matrix-row { font-size:10px; }
@@ -1787,6 +1799,16 @@ html.onboard-mode #onboardScreen { display: flex !important; }
  <div class="task-progress"><div class="task-progress-fill" id="progressFill" style="width:0%"></div></div>
  <!-- Summary strip -->
  <div class="summary-strip" id="taskSummaryStrip"></div>
+ <div class="task-focusbar">
+  <div class="task-focus-copy"><div class="task-focus-title">Personal team lens</div><div class="task-focus-status" id="taskFocusStatus">All live tasks are included in the metrics.</div></div>
+  <div class="task-focus-controls">
+   <label class="task-focus-label" for="taskMatrixOwner">Filter metrics by name</label>
+   <select class="hub-filter-select" id="taskMatrixOwner" onchange="setTaskAssigneeLens(this.value)"><option value="">All assignees</option></select>
+   <button class="task-focus-btn" id="taskAllTeamBtn" onclick="showAllTeamTasks()">All Team</button>
+   <button class="task-focus-btn" id="taskMyTasksBtn" onclick="showMyTaskLens()">My Tasks</button>
+   <button class="task-focus-btn attention" id="taskAttentionBtn" onclick="toggleTaskAttentionLens()">Needs Attention</button>
+  </div>
+ </div>
  <!-- The matrices and list below are two views of the same live Firebase tasks. -->
  <div class="task-matrices" id="taskDependencyMatrices">
   <div class="task-matrix-card">
@@ -1827,7 +1849,7 @@ html.onboard-mode #onboardScreen { display: flex !important; }
  <option>Leadership</option><option>F&amp;B</option><option>Hotels &amp; Accommodations</option>
  <option>Transportation</option><option>Site Management</option><option>Equipment &amp; Signage</option>
  </select>
- <select class="hub-filter-select" id="filterOwner" onchange="renderTasks()">
+ <select class="hub-filter-select" id="filterOwner" onchange="setTaskAssigneeLens(this.value)">
  <option value="">All Assignees</option>
  <option>Rizwan Ali</option><option>Azmina Hashim</option><option>Sohail Ali</option>
  <option>Humera Kabani</option><option>Maleka Surani</option><option>Akil Momin</option>
@@ -8439,6 +8461,8 @@ const _STATUS_COLOR = {
 const _LOGISTICS_STREAMS = ['Core Team','Food & Beverage','Hotels & Accommodations','Transportation','Site Management','Equipment & Signage'];
 const _CROSS_TEAMS = ['Sports','Registration','Finance','Legal','HR / IVS','Technology','Marketing','Command Center'];
 let _taskRelationFilter = null;
+let _taskAttentionOnly = false;
+let _taskFocusInitialized = false;
 
 function _taskText(t) {
   return [t.title,t.department,t.scopeArea,t.linkedTo,t.tags,t.notes].filter(Boolean).join(' ').toLowerCase();
@@ -8506,6 +8530,29 @@ function _taskCollaboration(t) {
   return { owner, internal:_taskInternalDeps(t, owner), cross:_taskCrossDeps(t) };
 }
 
+function _taskNameKey(name) {
+  return String(name || '').trim().toLowerCase();
+}
+
+function _taskNeedsAttention(t) {
+  if (t.status === 'done') return false;
+  if (t.status === 'blocked' || !taskOwners(t).length) return true;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(t.due || '')) return false;
+  const now = new Date();
+  const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const cutoff = new Date(todayUtc + 14 * 86400000).toISOString().slice(0,10);
+  return t.due <= cutoff;
+}
+
+function _taskMetricFocusEntries() {
+  const owner = document.getElementById('taskMatrixOwner')?.value || '';
+  return Object.entries(window._tasksData || {}).filter(([,t]) => {
+    if (owner && !taskOwners(t).some(name => _taskNameKey(name) === _taskNameKey(owner))) return false;
+    if (_taskAttentionOnly && !_taskNeedsAttention(t)) return false;
+    return true;
+  });
+}
+
 function _taskMatrixStatus(tasks) {
   if (!tasks.length) return 'empty';
   if (tasks.some(t => t.status === 'blocked')) return 'blocked';
@@ -8521,7 +8568,7 @@ function _shortTeam(name) {
 function _renderTaskMatrix(id, columns, depKey, kind) {
   const table = document.getElementById(id);
   if (!table) return;
-  const records = Object.entries(window._tasksData || {}).map(([key,t]) => ({key,t,c:_taskCollaboration(t)}));
+  const records = _taskMetricFocusEntries().map(([key,t]) => ({key,t,c:_taskCollaboration(t)}));
   let html = `<thead><tr><th>Owning team</th>${columns.map(x => `<th>${esc(_shortTeam(x))}</th>`).join('')}</tr></thead><tbody>`;
   _LOGISTICS_STREAMS.forEach(stream => {
     html += `<tr><td><span class="task-matrix-row">${esc(stream)}</span></td>`;
@@ -8536,7 +8583,7 @@ function _renderTaskMatrix(id, columns, depKey, kind) {
   });
   table.innerHTML = html + '</tbody>';
   table.querySelectorAll('[data-task-matrix-kind]:not(:disabled)').forEach(button => button.addEventListener('click', () => {
-    ['taskSearch','filterStatus','filterPriority','filterDept','filterOwner'].forEach(id => {
+    ['taskSearch','filterStatus','filterPriority','filterDept'].forEach(id => {
       const input = document.getElementById(id);
       if (input) input.value = '';
     });
@@ -8547,7 +8594,7 @@ function _renderTaskMatrix(id, columns, depKey, kind) {
 }
 
 function renderTaskMatrices() {
-  const tasks = Object.values(window._tasksData || {});
+  const tasks = _taskMetricFocusEntries().map(([,t]) => t);
   _renderTaskMatrix('taskInternalMatrix', _LOGISTICS_STREAMS, 'internal', 'internal');
   _renderTaskMatrix('taskCrossMatrix', _CROSS_TEAMS, 'cross', 'cross');
   const internalLinks = tasks.reduce((sum,t) => sum + _taskCollaboration(t).internal.length, 0);
@@ -8557,6 +8604,12 @@ function renderTaskMatrices() {
   const crossCount = document.getElementById('taskCrossCount');
   if (internalCount) internalCount.textContent = `${tasks.length} tasks | ${internalLinks} links`;
   if (crossCount) crossCount.textContent = `${crossLinked} tasks | ${crossLinks} links`;
+  const selectedOwner = document.getElementById('taskMatrixOwner')?.value || '';
+  const focusStatus = document.getElementById('taskFocusStatus');
+  if (focusStatus) focusStatus.textContent = `${selectedOwner || 'All assignees'}: ${tasks.length} task${tasks.length===1?'':'s'} included${_taskAttentionOnly?' and requiring attention':''}.`;
+  document.getElementById('taskAllTeamBtn')?.classList.toggle('active', !selectedOwner && !_taskAttentionOnly);
+  document.getElementById('taskMyTasksBtn')?.classList.toggle('active', !!selectedOwner && selectedOwner === _currentTaskPersonName());
+  document.getElementById('taskAttentionBtn')?.classList.toggle('active', _taskAttentionOnly);
   const banner = document.getElementById('taskRelationFilter');
   if (banner) banner.classList.toggle('active', !!_taskRelationFilter);
   if (_taskRelationFilter) {
@@ -8572,6 +8625,87 @@ function clearTaskRelationFilter() {
 }
 window.clearTaskRelationFilter = clearTaskRelationFilter;
 
+function _currentTaskPersonName() {
+  return window._axUser && window._axUser.name ? window._axUser.name.trim() : '';
+}
+
+function _syncTaskFocusUrl() {
+  if (new URLSearchParams(location.search).get('onboard')) return;
+  const url = new URL(location.href);
+  const owner = document.getElementById('taskMatrixOwner')?.value || '';
+  owner ? url.searchParams.set('taskPerson', owner) : url.searchParams.delete('taskPerson');
+  _taskAttentionOnly ? url.searchParams.set('taskAttention', '1') : url.searchParams.delete('taskAttention');
+  history.replaceState(null, '', url);
+}
+
+function _prepareTaskFocusControls() {
+  const top = document.getElementById('taskMatrixOwner');
+  const lower = document.getElementById('filterOwner');
+  if (!top || !lower) return;
+  const current = top.value || lower.value || '';
+  const names = assigneeNames();
+  const me = _currentTaskPersonName();
+  const requested = new URLSearchParams(location.search).get('taskPerson') || '';
+  if (me && !names.includes(me)) names.push(me);
+  names.sort((a,b) => a.localeCompare(b));
+  const options = '<option value="">All Assignees</option>' + names.map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join('');
+  top.innerHTML = options;
+  lower.innerHTML = options;
+  let selected = current;
+  const waitingForDirectory = requested && !names.includes(requested) && !(window._prospects || []).length;
+  const ready = !waitingForDirectory && (names.length || Object.keys(window._tasksData || {}).length);
+  let invalidRequested = false;
+  if (!_taskFocusInitialized && ready) {
+    if (requested && names.includes(requested)) selected = requested;
+    else if (requested) { selected = ''; invalidRequested = true; }
+    _taskAttentionOnly = new URLSearchParams(location.search).get('taskAttention') === '1';
+    _taskFocusInitialized = true;
+  }
+  if (selected && names.includes(selected)) { top.value = selected; lower.value = selected; }
+  if (invalidRequested) _syncTaskFocusUrl();
+}
+
+function setTaskAssigneeLens(name) {
+  const top = document.getElementById('taskMatrixOwner');
+  const lower = document.getElementById('filterOwner');
+  if (top) top.value = name || '';
+  if (lower) lower.value = name || '';
+  _taskRelationFilter = null;
+  _syncTaskFocusUrl();
+  renderTasks();
+}
+
+function showAllTeamTasks() {
+  _taskAttentionOnly = false;
+  setTaskAssigneeLens('');
+}
+
+function showMyTaskLens() {
+  const name = _currentTaskPersonName();
+  if (!name) { alert('Identify yourself in the header to use My Tasks.'); return; }
+  setTaskAssigneeLens(name);
+}
+
+function toggleTaskAttentionLens() {
+  _taskAttentionOnly = !_taskAttentionOnly;
+  _taskRelationFilter = null;
+  _syncTaskFocusUrl();
+  renderTasks();
+}
+window.setTaskAssigneeLens = setTaskAssigneeLens;
+window.showAllTeamTasks = showAllTeamTasks;
+window.showMyTaskLens = showMyTaskLens;
+window.toggleTaskAttentionLens = toggleTaskAttentionLens;
+window.addEventListener('popstate', () => {
+  const top = document.getElementById('taskMatrixOwner');
+  const lower = document.getElementById('filterOwner');
+  if (top) top.value = '';
+  if (lower) lower.value = '';
+  _taskAttentionOnly = false;
+  _taskFocusInitialized = false;
+  window.renderTasks && window.renderTasks();
+});
+
 function _taskRelationChips(t) {
   const c = _taskCollaboration(t);
   const internal = c.internal.map(dep => `<span class="task-relation-chip">${dep === c.owner ? 'Owned within ' + _shortTeam(dep) : 'Needs ' + _shortTeam(dep)}</span>`);
@@ -8586,6 +8720,7 @@ function _taskFiltered() {
   const dptF = document.getElementById('filterDept')?.value || '';
   const ownF = document.getElementById('filterOwner')?.value || '';
   return Object.entries(window._tasksData || {}).filter(([,t]) => {
+    if (_taskAttentionOnly && !_taskNeedsAttention(t)) return false;
     if (_taskRelationFilter) {
       const c = _taskCollaboration(t);
       const deps = _taskRelationFilter.kind === 'internal' ? c.internal : c.cross;
@@ -8595,7 +8730,7 @@ function _taskFiltered() {
     if (stF && (t.status||'todo') !== stF) return false;
     if (priF && (t.priority||'Medium') !== priF) return false;
     if (dptF && (t.department||'') !== dptF) return false;
-    if (ownF && !taskOwners(t).includes(ownF)) return false;
+    if (ownF && !taskOwners(t).some(name => _taskNameKey(name) === _taskNameKey(ownF))) return false;
     return true;
   });
 }
@@ -8623,7 +8758,7 @@ function _updateTaskSummary(all) {
     (ovd ? `<span style="color:#dc2626">Overdue: <strong>${ovd}</strong></span>` : '');
   // Per-person workload chips
   const wl = {};
-  Object.values(window._tasksData||{}).forEach(t => {
+  allV.forEach(t => {
     if (t.status !== 'done') taskOwners(t).forEach(o => { wl[o] = (wl[o]||0)+1; });
   });
   const wlStrip = document.getElementById('taskWorkloadStrip');
@@ -8751,7 +8886,8 @@ function renderGrouped() {
 
 /* ── Master render dispatcher ── */
 window.renderTasks = function() {
-  const all = Object.entries(window._tasksData || {});
+  _prepareTaskFocusControls();
+  const all = _taskMetricFocusEntries();
   _updateTaskSummary(all);
   renderTaskMatrices();
   if (_taskView === 'table')   renderTaskTable();
@@ -13961,6 +14097,7 @@ function axApply() {
   // R&R shows or hides its edit controls by tier, so it has to repaint whenever
   // who-is-signed-in changes -- otherwise a Lead sees Core Team buttons.
   window.renderRnr && window.renderRnr();
+  window.renderTasks && window.renderTasks();
 }
 
 
