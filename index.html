@@ -20,7 +20,7 @@
      ═══════════════════════════════════════════════════════ -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getDatabase, ref, set, remove, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getDatabase, ref, set, remove, onValue, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
   import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   const firebaseConfig = {
@@ -235,6 +235,11 @@
   window._dbRemove = function (r) {
     const p = remove(r);
     if (p && p.catch) p.catch(err => window._fbError('delete ' + ((r && r.toString && r.toString().split('naig2027/')[1]) || 'node'), err));
+    return p;
+  };
+  window._dbTransaction = function (r, updater) {
+    const p = runTransaction(r, updater);
+    if (p && p.catch) p.catch(err => window._fbError('update ' + ((r && r.toString && r.toString().split('naig2027/')[1]) || 'node'), err));
     return p;
   };
 
@@ -1064,6 +1069,19 @@ body.ax-readonly #axGateEmail, body.ax-readonly #prospectSearch { pointer-events
 .task-relation-filter.active { display:flex; }
 .task-relation-chip { display:inline-block; margin:2px 3px 0 0; padding:1px 5px; color:#3d526f; background:#eef3f8; border:1px solid #d8e0eb; border-radius:5px; font-size:8px; white-space:nowrap; }
 .task-relation-chip.cross { color:#79500d; background:#fff5e4; border-color:#efd7ab; }
+.task-relation-chip.dep-done { color:#166534; background:#dcfce7; border-color:#b7e3c6; }
+.task-relation-chip.dep-inprogress { color:#1d4ed8; background:#dbeafe; border-color:#b7cdf7; }
+.task-relation-chip.dep-blocked { color:#991b1b; background:#fee2e2; border-color:#f4b8b4; }
+.task-dep-editor { display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:8px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:7px; }
+.task-dep-row { display:flex; align-items:center; gap:6px; min-height:35px; padding:5px 7px; background:#fff; border:1px solid #e2e8f0; border-radius:6px; }
+.task-dep-row.selected { border-color:#8eb4dc; background:#f2f7fc; }
+.task-dep-row label { flex:1; display:flex; align-items:center; gap:6px; margin:0; color:#334155; font-size:11px; cursor:pointer; }
+.task-dep-row input { width:14px; height:14px; margin:0; }
+.task-dep-row select { width:104px; padding:4px 5px; border:1px solid #cbd5e1; border-radius:5px; background:#fff; font-size:10px; }
+.task-dep-row:not(.selected) select { display:none; }
+.task-dep-summary { margin-top:6px; padding:6px 8px; color:#64748b; background:#f8fafc; border-radius:6px; font-size:10px; line-height:1.4; }
+.task-dep-summary.complete { color:#166534; background:#ecfdf5; }
+.task-dep-summary.warning { color:#92400e; background:#fffbeb; }
 @media(max-width:1050px) { .task-matrices { grid-template-columns:1fr; } }
 @media(max-width:700px) {
   .task-focusbar { align-items:flex-start; flex-direction:column; }
@@ -1072,6 +1090,7 @@ body.ax-readonly #axGateEmail, body.ax-readonly #prospectSearch { pointer-events
   .task-matrix-cell { min-height:36px; font-size:11px; }
   .task-matrix-table th { font-size:8px; }
   .task-matrix-row { font-size:10px; }
+  .task-dep-editor { grid-template-columns:1fr; }
 }
 
 /* ── Overdue badge ── */
@@ -8460,6 +8479,7 @@ const _STATUS_COLOR = {
 
 const _LOGISTICS_STREAMS = ['Core Team','Food & Beverage','Hotels & Accommodations','Transportation','Site Management','Equipment & Signage'];
 const _CROSS_TEAMS = ['Sports','Registration','Finance','Legal','HR / IVS','Technology','Marketing','Command Center'];
+const _CROSS_TEAM_KEYS = {'Sports':'sports','Registration':'registration','Finance':'finance','Legal':'legal','HR / IVS':'hr_ivs','Technology':'technology','Marketing':'marketing','Command Center':'command_center'};
 let _taskRelationFilter = null;
 let _taskAttentionOnly = false;
 let _taskFocusInitialized = false;
@@ -8510,7 +8530,7 @@ function _taskInternalDeps(t, owner) {
   return _LOGISTICS_STREAMS.filter(x => deps.has(x));
 }
 
-function _taskCrossDeps(t) {
+function _inferTaskCrossDeps(t) {
   const text = _taskText(t);
   const patterns = {
     'Sports': /\bsports?\b|cricket|pickleball|pickler|tennis|soccer|flag football|flooring|surface requirements|slot|field j|venue-to-sport|sport allocation/,
@@ -8523,6 +8543,42 @@ function _taskCrossDeps(t) {
     'Command Center': /command center|emergency contact|site preparation|onsite meeting|setup coordination|radio/
   };
   return _CROSS_TEAMS.filter(team => patterns[team].test(text));
+}
+
+function _taskStoredVerticalDeps(t) {
+  const explicit = t.verticalDependenciesExplicit === true || Object.prototype.hasOwnProperty.call(t, 'verticalDependencies');
+  if (!explicit) return null;
+  const raw = Array.isArray(t.verticalDependencies)
+    ? t.verticalDependencies
+    : (t.verticalDependencies && typeof t.verticalDependencies === 'object' ? Object.values(t.verticalDependencies) : []);
+  const seen = new Set();
+  return raw.map(dep => {
+    const team = typeof dep === 'string' ? dep : dep && dep.team;
+    const status = dep && typeof dep === 'object' ? dep.status : 'todo';
+    return {team, status:['todo','inprogress','blocked','done'].includes(status) ? status : 'todo'};
+  }).filter(dep => {
+    if (!_CROSS_TEAMS.includes(dep.team) || seen.has(dep.team)) return false;
+    seen.add(dep.team);
+    return true;
+  });
+}
+
+function _taskVerticalDepsObject(deps) {
+  const out = {};
+  deps.forEach(dep => { out[_CROSS_TEAM_KEYS[dep.team]] = {team:dep.team, status:dep.status}; });
+  return out;
+}
+
+function _taskCrossDeps(t) {
+  const stored = _taskStoredVerticalDeps(t);
+  return stored === null ? _inferTaskCrossDeps(t) : stored.map(dep => dep.team);
+}
+
+function _taskVerticalDependencyStatus(t, team) {
+  const stored = _taskStoredVerticalDeps(t);
+  if (stored === null) return t.status || 'todo';
+  const dep = stored.find(item => item.team === team);
+  return dep ? dep.status : 'todo';
 }
 
 function _taskCollaboration(t) {
@@ -8553,11 +8609,11 @@ function _taskMetricFocusEntries() {
   });
 }
 
-function _taskMatrixStatus(tasks) {
-  if (!tasks.length) return 'empty';
-  if (tasks.some(t => t.status === 'blocked')) return 'blocked';
-  if (tasks.every(t => t.status === 'done')) return 'done';
-  if (tasks.some(t => t.status === 'inprogress')) return 'inprogress';
+function _taskMatrixStatus(statuses) {
+  if (!statuses.length) return 'empty';
+  if (statuses.some(status => status === 'blocked')) return 'blocked';
+  if (statuses.every(status => status === 'done')) return 'done';
+  if (statuses.some(status => status === 'inprogress')) return 'inprogress';
   return 'todo';
 }
 
@@ -8574,7 +8630,8 @@ function _renderTaskMatrix(id, columns, depKey, kind) {
     html += `<tr><td><span class="task-matrix-row">${esc(stream)}</span></td>`;
     columns.forEach(column => {
       const matches = records.filter(r => r.c.owner === stream && r.c[depKey].includes(column));
-      const status = _taskMatrixStatus(matches.map(r => r.t));
+      const statuses = matches.map(r => kind === 'cross' ? _taskVerticalDependencyStatus(r.t, column) : (r.t.status || 'todo'));
+      const status = _taskMatrixStatus(statuses);
       const selected = _taskRelationFilter && _taskRelationFilter.kind === kind && _taskRelationFilter.stream === stream && _taskRelationFilter.column === column;
       const titles = matches.map(r => r.t.title || 'Untitled').join(' | ');
       html += `<td><button class="task-matrix-cell ${status}${selected?' selected':''}" ${matches.length?'':'disabled'} data-task-matrix-kind="${kind}" data-stream="${esc(stream)}" data-column="${esc(column)}" title="${esc(titles)}">${matches.length || '-'}</button></td>`;
@@ -8709,7 +8766,12 @@ window.addEventListener('popstate', () => {
 function _taskRelationChips(t) {
   const c = _taskCollaboration(t);
   const internal = c.internal.map(dep => `<span class="task-relation-chip">${dep === c.owner ? 'Owned within ' + _shortTeam(dep) : 'Needs ' + _shortTeam(dep)}</span>`);
-  const cross = c.cross.map(dep => `<span class="task-relation-chip cross">With ${_shortTeam(dep)}</span>`);
+  const stored = _taskStoredVerticalDeps(t);
+  const cross = c.cross.map(team => {
+    if (stored === null) return `<span class="task-relation-chip cross">With ${_shortTeam(team)} · Inferred</span>`;
+    const status = _taskVerticalDependencyStatus(t, team);
+    return `<span class="task-relation-chip cross dep-${status}">${_shortTeam(team)} · ${_STATUS_LABEL[status] || status}</span>`;
+  });
   return internal.concat(cross).join('');
 }
 
@@ -8954,6 +9016,82 @@ window.seedInitialTasks = function() {
   window._dbSet(window._dbRef('naig2027/tasks'), seed);
 };
 
+let _taskEditorOriginalDeps = [];
+let _taskEditorOriginalStatus = 'todo';
+let _taskDependencyEditorTouched = false;
+
+function _taskDepsForEditor(t) {
+  const stored = _taskStoredVerticalDeps(t);
+  if (stored !== null) return {deps:stored, inferred:false};
+  const fallbackStatus = ['todo','inprogress','blocked','done'].includes(t.status) ? t.status : 'todo';
+  return {deps:_inferTaskCrossDeps(t).map(team => ({team, status:fallbackStatus})), inferred:true};
+}
+
+function _renderTaskVerticalDependencyEditor(t) {
+  const editor = document.getElementById('taskVerticalDependencies');
+  if (!editor) return;
+  const initial = _taskDepsForEditor(t);
+  _taskDependencyEditorTouched = false;
+  const selected = new Map(initial.deps.map(dep => [dep.team, dep.status]));
+  editor.dataset.inferred = initial.inferred && initial.deps.length ? '1' : '';
+  editor.innerHTML = _CROSS_TEAMS.map(team => {
+    const status = selected.get(team) || 'todo';
+    const checked = selected.has(team);
+    return `<div class="task-dep-row${checked?' selected':''}" data-team="${esc(team)}">
+      <label><input type="checkbox" ${checked?'checked':''}>${esc(team)}</label>
+      <select aria-label="${esc(team)} dependency status">
+        ${['todo','inprogress','blocked','done'].map(value => `<option value="${value}"${status===value?' selected':''}>${_STATUS_LABEL[value]}</option>`).join('')}
+      </select>
+    </div>`;
+  }).join('');
+  editor.querySelectorAll('.task-dep-row').forEach(row => {
+    row.querySelector('input').addEventListener('change', () => {
+      _taskDependencyEditorTouched = true;
+      row.classList.toggle('selected', row.querySelector('input').checked);
+      _enforceTaskDependencyStatus();
+    });
+    row.querySelector('select').addEventListener('change', () => {
+      _taskDependencyEditorTouched = true;
+      _enforceTaskDependencyStatus();
+    });
+  });
+  _enforceTaskDependencyStatus();
+}
+
+function _readTaskVerticalDependencies() {
+  const editor = document.getElementById('taskVerticalDependencies');
+  if (!editor) return [];
+  return Array.from(editor.querySelectorAll('.task-dep-row')).filter(row => row.querySelector('input').checked).map(row => ({
+    team:row.dataset.team,
+    status:row.querySelector('select').value
+  }));
+}
+
+function _enforceTaskDependencyStatus() {
+  const summary = document.getElementById('taskDependencySummary');
+  const statusInput = document.getElementById('taskStatus');
+  if (!summary || !statusInput) return;
+  const deps = _readTaskVerticalDependencies();
+  const inferred = document.getElementById('taskVerticalDependencies')?.dataset.inferred === '1';
+  summary.className = 'task-dep-summary';
+  if (!deps.length) {
+    summary.textContent = 'No cross-vertical dependencies selected. Task status is managed manually.';
+    return;
+  }
+  const done = deps.filter(dep => dep.status === 'done').length;
+  const prefix = inferred ? 'Suggested from existing task text. Change a dependency to confirm these links. ' : '';
+  if (done === deps.length) {
+    statusInput.value = 'done';
+    summary.classList.add('complete');
+    summary.textContent = `${prefix}${done}/${deps.length} verticals complete. The overall task will be Done.`;
+  } else {
+    if (statusInput.value === 'done') statusInput.value = 'inprogress';
+    summary.classList.add('warning');
+    summary.textContent = `${prefix}${done}/${deps.length} verticals complete. Finish every selected vertical before the overall task can be Done.`;
+  }
+}
+window._enforceTaskDependencyStatus = _enforceTaskDependencyStatus;
+
 function openTaskModal(defaultStatus, editKey) {
   const t = editKey ? (window._tasksData[editKey] || {}) : {};
   document.getElementById('taskModalTitle').textContent = editKey ? 'Edit Task' : 'Add Task';
@@ -8971,6 +9109,9 @@ function openTaskModal(defaultStatus, editKey) {
   document.getElementById('taskEstHours').value = t.estHours || '';
   document.getElementById('taskTags').value = t.tags || '';
   document.getElementById('taskNotes').value = t.notes || '';
+  _renderTaskVerticalDependencyEditor(t);
+  _taskEditorOriginalDeps = _readTaskVerticalDependencies().map(dep => ({...dep}));
+  _taskEditorOriginalStatus = t.status || defaultStatus || 'todo';
   // Populate parent task dropdown (exclude self and tasks that are already subtasks of this task)
   const parentSel = document.getElementById('taskParent');
   if (parentSel) {
@@ -8981,6 +9122,24 @@ function openTaskModal(defaultStatus, editKey) {
   document.getElementById('taskOverlay').style.display = 'flex';
 }
 function closeTaskModal() { document.getElementById('taskOverlay').style.display = 'none'; }
+
+function _mergeTaskVerticalDeps(currentTask, submitted, originalDeps) {
+  if (!currentTask) return submitted;
+  const latestStored = _taskStoredVerticalDeps(currentTask);
+  const latest = latestStored === null ? _taskDepsForEditor(currentTask).deps : latestStored;
+  const merged = new Map(latest.map(dep => [dep.team, {...dep}]));
+  const original = new Map(originalDeps.map(dep => [dep.team, dep]));
+  const form = new Map(submitted.map(dep => [dep.team, dep]));
+  _CROSS_TEAMS.forEach(team => {
+    const before = original.get(team);
+    const after = form.get(team);
+    if (!before && after) merged.set(team, {...after});
+    else if (before && !after) merged.delete(team);
+    else if (before && after && before.status !== after.status) merged.set(team, {...after});
+  });
+  return _CROSS_TEAMS.filter(team => merged.has(team)).map(team => merged.get(team));
+}
+
 function saveTask() {
   const title = document.getElementById('taskTitle').value.trim();
   if (!title) { alert('Task title required.'); return; }
@@ -8992,11 +9151,16 @@ function saveTask() {
   // Detect newly-added assignees for email notification
   const oldOwners = editKey ? taskOwners(window._tasksData[editKey] || {}) : [];
   const newlyAdded = newOwners.filter(o => !oldOwners.includes(o));
-  const _oldTask = editKey ? (window._tasksData[editKey] || {}) : null;
-  const _newStatus = document.getElementById('taskStatus').value;
-  hubSave('tasks', key, {
+  const oldTaskSource = editKey ? (window._tasksData[editKey] || {}) : null;
+  const _oldTask = oldTaskSource ? JSON.parse(JSON.stringify(oldTaskSource)) : null;
+  const submittedDependencies = _readTaskVerticalDependencies();
+  const originalDependencies = _taskEditorOriginalDeps.map(dep => ({...dep}));
+  const originalStatus = _taskEditorOriginalStatus;
+  const dependencyEditorTouched = _taskDependencyEditorTouched;
+  const requestedStatus = document.getElementById('taskStatus').value;
+  const formData = {
     title,
-    status:     document.getElementById('taskStatus').value,
+    status:     requestedStatus,
     priority:   document.getElementById('taskPriority').value,
     department: document.getElementById('taskDept').value,
     scopeArea:  document.getElementById('taskScopeArea').value,
@@ -9009,53 +9173,111 @@ function saveTask() {
     notes:      document.getElementById('taskNotes').value.trim(),
     parentTask: document.getElementById('taskParent').value,
     updated:    new Date().toISOString()
-  });
-  if (!editKey) {
-    logActivity('task', `New task: "${title}"${newOwners.length ? ' — assigned to ' + newOwners.join(', ') : ''}`,
-                { action:'create', entityKey:key, entityName:title, newValue:_newStatus });
-  } else if (_oldTask && _oldTask.status !== _newStatus) {
-    logActivity('task', `Task "${title}" moved to ${_STATUS_LABEL[_newStatus] || _newStatus}`,
-                { action:'status_change', entityKey:key, entityName:title, oldValue:_oldTask.status, newValue:_newStatus });
-  }
-  // Send assignment email for newly-added people
-  if (newlyAdded.length) {
-    const emails = newlyAdded.map(assigneeEmail).filter(Boolean);
-    const status   = document.getElementById('taskStatus').value;
-    const priority = document.getElementById('taskPriority').value;
-    const due      = document.getElementById('taskDue').value || 'TBD';
-    const notes    = document.getElementById('taskNotes').value.trim() || '—';
-    const subject  = encodeURIComponent(`[NAIG 2027] Task Assigned: ${title}`);
-    const body     = encodeURIComponent(
-      `Hi,\n\nYou've been assigned a task on the NAIG 2027 Sports Central hub.\n\n` +
-      `Task: ${title}\nStatus: ${status}\nPriority: ${priority}\nDue: ${due}\nNotes: ${notes}\n\n` +
-      // This said rizwan-io.github.io, which is not our site -- every assignment
-      // email sent the assignee to a dead address.
-      `View the hub: https://rizwan-collab.github.io/naig-2027-orgchart/\n\n— NAIG 2027 Logistics Team`
-    );
-    if (emails.length) {
-      window.open(`mailto:${emails.join(',')}?subject=${subject}&body=${body}`, '_blank');
+  };
+  if (!window._dbRef || !window._dbTransaction) { alert('Firebase not ready yet — try again in a moment.'); return; }
+  const saveBtn = document.getElementById('taskSaveBtn');
+  if (saveBtn) saveBtn.disabled = true;
+  window._dbTransaction(window._dbRef('naig2027/tasks/' + key), current => {
+    if (editKey && !current) return;
+    const verticalDependencies = _mergeTaskVerticalDeps(current, submittedDependencies, originalDependencies);
+    const persistDependencies = !editKey || dependencyEditorTouched || _taskStoredVerticalDeps(current || {}) !== null;
+    let mergedTask = {...(current || {})};
+    if (!editKey) {
+      mergedTask = {...mergedTask, ...formData};
     } else {
-      // No emails stored — show a reminder banner briefly
-      const banner = document.createElement('div');
-      banner.textContent = `Assigned to ${newlyAdded.join(', ')} — no email on file. Add it on their Directory card to notify them.`;
-      Object.assign(banner.style, { position:'fixed', bottom:'24px', left:'50%', transform:'translateX(-50%)',
-        background:'#1E3A8A', color:'#fff', padding:'10px 20px', borderRadius:'8px',
-        fontSize:'12px', zIndex:9999, boxShadow:'0 4px 16px rgba(0,0,0,.2)' });
-      document.body.appendChild(banner);
-      setTimeout(() => banner.remove(), 4000);
+      Object.keys(formData).forEach(field => {
+        const originalValue = field === 'owners' ? taskOwners(_oldTask || {}) : ((_oldTask || {})[field] || '');
+        const changed = JSON.stringify(formData[field]) !== JSON.stringify(originalValue);
+        if (changed) mergedTask[field] = formData[field];
+      });
+      if (JSON.stringify(newOwners) !== JSON.stringify(taskOwners(_oldTask || {}))) mergedTask.owner = newOwners[0] || '';
     }
-  }
-  closeTaskModal();
+    let status = requestedStatus;
+    if (editKey && requestedStatus === originalStatus && current && current.status !== originalStatus) status = current.status || 'todo';
+    if (verticalDependencies.length && verticalDependencies.every(dep => dep.status === 'done')) status = 'done';
+    else if (verticalDependencies.length && status === 'done') status = 'inprogress';
+    mergedTask.status = status;
+    mergedTask.updated = formData.updated;
+    if (persistDependencies) {
+      mergedTask.verticalDependenciesExplicit = true;
+      mergedTask.verticalDependencies = _taskVerticalDepsObject(verticalDependencies);
+    }
+    return mergedTask;
+  }).then(result => {
+    const saved = result.snapshot.val();
+    if (!result.committed || !saved) {
+      alert('This task no longer exists. Close the editor and refresh the task list.');
+      return;
+    }
+    const newStatus = saved.status || 'todo';
+    if (!editKey) {
+      logActivity('task', `New task: "${title}"${newOwners.length ? ' — assigned to ' + newOwners.join(', ') : ''}`,
+                  { action:'create', entityKey:key, entityName:title, newValue:newStatus });
+    } else if (_oldTask && _oldTask.status !== newStatus) {
+      logActivity('task', `Task "${title}" moved to ${_STATUS_LABEL[newStatus] || newStatus}`,
+                  { action:'status_change', entityKey:key, entityName:title, oldValue:_oldTask.status, newValue:newStatus });
+    }
+    if (newlyAdded.length) {
+      const emails = newlyAdded.map(assigneeEmail).filter(Boolean);
+      const due = formData.due || 'TBD';
+      const notes = formData.notes || '—';
+      const subject = encodeURIComponent(`[NAIG 2027] Task Assigned: ${title}`);
+      const body = encodeURIComponent(
+        `Hi,\n\nYou've been assigned a task on the NAIG 2027 Sports Central hub.\n\n` +
+        `Task: ${title}\nStatus: ${newStatus}\nPriority: ${formData.priority}\nDue: ${due}\nNotes: ${notes}\n\n` +
+        `View the hub: https://rizwan-collab.github.io/naig-2027-orgchart/\n\n— NAIG 2027 Logistics Team`
+      );
+      if (emails.length) {
+        window.open(`mailto:${emails.join(',')}?subject=${subject}&body=${body}`, '_blank');
+      } else {
+        const banner = document.createElement('div');
+        banner.textContent = `Assigned to ${newlyAdded.join(', ')} — no email on file. Add it on their Directory card to notify them.`;
+        Object.assign(banner.style, { position:'fixed', bottom:'24px', left:'50%', transform:'translateX(-50%)',
+          background:'#1E3A8A', color:'#fff', padding:'10px 20px', borderRadius:'8px',
+          fontSize:'12px', zIndex:9999, boxShadow:'0 4px 16px rgba(0,0,0,.2)' });
+        document.body.appendChild(banner);
+        setTimeout(() => banner.remove(), 4000);
+      }
+    }
+    closeTaskModal();
+  }).catch(() => {}).finally(() => { if (saveBtn) saveBtn.disabled = false; });
 }
 function quickComplete(key) {
   const t = window._tasksData[key];
   if (!t) return;
-  hubSave('tasks', key, {...t, status:'done', updated: new Date().toISOString()});
+  const deps = _taskStoredVerticalDeps(t);
+  if (deps === null && _inferTaskCrossDeps(t).length) {
+    alert('Confirm the suggested vertical dependencies and their statuses before completing this task.');
+    openTaskModal(null, key);
+    return;
+  }
+  if (deps && deps.some(dep => dep.status !== 'done')) {
+    alert('Complete every selected vertical dependency before marking this task Done.');
+    openTaskModal(null, key);
+    return;
+  }
+  if (!window._dbRef || !window._dbTransaction) { alert('Firebase not ready yet — try again in a moment.'); return; }
+  window._dbTransaction(window._dbRef('naig2027/tasks/' + key), current => {
+    if (!current) return current;
+    const latest = _taskStoredVerticalDeps(current);
+    if (latest === null && _inferTaskCrossDeps(current).length) return current;
+    if (latest && latest.some(dep => dep.status !== 'done')) return current;
+    return {...current, status:'done', updated:new Date().toISOString()};
+  }).then(result => {
+    if (result.snapshot.val()?.status !== 'done') {
+      alert('A vertical dependency changed before completion. Review the task and try again.');
+      openTaskModal(null, key);
+    }
+  }).catch(() => {});
 }
 function exportTasksCSV() {
-  const rows = [['Title','Status','Priority','Department','Scope Area','Assignee','Due','Est Hours','Tags','Notes']];
+  const rows = [['Title','Status','Priority','Department','Scope Area','Assignee','Due','Est Hours','Tags','Vertical Dependencies','Notes']];
   Object.values(window._tasksData||{}).forEach(t => {
-    rows.push([t.title,t.status,t.priority,t.department||'',t.scopeArea||'',taskOwners(t).join('; '),t.due||'',t.estHours||'',t.tags||'',t.notes||'']);
+    const deps = _taskStoredVerticalDeps(t);
+    const depText = deps === null
+      ? _inferTaskCrossDeps(t).map(team => `${team}: Inferred`).join('; ')
+      : deps.map(dep => `${dep.team}: ${_STATUS_LABEL[dep.status] || dep.status}`).join('; ');
+    rows.push([t.title,t.status,t.priority,t.department||'',t.scopeArea||'',taskOwners(t).join('; '),t.due||'',t.estHours||'',t.tags||'',depText,t.notes||'']);
   });
   downloadCSV(rows, 'naig-tasks.csv');
 }
@@ -9919,7 +10141,11 @@ window.delCustomQ = delCustomQ;
    CSV HELPERS
 ══════════════════════════════════════════════════════════ */
 function downloadCSV(rows, filename) {
-  const csv = rows.map(r => r.map(c => '"' + String(c||'').replace(/"/g,'""') + '"').join(',')).join('\n');
+  const csv = rows.map(r => r.map(c => {
+    let value = String(c == null ? '' : c);
+    if (/^[\t\r\n]*[=+\-@]/.test(value)) value = "'" + value;
+    return '"' + value.replace(/"/g,'""') + '"';
+  }).join(',')).join('\n');
   const a = document.createElement('a');
   a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
   a.download = filename;
@@ -14813,7 +15039,7 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
  </div>
  <div class="form-group">
  <label>Status</label>
- <select id="taskStatus" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+ <select id="taskStatus" onchange="_enforceTaskDependencyStatus()" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
  <option value="todo">To Do</option>
  <option value="inprogress">In Progress</option>
  <option value="blocked">Blocked</option>
@@ -14869,6 +15095,11 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
  <input type="text" id="taskTags" placeholder="e.g. venue, contract, urgent" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
  </div>
  <div class="form-group" style="grid-column:1/-1">
+  <label>Cross-Vertical Dependencies <span style="font-weight:400;color:#94a3b8">(select each team and track its status)</span></label>
+  <div id="taskVerticalDependencies" class="task-dep-editor"></div>
+  <div id="taskDependencySummary" class="task-dep-summary" aria-live="polite">No cross-vertical dependencies selected.</div>
+ </div>
+ <div class="form-group" style="grid-column:1/-1">
  <label>Parent Task <span style="font-weight:400;color:#94a3b8">(optional — makes this a subtask)</span></label>
  <select id="taskParent" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
  <option value="">— None (top-level task) —</option>
@@ -14882,7 +15113,7 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
  <div class="modal-actions">
  <button class="btn btn-cancel" onclick="closeTaskModal()">Cancel</button>
  <button class="btn btn-danger" id="taskDeleteBtn" onclick="deleteHubItem('tasks',document.getElementById('taskKey').value,closeTaskModal)" style="display:none">Delete</button>
- <button class="btn btn-primary" onclick="saveTask()">Save Task</button>
+ <button class="btn btn-primary" id="taskSaveBtn" onclick="saveTask()">Save Task</button>
  </div>
  </div>
 </div>
