@@ -1938,6 +1938,7 @@ html.onboard-mode #onboardScreen { display: flex !important; }
  <button class="btn btn-light" id="vviewCards" onclick="setVenueView('cards')">▦ Pipeline</button>
  <button class="btn btn-light" id="vviewSpecs" onclick="setVenueView('specs')">☰ Facility Specs</button>
  <button class="btn btn-light" id="vviewFit" onclick="setVenueView('fit')" title="Can each venue actually take our window? Hours, lights, courts, exclusivity — side by side.">◪ Fit Matrix</button>
+ <button class="btn btn-light" id="vviewDaylight" onclick="setVenueView('daylight')" title="Sunrise and sunset at every venue across the six days. Which unlit grounds run out of light before play ends.">☀ Daylight</button>
  <button class="btn btn-light" onclick="exportVenuesCSV()">⬇ CSV</button>
  <button class="btn btn-primary" onclick="openVenueModal()">+ Add Venue</button>
  </div>
@@ -9522,13 +9523,22 @@ window.setVenueView = function (v) {
     fit.style.display = 'none';
     specs.parentNode.insertBefore(fit, specs.nextSibling);
   }
+  let day = document.getElementById('venuesDaylightWrap');
+  if (!day && fit && fit.parentNode) {
+    day = document.createElement('div');
+    day.id = 'venuesDaylightWrap';
+    day.style.display = 'none';
+    fit.parentNode.insertBefore(day, fit.nextSibling);
+  }
   if (cards) cards.style.display = (v === 'cards') ? '' : 'none';
   if (specs) specs.style.display = (v === 'specs') ? '' : 'none';
   if (fit)   fit.style.display   = (v === 'fit')   ? '' : 'none';
+  if (day)   day.style.display   = (v === 'daylight') ? '' : 'none';
   const bc = document.getElementById('vviewCards'),
         bs = document.getElementById('vviewSpecs'),
-        bf = document.getElementById('vviewFit');
-  [[bc, v === 'cards'], [bs, v === 'specs'], [bf, v === 'fit']].forEach(([b, on]) => {
+        bf = document.getElementById('vviewFit'),
+        bd = document.getElementById('vviewDaylight');
+  [[bc, v === 'cards'], [bs, v === 'specs'], [bf, v === 'fit'], [bd, v === 'daylight']].forEach(([b, on]) => {
     if (!b) return;
     b.style.background = on ? '#14304C' : '';
     b.style.color = on ? '#fff' : '';
@@ -9537,6 +9547,313 @@ window.setVenueView = function (v) {
   window.renderVenues && window.renderVenues();
 };
 
+
+/* ── DAYLIGHT MODEL ────────────────────────────────────────────────────
+   Built 10 Sep 2026, after Texomo turned up unlit with a 4:00pm match
+   slot whose games end 7:30–8:00pm. Sunset at Calera on those dates is
+   7:40–7:43pm. Nobody had checked, because nothing in the hub knew what
+   time the sun goes down.
+
+   This computes it. NOAA's solar position algorithm, run in the browser
+   for each venue's own latitude and longitude — no lookup table to go
+   stale, no API to fail. Verified against the astral library: agrees
+   to within one minute on every event date.
+
+   Sunrise almost never binds (it is ~7:20am and nothing starts before
+   8:00am). Sunset is the whole story, and only for OUTDOOR venues with
+   NO LIGHTS. Indoor venues and lit venues are marked n/a on purpose —
+   a daylight warning on an indoor court is noise that trains people to
+   ignore the warnings that matter.
+══════════════════════════════════════════════════════════════════════ */
+window.NAIG_SOLAR = (function () {
+  const R = Math.PI / 180;
+  function jday(y, m, d) {
+    if (m <= 2) { y -= 1; m += 12; }
+    const A = Math.floor(y / 100), B = 2 - A + Math.floor(A / 4);
+    return Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (m + 1)) + d + B - 1524.5;
+  }
+  function geom(jd) {
+    const t = (jd - 2451545) / 36525;
+    const L0 = (280.46646 + t * (36000.76983 + t * 0.0003032)) % 360;
+    const M = 357.52911 + t * (35999.05029 - 0.0001537 * t);
+    const e = 0.016708634 - t * (0.000042037 + 0.0000001267 * t);
+    const C = Math.sin(R * M) * (1.914602 - t * (0.004817 + 0.000014 * t))
+            + Math.sin(R * 2 * M) * (0.019993 - 0.000101 * t)
+            + Math.sin(R * 3 * M) * 0.000289;
+    const omega = 125.04 - 1934.136 * t;
+    const lambda = L0 + C - 0.00569 - 0.00478 * Math.sin(R * omega);
+    const sec = 21.448 - t * (46.8150 + t * (0.00059 - t * 0.001813));
+    const oc = (23 + (26 + sec / 60) / 60) + 0.00256 * Math.cos(R * omega);
+    const decl = Math.asin(Math.sin(R * oc) * Math.sin(R * lambda)) / R;
+    const y2 = Math.pow(Math.tan(R * oc / 2), 2);
+    const eq = 4 * (y2 * Math.sin(2 * R * L0) - 2 * e * Math.sin(R * M)
+             + 4 * e * y2 * Math.sin(R * M) * Math.cos(2 * R * L0)
+             - 0.5 * y2 * y2 * Math.sin(4 * R * L0)
+             - 1.25 * e * e * Math.sin(2 * R * M)) / R;
+    return { decl: decl, eq: eq };
+  }
+  /* zenith 90.833 = sunrise/sunset (refraction + solar disc);
+     96 = civil twilight, the point where you genuinely cannot see a ball. */
+  function events(lat, lon, y, m, d, tzOff, zenith) {
+    const g = geom(jday(y, m, d) + 0.5 - lon / 360);
+    const cosH = (Math.cos(R * zenith) - Math.sin(R * lat) * Math.sin(R * g.decl))
+               / (Math.cos(R * lat) * Math.cos(R * g.decl));
+    if (cosH > 1 || cosH < -1) return { rise: null, set: null, noon: null };
+    const H = Math.acos(cosH) / R;
+    const noon = 720 - 4 * lon - g.eq + tzOff * 60;
+    return { rise: noon - 4 * H, set: noon + 4 * H, noon: noon };
+  }
+  function fmt(mins) {
+    if (mins == null) return '—';
+    let m = Math.round(((mins % 1440) + 1440) % 1440);
+    const h = Math.floor(m / 60), mm = m % 60;
+    return (h % 12 === 0 ? 12 : h % 12) + ':' + String(mm).padStart(2, '0') + (h < 12 ? 'am' : 'pm');
+  }
+  return { events: events, fmt: fmt, jday: jday };
+})();
+
+/* Coordinates are city-centre. Across DFW that is worth under five minutes
+   of sunset, which does not change any decision — the two that matter are
+   Calera (90 min north, in Oklahoma) and Prairie View (Houston). */
+window.NAIG_GEO = {
+  tzOffset: -5,                    // CDT — DST begins 14 Mar 2027, before the event
+  table: [
+    [/calera|texomo/i,             33.9312, -96.4231, 'Calera, OK'],
+    [/prairie view/i,              30.0938, -95.9908, 'Prairie View, TX'],
+    [/mckinney/i,                  33.1972, -96.6398, 'McKinney, TX'],
+    [/the colony/i,                33.0890, -96.8861, 'The Colony, TX'],
+    [/mansfield/i,                 32.5632, -97.1417, 'Mansfield, TX'],
+    [/lewisville/i,                33.0462, -96.9942, 'Lewisville, TX'],
+    [/farmers branch/i,            32.9268, -96.8961, 'Farmers Branch, TX'],
+    [/arlington|maverick|\bUTA\b/i, 32.7357, -97.1081, 'Arlington, TX'],
+    [/fort worth|gateway/i,        32.7555, -97.3308, 'Fort Worth, TX'],
+    [/northlake|the birch/i,       33.0812, -97.2586, 'Northlake, TX'],
+    [/carrollton|pickler/i,        32.9537, -96.8903, 'Carrollton, TX'],
+    [/little elm/i,                33.1626, -96.9375, 'Little Elm, TX'],
+    [/plano|russell creek/i,       33.0198, -96.6989, 'Plano, TX'],
+    [/dallas/i,                    32.7767, -96.7970, 'Dallas, TX']
+  ],
+  resolve: function (v) {
+    const hay = [v && v.location, v && v.address, v && v.name].filter(Boolean).join(' ');
+    for (let i = 0; i < this.table.length; i++) {
+      if (this.table[i][0].test(hay)) {
+        return { lat: this.table[i][1], lon: this.table[i][2], label: this.table[i][3], matched: true };
+      }
+    }
+    /* Unmatched falls back to DFW centre and says so — an honest approximation
+       beats a blank cell, provided the row admits it is an approximation. */
+    return { lat: 32.7767, lon: -96.7970, label: 'DFW (assumed)', matched: false };
+  }
+};
+
+/* The six days of occupancy. Kept separate from NAIG_WINDOW because the sun
+   does not care which of them we call setup. */
+window.NAIG_DAYLIGHT_DAYS = [
+  { day: 'Wed 24', y: 2027, m: 3, d: 24 },
+  { day: 'Thu 25', y: 2027, m: 3, d: 25 },
+  { day: 'Fri 26', y: 2027, m: 3, d: 26 },
+  { day: 'Sat 27', y: 2027, m: 3, d: 27 },
+  { day: 'Sun 28', y: 2027, m: 3, d: 28 },
+  { day: 'Mon 29', y: 2027, m: 3, d: 29 }
+];
+
+/* What time does play actually END at this venue?
+   Prefer the venue's own stated hours; fall back to the site model's close. */
+window._venuePlayEnd = function (v) {
+  const modelClose = (function () {
+    const play = (window.NAIG_WINDOW || []).filter(w => w.test && w.close != null);
+    return play.length ? Math.max.apply(null, play.map(w => w.close)) : 18 * 60;
+  })();
+
+  /* Scan the venue's own hours for every clock time it mentions and take the
+     latest one. This deliberately does NOT use _parseHours: that function wants
+     a tidy "8am-10pm" and returns null on anything else, and the hours fields
+     have grown into prose — Texomo's reads "Play 9:00am – ~8:00pm (game starts
+     9am / 1pm / 4pm)". Falling back to the model's 6:00pm on a string like that
+     would report the one venue that actually finishes after sunset as clear,
+     which is the exact failure this whole tab exists to catch. A latest-time
+     scan degrades safely: it can only ever be too cautious, never too rosy. */
+  const txt = [v && v.hoursWeekday, v && v.hoursWeekend].filter(Boolean).join(' ');
+  let latest = null;
+  const re = /(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\b|p\b)|\b([01]?\d|2[0-3]):([0-5]\d)\b/gi;
+  let mm;
+  while ((mm = re.exec(txt)) !== null) {
+    let mins;
+    if (mm[1] !== undefined) {
+      let h = parseInt(mm[1], 10);
+      if (h > 12) continue;
+      const min = mm[2] ? parseInt(mm[2], 10) : 0;
+      const pm = /^p/i.test(mm[3]);
+      if (pm && h !== 12) h += 12;
+      if (!pm && h === 12) h = 0;
+      mins = h * 60 + min;
+    } else {
+      mins = parseInt(mm[4], 10) * 60 + parseInt(mm[5], 10);
+    }
+    if (latest === null || mins > latest) latest = mins;
+  }
+  if (latest !== null) return { mins: latest, source: 'venue' };
+  return { mins: modelClose, source: 'model' };
+};
+
+window._venueDaylight = function (v) {
+  const geo = window.NAIG_GEO.resolve(v);
+  const tz = window.NAIG_GEO.tzOffset;
+  const days = window.NAIG_DAYLIGHT_DAYS.map(function (D) {
+    const s = window.NAIG_SOLAR.events(geo.lat, geo.lon, D.y, D.m, D.d, tz, 90.833);
+    const c = window.NAIG_SOLAR.events(geo.lat, geo.lon, D.y, D.m, D.d, tz, 96);
+    return { day: D.day, rise: s.rise, set: s.set, dusk: c.set };
+  });
+  const earliestSet = Math.min.apply(null, days.map(d => d.set));
+  const end = window._venuePlayEnd(v);
+  const margin = Math.round(earliestSet - end.mins);
+
+  const io = String((v && v.indoorOutdoor) || '');
+  const lights = String((v && v.lights) || '').trim();
+  let code, label, detail;
+
+  if (/^indoor$/i.test(io)) {
+    code = 'na'; label = 'Indoor';
+    detail = 'Daylight does not apply.';
+  } else if (lights && !/^no\b|^none\b|unlit/i.test(lights)) {
+    code = 'lit'; label = 'Lit';
+    detail = 'Has lights — play can run past sunset. Sunset is a comfort check, not a constraint.';
+  } else if (!lights) {
+    code = 'unknown'; label = 'Lights unknown';
+    detail = 'Nobody has recorded whether this venue has lights, so we cannot say whether sunset binds. '
+           + 'Earliest sunset across the six days is ' + window.NAIG_SOLAR.fmt(earliestSet) + '.';
+  } else if (margin < 0) {
+    code = 'dark'; label = Math.abs(margin) + ' min AFTER sunset';
+    detail = 'Play is scheduled to end at ' + window.NAIG_SOLAR.fmt(end.mins) + ' on an unlit ground, but the sun '
+           + 'sets at ' + window.NAIG_SOLAR.fmt(earliestSet) + '. The last game finishes in the dark.';
+  } else if (margin < 60) {
+    code = 'tight'; label = margin + ' min of margin';
+    detail = 'Unlit, and play ends ' + margin + ' minutes before sunset (' + window.NAIG_SOLAR.fmt(earliestSet) + '). '
+           + 'Any delay pushes the finish into failing light with no evening buffer to absorb it.';
+  } else {
+    code = 'ok'; label = Math.floor(margin / 60) + 'h ' + (margin % 60) + 'm clear';
+    detail = 'Unlit, but play ends well before sunset (' + window.NAIG_SOLAR.fmt(earliestSet) + ').';
+  }
+  return { geo: geo, days: days, earliestSet: earliestSet, playEnd: end, margin: margin,
+           code: code, label: label, detail: detail };
+};
+
+window.renderVenueDaylight = function () {
+  const wrap = document.getElementById('venuesDaylightWrap');
+  if (!wrap) return;
+  const q = (document.getElementById('venueSearch')?.value || '').toLowerCase();
+  let rows = Object.entries(window._venuesData || {})
+    .filter(([, v]) => !/dropped|declined|not selected|closed|cancelled|not available/i.test(v.status || ''));
+  if (q) rows = rows.filter(([, v]) => JSON.stringify(v).toLowerCase().includes(q));
+
+  const rank = { dark: 0, tight: 1, unknown: 2, ok: 3, lit: 4, na: 5 };
+  rows = rows.map(([k, v]) => [k, v, window._venueDaylight(v)])
+             .sort((a, b) => (rank[a[2].code] - rank[b[2].code])
+                          || String(a[1].name || '').localeCompare(String(b[1].name || '')));
+
+  const SK = {
+    dark:    ['#fef2f2', '#b91c1c', '#fecaca', '\u2715'],
+    tight:   ['#fff7ed', '#c2410c', '#fed7aa', '!'],
+    unknown: ['#fffbeb', '#92400e', '#fde68a', '?'],
+    ok:      ['#e9f7ef', '#166534', '#a8d9c0', '\u2713'],
+    lit:     ['#eff6ff', '#1d4ed8', '#bfdbfe', '\u2600'],
+    na:      ['#f8fafc', '#64748b', '#e2e8f0', '\u2013']
+  };
+  const pill = (c, txt) => '<span style="display:inline-block;font-size:10.5px;font-weight:700;padding:2px 8px;'
+    + 'border-radius:20px;background:' + SK[c][0] + ';color:' + SK[c][1] + ';border:1px solid ' + SK[c][2] + ';'
+    + 'white-space:nowrap">' + SK[c][3] + ' ' + txt + '</span>';
+
+  const F = window.NAIG_SOLAR.fmt;
+  const counts = {}; Object.keys(SK).forEach(k => counts[k] = 0);
+  rows.forEach(([, , d]) => counts[d.code]++);
+
+  const refPts = [
+    { name: 'DFW (Dallas)', lat: 32.7767, lon: -96.7970 },
+    { name: 'Calera, OK \u2014 Texomo', lat: 33.9312, lon: -96.4231 },
+    { name: 'Prairie View \u2014 Houston', lat: 30.0938, lon: -95.9908 }
+  ];
+  const TH = 'text-align:left;padding:6px 9px;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;'
+    + 'color:#475569;font-weight:700;border-bottom:2px solid #e2e8f0;background:#f8fafc;white-space:nowrap';
+  const refHead = ['Location'].concat(window.NAIG_DAYLIGHT_DAYS.map(d => d.day))
+    .map(h => '<th style="' + TH + '">' + h + '</th>').join('');
+  const refBody = refPts.map(p => '<tr><td style="padding:6px 9px;font-size:12px;border-bottom:1px solid #eef2f7;'
+      + 'font-weight:650;color:#0f172a;white-space:nowrap">' + p.name + '</td>'
+      + window.NAIG_DAYLIGHT_DAYS.map(D => {
+          const s = window.NAIG_SOLAR.events(p.lat, p.lon, D.y, D.m, D.d, window.NAIG_GEO.tzOffset, 90.833);
+          const c = window.NAIG_SOLAR.events(p.lat, p.lon, D.y, D.m, D.d, window.NAIG_GEO.tzOffset, 96);
+          return '<td style="padding:6px 9px;font-size:11.5px;border-bottom:1px solid #eef2f7;color:#334155;'
+            + 'white-space:nowrap;line-height:1.5">'
+            + '<span style="color:#94a3b8">\u2191</span> ' + F(s.rise) + '<br>'
+            + '<strong style="color:#0f172a">\u2193 ' + F(s.set) + '</strong><br>'
+            + '<span style="color:#94a3b8;font-size:10.5px">dark ' + F(c.set) + '</span></td>';
+        }).join('') + '</tr>').join('');
+
+  const TH2 = 'text-align:left;padding:7px 9px;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;'
+    + 'color:#475569;font-weight:700;white-space:nowrap;border-bottom:2px solid #e2e8f0;background:#f8fafc;'
+    + 'position:sticky;top:0';
+  const head = ['Venue', 'Daylight verdict', 'In/Out', 'Lights', 'Play ends', 'Earliest sunset',
+                'Margin', 'Coordinates used'].map(h => '<th style="' + TH2 + '">' + h + '</th>').join('');
+
+  const td = 'padding:7px 9px;font-size:12px;border-bottom:1px solid #eef2f7;vertical-align:top;color:#334155';
+  const body = rows.map(([k, v, d]) =>
+      '<tr onclick="openVenueModal(\'' + k + '\')" style="cursor:pointer"'
+    + ' onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'">'
+    + '<td style="' + td + ';font-weight:650;color:#0f172a;min-width:180px">' + esc(v.name || '')
+    + '<div style="font-size:10.5px;color:#94a3b8;font-weight:400">' + esc(v.status || '') + '</div></td>'
+    + '<td style="' + td + ';min-width:210px">' + pill(d.code, d.label)
+    + '<div style="font-size:10.5px;color:#64748b;margin-top:4px;line-height:1.5">' + esc(d.detail) + '</div></td>'
+    + '<td style="' + td + '">' + esc(v.indoorOutdoor || '\u2014') + '</td>'
+    + '<td style="' + td + '">' + (v.lights
+        ? (/^no\b|^none\b|unlit/i.test(v.lights)
+            ? '<span style="color:#b91c1c;font-weight:600">' + esc(v.lights) + '</span>' : esc(v.lights))
+        : '<span style="color:#cbd5e1;font-style:italic">ask</span>') + '</td>'
+    + '<td style="' + td + ';white-space:nowrap">' + F(d.playEnd.mins)
+    + '<div style="font-size:10px;color:#94a3b8">'
+    + (d.playEnd.source === 'venue' ? "venue's own hours" : 'site model') + '</div></td>'
+    + '<td style="' + td + ';white-space:nowrap;font-weight:600;color:#0f172a">' + F(d.earliestSet) + '</td>'
+    + '<td style="' + td + ';white-space:nowrap;font-weight:700;color:'
+    + (d.margin < 0 ? '#b91c1c' : d.margin < 60 ? '#c2410c' : '#166534') + '">'
+    + (d.margin < 0 ? '\u2212' + Math.abs(d.margin) : '+' + d.margin) + ' min</td>'
+    + '<td style="' + td + ';white-space:nowrap;font-size:11px;color:#64748b">' + esc(d.geo.label)
+    + '<div style="font-size:10px;color:#cbd5e1">' + d.geo.lat.toFixed(3) + ', ' + d.geo.lon.toFixed(3)
+    + '</div></td></tr>').join('');
+
+  wrap.innerHTML =
+      '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:11px 13px;margin-bottom:10px">'
+    + '<div style="font-size:12px;font-weight:700;color:#0f172a;margin-bottom:4px">When the sun goes down</div>'
+    + '<div style="font-size:11.5px;color:#475569;line-height:1.6">'
+    + 'Sunrise and sunset computed for each venue\'s own latitude and longitude across the six days of '
+    + 'occupancy \u2014 NOAA\'s algorithm, run here in the page. Times are CDT; daylight saving begins '
+    + '14 Mar 2027, before the event.<br>'
+    + '<strong style="color:#334155">Only unlit outdoor venues get a verdict.</strong> Indoor and lit '
+    + 'sites are marked n/a on purpose, so a real warning never has to compete with noise.<br>'
+    + '<strong style="color:#334155">Sunrise almost never binds</strong> \u2014 it is around 7:20am and '
+    + 'nothing starts before 8:00am. Sunset is the whole question.</div>'
+    + '<div style="margin-top:9px;display:flex;gap:8px;flex-wrap:wrap">'
+    + (counts.dark    ? pill('dark',    counts.dark + ' finish after dark') : '')
+    + (counts.tight   ? pill('tight',   counts.tight + ' cutting it close') : '')
+    + (counts.unknown ? pill('unknown', counts.unknown + ' lights unknown') : '')
+    + (counts.ok      ? pill('ok',      counts.ok + ' clear') : '')
+    + (counts.lit     ? pill('lit',     counts.lit + ' lit') : '')
+    + (counts.na      ? pill('na',      counts.na + ' indoor') : '')
+    + '</div></div>'
+    + '<div style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:10px;background:#fff;margin-bottom:12px">'
+    + '<div style="padding:9px 11px 2px;font-size:11.5px;font-weight:700;color:#0f172a">'
+    + 'The sun, before any venue is involved</div>'
+    + '<div style="padding:0 11px 7px;font-size:11px;color:#64748b;line-height:1.5">'
+    + 'Across DFW the spread is under five minutes, so one row covers sixteen of the venues. '
+    + 'Calera and Prairie View are far enough away to be worth their own rows.</div>'
+    + '<table style="width:100%;border-collapse:collapse;min-width:760px"><thead><tr>' + refHead
+    + '</tr></thead><tbody>' + refBody + '</tbody></table></div>'
+    + '<div style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:10px;background:#fff">'
+    + '<table style="width:100%;border-collapse:collapse;min-width:1180px"><thead><tr>' + head
+    + '</tr></thead><tbody>' + body + '</tbody></table></div>'
+    + '<div style="font-size:11px;color:#94a3b8;margin-top:7px;line-height:1.6">'
+    + 'Click any row to open the venue. Margin is the gap between the venue\'s play-end time and the '
+    + 'earliest sunset across the six days \u2014 negative means the last game finishes after dark. '
+    + 'Coordinates are city-centre; a row reading "DFW (assumed)" has no city recorded and is using a '
+    + 'fallback, which is worth fixing on the venue card.</div>';
+};
 /* ── THE SITE MODEL, in one place ───────────────────────────────────────
    REVISED 8 Sep 2026 by Rizwan, replacing the 7am–10pm model that stood
    until 7 Sep: "Friday through Sunday, from 8:00 AM to 6:00 PM each day…
@@ -9780,7 +10097,7 @@ window.renderVenueFit = function () {
   const counts = { fits:0, gap:0, ask:0 };
   rows.forEach(([, , f]) => counts[f.code]++);
 
-  const head = ['Venue','Fit vs our window','Courts vs minimum','Courts / Fields','Lights','In/Out','Weekday hrs',
+  const head = ['Venue','Fit vs our window','Daylight','Courts vs minimum','Courts / Fields','Lights','In/Out','Weekday hrs',
                 'Weekend hrs','All at once','Exclusive','Price quoted','Site lead']
     .map(h => `<th style="text-align:left;padding:7px 9px;font-size:10.5px;letter-spacing:.04em;
        text-transform:uppercase;color:#475569;font-weight:700;white-space:nowrap;
@@ -9795,6 +10112,16 @@ window.renderVenueFit = function () {
       <td style="${td}">${verdict(f)}
         ${f.gaps.length ? `<div style="font-size:10.5px;color:#b91c1c;margin-top:3px;line-height:1.45">
           ${f.gaps.map(g => esc(g)).join('<br>')}</div>` : ''}</td>
+      <td style="${td};min-width:120px">${(() => {
+        const dl = window._venueDaylight && window._venueDaylight(v);
+        if (!dl) return '';
+        const S = { dark:['#fef2f2','#b91c1c','#fecaca','✕'], tight:['#fff7ed','#c2410c','#fed7aa','!'],
+                    unknown:['#fffbeb','#92400e','#fde68a','?'], ok:['#e9f7ef','#166534','#a8d9c0','✓'],
+                    lit:['#eff6ff','#1d4ed8','#bfdbfe','☀'], na:['#f8fafc','#64748b','#e2e8f0','–'] }[dl.code];
+        return '<span style="display:inline-block;font-size:10.5px;font-weight:700;padding:2px 8px;'
+          + 'border-radius:20px;background:' + S[0] + ';color:' + S[1] + ';border:1px solid ' + S[2] + ';'
+          + 'white-space:nowrap">' + S[3] + ' ' + esc(dl.label) + '</span>';
+      })()}</td>
       <td style="${td};min-width:150px">${(() => {
         const cc = window._courtCheck(v);
         if (!cc) return '<span style="color:#cbd5e1;font-style:italic">n/a</span>';
@@ -9842,7 +10169,7 @@ window.renderVenueFit = function () {
         and we still do not know whether it was the courts or the hours. Ask early.</div>` : ''}
     </div>
     <div style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:10px;background:#fff">
-      <table style="width:100%;border-collapse:collapse;min-width:1320px">
+      <table style="width:100%;border-collapse:collapse;min-width:1480px">
         <thead><tr>${head}</tr></thead><tbody>${body}</tbody>
       </table>
     </div>
@@ -9991,6 +10318,7 @@ window.renderVenues = function() {
   // The specs table and the fit matrix read the same data and the same search box.
   window.renderVenueSpecs && window.renderVenueSpecs();
   window.renderVenueFit && window.renderVenueFit();
+  window.renderVenueDaylight && window.renderVenueDaylight();
 };
 
 // ── Drag & drop between venue tiers ──────────────────────────────
