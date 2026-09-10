@@ -1027,6 +1027,41 @@ body.ax-readonly #axGateEmail, body.ax-readonly #prospectSearch { pointer-events
 .hub-filter-btn:hover { background:#e8f4fd; }
 .hub-filter-btn.active { background:#2d6a9f; color:white; border-color:#2d6a9f; }
 
+/* Task collaboration matrices */
+.task-matrices { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; margin:14px 0; }
+.task-matrix-card { min-width:0; background:#fff; border:1px solid #dbe4ee; border-radius:10px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,.06); }
+.task-matrix-head { padding:10px 12px; display:flex; align-items:flex-start; justify-content:space-between; gap:10px; border-bottom:1px solid #e5eaf0; }
+.task-matrix-title { color:#1a3a5c; font-size:12px; font-weight:700; }
+.task-matrix-note { color:#7b8794; font-size:9px; line-height:1.35; margin-top:2px; }
+.task-matrix-count { flex:none; padding:3px 7px; color:#1a3a5c; background:#e8f1fb; border-radius:10px; font-size:9px; font-weight:700; white-space:nowrap; }
+.task-matrix-scroll { overflow-x:auto; }
+.task-matrix-table { width:100%; min-width:620px; border-collapse:collapse; table-layout:fixed; }
+.task-matrix-table.cross { min-width:700px; }
+.task-matrix-table th,.task-matrix-table td { padding:5px 4px; border-right:1px solid #e8edf3; border-bottom:1px solid #e8edf3; text-align:center; }
+.task-matrix-table th { color:#566579; background:#f8fafc; font-size:7px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; }
+.task-matrix-table th:first-child,.task-matrix-table td:first-child { width:122px; position:sticky; left:0; z-index:2; text-align:left; background:#fff; }
+.task-matrix-table th:first-child { background:#f8fafc; }
+.task-matrix-row { color:#1a3a5c; font-size:9px; font-weight:700; }
+.task-matrix-cell { width:100%; min-height:30px; padding:4px; border:1px solid transparent; border-radius:6px; color:#6b7280; background:#f1f3f6; font-size:10px; font-weight:800; cursor:pointer; }
+.task-matrix-cell:disabled { cursor:default; opacity:.72; }
+.task-matrix-cell.todo { color:#9a5b00; background:#fff3d9; border-color:#efd49e; }
+.task-matrix-cell.inprogress { color:#1d4ed8; background:#eaf1ff; border-color:#c0d3ff; }
+.task-matrix-cell.blocked { color:#b42318; background:#fee8e7; border-color:#f4b8b4; }
+.task-matrix-cell.done { color:#18794e; background:#e8f7ef; border-color:#b9e3cd; }
+.task-matrix-cell.selected { outline:2px solid #1a3a5c; outline-offset:1px; }
+.task-matrix-legend { padding:7px 11px; display:flex; flex-wrap:wrap; gap:10px; color:#718096; font-size:8px; }
+.task-matrix-dot { width:6px; height:6px; display:inline-block; margin-right:4px; border-radius:50%; vertical-align:1px; }
+.task-relation-filter { display:none; align-items:center; justify-content:space-between; gap:10px; margin:0 0 10px; padding:8px 10px; color:#1a3a5c; background:#e8f1fb; border:1px solid #c5d7eb; border-radius:8px; font-size:10px; font-weight:600; }
+.task-relation-filter.active { display:flex; }
+.task-relation-chip { display:inline-block; margin:2px 3px 0 0; padding:1px 5px; color:#3d526f; background:#eef3f8; border:1px solid #d8e0eb; border-radius:5px; font-size:8px; white-space:nowrap; }
+.task-relation-chip.cross { color:#79500d; background:#fff5e4; border-color:#efd7ab; }
+@media(max-width:1050px) { .task-matrices { grid-template-columns:1fr; } }
+@media(max-width:700px) {
+  .task-matrix-cell { min-height:36px; font-size:11px; }
+  .task-matrix-table th { font-size:8px; }
+  .task-matrix-row { font-size:10px; }
+}
+
 /* ── Overdue badge ── */
 .overdue-badge { background:#fee2e2; color:#991b1b; font-size:9px; font-weight:700;
   padding:1px 5px; border-radius:8px; text-transform:uppercase; letter-spacing:0.5px; }
@@ -1752,6 +1787,20 @@ html.onboard-mode #onboardScreen { display: flex !important; }
  <div class="task-progress"><div class="task-progress-fill" id="progressFill" style="width:0%"></div></div>
  <!-- Summary strip -->
  <div class="summary-strip" id="taskSummaryStrip"></div>
+ <!-- The matrices and list below are two views of the same live Firebase tasks. -->
+ <div class="task-matrices" id="taskDependencyMatrices">
+  <div class="task-matrix-card">
+   <div class="task-matrix-head"><div><div class="task-matrix-title">Internal Logistics</div><div class="task-matrix-note">Rows own the task. Columns show the Logistics team needed.</div></div><span class="task-matrix-count" id="taskInternalCount">Loading...</span></div>
+   <div class="task-matrix-scroll"><table class="task-matrix-table" id="taskInternalMatrix"></table></div>
+   <div class="task-matrix-legend"><span><i class="task-matrix-dot" style="background:#d98a0b"></i>To do</span><span><i class="task-matrix-dot" style="background:#2563eb"></i>In progress</span><span><i class="task-matrix-dot" style="background:#dc2626"></i>Blocked</span><span><i class="task-matrix-dot" style="background:#18794e"></i>Done</span><span>Diagonal = owned within team</span></div>
+  </div>
+  <div class="task-matrix-card">
+   <div class="task-matrix-head"><div><div class="task-matrix-title">Cross-Vertical</div><div class="task-matrix-note">Rows own the task. Columns show the NAIG partner named in the task.</div></div><span class="task-matrix-count" id="taskCrossCount">Loading...</span></div>
+   <div class="task-matrix-scroll"><table class="task-matrix-table cross" id="taskCrossMatrix"></table></div>
+   <div class="task-matrix-legend"><span><i class="task-matrix-dot" style="background:#d98a0b"></i>To do</span><span><i class="task-matrix-dot" style="background:#2563eb"></i>In progress</span><span><i class="task-matrix-dot" style="background:#dc2626"></i>Blocked</span><span><i class="task-matrix-dot" style="background:#18794e"></i>Done</span><span>Blank = no task relationship</span></div>
+  </div>
+ </div>
+ <div class="task-relation-filter" id="taskRelationFilter"><span id="taskRelationFilterText"></span><button class="hub-filter-btn" onclick="clearTaskRelationFilter()">Show all tasks</button></div>
  <!-- Workload chips -->
  <div id="taskWorkloadStrip" style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px"></div>
  <!-- View switcher + filters -->
@@ -1797,7 +1846,7 @@ html.onboard-mode #onboardScreen { display: flex !important; }
  <th style="padding:8px 10px;font-weight:600;color:#475569">Assignee</th>
  <th style="padding:8px 10px;font-weight:600;color:#475569">Department</th>
  <th style="padding:8px 10px;font-weight:600;color:#475569">Due</th>
- <th style="padding:8px 10px;font-weight:600;color:#475569">Scope / Link</th>
+ <th style="padding:8px 10px;font-weight:600;color:#475569">Scope / Relationships</th>
  <th style="padding:8px 10px;font-weight:600;color:#475569">Hrs</th>
  <th style="padding:8px 6px"></th>
  </tr></thead>
@@ -8387,6 +8436,149 @@ const _STATUS_COLOR = {
   done:      {bg:'#d1fae5',color:'#065f46'}
 };
 
+const _LOGISTICS_STREAMS = ['Core Team','Food & Beverage','Hotels & Accommodations','Transportation','Site Management','Equipment & Signage'];
+const _CROSS_TEAMS = ['Sports','Registration','Finance','Legal','HR / IVS','Technology','Marketing','Command Center'];
+let _taskRelationFilter = null;
+
+function _taskText(t) {
+  return [t.title,t.department,t.scopeArea,t.linkedTo,t.tags,t.notes].filter(Boolean).join(' ').toLowerCase();
+}
+
+function _taskOwningStream(t) {
+  const dept = String(t.department || '').toLowerCase();
+  const scope = String(t.scopeArea || '').toLowerCase();
+  const title = String(t.title || '').toLowerCase();
+  if (dept === 'f&b') return 'Food & Beverage';
+  if (dept === 'hotels & accommodations') return 'Hotels & Accommodations';
+  if (dept === 'transportation') return 'Transportation';
+  if (dept === 'site management') return 'Site Management';
+  if (dept === 'equipment & signage') return 'Equipment & Signage';
+  if (dept === 'leadership') return 'Core Team';
+  if (['food / f&b','food','f&b'].includes(scope)) return 'Food & Beverage';
+  if (['hotels','hospitality'].includes(scope)) return 'Hotels & Accommodations';
+  if (scope === 'transportation' || title.includes('transportation')) return 'Transportation';
+  if (['site management','venues'].includes(scope)) return 'Site Management';
+  if (scope === 'equipment / signage' || title.includes('signage') || title.includes('supply list')) return 'Equipment & Signage';
+  if (/hotel|room block|hospitality/.test(title)) return 'Hotels & Accommodations';
+  if (/venue|texomo|russell creek|pickler|tennis|cricket/.test(title)) return 'Site Management';
+  return 'Core Team';
+}
+
+function _taskInternalDeps(t, owner) {
+  const text = _taskText(t);
+  const title = String(t.title || '').toLowerCase();
+  const deps = new Set([owner]);
+  if (/weekly status brief|volunteer recruitment pipeline|all-body in-person meeting/.test(title)) _LOGISTICS_STREAMS.forEach(x => deps.add(x));
+  if (/hotel room block negotiations/.test(title) || /hotel cluster/.test(text)) deps.add('Site Management');
+  if (title.includes('hotel') && /shuttle|transportation|arrival|departure/.test(text)) deps.add('Transportation');
+  if (['Food & Beverage','Hotels & Accommodations','Transportation'].includes(owner) && /contract|agreement|deposit|payment|signature|redline/.test(text)) deps.add('Core Team');
+  if (owner === 'Transportation' && /venue|site|route|loop|shuttle/.test(text)) {
+    deps.add('Site Management'); deps.add('Hotels & Accommodations');
+  }
+  if (title.includes('capacity plan')) { deps.add('Transportation'); deps.add('Site Management'); }
+  if (title.includes('finalize supply list from all verticals')) _LOGISTICS_STREAMS.forEach(x => deps.add(x));
+  if (title.includes('finalize needs list for operations')) ['Site Management','Food & Beverage','Transportation'].forEach(x => deps.add(x));
+  if (title.includes('hospitality welcome')) { deps.add('Site Management'); deps.add('Transportation'); }
+  if (title.includes('site preparation')) ['Equipment & Signage','Transportation','Food & Beverage'].forEach(x => deps.add(x));
+  if (title.includes('pickler')) ['Core Team','Food & Beverage','Transportation','Equipment & Signage'].forEach(x => deps.add(x));
+  if (owner === 'Site Management' && /contract|signing|deposit|payment terms/.test(text)) deps.add('Core Team');
+  if (/sports equipment procurement|equipment list/.test(title)) deps.add('Equipment & Signage');
+  return _LOGISTICS_STREAMS.filter(x => deps.has(x));
+}
+
+function _taskCrossDeps(t) {
+  const text = _taskText(t);
+  const patterns = {
+    'Sports': /\bsports?\b|cricket|pickleball|pickler|tennis|soccer|flag football|flooring|surface requirements|slot|field j|venue-to-sport|sport allocation/,
+    'Registration': /registration|portal|wave 4|athlete count|participant count|flight field|hotel field|slot count|chaperone/,
+    'Finance': /deposit|payment|invoice|budget|financial|cost|\brate\b|pricing|attrition|contract value/,
+    'Legal': /contract|agreement|redline|signature|signing|insurance|cancellation|\bloi\b|legal/,
+    'HR / IVS': /volunteer|recruit|staffing|\biv\b|safety|security|team member|tbd role|org chart/,
+    'Technology': /automation|website|portal|dashboard|data field|field spec|hub activity/,
+    'Marketing': /website|signage|branding|artwork|production/,
+    'Command Center': /command center|emergency contact|site preparation|onsite meeting|setup coordination|radio/
+  };
+  return _CROSS_TEAMS.filter(team => patterns[team].test(text));
+}
+
+function _taskCollaboration(t) {
+  const owner = _taskOwningStream(t);
+  return { owner, internal:_taskInternalDeps(t, owner), cross:_taskCrossDeps(t) };
+}
+
+function _taskMatrixStatus(tasks) {
+  if (!tasks.length) return 'empty';
+  if (tasks.some(t => t.status === 'blocked')) return 'blocked';
+  if (tasks.every(t => t.status === 'done')) return 'done';
+  if (tasks.some(t => t.status === 'inprogress')) return 'inprogress';
+  return 'todo';
+}
+
+function _shortTeam(name) {
+  return name.replace('Hotels & Accommodations','Hotels').replace('Equipment & Signage','Equipment').replace('Food & Beverage','F&B').replace('Command Center','Command');
+}
+
+function _renderTaskMatrix(id, columns, depKey, kind) {
+  const table = document.getElementById(id);
+  if (!table) return;
+  const records = Object.entries(window._tasksData || {}).map(([key,t]) => ({key,t,c:_taskCollaboration(t)}));
+  let html = `<thead><tr><th>Owning team</th>${columns.map(x => `<th>${esc(_shortTeam(x))}</th>`).join('')}</tr></thead><tbody>`;
+  _LOGISTICS_STREAMS.forEach(stream => {
+    html += `<tr><td><span class="task-matrix-row">${esc(stream)}</span></td>`;
+    columns.forEach(column => {
+      const matches = records.filter(r => r.c.owner === stream && r.c[depKey].includes(column));
+      const status = _taskMatrixStatus(matches.map(r => r.t));
+      const selected = _taskRelationFilter && _taskRelationFilter.kind === kind && _taskRelationFilter.stream === stream && _taskRelationFilter.column === column;
+      const titles = matches.map(r => r.t.title || 'Untitled').join(' | ');
+      html += `<td><button class="task-matrix-cell ${status}${selected?' selected':''}" ${matches.length?'':'disabled'} data-task-matrix-kind="${kind}" data-stream="${esc(stream)}" data-column="${esc(column)}" title="${esc(titles)}">${matches.length || '-'}</button></td>`;
+    });
+    html += '</tr>';
+  });
+  table.innerHTML = html + '</tbody>';
+  table.querySelectorAll('[data-task-matrix-kind]:not(:disabled)').forEach(button => button.addEventListener('click', () => {
+    ['taskSearch','filterStatus','filterPriority','filterDept','filterOwner'].forEach(id => {
+      const input = document.getElementById(id);
+      if (input) input.value = '';
+    });
+    _taskRelationFilter = {kind:button.dataset.taskMatrixKind, stream:button.dataset.stream, column:button.dataset.column};
+    switchTaskView('table');
+    document.getElementById('taskRelationFilter')?.scrollIntoView({behavior:'smooth',block:'center'});
+  }));
+}
+
+function renderTaskMatrices() {
+  const tasks = Object.values(window._tasksData || {});
+  _renderTaskMatrix('taskInternalMatrix', _LOGISTICS_STREAMS, 'internal', 'internal');
+  _renderTaskMatrix('taskCrossMatrix', _CROSS_TEAMS, 'cross', 'cross');
+  const internalLinks = tasks.reduce((sum,t) => sum + _taskCollaboration(t).internal.length, 0);
+  const crossLinked = tasks.filter(t => _taskCollaboration(t).cross.length).length;
+  const crossLinks = tasks.reduce((sum,t) => sum + _taskCollaboration(t).cross.length, 0);
+  const internalCount = document.getElementById('taskInternalCount');
+  const crossCount = document.getElementById('taskCrossCount');
+  if (internalCount) internalCount.textContent = `${tasks.length} tasks | ${internalLinks} links`;
+  if (crossCount) crossCount.textContent = `${crossLinked} tasks | ${crossLinks} links`;
+  const banner = document.getElementById('taskRelationFilter');
+  if (banner) banner.classList.toggle('active', !!_taskRelationFilter);
+  if (_taskRelationFilter) {
+    const label = _taskRelationFilter.kind === 'internal' ? 'Internal dependency' : 'Cross-vertical dependency';
+    const text = document.getElementById('taskRelationFilterText');
+    if (text) text.textContent = `${label}: ${_taskRelationFilter.stream} needs ${_taskRelationFilter.column}`;
+  }
+}
+
+function clearTaskRelationFilter() {
+  _taskRelationFilter = null;
+  renderTasks();
+}
+window.clearTaskRelationFilter = clearTaskRelationFilter;
+
+function _taskRelationChips(t) {
+  const c = _taskCollaboration(t);
+  const internal = c.internal.map(dep => `<span class="task-relation-chip">${dep === c.owner ? 'Owned within ' + _shortTeam(dep) : 'Needs ' + _shortTeam(dep)}</span>`);
+  const cross = c.cross.map(dep => `<span class="task-relation-chip cross">With ${_shortTeam(dep)}</span>`);
+  return internal.concat(cross).join('');
+}
+
 function _taskFiltered() {
   const q    = (document.getElementById('taskSearch')?.value || '').toLowerCase();
   const stF  = document.getElementById('filterStatus')?.value || '';
@@ -8394,6 +8586,11 @@ function _taskFiltered() {
   const dptF = document.getElementById('filterDept')?.value || '';
   const ownF = document.getElementById('filterOwner')?.value || '';
   return Object.entries(window._tasksData || {}).filter(([,t]) => {
+    if (_taskRelationFilter) {
+      const c = _taskCollaboration(t);
+      const deps = _taskRelationFilter.kind === 'internal' ? c.internal : c.cross;
+      if (c.owner !== _taskRelationFilter.stream || !deps.includes(_taskRelationFilter.column)) return false;
+    }
     if (q && !JSON.stringify(t).toLowerCase().includes(q)) return false;
     if (stF && (t.status||'todo') !== stF) return false;
     if (priF && (t.priority||'Medium') !== priF) return false;
@@ -8463,7 +8660,7 @@ function renderTaskTable() {
  <td style="padding:8px 10px;font-size:12px">${taskOwners(t).length ? taskOwners(t).map(o=>`<span style="display:inline-block;padding:1px 7px;margin:1px;border-radius:10px;background:#e0e7ff;color:#3730a3;font-size:11px">${esc(o)}</span>`).join('') : '—'}</td>
  <td style="padding:8px 10px;font-size:11px;color:#64748b">${esc(t.department||'—')}</td>
  <td style="padding:8px 10px;font-size:11px${ovd?' color:#dc2626;font-weight:600':''}">${t.due||'—'}${ovd?' ⚠️':''}</td>
- <td style="padding:8px 10px;font-size:11px;color:#64748b">${esc(t.scopeArea||'—')}</td>
+ <td style="padding:8px 10px;font-size:11px;color:#64748b"><div>${esc(t.scopeArea||'—')}</div><div>${_taskRelationChips(t)}</div></td>
  <td style="padding:8px 10px;font-size:11px;color:#64748b">${t.estHours?t.estHours+'h':'—'}</td>
  <td style="padding:8px 6px"><button class="btn btn-cancel" style="padding:2px 7px;font-size:10px" onclick="event.stopPropagation();quickComplete('${k}')" title="Mark done">✓</button></td>
  </tr>`;
@@ -8556,6 +8753,7 @@ function renderGrouped() {
 window.renderTasks = function() {
   const all = Object.entries(window._tasksData || {});
   _updateTaskSummary(all);
+  renderTaskMatrices();
   if (_taskView === 'table')   renderTaskTable();
   else if (_taskView === 'kanban')  window.renderKanban();
   else if (_taskView === 'grouped') renderGrouped();
