@@ -16232,5 +16232,71 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
   };
 })();
 </script>
+
+<script>
+/* NAIG Hotels add-on — block coverage, booking codes, Transportation heads-per-day.
+   Added 15 Sep 2026. Additive only: wraps renderHotels, changes no existing logic.
+   Writes use update(), not hubSave(), because hubSave uses _dbSet and would replace the whole record. */
+(function(){
+  if (window.__naigHotelAddon) return;
+  window.__naigHotelAddon = true;
+  var OCC=2.5, MOD=null;
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];}); }
+  function num(v){ var n=parseFloat(String(v==null?"":v).replace(/[^0-9.\-]/g,"")); return isNaN(n)?0:n; }
+  function db(){ return MOD?Promise.resolve(MOD):import("https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js").then(function(m){MOD=m;return m;}); }
+  function save(key,field,value,el){
+    db().then(function(m){ var o={updated:new Date().toISOString()}; o[field]=value; return m.update(_dbRef("naig2027/hotels/"+key),o); })
+      .then(function(){ if(el){ el.style.borderColor="#16a34a"; setTimeout(function(){el.style.borderColor="#cbd5e1";},1200);} })
+      .catch(function(){ if(el){ el.style.borderColor="#b91c1c"; } });
+  }
+  function inp(k,f,v,ph,w){ return "<input data-hk=\""+esc(k)+"\" data-hf=\""+f+"\" value=\""+esc(v)+"\" placeholder=\""+esc(ph)+"\" style=\"width:"+w+";padding:5px 7px;border:1px solid #cbd5e1;border-radius:5px;font-size:12px;font-family:inherit\">"; }
+  function render(H,M){
+    var host=document.getElementById("hotelSummary"); if(!host) return;
+    var box=document.getElementById("naigHotelAddon");
+    if(!box){ box=document.createElement("div"); box.id="naigHotelAddon"; host.parentNode.insertBefore(box,host.nextSibling); }
+    var ks=Object.keys(H), blocked=0, used=0;
+    ks.forEach(function(k){ blocked+=num(H[k].blockSize); used+=num(H[k].roomsUsed); });
+    var pk=(M&&M.peakNight)||{min:0,max:0}, lo=pk.min||0, hi=pk.max||0;
+    var gLo=Math.max(0,lo-blocked), gHi=Math.max(0,hi-blocked);
+    var pLo=lo?Math.round(100*blocked/lo):0, pHi=hi?Math.round(100*blocked/hi):0;
+    var more=gLo?(Math.round(gLo/150)+"\u2013"+Math.round(gHi/150)):"0";
+    var tone=pLo>=90?"#16a34a":(pLo>=50?"#a16207":"#b91c1c");
+    var W="padding:14px 16px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;margin:14px 0";
+    var HD="font-weight:700;color:#1e3a8a;font-size:12px;letter-spacing:.05em;text-transform:uppercase;margin-bottom:10px";
+    var TH="padding:6px 8px", TD="padding:7px 8px";
+    var h="";
+    h+="<div style=\""+W+"\"><div style=\""+HD+"\">Block coverage vs modelled need</div>";
+    h+="<div style=\"height:14px;background:#f1f5f9;border-radius:7px;overflow:hidden;margin-bottom:9px\"><div style=\"height:100%;width:"+Math.min(100,pLo)+"%;background:"+tone+"\"></div></div>";
+    h+="<div style=\"font-size:13px;color:#334155;line-height:1.75\"><b>"+blocked+"</b> rooms blocked across <b>"+ks.length+"</b> properties \u00b7 <b>"+used+"</b> picked up.<br>";
+    h+="Peak need <b>"+lo+"\u2013"+hi+"</b> rooms (Thu 25 / Fri 26 / Sat 27).<br>";
+    h+= gLo>0 ? ("<span style=\"color:#b91c1c;font-weight:700\">Short by "+gLo+"\u2013"+gHi+" rooms \u2014 only "+pHi+"%\u2013"+pLo+"% covered.</span> Roughly <b>"+more+" more properties</b> needed at ~150 rooms each.") : "<span style=\"color:#16a34a;font-weight:700\">Need is covered.</span>";
+    h+="</div></div>";
+    h+="<div style=\""+W+"\"><div style=\""+HD+"\">Booking codes and links \u2014 what we give attendees</div>";
+    h+="<table style=\"width:100%;border-collapse:collapse;font-size:12px\"><thead><tr style=\"text-align:left;color:#64748b\"><th style=\""+TH+"\">Hotel</th><th style=\""+TH+"\">Group code</th><th style=\""+TH+"\">Booking link</th><th style=\""+TH+"\">Cut-off</th></tr></thead><tbody>";
+    ks.forEach(function(k){ var v=H[k];
+      h+="<tr style=\"border-top:1px solid #eef2f7\"><td style=\""+TD+";font-weight:600;color:#334155\">"+esc(String(v.name||"").slice(0,42))+"</td>";
+      h+="<td style=\""+TD+"\">"+inp(k,"groupCode",v.groupCode,"code","110px")+"</td>";
+      h+="<td style=\""+TD+"\">"+inp(k,"bookingLink",v.bookingLink,"https://","300px")+"</td>";
+      h+="<td style=\""+TD+"\">"+inp(k,"cutoffDate",v.cutoffDate,"YYYY-MM-DD","120px")+"</td></tr>"; });
+    h+="</tbody></table><div style=\"font-size:11px;color:#94a3b8;margin-top:8px\">Edits save immediately. Cut-off guidance: 8 Feb 2027 (45 days before the event).</div></div>";
+    h+="<div style=\""+W+"\"><div style=\""+HD+"\">Transportation \u2014 heads per hotel per day</div>";
+    h+="<table style=\"width:100%;border-collapse:collapse;font-size:12px\"><thead><tr style=\"text-align:left;color:#64748b\"><th style=\""+TH+"\">Hotel</th><th style=\""+TH+"\">Rooms used</th><th style=\""+TH+"\">Est. heads</th><th style=\""+TH+"\">Shuttle stop</th></tr></thead><tbody>";
+    var tot=0;
+    ks.forEach(function(k){ var v=H[k], ru=num(v.roomsUsed), hd=Math.round(ru*OCC); tot+=hd;
+      h+="<tr style=\"border-top:1px solid #eef2f7\"><td style=\""+TD+";font-weight:600;color:#334155\">"+esc(String(v.name||"").slice(0,42))+"</td>";
+      h+="<td style=\""+TD+"\">"+ru+"</td><td style=\""+TD+";font-weight:700;color:#1e3a8a\">"+hd+"</td>";
+      h+="<td style=\""+TD+"\">"+inp(k,"shuttleStop",v.shuttleStop,"stop / entrance","200px")+"</td></tr>"; });
+    h+="</tbody></table><div style=\"font-size:11px;color:#94a3b8;margin-top:8px\">Heads = rooms used \u00d7 2.5. Total across all hotels: <b>"+tot+"</b>. Updates as pickup is entered above.</div></div>";
+    box.innerHTML=h;
+    var els=box.querySelectorAll("input[data-hk]");
+    Array.prototype.forEach.call(els,function(el){ el.addEventListener("change",function(){ save(el.getAttribute("data-hk"),el.getAttribute("data-hf"),el.value,el); }); });
+  }
+  function refresh(){ db().then(function(m){ return Promise.all([m.get(_dbRef("naig2027/hotelModel")),m.get(_dbRef("naig2027/hotels"))]); })
+    .then(function(r){ render(r[1].val()||{}, r[0].val()||{}); }).catch(function(){}); }
+  window.__naigHotelRefresh=refresh;
+  if(typeof window.renderHotels==="function"){ var o=window.renderHotels; window.renderHotels=function(){ var r=o.apply(this,arguments); try{refresh();}catch(e){} return r; }; }
+  setTimeout(refresh,1500);
+})();
+</script>
 </body>
 </html>
