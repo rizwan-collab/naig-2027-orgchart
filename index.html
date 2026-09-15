@@ -9763,7 +9763,7 @@ window.renderVenueDaylight = function () {
     .filter(([, v]) => !/dropped|declined|not selected|closed|cancelled|not available/i.test(v.status || ''));
   if (q) rows = rows.filter(([, v]) => JSON.stringify(v).toLowerCase().includes(q));
 
-  const rank = { dark: 0, tight: 1, partial: 2, unknown: 3, ok: 4, lit: 5, na: 6 };
+  const rank = { closed: -1, dark: 0, tight: 1, partial: 2, unknown: 3, ok: 4, lit: 5, na: 6 };
   rows = rows.map(([k, v]) => [k, v, window._venueDaylight(v)])
              .sort((a, b) => (rank[a[2].code] - rank[b[2].code])
                           || String(a[1].name || '').localeCompare(String(b[1].name || '')));
@@ -9771,7 +9771,7 @@ window.renderVenueDaylight = function () {
   const SK = {
     dark:    ['#fef2f2', '#b91c1c', '#fecaca', '\u2715'],
     tight:   ['#fff7ed', '#c2410c', '#fed7aa', '!'],
-    partial: ['#fefce8', '#a16207', '#fde68a', '◐'],
+    closed: ['#f1f5f9', '#64748b', '#e2e8f0', '✕'], partial: ['#fefce8', '#a16207', '#fde68a', '◐'],
     unknown: ['#fffbeb', '#92400e', '#fde68a', '?'],
     ok:      ['#e9f7ef', '#166534', '#a8d9c0', '\u2713'],
     lit:     ['#eff6ff', '#1d4ed8', '#bfdbfe', '\u2600'],
@@ -10137,7 +10137,7 @@ window.renderVenueFit = function () {
         const dl = window._venueDaylight && window._venueDaylight(v);
         if (!dl) return '';
         const S = { dark:['#fef2f2','#b91c1c','#fecaca','✕'], tight:['#fff7ed','#c2410c','#fed7aa','!'],
-                    partial:['#fefce8','#a16207','#fde68a','◐'], unknown:['#fffbeb','#92400e','#fde68a','?'], ok:['#e9f7ef','#166534','#a8d9c0','✓'],
+                    closed: ['#f1f5f9', '#64748b', '#e2e8f0', '✕'], partial:['#fefce8','#a16207','#fde68a','◐'], unknown:['#fffbeb','#92400e','#fde68a','?'], ok:['#e9f7ef','#166534','#a8d9c0','✓'],
                     lit:['#eff6ff','#1d4ed8','#bfdbfe','☀'], na:['#f8fafc','#64748b','#e2e8f0','–'] }[dl.code];
         return '<span style="display:inline-block;font-size:10.5px;font-weight:700;padding:2px 8px;'
           + 'border-radius:20px;background:' + S[0] + ';color:' + S[1] + ';border:1px solid ' + S[2] + ';'
@@ -16213,5 +16213,24 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
     <div id="axManageBody" style="overflow-x:auto"></div>
   </div>
 </div>
+
+<script>
+/* NAIG: closed or declined venues are not scored for daylight. Added 15 Sep 2026.
+   A venue we cannot use must not show a green "lit" badge - it reads as an available option. */
+(function(){
+  if(!window._venueDaylight || window.__closedWrapped) return;
+  window.__closedWrapped = true;
+  var _orig = window._venueDaylight;
+  window._venueDaylight = function(v){
+    var s = [v && v.pipelineStatus, v && v.status, v && v.contractStatus].join(" ");
+    if(/not available|declined|closed/i.test(s)){
+      return { geo:null, days:[], earliestSet:null, playEnd:null, margin:null,
+        code:"closed", label:"Closed - not available",
+        detail:"This venue is marked not available, so it is not scored against sunset." };
+    }
+    return _orig.apply(this, arguments);
+  };
+})();
+</script>
 </body>
 </html>
