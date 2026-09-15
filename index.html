@@ -9715,6 +9715,23 @@ window._venueDaylight = function (v) {
   if (/^indoor$/i.test(io)) {
     code = 'na'; label = 'Indoor';
     detail = 'Daylight does not apply.';
+  } else if (lights && /partial|partly|some of|\b\d+\s*of\s*\d+\b/i.test(lights)) {
+    /* PARTIALLY LIT. Scored as if unlit, deliberately — a site where three of thirteen
+       fields have lights is a dark site for the other ten, and the schedule has to fit
+       the fields we actually have. Reading it as "Lit" is how a venue looks safe on a
+       dashboard and fails on the day. */
+    const mf = lights.match(/\b(\d+)\s*of\s*(\d+)\b/);
+    const share = mf ? mf[1] + ' of ' + mf[2] : 'only part';
+    const litN = mf ? Number(mf[1]) : null, totN = mf ? Number(mf[2]) : null;
+    const darkN = (litN != null && totN != null) ? (totN - litN) : null;
+    if (margin < 0) { code = 'dark'; label = 'Partly lit — ' + Math.abs(margin) + ' min AFTER sunset'; }
+    else if (margin < 60) { code = 'tight'; label = 'Partly lit — ' + margin + ' min of margin'; }
+    else { code = 'partial'; label = 'Partly lit (' + share + ')'; }
+    detail = 'Only ' + share + ' of the playing surfaces here are lit'
+           + (darkN ? ', leaving ' + darkN + ' dark' : '') + '. Scored as unlit, because the unlit '
+           + 'share is what binds the schedule. Play ends ' + window.NAIG_SOLAR.fmt(end.mins)
+           + ' against a ' + window.NAIG_SOLAR.fmt(earliestSet) + ' sunset — fine on the day, but a '
+           + 'delay can only be absorbed on the lit fields.';
   } else if (lights && !/^no\b|^none\b|unlit/i.test(lights)) {
     code = 'lit'; label = 'Lit';
     detail = 'Has lights — play can run past sunset. Sunset is a comfort check, not a constraint.';
@@ -9746,7 +9763,7 @@ window.renderVenueDaylight = function () {
     .filter(([, v]) => !/dropped|declined|not selected|closed|cancelled|not available/i.test(v.status || ''));
   if (q) rows = rows.filter(([, v]) => JSON.stringify(v).toLowerCase().includes(q));
 
-  const rank = { dark: 0, tight: 1, unknown: 2, ok: 3, lit: 4, na: 5 };
+  const rank = { dark: 0, tight: 1, partial: 2, unknown: 3, ok: 4, lit: 5, na: 6 };
   rows = rows.map(([k, v]) => [k, v, window._venueDaylight(v)])
              .sort((a, b) => (rank[a[2].code] - rank[b[2].code])
                           || String(a[1].name || '').localeCompare(String(b[1].name || '')));
@@ -9754,6 +9771,7 @@ window.renderVenueDaylight = function () {
   const SK = {
     dark:    ['#fef2f2', '#b91c1c', '#fecaca', '\u2715'],
     tight:   ['#fff7ed', '#c2410c', '#fed7aa', '!'],
+    partial: ['#fefce8', '#a16207', '#fde68a', '◐'],
     unknown: ['#fffbeb', '#92400e', '#fde68a', '?'],
     ok:      ['#e9f7ef', '#166534', '#a8d9c0', '\u2713'],
     lit:     ['#eff6ff', '#1d4ed8', '#bfdbfe', '\u2600'],
@@ -9826,12 +9844,15 @@ window.renderVenueDaylight = function () {
     + 'occupancy \u2014 NOAA\'s algorithm, run here in the page. Times are CDT; daylight saving begins '
     + '14 Mar 2027, before the event.<br>'
     + '<strong style="color:#334155">Only unlit outdoor venues get a verdict.</strong> Indoor and lit '
-    + 'sites are marked n/a on purpose, so a real warning never has to compete with noise.<br>'
+    + 'sites are marked n/a on purpose, so a real warning never has to compete with noise. A '
+    + '<strong style="color:#a16207">partly lit</strong> site is scored as unlit — the dark fields are '
+    + 'what bind the schedule.<br>'
     + '<strong style="color:#334155">Sunrise almost never binds</strong> \u2014 it is around 7:20am and '
     + 'nothing starts before 8:00am. Sunset is the whole question.</div>'
     + '<div style="margin-top:9px;display:flex;gap:8px;flex-wrap:wrap">'
     + (counts.dark    ? pill('dark',    counts.dark + ' finish after dark') : '')
     + (counts.tight   ? pill('tight',   counts.tight + ' cutting it close') : '')
+    + (counts.partial ? pill('partial', counts.partial + ' only partly lit') : '')
     + (counts.unknown ? pill('unknown', counts.unknown + ' lights unknown') : '')
     + (counts.ok      ? pill('ok',      counts.ok + ' clear') : '')
     + (counts.lit     ? pill('lit',     counts.lit + ' lit') : '')
@@ -10116,7 +10137,7 @@ window.renderVenueFit = function () {
         const dl = window._venueDaylight && window._venueDaylight(v);
         if (!dl) return '';
         const S = { dark:['#fef2f2','#b91c1c','#fecaca','✕'], tight:['#fff7ed','#c2410c','#fed7aa','!'],
-                    unknown:['#fffbeb','#92400e','#fde68a','?'], ok:['#e9f7ef','#166534','#a8d9c0','✓'],
+                    partial:['#fefce8','#a16207','#fde68a','◐'], unknown:['#fffbeb','#92400e','#fde68a','?'], ok:['#e9f7ef','#166534','#a8d9c0','✓'],
                     lit:['#eff6ff','#1d4ed8','#bfdbfe','☀'], na:['#f8fafc','#64748b','#e2e8f0','–'] }[dl.code];
         return '<span style="display:inline-block;font-size:10.5px;font-weight:700;padding:2px 8px;'
           + 'border-radius:20px;background:' + S[0] + ';color:' + S[1] + ';border:1px solid ' + S[2] + ';'
