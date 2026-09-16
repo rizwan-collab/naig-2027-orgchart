@@ -16369,5 +16369,100 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
   if(document.readyState==="loading"){ document.addEventListener("DOMContentLoaded",ensure); } else { setTimeout(ensure,1200); }
 })();
 </script>
+
+<script>
+/* NAIG: Dashboard headcount+food panel, Scope card view, and M2M tab repositioned next to Scope.
+   Added 16 Sep 2026. Additive only — wraps renderScope, hides the Scope table behind a toggle, changes no existing logic. */
+(function(){
+  if(window.__naigSummary) return; window.__naigSummary=true;
+  var MOD=null,HM=null,SC=null;
+  function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
+  function db(){return MOD?Promise.resolve(MOD):import("https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js").then(function(m){MOD=m;return m;});}
+  function fmt(n){ return (n==null||isNaN(n))?"N/A":String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g,","); }
+  function money(n){ return (n==null||isNaN(n))?"N/A":"$"+fmt(n); }
+  var W="padding:16px 18px;border:1px solid #e2e8f0;border-radius:12px;background:#fff;margin:14px 0";
+  var HD="font-weight:700;color:#1e3a8a;font-size:12px;letter-spacing:.05em;text-transform:uppercase;margin-bottom:12px";
+  function stat(label,val,sub,tone){
+    return "<div style=\"flex:1 1 150px;min-width:150px;padding:12px 14px;border:1px solid #eef2f7;border-radius:10px;background:#f8fafc\">"+
+      "<div style=\"font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:600\">"+esc(label)+"</div>"+
+      "<div style=\"font-size:21px;font-weight:800;color:"+(tone||"#0f172a")+";margin-top:4px;line-height:1.2\">"+esc(val)+"</div>"+
+      (sub?"<div style=\"font-size:11px;color:#94a3b8;margin-top:3px\">"+esc(sub)+"</div>":"")+"</div>";
+  }
+  function paintDash(){
+    var sec=document.getElementById("sectionDashboard"); if(!sec||!HM) return;
+    var box=document.getElementById("naigHeadFood");
+    if(!box){ box=document.createElement("div"); box.id="naigHeadFood";
+      var tb=sec.querySelector(".hub-toolbar");
+      if(tb&&tb.nextSibling){ sec.insertBefore(box,tb.nextSibling); } else { sec.insertBefore(box,sec.firstChild); } }
+    var a=HM.athletesAfterOverlap||{}, t=HM.totalAttendance||{}, f=HM.foodBudget||{};
+    var h="<div style=\""+W+"\"><div style=\""+HD+"\">Headcount and food \u2014 the numbers everything else is sized from</div>";
+    h+="<div style=\"display:flex;gap:10px;flex-wrap:wrap\">";
+    h+=stat("Athletes",fmt(a.min)+"\u2013"+fmt(a.max),"after 20% dual-category overlap");
+    h+=stat("Total attendance",fmt(t.min)+"\u2013"+fmt(t.max),"incl. family at 30% \u00d7 1.5");
+    h+=stat("Meals per serving",fmt(f.mealsMin)+"\u2013"+fmt(f.mealsMax),"110% of athletes \u00b7 veg "+fmt(f.vegMin)+"\u2013"+fmt(f.vegMax),"#be185d");
+    h+=stat("Food budget",money(f.totalAtDriveVolunteers&&f.totalAtDriveVolunteers.min)+"\u2013"+money(f.totalAtDriveVolunteers&&f.totalAtDriveVolunteers.max),"$60/person/day \u00d7 4 days","#be185d");
+    h+="</div>";
+    h+="<div style=\"font-size:11.5px;color:#64748b;margin-top:11px;line-height:1.6\">Food covers athletes and volunteers, Thu 25 \u2013 Sun 28. Build: breakfast $8\u201310 \u00b7 lunch $10\u201315 \u00b7 dinner $18\u201320 \u00b7 snacks and sundries $10\u201315. If volunteers scale at the Drive\u2019s own 50% ratio rather than its stated 750\u20131,000, food rises to "+money(f.totalAt50pctRatio&&f.totalAt50pctRatio.min)+"\u2013"+money(f.totalAt50pctRatio&&f.totalAt50pctRatio.max)+".</div>";
+    h+="</div>";
+    box.innerHTML=h;
+  }
+  function paintScope(){
+    var sec=document.getElementById("sectionScope"); if(!sec||!SC) return;
+    var anchor=document.getElementById("scopeOverview")||sec.querySelector(".hub-toolbar")||sec.firstElementChild;
+    var box=document.getElementById("naigScopeCards");
+    if(!box){ box=document.createElement("div"); box.id="naigScopeCards"; anchor.parentNode.insertBefore(box,anchor.nextSibling); }
+    var rows=Object.keys(SC).map(function(k){return SC[k];});
+    rows.sort(function(x,y){ return (y.participantsMax||0)-(x.participantsMax||0); });
+    var tmin=0,tmax=0,teamN=0,indN=0;
+    rows.forEach(function(r){ tmin+=r.participantsMin||0; tmax+=r.participantsMax||0; if(r.category==="Team") teamN++; else indN++; });
+    var h="<div style=\""+W+"\"><div style=\""+HD+"\">Scope at a glance</div>";
+    h+="<div style=\"display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px\">";
+    h+=stat("Sports",String(rows.length),teamN+" team \u00b7 "+indN+" individual");
+    h+=stat("Athlete slots",fmt(tmin)+"\u2013"+fmt(tmax),"before overlap deduction");
+    h+=stat("Regions","14","7 US \u00b7 7 Canada");
+    h+="</div>";
+    h+="<div style=\"font-size:11.5px;color:#64748b\">Divisions and roster sizes from naismailigames.com. Venues are PROPOSED \u2014 none contracted.</div></div>";
+    h+="<div style=\"display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px\">";
+    rows.forEach(function(r,i){
+      var isTeam=(r.category==="Team"); var c=isTeam?"#0f766e":"#7c3aed";
+      h+="<div style=\"border:1px solid #e2e8f0;border-radius:12px;background:#fff;padding:14px 15px\">";
+      h+="<div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:8px\">";
+      h+="<div style=\"font-weight:800;color:#0f172a;font-size:14.5px;line-height:1.3\">"+esc(r.sport)+"</div>";
+      h+="<span style=\"flex:none;padding:2px 8px;border-radius:5px;background:"+c+"14;color:"+c+";font-size:10.5px;font-weight:700;text-transform:uppercase\">"+esc(r.category)+"</span></div>";
+      h+="<div style=\"font-size:24px;font-weight:800;color:"+c+";margin:9px 0 2px;line-height:1.1\">"+esc(r.participants)+"</div>";
+      h+="<div style=\"font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;font-weight:600\">athletes</div>";
+      h+="<div style=\"margin-top:10px;font-size:12px;color:#475569;line-height:1.6\"><b style=\"color:#334155\">Teams / entries:</b> "+esc(r.numTeams)+"</div>";
+      var divs=String(r.genderDivisions||"").split("\u00b7").map(function(s){return s.trim();}).filter(Boolean);
+      h+="<div style=\"margin-top:8px;display:flex;gap:4px;flex-wrap:wrap\">";
+      divs.forEach(function(dv){ h+="<span style=\"padding:2px 7px;border-radius:4px;background:#f1f5f9;color:#475569;font-size:10.5px;font-weight:600\">"+esc(dv)+"</span>"; });
+      h+="</div>";
+      h+="<div style=\"margin-top:10px;padding-top:9px;border-top:1px solid #f1f5f9;font-size:11.5px;color:#64748b;line-height:1.55\">"+esc(String(r.venue||"").replace(/^PROPOSED \u2014 /,""))+"</div>";
+      h+="<div style=\"margin-top:4px\"><span style=\"padding:1px 6px;border-radius:4px;background:#fef3c7;color:#92400e;font-size:10px;font-weight:700\">PROPOSED</span></div>";
+      if(r.notes){ h+="<div style=\"margin-top:9px\"><button data-note=\""+i+"\" style=\"border:none;background:none;padding:0;color:#1e3a8a;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit\">Details \u25be</button>";
+        h+="<div id=\"scnote"+i+"\" style=\"display:none;margin-top:7px;font-size:11.5px;color:#64748b;line-height:1.65;white-space:pre-wrap\">"+esc(r.notes)+"</div></div>"; }
+      h+="</div>";
+    });
+    h+="</div>";
+    h+="<div style=\"margin:14px 0 4px\"><button id=\"scopeTblToggle\" style=\"padding:7px 13px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#334155;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit\">Show full table</button></div>";
+    box.innerHTML=h;
+    Array.prototype.forEach.call(box.querySelectorAll("button[data-note]"),function(b){ b.onclick=function(){ var d=document.getElementById("scnote"+b.getAttribute("data-note")); if(!d) return; var on=(d.style.display!=="none"); d.style.display=on?"none":"block"; b.textContent=on?"Details \u25be":"Hide \u25b4"; }; });
+    var tbl=sec.querySelector("table"); var wrap=tbl?(tbl.closest("div")||tbl):null;
+    if(wrap){ wrap.style.display="none"; var tg=document.getElementById("scopeTblToggle");
+      tg.onclick=function(){ var on=(wrap.style.display!=="none"); wrap.style.display=on?"none":"block"; tg.textContent=on?"Show full table":"Hide full table"; }; }
+  }
+  function load(){ db().then(function(m){ return Promise.all([m.get(_dbRef("naig2027/headcountModel")),m.get(_dbRef("naig2027/scope"))]); })
+    .then(function(r){ HM=r[0].val()||{}; SC=r[1].val()||{}; paintDash(); paintScope(); }).catch(function(){}); }
+  window.__naigSummaryRefresh=load;
+  if(typeof window.renderScope==="function"){ var o=window.renderScope; window.renderScope=function(){ var x=o.apply(this,arguments); try{ if(SC) paintScope(); }catch(e){} return x; }; }
+  function moveM2M(tries){
+    var b=document.getElementById("tabm2m");
+    if(!b){ if((tries||0)<12) return setTimeout(function(){moveM2M((tries||0)+1);},600); return; }
+    var scope=null;
+    Array.prototype.forEach.call(document.querySelectorAll(".tab-nav .tab-btn"),function(x){ if(/^Scope$/.test(x.textContent.trim())) scope=x; });
+    if(scope && scope.nextSibling!==b){ scope.parentNode.insertBefore(b, scope.nextSibling); }
+  }
+  setTimeout(load,1800); setTimeout(function(){moveM2M(0);},2200);
+})();
+</script>
 </body>
 </html>
