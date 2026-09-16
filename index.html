@@ -16298,5 +16298,76 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
   setTimeout(refresh,1500);
 })();
 </script>
+
+<script>
+/* NAIG Logistics M2M tab — minute-by-minute run of show, Wed 24 to Mon 29 Mar 2027.
+   Logistics lanes only. Data lives at naig2027/m2m. Added 16 Sep 2026.
+   Self-contained: builds its own tab button and section, does not depend on switchTab internals. */
+(function(){
+  if(window.__naigM2M) return; window.__naigM2M=true;
+  var TONE={"Command & Comms":"#1e3a8a","Venue Ops / Setup":"#0f766e","Equipment & Assets":"#a16207","Transportation":"#7c3aed","Food & Beverage":"#be185d","Volunteers":"#0369a1","Hotels & Arrivals":"#b45309"};
+  var MOD=null, DATA=null, cur=null;
+  function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
+  function db(){return MOD?Promise.resolve(MOD):import("https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js").then(function(m){MOD=m;return m;});}
+  function ensure(){
+    var bar=document.querySelector(".tab-nav");
+    if(bar && !document.getElementById("tabm2m")){
+      var b=document.createElement("button"); b.className="tab-btn"; b.id="tabm2m"; b.textContent="\u23f1 M2M";
+      b.onclick=function(){ open(); }; bar.appendChild(b);
+    }
+    var host=document.getElementById("mainHub");
+    if(host && !document.getElementById("sectionM2M")){
+      var s=document.createElement("div"); s.className="hub-section"; s.id="sectionM2M"; s.style.display="none"; host.appendChild(s);
+    }
+  }
+  function open(){
+    ensure();
+    Array.prototype.forEach.call(document.querySelectorAll(".hub-section"),function(s){ s.classList.remove("active"); s.style.display="none"; });
+    Array.prototype.forEach.call(document.querySelectorAll(".tab-btn"),function(b){ b.classList.remove("active"); });
+    var me=document.getElementById("sectionM2M"); me.style.display="block"; me.classList.add("active");
+    document.getElementById("tabm2m").classList.add("active");
+    load();
+  }
+  function load(){ if(DATA){ paint(); return; } db().then(function(m){ return m.get(_dbRef("naig2027/m2m")); }).then(function(s){ DATA=s.val()||{}; paint(); }).catch(function(){ DATA={}; paint(); }); }
+  function paint(){
+    var sec=document.getElementById("sectionM2M"); if(!sec) return;
+    var ks=Object.keys(DATA).sort(); if(!cur) cur=ks[0];
+    var W="padding:14px 16px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;margin:14px 0";
+    var h="";
+    h+="<h2 style=\"margin:0 0 4px;color:#1e3a8a\">Logistics M2M \u2014 minute by minute</h2>";
+    h+="<div style=\"color:#64748b;font-size:13px;margin-bottom:12px\">Logistics lanes only. Wednesday 24 through Monday 29 March 2027.</div>";
+    h+="<div style=\"display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px\">";
+    ks.forEach(function(k){ var d=DATA[k]; var on=(k===cur);
+      h+="<button data-day=\""+k+"\" style=\"padding:8px 13px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;border:1px solid "+(on?"#1e3a8a":"#cbd5e1")+";background:"+(on?"#1e3a8a":"#fff")+";color:"+(on?"#fff":"#334155")+";font-weight:"+(on?"700":"500")+"\">"+esc(d.day)+"<span style=\"opacity:.7;font-weight:400\"> "+esc(String(d.date).slice(8))+" Mar</span></button>";
+    });
+    h+="</div>";
+    var d=DATA[cur];
+    if(d){
+      h+="<div style=\""+W+"\">";
+      h+="<div style=\"font-weight:800;color:#1e3a8a;font-size:15px\">"+esc(d.label)+"</div>";
+      h+="<div style=\"font-size:13px;color:#334155;line-height:1.7;margin-top:6px\">"+esc(d.dayNote)+"</div>";
+      if(d.goNoGo) h+="<div style=\"margin-top:9px;padding:8px 11px;background:#fef9c3;border-left:3px solid #a16207;font-size:12.5px;color:#334155\"><b>GO / NO-GO:</b> "+esc(d.goNoGo)+"</div>";
+      h+="<div style=\"margin-top:8px;font-size:12px;color:#94a3b8\">Sunrise "+esc(d.sunrise||"\u2014")+" \u00b7 Sunset "+esc(d.sunset||"\u2014")+" \u00b7 "+((d.blocks||[]).length)+" blocks</div>";
+      h+="</div>";
+      var bl=(d.blocks||[]).slice().sort(function(a,b){ return a.start<b.start?-1:(a.start>b.start?1:0); });
+      h+="<div style=\""+W+";padding:0;overflow:hidden\"><table style=\"width:100%;border-collapse:collapse;font-size:12.5px\">";
+      h+="<thead><tr style=\"background:#f8fafc;text-align:left;color:#64748b\"><th style=\"padding:9px 10px;width:104px\">Time</th><th style=\"padding:9px 10px;width:150px\">Lane</th><th style=\"padding:9px 10px\">Activity</th><th style=\"padding:9px 10px;width:150px\">Owner</th><th style=\"padding:9px 10px;width:170px\">Location</th></tr></thead><tbody>";
+      bl.forEach(function(b){ var c=TONE[b.lane]||"#64748b";
+        h+="<tr style=\"border-top:1px solid #eef2f7;vertical-align:top\">";
+        h+="<td style=\"padding:9px 10px;font-variant-numeric:tabular-nums;color:#334155;font-weight:600;white-space:nowrap\">"+esc(b.start)+"\u2013"+esc(b.end)+"</td>";
+        h+="<td style=\"padding:9px 10px\"><span style=\"display:inline-block;padding:2px 7px;border-radius:4px;background:"+c+"14;color:"+c+";font-size:11px;font-weight:700\">"+esc(b.lane)+"</span></td>";
+        h+="<td style=\"padding:9px 10px;color:#0f172a\"><div style=\"font-weight:600\">"+esc(b.activity)+"</div>"+(b.detail?"<div style=\"color:#64748b;font-size:11.5px;margin-top:3px;line-height:1.55\">"+esc(b.detail)+"</div>":"")+"</td>";
+        h+="<td style=\"padding:9px 10px;color:#475569\">"+esc(b.owner)+"</td>";
+        h+="<td style=\"padding:9px 10px;color:#475569\">"+esc(b.location)+"</td></tr>";
+      });
+      h+="</tbody></table></div>";
+    }
+    sec.innerHTML=h;
+    Array.prototype.forEach.call(sec.querySelectorAll("button[data-day]"),function(b){ b.onclick=function(){ cur=b.getAttribute("data-day"); paint(); }; });
+  }
+  window.__naigM2MOpen=open;
+  if(document.readyState==="loading"){ document.addEventListener("DOMContentLoaded",ensure); } else { setTimeout(ensure,1200); }
+})();
+</script>
 </body>
 </html>
