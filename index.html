@@ -16555,5 +16555,75 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
   setTimeout(load,1800); setTimeout(function(){moveM2M(0);},2200);
 })();
 </script>
+
+<!-- NAIG Scope filter + search add-on -->
+<script>
+(function(){
+  var MAP = {}, GRID = null, tries = 0;
+  function apply(){
+    var grid = GRID, bar = document.getElementById('naigScopeFilterBar');
+    if(!grid || !bar) return;
+    var q = (bar.querySelector('#scopeQ').value||'').trim().toLowerCase();
+    var cat = bar.querySelector('#scopeCat').value;
+    var set = bar.querySelector('#scopeSet').value;
+    var cards = grid.children, shown = 0, total = 0;
+    for(var i=0;i<cards.length;i++){
+      var c = cards[i]; total++;
+      var nameEl = c.children[0] && c.children[0].children[0];
+      var name = nameEl ? (nameEl.textContent||'').trim().toLowerCase() : '';
+      var meta = MAP[name] || {cat:'', set:'Untagged'};
+      var ok = true;
+      if(cat && meta.cat !== cat) ok = false;
+      if(ok && set && meta.set !== set) ok = false;
+      if(ok && q && (c.innerText||'').toLowerCase().indexOf(q) === -1) ok = false;
+      c.style.display = ok ? '' : 'none';
+      if(ok) shown++;
+    }
+    var cnt = bar.querySelector('#scopeCount');
+    if(cnt) cnt.textContent = (shown === total) ? (total + ' sports') : (shown + ' of ' + total + ' sports');
+  }
+  function build(){
+    var wrap = document.getElementById('naigScopeCards');
+    if(!wrap) return false;
+    var grid = null, kids = wrap.children;
+    for(var i=0;i<kids.length;i++){ if(kids[i].children.length > 5 && kids[i].id !== 'naigScopeFilterBar'){ grid = kids[i]; break; } }
+    if(!grid) return false;
+    GRID = grid;
+    if(document.getElementById('naigScopeFilterBar')){ apply(); return true; }
+    var bar = document.createElement('div');
+    bar.id = 'naigScopeFilterBar';
+    bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0 14px 0;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;';
+    bar.innerHTML = '<input id="scopeQ" type="search" placeholder="Search sport, venue, lead, notes..." style="flex:1 1 240px;min-width:200px;padding:7px 10px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;">'
+      + '<select id="scopeCat" style="padding:7px 10px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;"><option value="">All types</option><option value="Team">Team</option><option value="Individual">Individual</option></select>'
+      + '<select id="scopeSet" style="padding:7px 10px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;"><option value="">Indoor + Outdoor</option><option value="Indoor">Indoor</option><option value="Outdoor">Outdoor</option><option value="Untagged">Untagged</option></select>'
+      + '<button id="scopeClr" style="padding:7px 12px;border:1px solid #cbd5e1;background:#fff;border-radius:7px;font-size:13px;cursor:pointer;">Clear</button>'
+      + '<span id="scopeCount" style="margin-left:auto;font-size:12px;color:#64748b;font-weight:600;"></span>';
+    grid.parentElement.insertBefore(bar, grid);
+    bar.querySelector('#scopeQ').addEventListener('input', apply);
+    bar.querySelector('#scopeCat').addEventListener('change', apply);
+    bar.querySelector('#scopeSet').addEventListener('change', apply);
+    bar.querySelector('#scopeClr').addEventListener('click', function(){
+      bar.querySelector('#scopeQ').value=''; bar.querySelector('#scopeCat').value=''; bar.querySelector('#scopeSet').value=''; apply();
+    });
+    apply();
+    return true;
+  }
+  async function loadMap(){
+    try {
+      var m = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js');
+      var snap = await m.get(_dbRef('naig2027/scope'));
+      var sc = snap.val() || {}; var out = {};
+      Object.keys(sc).forEach(function(k){ var r = sc[k]; if(r && r.sport) out[String(r.sport).trim().toLowerCase()] = {cat: r.category||'', set: r.setting||'Untagged'}; });
+      MAP = out;
+    } catch(e){ MAP = {}; }
+  }
+  window.__naigScopeFilterRefresh = function(){ loadMap().then(build); };
+  var iv = setInterval(function(){
+    tries++;
+    if(build()){ clearInterval(iv); loadMap().then(apply); }
+    else if(tries > 60){ clearInterval(iv); }
+  }, 900);
+})();
+</script>
 </body>
 </html>
