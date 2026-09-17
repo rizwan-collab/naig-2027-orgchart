@@ -1932,7 +1932,7 @@ html.onboard-mode #onboardScreen { display: flex !important; }
  <div class="hub-toolbar">
  <div>
  <div class="hub-title"> Venue Directory</div>
- <div class="hub-subtitle">6 primary venues · 4 backup sites — DFW, Texas. All In Conversation. Track &amp; Chess TBD.</div>
+ <div class="hub-subtitle">Live venue pipeline — contracts, availability, facility fit, pricing, and source-backed updates.</div>
  </div>
  <div class="section-actions">
  <button class="btn btn-light" id="vviewCards" onclick="setVenueView('cards')">▦ Pipeline</button>
@@ -13505,6 +13505,96 @@ window._migrateBackfillCourts = function () {
   });
 };
 
+/* One-time source refresh from the 16 Sep meeting notes, venue documents,
+   correspondence, and updates received by 12:30 PM CDT on 17 Sep 2026. */
+window._migrateVenueSourceSep17 = function () {
+  const V = window._venuesData || {};
+  const updated = '2026-09-17T17:30:00.000Z';
+  const marker = 'SOURCE UPDATE - 17 SEP 2026 (through 12:30 PM CDT):';
+  const find = re => Object.keys(V).find(k => re.test(String((V[k] || {}).name || '')));
+  const set = (re, values, note) => {
+    const key = find(re);
+    if (!key) return;
+    const venue = V[key] || {};
+    const notes = String(venue.notes || '');
+    window._dbSet(window._dbRef('naig2027/venues/' + key), Object.assign({}, venue, values, {
+      notes: notes.startsWith(marker) ? notes : marker + ' ' + note + '\n\n' + notes,
+      updated
+    }));
+  };
+
+  set(/courts of mckinney/i, {
+    address: '3253 Alma Rd, McKinney, TX (email signature: 75070; draft contract: 75009 - verify ZIP)',
+    capacity: '12 indoor pickleball + 12 outdoor pickleball + 3 indoor tennis + 16 outdoor tennis courts',
+    contractStatus: 'Proposal Received - venue-signed draft dated 9/8; organizer signature blank',
+    courtsPickleball: '24 total - 12 indoor + 12 outdoor',
+    courtsTennis: '19 total - 3 indoor + 16 outdoor',
+    datesAvailable: 'PROPOSED in 9/8 draft: Thu 25 Mar 12pm-10pm; Fri 26 and Sat 27 7am-10pm; Sun 28 7am-7pm. Not executed by organizer.',
+    deposit: '$60,320 (50%) due at agreement signing',
+    fieldCount: '12 indoor PB + 12 outdoor PB + 3 indoor tennis + 16 outdoor tennis; upstairs room included',
+    foodPolicy: 'Not stated in the 9/8 draft; outside-food question remains open',
+    indoorOutdoor: 'Both', pipelineStatus: 'Proposal Received',
+    primaryContact: 'Dawn Rochelle, General Manager', primaryEmail: 'dawnr@impactactivities.com',
+    primaryPhone: '972-547-2012', rentalFee: '$120,640 + tax (9/8 draft)',
+    sports: 'Tennis and Pickleball; Chess proposed for upstairs room but not stated in draft',
+    status: 'Contract Review', type: 'Tennis / Pickleball Courts'
+  }, 'The 9/8 venue-signed draft covers 52 hours and totals $120,640 plus tax, with a $60,320 deposit and final payment. The organizer signature is blank, so this is not an executed contract. The email and draft disagree on the ZIP code; verify it before signing.');
+
+  set(/skinner.*mansfield|mansfield.*skinner/i, {
+    pipelineStatus: 'Awaiting Response'
+  }, 'Mansfield had not responded to the follow-up email sent Friday 9/11. September 25 is the hard cutoff. Existing field and lighting details remain under evaluation; no booking is confirmed.');
+
+  set(/lewisville.*city parks|lake park.*railroad park/i, {
+    primaryEmail: 'mgallegos@cityoflewisville.com',
+    siteVisit: 'Planning call Tue 22 Sep 2026. Email confirms 1:00-2:30pm CDT; calendar invite shows 1:00-1:30pm CDT - confirm duration.'
+  }, 'Marcus Gallegos offered 1:00-2:30pm on 9/22 and Rizwan accepted. The calendar invite sent 9/17 is only 1:00-1:30pm, so confirm the duration. Marcus received the detailed Lake Park, Railroad Park, Sun Valley Tennis, and Vista Ridge request.');
+
+  set(/starcenter.*farmers branch|farmers branch.*starcenter/i, {
+    capacity: '8 basketball, 16 volleyball and 6 throwball court configurations; badminton setup by JMC',
+    contractStatus: 'Signed by both parties - JMC 8/18; DSE countersigned 9/14',
+    datesAvailable: 'SIGNED/GUARANTEED: Thu 25 Mar 12pm-10pm; Fri 26 and Sat 27 6am-11:30pm; Sun 28 6am-5pm. Easter Sunday included with no holiday surcharge.',
+    datesReady: 'Final schedule due to DSE by Mon 8 Mar 2027; all competition complete by 5pm Sun 28 Mar',
+    deposit: '$11,500 combined deposit due; ACH instructions received 9/16, payment not confirmed',
+    foodPolicy: 'Farmers Branch concession buyout included; outside food may not be prepped or cooked inside',
+    rentalFee: '$227,615 + tax combined Farmers Branch/Northlake package; tracked on this record to avoid double-counting',
+    sports: 'Basketball, Volleyball, Throwball, Badminton, Table Tennis and Chess'
+  }, 'The DSE agreement was countersigned 9/14 and is fully executed. The combined Farmers Branch/Northlake fee is $227,615 plus tax. The $11,500 non-refundable deposit remains unconfirmed as paid; ACH instructions were received 9/16.');
+
+  set(/ut arlington.*multi-facility|uta.*track lead/i, {
+    contractStatus: 'Application received 9/9; proposal sent 9/15; availability and pricing pending',
+    courtsTennis: '0 - UTA tennis courts unavailable for event weekend',
+    datesAvailable: 'MAC reported available Friday and Sunday. Tennis unavailable. Outdoor athletics schedule and all other requested spaces remain pending for 25-28 Mar 2027.',
+    pipelineStatus: 'Proposal Sent / Availability Pending',
+    primaryContact: 'Durl Rather, Associate Director of Campus Recreation',
+    primaryEmail: 'drather@uta.edu', primaryPhone: '817-272-3277',
+    siteVisit: 'Onsite visit planned for Sat 26 Sep 2026; timing flexible'
+  }, 'Durl confirmed UTA tennis is unavailable and supplied application documents on 9/9. The venue proposal was sent 9/15. Track, fields, one cricket field, MAC, dance/auditorium, and chess space remain requests pending final availability and pricing.');
+
+  set(/starcenter.*northlake|northlake.*starcenter/i, {
+    capacity: '8 basketball, 16 volleyball, 6 throwball and 8 indoor pickleball court configurations; party room and exclusive mezzanine',
+    contractStatus: 'Signed by both parties - JMC 8/18; DSE countersigned 9/14',
+    datesAvailable: 'SIGNED/GUARANTEED: Thu 25 Mar 12pm-10pm; Fri 26 and Sat 27 6am-11:30pm; Sun 28 6am-5pm. Easter Sunday included with no holiday surcharge.',
+    datesReady: 'Final schedule due to DSE by Mon 8 Mar 2027; all competition complete by 5pm Sun 28 Mar',
+    deposit: 'Included in combined deposit tracked under Farmers Branch; ACH instructions received 9/16, payment not confirmed',
+    foodPolicy: 'Northlake concession arrangement pending addendum, capped at $19,250; outside food may not be prepped or cooked inside',
+    rentalFee: 'Included in combined package tracked under Farmers Branch',
+    siteVisit: 'Onsite visit Sat 26 Sep 2026 at 4:00pm',
+    sports: 'Basketball, Volleyball, Throwball, Pickleball, Badminton, Table Tennis and Chess'
+  }, 'The DSE agreement was countersigned 9/14 and is fully executed. The package total and deposit are tracked under Farmers Branch to prevent double-counting. Northlake concessions require an addendum. The onsite visit is 9/26 at 4:00pm.');
+
+  set(/pickler universe/i, {
+    contractStatus: 'Proposal Received - pricing and documentation reconfirmation pending',
+    pipelineStatus: 'Pricing Review',
+    siteVisit: 'Onsite stage and space inspection timing being coordinated as of 9/16',
+    status: 'Reserved'
+  }, 'The 9/16 meeting records the pickleball venue as locked in. The stage and space inspection is being coordinated, but pricing and documentation still need reconfirmation; locked in does not mean signed.');
+
+  set(/texomo.*calera|calera.*texomo/i, {
+    contractStatus: 'Invoice received 9/16; billed amount is 2x expected and correction is in progress',
+    invoiced: 'Corrected invoice pending', pipelineStatus: 'Invoice Correction', status: 'In Works'
+  }, 'The Oklahoma invoice was received for Thu-Sun plus Monday contingency, but it is twice the expected amount. A corrected invoice is pending; do not treat the received invoice as approved or paid.');
+};
+
 window._maybeCricketPrimary = function () {
   if (!window._venuesData || !Object.keys(window._venuesData).length) return;
   if (!window._hotelsData || !Object.keys(window._hotelsData).length) return;
@@ -13540,6 +13630,7 @@ window._maybeCricketPrimary = function () {
               window.seedOnce && window.seedOnce('fit-matrix-v1',     window._migrateFitMatrix);
               window.seedOnce && window.seedOnce('site-model-v1',     window._migrateSiteModel);
               window.seedOnce && window.seedOnce('backfill-courts-v1', window._migrateBackfillCourts);
+              window.seedOnce && window.seedOnce('venue-source-sep17-v1', window._migrateVenueSourceSep17);
             }
           }
         }
