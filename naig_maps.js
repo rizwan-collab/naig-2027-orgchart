@@ -659,7 +659,7 @@
         try {
           tries++;
           if (document.getElementById('naigMaps')){ clearInterval(pollIv); return; }
-          var hostTab = document.getElementById('tabtransport');
+          var hostTab = document.getElementById('sectionTransport');
           if (hostTab){
             clearInterval(pollIv);
             naigBuildPanel(hostTab);
