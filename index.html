@@ -18414,6 +18414,7 @@ function renderHandoffTab(panel){
           var A = list[a]; var B = list[b];
           var blkOwnerA = A.block.owner; var blkOwnerB = B.block.owner;
           if (!blkOwnerA || !blkOwnerB || blkOwnerA !== blkOwnerB) { continue; }
+          if (/[\u00B7,]| and /i.test(String(blkOwnerA))) { continue; }
           var aStart = A.startMin, aEnd = A.endMin;
           var bStart = B.startMin, bEnd = B.endMin;
           var bStartAdj = bStart;
@@ -18421,18 +18422,22 @@ function renderHandoffTab(panel){
           var aStartAdj = aStart;
           if (bEnd > 1440 && aStart < (bEnd - 1440)) { aStartAdj = aStart + 1440; }
           var overlap = (aStartAdj < bEnd) && (bStartAdj < aEnd);
-          if (overlap) { doubleBooked.push({ dayLabel: byDay[dk].label, owner: blkOwnerA, a: A, b: B }); }
+          var nested = (aStartAdj <= bStartAdj && bEnd <= aEnd) || (bStartAdj <= aStartAdj && aEnd <= bEnd);
+          var sameSpot = String(A.block.location||'').trim().toLowerCase() === String(B.block.location||'').trim().toLowerCase();
+          if (overlap) { doubleBooked.push({ dayLabel: byDay[dk].label, owner: blkOwnerA, a: A, b: B, nested: nested, sameSpot: sameSpot }); }
         }
       }
     }
 
     var dbBox = mkEl('div', 'naigm2m-doublebooked');
+    var realClashes = doubleBooked.filter(function(z){ return !z.nested && !z.sameSpot; });
+    var nestedItems = doubleBooked.filter(function(z){ return z.nested || z.sameSpot; });
     dbBox.appendChild(mkEl('div', 'naigm2m-sectiontitle', 'DOUBLE-BOOKED (real risk)'));
-    if (!doubleBooked.length) {
-      dbBox.appendChild(mkEl('div', 'naigm2m-rollupline', 'None detected.'));
+    if (!realClashes.length) {
+      dbBox.appendChild(mkEl('div', 'naigm2m-rollupline', 'None detected. Crews with more than one name are treated as teams, not individuals.'));
     } else {
-      for (var x = 0; x < doubleBooked.length; x++){
-        var dbItem = doubleBooked[x];
+      for (var x = 0; x < realClashes.length; x++){
+        var dbItem = realClashes[x];
         var line = dbItem.dayLabel + ' - ' + dbItem.owner + ': "' + truncateText(dbItem.a.block.activity, 30) + '" (' +
           dbItem.a.block.start + '-' + dbItem.a.block.end + ') overlaps "' + truncateText(dbItem.b.block.activity, 30) +
           '" (' + dbItem.b.block.start + '-' + dbItem.b.block.end + ')';
@@ -18440,6 +18445,19 @@ function renderHandoffTab(panel){
       }
     }
     pane.appendChild(dbBox);
+
+    var nestBox = mkEl('div', 'naigm2m-daybox');
+    nestBox.appendChild(mkEl('div', 'naigm2m-sectiontitle', 'NESTED / SAME LOCATION (informational, not a clash)'));
+    if (!nestedItems.length) {
+      nestBox.appendChild(mkEl('div', 'naigm2m-rollupline', 'None.'));
+    } else {
+      for (var y = 0; y < nestedItems.length; y++){
+        var nItem = nestedItems[y];
+        var why = nItem.nested ? 'task sits inside the longer shift' : 'same location';
+        nestBox.appendChild(mkEl('div', 'naigm2m-flag-tight', nItem.dayLabel + ' - ' + nItem.owner + ': "' + truncateText(nItem.a.block.activity, 30) + '" (' + nItem.a.block.start + '-' + nItem.a.block.end + ') and "' + truncateText(nItem.b.block.activity, 30) + '" (' + nItem.b.block.start + '-' + nItem.b.block.end + ') - ' + why));
+      }
+    }
+    pane.appendChild(nestBox);
 
     for (var d2 = 0; d2 < dayKeys.length; d2++){
       var dk2 = dayKeys[d2];
