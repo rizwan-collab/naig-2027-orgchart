@@ -42,7 +42,9 @@ var CONFIG = {
     'kiransurani@gmail.com',   // Kiran Surani    - Logistics Deputy
     'sohail228@gmail.com',     // Sohail Ali      - Logistics Deputy
     'hashimazmina@gmail.com',  // Azmina Hashim   - Core Team PMO
-    'shank0827@gmail.com'      // Shan Karowadiya - Core Team PMO
+    'azizhirani8@gmail.com',   // Aziz Hirani     - NAIG 2027 overall PM (added 3 Sep 2026)
+    'shank0827@gmail.com',      // Shan Karowadiya - Core Team PMO
+    'fariyal.hasham@iicanada.net'  // Fariyal Hasham  - Co-Manager (added 21 Sep 2026)
   ],
 
   // On top of the fixed addresses above, the digest also goes to everyone in the
