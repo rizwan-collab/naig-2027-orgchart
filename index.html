@@ -18575,7 +18575,8 @@ function reqFor(key){
 
 /* does this venue text mention this sport, without tennis/table-tennis style collisions */
 function venueHasSport(vRec, sport){
-  var hay = String(vRec.sports||'').toLowerCase();
+  /* drop negations like "NO CRICKET at Mansfield" before matching */
+  var hay = String(vRec.sports||'').toLowerCase().replace(/\bno\s+[a-z][a-z-]*/g, ' ');
   if(!hay) return false;
   if(sport.key === 'tennis'){
     var stripped = hay.replace(/table\s*-?\s*tennis/g,'');
