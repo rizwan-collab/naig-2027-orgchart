@@ -804,7 +804,7 @@ var pollHandle = null;
 function pollForHost(){
   pollTries++;
   try {
-    var tabEl = document.getElementById('tabm2m');
+    var tabEl = document.getElementById('sectionM2M');
     if (tabEl && typeof _dbRef === 'function') {
       if (!document.getElementById('naigM2MEnrich')) { buildPanel(tabEl); }
       if (pollHandle) { clearInterval(pollHandle); pollHandle = null; }
