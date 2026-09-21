@@ -499,7 +499,7 @@
   function startFinder() {
     findTimer = setInterval(function () {
       findAttempts += 1;
-      var tabEl = document.getElementById('tabvenues');
+      var tabEl = document.getElementById('sectionVenues');
       if (tabEl) {
         clearInterval(findTimer);
         findTimer = null;
