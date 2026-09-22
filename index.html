@@ -19898,6 +19898,13 @@ function syncScope(lo, hi, attF){
     if(lbl === 'athletes on-site'){ kids[0].textContent = nf(lo) + '\u2013' + nf(hi); }
     else if(lbl === 'total attendance'){ kids[0].textContent = nf(lo*attF) + '\u2013' + nf(hi*attF); }
   }
+  var re = /[\d,]+\u2013[\d,]+ athletes on-site/;
+  var leaves = s.getElementsByTagName('*');
+  for(var m=0;m<leaves.length;m++){
+    if(leaves[m].children.length) continue;
+    var tx = leaves[m].textContent || '';
+    if(re.test(tx)){ leaves[m].textContent = tx.replace(re, nf(lo) + '\u2013' + nf(hi) + ' athletes on-site'); }
+  }
 }
 
 function load(){
