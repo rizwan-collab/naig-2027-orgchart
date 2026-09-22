@@ -19556,6 +19556,13 @@ function sportRows(){
     });
   });
   var list = Object.keys(byKey).map(function(k){ return byKey[k]; });
+  /* scale raw sport registrations so they sum to the active athlete basis */
+  var rawAth = 0;
+  list.forEach(function(r){ rawAth += r.ath; });
+  var scM = scenario();
+  var target = Math.round((scM.low + scM.high) / 2);
+  var scaleF = (rawAth > 0 && target > 0) ? (target / rawAth) : 1;
+  list.forEach(function(r){ r.raw = r.ath; r.ath = Math.round(r.ath * scaleF); });
   var totAth = 0;
   list.forEach(function(r){ totAth += r.ath; });
   var food = foodTotals();
@@ -19660,7 +19667,7 @@ function render(){
     h += '</tr>';
   });
   h += '</tbody></table></div>';
-  h += '<div class="nbg-foot">Venue cost is split across the sports each ticked site carries, in proportion to athlete numbers. That is an allocation so you can see where the money sits — it is not a quoted per-sport price. Food is split the same way. Athlete counts come from the Scope tab and do not move with the basis selector; the basis selector drives the food and per-athlete figures only.</div>';
+  h += '<div class="nbg-foot">Venue cost is split across the sports each ticked site carries, in proportion to athlete numbers. That is an allocation so you can see where the money sits — it is not a quoted per-sport price. Food is split the same way. Per-sport athlete counts are the Sports team figures scaled so they sum to the athlete basis above — the raw figures are registrations, so anyone playing two sports would otherwise be counted twice. Change the basis and every number on this tab moves with it, including the Dashboard tile.</div>';
 
   var a = gFood.assumptions || {};
   h += '<div class="nbg-h2">Food basis</div>';
@@ -19782,6 +19789,8 @@ function load(){
       gV = s[0].val() || {};
       gFood = s[1].val() || {};
       gScope = s[2].val() || {};
+      var ab = (gFood.assumptions || {}).activeBasis;
+      if(ab && (gFood.headcountScenarios || {})[ab]){ basis = ab; }
       initSel();
       render();
     })
@@ -19799,6 +19808,111 @@ var iv = setInterval(function(){
     if(sec && typeof _dbRef === 'function' && !document.getElementById('naigBudget')){
       build(sec);
       load();
+    }
+    if(tries >= 40){ clearInterval(iv); }
+  } catch(e){ clearInterval(iv); }
+}, 900);
+
+})();
+
+</script>
+
+<script>
+/* NAIG headcount sync - one athlete number everywhere */
+(function(){
+'use strict';
+if (window.__naigHeadcountBooted) { return; }
+window.__naigHeadcountBooted = true;
+
+function nf(n){ return Math.round(n).toLocaleString('en-US'); }
+function money(n){ return '$' + Math.round(n).toLocaleString('en-US'); }
+
+function apply(food){
+  var tile = document.getElementById('naigHeadFood');
+  if(!tile) return false;
+  var a = food.assumptions || {};
+  var basis = String(a.activeBasis || 'rst14');
+  var sc = (food.headcountScenarios || {})[basis] || {};
+  var lo = Number(sc.athletesLow) || 0;
+  var hi = Number(sc.athletesHigh) || 0;
+  if(!lo || !hi) return false;
+
+  var rate = Number(a.ratePerPersonPerDay) || 0;
+  var vol = Number(a.volunteers) || 0;
+  var staff = Number(a.staff) || 0;
+  var attF = Number(a.attendanceFactor) || 1.45;
+  var mealF = Number(a.mealsFactor) || 1.1;
+  var vegF = Number(a.vegFactor) || 0.165;
+  var days = 4;
+
+  window.__naigBasis = basis;
+
+  /* find the stat grid: the deepest container whose children are all 3-part stat cells */
+  var grid = null;
+  var all = tile.getElementsByTagName('div');
+  for(var i=0;i<all.length;i++){
+    var kids = all[i].children;
+    if(kids.length < 4) continue;
+    var ok = true;
+    for(var j=0;j<kids.length;j++){
+      if(kids[j].tagName !== 'DIV' || kids[j].children.length !== 3){ ok = false; break; }
+    }
+    if(ok){ grid = all[i]; break; }
+  }
+  if(!grid) return false;
+  var cells = grid.children;
+  if(cells.length < 4) return false;
+
+  function setCell(cell, value, sub){
+    var kids = cell.children;
+    if(kids.length < 3) return;
+    kids[1].textContent = value;
+    kids[2].textContent = sub;
+  }
+
+  setCell(cells[0], nf(lo) + '–' + nf(hi), String(sc.label || basis).slice(0, 48));
+  setCell(cells[1], nf(lo*attF) + '–' + nf(hi*attF), 'incl. family at 30% × 1.5');
+  setCell(cells[2], nf(lo*mealF) + '–' + nf(hi*mealF), nf(mealF*100) + '% of athletes · veg ' + nf(lo*vegF) + '–' + nf(hi*vegF));
+  setCell(cells[3], money((lo+vol+staff)*rate*days) + '–' + money((hi+vol+staff)*rate*days), '$' + rate + '/person/day × ' + days + ' days');
+
+  var note = grid.nextElementSibling;
+  if(note && note.tagName === 'DIV' && note.children.length === 0){
+    note.textContent = 'Food covers athletes, ' + nf(vol) + ' volunteers and ' + nf(staff)
+      + ' staff, Thu 25 – Sun 28. Athlete count is the ' + String(sc.label || basis).slice(0,40)
+      + ' — the one number the whole hub runs on, set at naig2027/food/assumptions/activeBasis. The Budget tab uses exactly these figures.';
+  }
+
+  tile.setAttribute('data-naigsynced', basis);
+  return true;
+}
+
+function load(){
+  return Promise.resolve()
+    .then(function(){ return import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js'); })
+    .then(function(mod){ return mod.get(_dbRef('naig2027/food')); })
+    .then(function(s){
+      var food = s.val() || {};
+      window.__naigFood = food;
+      var done = apply(food);
+      if(!done){
+        var n = 0;
+        var iv2 = setInterval(function(){
+          n++;
+          if(apply(food) || n > 30) clearInterval(iv2);
+        }, 800);
+      }
+    })
+    .catch(function(){});
+}
+
+var tries = 0;
+var iv = setInterval(function(){
+  try {
+    tries++;
+    if(typeof _dbRef === 'function' && document.getElementById('naigHeadFood')){
+      clearInterval(iv);
+      load();
+      return;
     }
     if(tries >= 40){ clearInterval(iv); }
   } catch(e){ clearInterval(iv); }
