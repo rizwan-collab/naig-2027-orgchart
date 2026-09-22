@@ -2339,32 +2339,6 @@ html.onboard-mode #onboardScreen { display: flex !important; }
 
 <!-- Budget -->
 <div class="hub-section" id="sectionBudget">
-  <div class="hub-toolbar">
-    <div>
-      <div class="hub-title">&#128200; Budget Tracker</div>
-      <div class="hub-subtitle">Running logistics budget — committed, invoiced, and paid across venues and vendors. Cost data flows automatically from venue and vendor records.</div>
-    </div>
-    <button class="btn btn-light" onclick="exportBudgetCSV()">&#11015; CSV</button>
-  </div>
-  <div id="budgetKPIs" class="summary-strip" style="gap:12px;margin-bottom:16px"></div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
-    <div style="padding:14px 16px;background:white;border-radius:10px;border:1px solid #e2eaf3;box-shadow:0 1px 4px rgba(0,0,0,.06)">
-      <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#2d6a9f;margin-bottom:10px">&#127968; Venue Budget Snapshot</div>
-      <div id="budgetVenueBody" style="font-size:.82rem;color:#555">Loading&#8230;</div>
-    </div>
-    <div style="padding:14px 16px;background:white;border-radius:10px;border:1px solid #e2eaf3;box-shadow:0 1px 4px rgba(0,0,0,.06)">
-      <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#2d6a9f;margin-bottom:10px">&#128230; Vendor Budget Snapshot</div>
-      <div id="budgetVendorBody" style="font-size:.82rem;color:#555">Loading&#8230;</div>
-    </div>
-  </div>
-  <div style="font-size:.82rem;font-weight:700;color:#1a3a5c;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Category Breakdown</div>
-  <table class="hub-table" id="budgetTable">
-    <thead><tr>
-      <th>Category</th><th>Source</th><th>Items</th>
-      <th>Committed</th><th>Invoiced</th><th>Paid</th><th>Outstanding</th>
-    </tr></thead>
-    <tbody id="budgetTbody"><tr><td colspan="7" class="hub-empty">Loading budget data&#8230;</td></tr></tbody>
-  </table>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
@@ -19373,469 +19347,7 @@ setInterval(function(){ try { sweep(); } catch(e){} }, 2500);
 
 </script>
 
-<script>
-/* NAIG Budget module */
-(function(){
-'use strict';
-if (window.__naigBudgetBooted) { return; }
-window.__naigBudgetBooted = true;
 
-var LIVE = ['Confirmed','Contract Review','Reserved'];
-var gV = {}, gFood = {}, gScope = {};
-var sel = {}, selReady = false;
-var basis = 'rst14';
-var days = 4;
-var statusFilter = 'all';
-
-function esc(s){ if(s===null||s===undefined) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function money(n){ return '$' + Math.round(n).toLocaleString('en-US'); }
-function isLive(v){ return LIVE.indexOf(v.status) > -1; }
-
-/* ---------- fee parsing ---------- */
-function parseFee(raw){
-  var s = String(raw || '').trim();
-  if(!s) return { n:0, kind:'none', note:'no figure on record' };
-  if(/included in/i.test(s)) return { n:0, kind:'included', note:'inside another site package' };
-  if(/\btbc\b|to quote|awaiting quote|not quoted/i.test(s)) return { n:0, kind:'tbc', note:'not quoted yet' };
-  var mm = s.replace(/,/g,'').match(/\$\s*(\d+(?:\.\d+)?)/);
-  if(!mm) return { n:0, kind:'none', note:'no figure on record' };
-  var n = parseFloat(mm[1]);
-  var head = s.replace(/\([^)]*\)/g, ' ');
-  var perUnit = /per\s*(2\s*-?\s*hour|hour|hr|session|court|person)|\/\s*hr/i.test(head);
-  if(perUnit || n < 1000) return { n:0, kind:'rate', note:'rate only, not a total' };
-  var kind = 'quote', note = '';
-  if(/no breakdown/i.test(s)){ kind = 'alert'; note = 'no breakdown provided'; }
-  else if(/calculated/i.test(s)){ kind = 'calc'; note = 'calculated from a rate sheet, not a quote'; }
-  else if(/draft/i.test(s)){ kind = 'draft'; note = 'draft figure'; }
-  else if(/^~|≈/.test(s)){ kind = 'calc'; note = 'estimate'; }
-  return { n:n, kind:kind, note:note };
-}
-
-/* ---------- sports ---------- */
-var SPORTMAP = [
-  { key:'tennis', aliases:['tennis'] },
-  { key:'pickleball', aliases:['pickleball'] },
-  { key:'basketball', aliases:['basketball'] },
-  { key:'volleyball', aliases:['volleyball'] },
-  { key:'badminton', aliases:['badminton'] },
-  { key:'table tennis', aliases:['table tennis'] },
-  { key:'throwball', aliases:['throwball'] },
-  { key:'chess', aliases:['chess'] },
-  { key:'soccer', aliases:['soccer','football'] },
-  { key:'flag football', aliases:['flag football'] },
-  { key:'cricket', aliases:['cricket'] },
-  { key:'track', aliases:['track','athletics'] },
-  { key:'dance', aliases:['dance'] }
-];
-
-function scrub(t){ return String(t||'').toLowerCase().replace(/\bno\s+[a-z][a-z-]*/g,' '); }
-
-function venueSports(v){
-  var hay = scrub(v.sports);
-  var out = [];
-  SPORTMAP.forEach(function(sp){
-    var hit = false;
-    if(sp.key === 'tennis'){ hit = hay.replace(/table\s*-?\s*tennis/g,'').indexOf('tennis') > -1; }
-    else if(sp.key === 'soccer'){ hit = hay.indexOf('soccer') > -1; }
-    else if(sp.key === 'flag football'){ hit = hay.indexOf('flag football') > -1; }
-    else { for(var i=0;i<sp.aliases.length;i++){ if(hay.indexOf(sp.aliases[i]) > -1){ hit = true; break; } } }
-    if(hit) out.push(sp.key);
-  });
-  return out;
-}
-
-function athletesOf(rec){
-  var raw = String(rec.participants || rec.participantsMax || rec.participantsMin || '');
-  var nums = raw.replace(/,/g,'').match(/\d+/g);
-  if(!nums || !nums.length) return 0;
-  if(nums.length === 1) return parseInt(nums[0], 10);
-  var a = parseInt(nums[0],10), b = parseInt(nums[1],10);
-  return Math.round((a + b) / 2);
-}
-
-function scopeSportKey(name){
-  var n = String(name||'').toLowerCase();
-  if(n.indexOf('table tennis') > -1) return 'table tennis';
-  if(n.indexOf('flag football') > -1) return 'flag football';
-  if(n.indexOf('cricket') > -1) return 'cricket';
-  if(n.indexOf('soccer') > -1 || n.indexOf('football') > -1) return 'soccer';
-  if(n.indexOf('volleyball') > -1) return 'volleyball';
-  if(n.indexOf('basketball') > -1) return 'basketball';
-  if(n.indexOf('badminton') > -1) return 'badminton';
-  if(n.indexOf('pickleball') > -1) return 'pickleball';
-  if(n.indexOf('throwball') > -1) return 'throwball';
-  if(n.indexOf('chess') > -1) return 'chess';
-  if(n.indexOf('tennis') > -1) return 'tennis';
-  if(n.indexOf('track') > -1) return 'track';
-  if(n.indexOf('dance') > -1) return 'dance';
-  return n;
-}
-
-/* ---------- headcount + food ---------- */
-function scenario(){
-  var h = (gFood.headcountScenarios || {})[basis] || {};
-  return { low: Number(h.athletesLow) || 0, high: Number(h.athletesHigh) || 0, label: String(h.label || basis) };
-}
-function foodTotals(){
-  var a = gFood.assumptions || {};
-  var rate = Number(a.ratePerPersonPerDay) || 0;
-  var vol = Number(a.volunteers) || 0;
-  var staff = Number(a.staff) || 0;
-  var sc = scenario();
-  return {
-    rate: rate, vol: vol, staff: staff, days: days,
-    low: (sc.low + vol + staff) * rate * days,
-    high: (sc.high + vol + staff) * rate * days,
-    headLow: sc.low + vol + staff,
-    headHigh: sc.high + vol + staff
-  };
-}
-
-/* ---------- venue rows ---------- */
-function initSel(){
-  if(selReady) return;
-  Object.keys(gV).forEach(function(k){ sel[k] = isLive(gV[k]); });
-  selReady = true;
-}
-function rowsAll(){
-  var ks = Object.keys(gV).filter(function(k){
-    var v = gV[k];
-    if(/declined/i.test(String(v.status||''))) return false;
-    var f = parseFee(v.rentalFee);
-    return f.n > 0 || f.kind === 'rate' || f.kind === 'tbc' || f.kind === 'included' || isLive(v);
-  });
-  ks.sort(function(a,b){
-    var la = isLive(gV[a]), lb = isLive(gV[b]);
-    if(la !== lb) return la ? -1 : 1;
-    return parseFee(gV[b].rentalFee).n - parseFee(gV[a].rentalFee).n;
-  });
-  return ks;
-}
-function venueTotal(){
-  var t = 0;
-  Object.keys(gV).forEach(function(k){ if(sel[k]) t += parseFee(gV[k].rentalFee).n; });
-  return t;
-}
-function depositsPaid(){
-  var t = 0, out = 0;
-  Object.keys(gV).forEach(function(k){
-    if(!sel[k]) return;
-    var d = String(gV[k].deposit||'');
-    var mm = d.replace(/,/g,'').match(/\$\s*(\d+)/);
-    if(!mm) return;
-    var n = parseFloat(mm[1]);
-    if(/paid/i.test(d)) t += n; else out += n;
-  });
-  return { paid: t, due: out };
-}
-
-/* ---------- per sport ---------- */
-function sportRows(){
-  var byKey = {};
-  Object.keys(gScope).forEach(function(k){
-    var r = gScope[k];
-    var key = scopeSportKey(r.sport || k);
-    var ath = athletesOf(r);
-    if(!byKey[key]) byKey[key] = { key: key, label: String(r.sport || k), ath: 0, rows: 0, venues: [] };
-    byKey[key].ath += ath;
-    byKey[key].rows++;
-    if(byKey[key].rows > 1) byKey[key].label = key.replace(/\b[a-z]/g, function(c){ return c.toUpperCase(); });
-  });
-  Object.keys(gV).forEach(function(vk){
-    if(!sel[vk]) return;
-    var v = gV[vk];
-    var cost = parseFee(v.rentalFee).n;
-    if(cost <= 0) return;
-    var carries = venueSports(v).filter(function(s){ return !!byKey[s]; });
-    if(!carries.length) return;
-    var tot = 0;
-    carries.forEach(function(s){ tot += byKey[s].ath; });
-    carries.forEach(function(s){
-      var share = tot > 0 ? (byKey[s].ath / tot) : (1 / carries.length);
-      byKey[s].venues.push({ name: v.name || vk, amount: cost * share });
-    });
-  });
-  var list = Object.keys(byKey).map(function(k){ return byKey[k]; });
-  /* scale raw sport registrations so they sum to the active athlete basis */
-  var rawAth = 0;
-  list.forEach(function(r){ rawAth += r.ath; });
-  var scM = scenario();
-  var target = Math.round((scM.low + scM.high) / 2);
-  var scaleF = (rawAth > 0 && target > 0) ? (target / rawAth) : 1;
-  list.forEach(function(r){ r.raw = r.ath; r.ath = Math.round(r.ath * scaleF); });
-  var totAth = 0;
-  list.forEach(function(r){ totAth += r.ath; });
-  var food = foodTotals();
-  list.forEach(function(r){
-    r.venueCost = 0;
-    r.venues.forEach(function(x){ r.venueCost += x.amount; });
-    r.foodLow = totAth > 0 ? food.low * (r.ath / totAth) : 0;
-    r.foodHigh = totAth > 0 ? food.high * (r.ath / totAth) : 0;
-    r.perAthLow = r.ath > 0 ? (r.venueCost + r.foodLow) / r.ath : 0;
-    r.perAthHigh = r.ath > 0 ? (r.venueCost + r.foodHigh) / r.ath : 0;
-  });
-  list.sort(function(a,b){ return (b.venueCost + b.foodHigh) - (a.venueCost + a.foodHigh); });
-  return { list: list, totAth: totAth };
-}
-
-/* ---------- render ---------- */
-function kindPill(f){
-  if(f.kind === 'alert') return '<span class="nbg-pill nbg-bad">no breakdown</span>';
-  if(f.kind === 'rate') return '<span class="nbg-pill nbg-bad">rate only — not a total</span>';
-  if(f.kind === 'tbc') return '<span class="nbg-pill nbg-warn">not quoted</span>';
-  if(f.kind === 'included') return '<span class="nbg-pill nbg-info">in another package</span>';
-  if(f.kind === 'calc') return '<span class="nbg-pill nbg-warn">calculated, not a quote</span>';
-  if(f.kind === 'draft') return '<span class="nbg-pill nbg-warn">draft</span>';
-  if(f.kind === 'none') return '<span class="nbg-pill nbg-warn">no figure</span>';
-  return '';
-}
-
-function render(){
-  var host = document.getElementById('nbgBody');
-  if(!host) return;
-  initSel();
-  var food = foodTotals();
-  var sc = scenario();
-  var vT = venueTotal();
-  var dep = depositsPaid();
-  var sr = sportRows();
-  var h = '';
-
-  h += '<div class="nbg-ctrls">';
-  h += '<label class="nbg-lb">Athlete basis</label><select class="nbg-sel" data-nbgctl="basis">';
-  ['rst14','scopeTab','driveMaster'].forEach(function(k){
-    var s2 = (gFood.headcountScenarios||{})[k] || {};
-    h += '<option value="' + k + '"' + (basis===k?' selected':'') + '>' + esc(String(s2.label||k).slice(0,34)) + ' (' + (s2.athletesLow||'?') + '–' + (s2.athletesHigh||'?') + ')</option>';
-  });
-  h += '</select>';
-  h += '<label class="nbg-lb">Food days</label><select class="nbg-sel" data-nbgctl="days">';
-  h += '<option value="3"' + (days===3?' selected':'') + '>3 play days</option>';
-  h += '<option value="4"' + (days===4?' selected':'') + '>4 days (cricket Thu)</option>';
-  h += '</select>';
-  h += '<label class="nbg-lb">Show</label><select class="nbg-sel" data-nbgctl="status">';
-  ['all','live','ticked'].forEach(function(k){
-    var lbl = k === 'all' ? 'All sites' : (k === 'live' ? 'Live only' : 'Ticked only');
-    h += '<option value="' + k + '"' + (statusFilter===k?' selected':'') + '>' + lbl + '</option>';
-  });
-  h += '</select>';
-  h += '<button type="button" class="nbg-btn" data-nbgact="live">Tick live</button>';
-  h += '<button type="button" class="nbg-btn" data-nbgact="all">Tick all</button>';
-  h += '<button type="button" class="nbg-btn" data-nbgact="none">Untick all</button>';
-  h += '</div>';
-
-  var grandLow = vT + food.low, grandHigh = vT + food.high;
-  var paLow = sc.low > 0 ? grandLow / sc.high : 0;
-  var paHigh = sc.high > 0 ? grandHigh / sc.low : 0;
-
-  h += '<div class="nbg-kpis">';
-  h += '<div class="nbg-kpi"><div class="nbg-kl">Venues ticked</div><div class="nbg-kv">' + money(vT) + '</div><div class="nbg-ks">+ tax</div></div>';
-  h += '<div class="nbg-kpi"><div class="nbg-kl">Food</div><div class="nbg-kv nbg-amber">' + money(food.low) + '–' + money(food.high) + '</div><div class="nbg-ks">' + food.headLow.toLocaleString('en-US') + '–' + food.headHigh.toLocaleString('en-US') + ' people x $' + food.rate + ' x ' + food.days + 'd</div></div>';
-  h += '<div class="nbg-kpi nbg-big"><div class="nbg-kl">Grand total</div><div class="nbg-kv">' + money(grandLow) + '–' + money(grandHigh) + '</div><div class="nbg-ks">venues + food, before tax</div></div>';
-  h += '<div class="nbg-kpi"><div class="nbg-kl">Per athlete</div><div class="nbg-kv">' + money(paLow) + '–' + money(paHigh) + '</div><div class="nbg-ks">on ' + sc.low.toLocaleString('en-US') + '–' + sc.high.toLocaleString('en-US') + ' athletes</div></div>';
-  h += '<div class="nbg-kpi"><div class="nbg-kl">Cash already out</div><div class="nbg-kv nbg-green">' + money(dep.paid) + '</div><div class="nbg-ks">deposits paid</div></div>';
-  h += '<div class="nbg-kpi"><div class="nbg-kl">Deposits due</div><div class="nbg-kv nbg-red">' + money(dep.due) + '</div><div class="nbg-ks">not yet paid</div></div>';
-  h += '</div>';
-
-  h += '<div class="nbg-h2">Venues — tick to include in the total</div>';
-  h += '<div class="nbg-scroll"><table class="nbg-t"><thead><tr><th>Site</th><th>Status</th><th class="nbg-r">Cost</th><th>Flag</th><th>Deposit</th></tr></thead><tbody>';
-  rowsAll().forEach(function(k){
-    var v = gV[k];
-    var f = parseFee(v.rentalFee);
-    var on = !!sel[k];
-    if(statusFilter === 'live' && !isLive(v)) return;
-    if(statusFilter === 'ticked' && !on) return;
-    h += '<tr class="' + (on ? '' : 'nbg-off') + '">';
-    h += '<td><label class="nbg-cb"><input type="checkbox" data-nbgkey="' + esc(k) + '"' + (on?' checked':'') + '><span>' + esc(v.name||k) + '</span></label></td>';
-    h += '<td class="nbg-st">' + esc(v.status||'—') + '</td>';
-    h += '<td class="nbg-r nbg-num">' + (f.n > 0 ? money(f.n) : '—') + '</td>';
-    h += '<td>' + kindPill(f) + (f.note && f.kind !== 'quote' ? '<div class="nbg-note">' + esc(f.note) + '</div>' : '') + '</td>';
-    h += '<td class="nbg-st">' + esc(String(v.deposit||'—').slice(0,40)) + '</td>';
-    h += '</tr>';
-  });
-  h += '</tbody><tfoot><tr><td class="nbg-strong">TOTAL TICKED</td><td></td><td class="nbg-r nbg-strong">' + money(vT) + '</td><td colspan="2" class="nbg-note">+ tax. Rows worth $0 above are excluded from this total.</td></tr></tfoot></table></div>';
-
-  h += '<div class="nbg-h2">Cost by sport</div>';
-  h += '<div class="nbg-scroll"><table class="nbg-t"><thead><tr><th>Sport</th><th class="nbg-r">Athletes</th><th class="nbg-r">Venue share</th><th class="nbg-r">Food share</th><th class="nbg-r">Total</th><th class="nbg-r">Per athlete</th></tr></thead><tbody>';
-  sr.list.forEach(function(r){
-    h += '<tr>';
-    h += '<td class="nbg-strong">' + esc(r.label) + '</td>';
-    h += '<td class="nbg-r nbg-num">' + r.ath.toLocaleString('en-US') + '</td>';
-    h += '<td class="nbg-r nbg-num">' + (r.venueCost > 0 ? money(r.venueCost) : '—') + '</td>';
-    h += '<td class="nbg-r nbg-num">' + money(r.foodLow) + '–' + money(r.foodHigh) + '</td>';
-    h += '<td class="nbg-r nbg-num nbg-strong">' + money(r.venueCost + r.foodLow) + '–' + money(r.venueCost + r.foodHigh) + '</td>';
-    h += '<td class="nbg-r nbg-num">' + money(r.perAthLow) + '–' + money(r.perAthHigh) + '</td>';
-    h += '</tr>';
-  });
-  h += '</tbody></table></div>';
-  h += '<div class="nbg-foot">Venue cost is split across the sports each ticked site carries, in proportion to athlete numbers. That is an allocation so you can see where the money sits — it is not a quoted per-sport price. Food is split the same way. Per-sport athlete counts are the Sports team figures scaled so they sum to the athlete basis above — the raw figures are registrations, so anyone playing two sports would otherwise be counted twice. Change the basis and every number on this tab moves with it, including the Dashboard tile.</div>';
-
-  var a = gFood.assumptions || {};
-  h += '<div class="nbg-h2">Food basis</div>';
-  h += '<div class="nbg-food">';
-  h += '<div><span class="nbg-fl">Rate</span> $' + a.ratePerPersonPerDay + ' per person per day</div>';
-  h += '<div><span class="nbg-fl">Confirmed by</span> ' + esc(String(a.confirmedBy||'—')) + '</div>';
-  h += '<div><span class="nbg-fl">Covers</span> ' + esc(String(a.scope||'—')) + '</div>';
-  h += '<div><span class="nbg-fl">Meals</span> ' + esc(String(a.mealsCovered||'—')) + '</div>';
-  h += '<div><span class="nbg-fl">Volunteers</span> ' + a.volunteers + ' &nbsp; <span class="nbg-fl">Staff</span> ' + a.staff + '</div>';
-  h += '</div>';
-  var oi = gFood.openItems || {};
-  var oiKeys = Object.keys(oi);
-  if(oiKeys.length){
-    h += '<div class="nbg-open"><div class="nbg-ot">Open on food — ' + oiKeys.length + ' unanswered</div><ul>';
-    oiKeys.forEach(function(k){ h += '<li>' + esc(String(oi[k]).slice(0,180)) + '</li>'; });
-    h += '</ul></div>';
-  }
-
-  host.innerHTML = h;
-}
-
-function styles(){
-  if(document.getElementById('nbgStyle')) return;
-  var css = [
-    '#naigBudget{background:#0f1a2e;border:1px solid rgba(148,163,184,0.18);border-radius:14px;padding:16px;margin:0 0 18px 0;color:#e2e8f0;}',
-    '#naigBudget .nbg-title{font-size:16px;font-weight:700;color:#f8fafc;}',
-    '#naigBudget .nbg-sub{font-size:12px;color:#94a3b8;margin:2px 0 12px 0;}',
-    '#naigBudget .nbg-ctrls{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:14px;}',
-    '#naigBudget .nbg-lb{font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;}',
-    '#naigBudget .nbg-sel{background:#111d33;color:#e2e8f0;border:1px solid rgba(148,163,184,0.3);border-radius:8px;padding:5px 9px;font-size:12px;}',
-    '#naigBudget .nbg-btn{background:#111d33;color:#cbd5e1;border:1px solid rgba(148,163,184,0.3);border-radius:8px;padding:5px 11px;font-size:11px;cursor:pointer;}',
-    '#naigBudget .nbg-btn:hover{background:#1E3A8A;color:#fff;}',
-    '#naigBudget .nbg-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:18px;}',
-    '#naigBudget .nbg-kpi{background:#111d33;border:1px solid rgba(148,163,184,0.16);border-radius:10px;padding:10px 12px;}',
-    '#naigBudget .nbg-big{border-color:rgba(59,130,246,0.5);}',
-    '#naigBudget .nbg-kl{font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;}',
-    '#naigBudget .nbg-kv{font-size:17px;font-weight:700;color:#f8fafc;margin-top:3px;}',
-    '#naigBudget .nbg-ks{font-size:10px;color:#64748b;margin-top:3px;}',
-    '#naigBudget .nbg-amber{color:#fbbf24;}',
-    '#naigBudget .nbg-green{color:#4ade80;}',
-    '#naigBudget .nbg-red{color:#f87171;}',
-    '#naigBudget .nbg-h2{font-size:13px;font-weight:700;color:#cbd5e1;margin:18px 0 8px 0;text-transform:uppercase;letter-spacing:0.04em;}',
-    '#naigBudget .nbg-scroll{overflow-x:auto;border:1px solid rgba(148,163,184,0.14);border-radius:10px;}',
-    '#naigBudget .nbg-t{width:100%;border-collapse:collapse;font-size:12px;}',
-    '#naigBudget .nbg-t th{background:#111d33;color:#cbd5e1;font-weight:700;text-align:left;padding:8px 10px;white-space:nowrap;border-bottom:1px solid rgba(148,163,184,0.2);}',
-    '#naigBudget .nbg-t td{padding:8px 10px;border-bottom:1px solid rgba(148,163,184,0.09);vertical-align:top;}',
-    '#naigBudget .nbg-r{text-align:right;}',
-    '#naigBudget .nbg-num{font-variant-numeric:tabular-nums;white-space:nowrap;}',
-    '#naigBudget .nbg-strong{font-weight:700;color:#f8fafc;}',
-    '#naigBudget .nbg-st{font-size:11px;color:#94a3b8;}',
-    '#naigBudget tr.nbg-off{opacity:0.4;}',
-    '#naigBudget .nbg-cb{display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600;color:#f8fafc;}',
-    '#naigBudget .nbg-cb input{accent-color:#3b82f6;cursor:pointer;flex:none;}',
-    '#naigBudget .nbg-pill{font-size:10px;font-weight:700;border-radius:999px;padding:2px 8px;border:1px solid;white-space:nowrap;}',
-    '#naigBudget .nbg-bad{background:rgba(239,68,68,0.16);color:#f87171;border-color:rgba(239,68,68,0.45);}',
-    '#naigBudget .nbg-warn{background:rgba(245,158,11,0.18);color:#fbbf24;border-color:rgba(245,158,11,0.45);}',
-    '#naigBudget .nbg-info{background:rgba(59,130,246,0.16);color:#60a5fa;border-color:rgba(59,130,246,0.45);}',
-    '#naigBudget .nbg-note{font-size:10px;color:#64748b;margin-top:3px;}',
-    '#naigBudget tfoot td{border-top:1px solid rgba(148,163,184,0.3);background:#0c1626;}',
-    '#naigBudget .nbg-foot{margin-top:10px;font-size:11px;color:#94a3b8;line-height:1.5;}',
-    '#naigBudget .nbg-food{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;font-size:12px;background:#111d33;border-radius:10px;padding:12px;}',
-    '#naigBudget .nbg-fl{color:#94a3b8;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;margin-right:5px;}',
-    '#naigBudget .nbg-open{margin-top:12px;background:rgba(245,158,11,0.09);border:1px solid rgba(245,158,11,0.32);border-radius:10px;padding:10px 14px;}',
-    '#naigBudget .nbg-ot{font-size:11px;font-weight:700;color:#fbbf24;text-transform:uppercase;letter-spacing:0.04em;}',
-    '#naigBudget .nbg-open ul{margin:6px 0 0 16px;padding:0;font-size:11px;color:#cbd5e1;line-height:1.6;}'
-  ].join('\n');
-  var st = document.createElement('style');
-  st.id = 'nbgStyle';
-  st.appendChild(document.createTextNode(css));
-  document.head.appendChild(st);
-}
-
-function hideOld(section){
-  var kids = section.children;
-  for(var i=0;i<kids.length;i++){
-    var c = kids[i];
-    if(c.id === 'naigBudget') continue;
-    if(String(c.className||'').indexOf('naig-stub') > -1) continue;
-    if(c.getAttribute('data-naigretired')) continue;
-    c.setAttribute('data-naigretired','1');
-    c.setAttribute('data-naigskip','1');
-    c.style.display = 'none';
-  }
-}
-window.__naigShowOldBudget = function(){
-  var s = document.getElementById('sectionBudget');
-  if(!s) return;
-  var k = s.querySelectorAll('[data-naigretired]');
-  for(var i=0;i<k.length;i++){ k[i].style.display = ''; k[i].removeAttribute('data-naigretired'); }
-};
-
-function build(section){
-  if(document.getElementById('naigBudget')) return;
-  styles();
-  var p = document.createElement('div');
-  p.id = 'naigBudget';
-  p.innerHTML = [
-    '<div class="nbg-title">Budget — what the Games cost</div>',
-    '<div class="nbg-sub">Venues you tick, plus food, against the athlete count you choose. Every figure comes from the venue and food records in the hub.</div>',
-    '<div id="nbgBody"></div>'
-  ].join('');
-  section.insertBefore(p, section.firstChild);
-  p.addEventListener('change', function(ev){
-    var t = ev.target;
-    if(!t || !t.getAttribute) return;
-    var k = t.getAttribute('data-nbgkey');
-    if(k !== null){ sel[k] = !!t.checked; render(); return; }
-    var c = t.getAttribute('data-nbgctl');
-    if(c === 'basis'){ basis = t.value; render(); }
-    else if(c === 'days'){ days = parseInt(t.value, 10) || 4; render(); }
-    else if(c === 'status'){ statusFilter = t.value; render(); }
-  });
-  p.addEventListener('click', function(ev){
-    var t = ev.target;
-    if(!t || !t.getAttribute) return;
-    var a = t.getAttribute('data-nbgact');
-    if(!a) return;
-    Object.keys(gV).forEach(function(k){
-      if(a === 'all') sel[k] = true;
-      else if(a === 'none') sel[k] = false;
-      else if(a === 'live') sel[k] = isLive(gV[k]);
-    });
-    render();
-  });
-}
-
-function load(){
-  return Promise.resolve()
-    .then(function(){ return import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js'); })
-    .then(function(mod){
-      return Promise.all([
-        mod.get(_dbRef('naig2027/venues')),
-        mod.get(_dbRef('naig2027/food')),
-        mod.get(_dbRef('naig2027/scope'))
-      ]);
-    })
-    .then(function(s){
-      gV = s[0].val() || {};
-      gFood = s[1].val() || {};
-      gScope = s[2].val() || {};
-      var ab = (gFood.assumptions || {}).activeBasis;
-      if(ab && (gFood.headcountScenarios || {})[ab]){ basis = ab; }
-      initSel();
-      render();
-    })
-    .catch(function(e){
-      var host = document.getElementById('nbgBody');
-      if(host) host.innerHTML = '<div class="nbg-foot">Could not load budget data: ' + esc(e && e.message ? e.message : String(e)) + '</div>';
-    });
-}
-
-var tries = 0;
-var iv = setInterval(function(){
-  try {
-    tries++;
-    var sec = document.getElementById('sectionBudget');
-    if(sec && typeof _dbRef === 'function' && !document.getElementById('naigBudget')){
-      build(sec);
-      load();
-    }
-    if(sec) hideOld(sec);
-    if(tries >= 40){ clearInterval(iv); }
-  } catch(e){ clearInterval(iv); }
-}, 900);
-
-})();
-
-</script>
 
 <script>
 /* NAIG headcount sync - one athlete number everywhere */
@@ -20553,6 +20065,437 @@ var iv = setInterval(function(){
     } catch(e){}
     if(n > 80) clearInterval(iv);
   }, 500);
+})();
+</script>
+<script>
+(function(){
+'use strict';
+if (window.__naigBudget2Booted) { return; }
+window.__naigBudget2Booted = true;
+
+var FB = null;
+var G = { venues:{}, food:{}, team:{}, trans:{}, hotels:{} };
+var B = null;
+var saveTimer = null;
+var showVenues = false;
+
+var ORDER = ['food','transportation','hotels','venues','rentals','signage'];
+var LABELS = {
+  food:'Food', transportation:'Transportation', hotels:'Hotels',
+  venues:'Venues', rentals:'Rentals', signage:'Signage'
+};
+var LIVE = ['Confirmed','Contract Review','Reserved'];
+
+function esc(s){ if(s===null||s===undefined) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function money(n){ return '$' + Math.round(n).toLocaleString('en-US'); }
+function nf(n){ return Math.round(n).toLocaleString('en-US'); }
+
+/* ---------- computed sources ---------- */
+function parseFee(raw){
+  var s = String(raw||'').trim();
+  if(!s) return 0;
+  if(/included in/i.test(s)) return 0;
+  if(/\btbc\b|to quote|awaiting quote|not quoted/i.test(s)) return 0;
+  var mm = s.replace(/,/g,'').match(/\$\s*(\d+(?:\.\d+)?)/);
+  if(!mm) return 0;
+  var n = parseFloat(mm[1]);
+  var head = s.replace(/\([^)]*\)/g,' ');
+  if(/per\s*(2\s*-?\s*hour|hour|hr|session|court|person)|\/\s*hr/i.test(head) || n < 1000) return 0;
+  return n;
+}
+function liveVenues(){
+  var out = [];
+  Object.keys(G.venues).forEach(function(k){
+    var v = G.venues[k];
+    if(/declined/i.test(String(v.status||''))) return;
+    if(LIVE.indexOf(v.status) < 0) return;
+    out.push({ key:k, name:String(v.name||k), status:String(v.status||''), amount:parseFee(v.rentalFee) });
+  });
+  out.sort(function(a,b){ return b.amount - a.amount; });
+  return out;
+}
+function venueComputed(){
+  var t = 0;
+  liveVenues().forEach(function(r){ t += r.amount; });
+  return t;
+}
+function headcount(){
+  var a = G.food.assumptions || {};
+  var basis = String(a.activeBasis || 'teamModel');
+  var sc = (G.food.headcountScenarios || {})[basis] || {};
+  var ath = Number(sc.athletesLow) || 0;
+  var vol = Number(a.volunteers) || 0;
+  var staff = Number(a.staff) || 0;
+  return { ath:ath, vol:vol, staff:staff, fed:ath+vol+staff, rate:Number(a.ratePerPersonPerDay)||0, days:4, label:String(sc.label||basis) };
+}
+function foodComputed(){
+  var h = headcount();
+  return h.fed * h.rate * h.days;
+}
+function computedFor(key){
+  if(key === 'venues') return venueComputed();
+  if(key === 'food') return foodComputed();
+  return null;
+}
+
+/* ---------- on-record notes ---------- */
+function onRecord(key){
+  if(key === 'transportation'){
+    var ks = Object.keys(G.trans);
+    if(!ks.length) return 'nothing on record';
+    var units = 0, tbd = 0;
+    ks.forEach(function(k){
+      var mm = String(G.trans[k].units||'').match(/\d+/);
+      if(mm) units += parseInt(mm[0],10);
+      if(!/\$/.test(String(G.trans[k].cost||''))) tbd++;
+    });
+    return ks.length + ' services, ' + units + ' vehicles planned · ' + tbd + ' of ' + ks.length + ' have no cost yet';
+  }
+  if(key === 'hotels'){
+    var hk = Object.keys(G.hotels);
+    var rooms = 0, named = 0, lo = null, hi = null;
+    hk.forEach(function(k){
+      var h = G.hotels[k];
+      var bs = String(h.blockSize||'').match(/\d+/);
+      if(bs){ rooms += parseInt(bs[0],10); named++; }
+      var r = String(h.rate||'').match(/\d+/);
+      if(r){ var n = parseInt(r[0],10); if(lo===null||n<lo) lo=n; if(hi===null||n>hi) hi=n; }
+    });
+    var s = rooms + ' rooms across ' + named + ' named properties';
+    if(lo!==null) s += ' at $' + lo + '–$' + hi + '/night';
+    return s + ' — room cost carried by the attendee, not this budget';
+  }
+  if(key === 'rentals') return 'nothing on record — no rentals node in the hub yet';
+  if(key === 'signage') return 'nothing on record — no signage node in the hub yet';
+  if(key === 'venues'){
+    var lv = liveVenues();
+    var zero = lv.filter(function(r){ return r.amount <= 0; }).length;
+    return lv.length + ' live sites' + (zero ? ' · ' + zero + ' with no usable figure' : '') + ' · before tax';
+  }
+  if(key === 'food'){
+    var h = headcount();
+    return nf(h.ath) + ' athletes + ' + nf(h.vol) + ' volunteers + ' + nf(h.staff) + ' staff = ' + nf(h.fed) + ' fed × $' + h.rate + '/day × ' + h.days + ' days';
+  }
+  return '';
+}
+
+/* ---------- state ---------- */
+function defaults(){
+  return {
+    food:          { label:'Food',           order:1, mode:'auto',     amount:null, basis:'' },
+    transportation:{ label:'Transportation', order:2, mode:'manual',   amount:null, basis:'' },
+    hotels:        { label:'Hotels',         order:3, mode:'excluded', amount:0,    basis:'Attendee-paid. Only meeting rooms, function space or services we contract land on this budget.' },
+    venues:        { label:'Venues',         order:4, mode:'auto',     amount:null, basis:'' },
+    rentals:       { label:'Rentals',        order:5, mode:'manual',   amount:null, basis:'' },
+    signage:       { label:'Signage',        order:6, mode:'manual',   amount:null, basis:'' }
+  };
+}
+function cat(key){
+  if(!B.categories) B.categories = {};
+  if(!B.categories[key]) B.categories[key] = defaults()[key];
+  return B.categories[key];
+}
+function amountOf(key){
+  var c = cat(key);
+  if(c.mode === 'auto'){
+    var v = computedFor(key);
+    return v === null ? null : v;
+  }
+  if(c.amount === null || c.amount === undefined || c.amount === '') return null;
+  var n = Number(c.amount);
+  return isNaN(n) ? null : n;
+}
+function totals(){
+  var sum = 0, priced = 0, missing = [];
+  ORDER.forEach(function(k){
+    var a = amountOf(k);
+    if(a === null){ missing.push(LABELS[k]); return; }
+    sum += a;
+    priced++;
+  });
+  return { sum:sum, priced:priced, missing:missing };
+}
+
+/* ---------- persist ---------- */
+function flash(msg, color){
+  var el = document.getElementById('nb2Save');
+  if(!el) return;
+  el.style.color = color || '#22c55e';
+  el.textContent = msg;
+  if(msg) setTimeout(function(){ if(el.textContent === msg) el.textContent = ''; }, 2600);
+}
+function persist(){
+  if(!FB) return;
+  var out = {};
+  ORDER.forEach(function(k){
+    var c = cat(k);
+    out[k] = {
+      label: LABELS[k],
+      order: ORDER.indexOf(k) + 1,
+      mode: c.mode,
+      amount: (c.amount === null || c.amount === undefined || c.amount === '') ? null : Number(c.amount),
+      basis: String(c.basis || '')
+    };
+  });
+  flash('saving…', '#94a3b8');
+  FB.set(_dbRef('naig2027/budget'), {
+    categories: out,
+    scope: 'food, transportation, hotels, venues, rentals, signage',
+    updatedAt: new Date().toISOString(),
+    updatedBy: 'hub-budget-panel'
+  }).then(function(){ flash('saved ✓', '#22c55e'); })
+    .catch(function(e){ flash('save failed: ' + (e && e.message ? e.message : 'error'), '#ef4444'); });
+}
+function queueSave(){
+  if(saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(persist, 700);
+}
+
+/* ---------- render ---------- */
+function render(){
+  var host = document.getElementById('nb2Body');
+  if(!host) return;
+  var t = totals();
+  var h = headcount();
+  var per = (h.ath > 0 && t.sum > 0) ? t.sum / h.ath : 0;
+
+  var s = '';
+  s += '<div class="nb2-kpis">';
+  s += '<div class="nb2-kpi nb2-big"><div class="nb2-kl">Total budget</div><div class="nb2-kv">' + money(t.sum) + '</div><div class="nb2-ks">' + t.priced + ' of 6 categories priced, before tax</div></div>';
+  s += '<div class="nb2-kpi"><div class="nb2-kl">Per athlete</div><div class="nb2-kv">' + (per > 0 ? money(per) : 'N/A') + '</div><div class="nb2-ks">on ' + nf(h.ath) + ' athletes</div></div>';
+  s += '<div class="nb2-kpi"><div class="nb2-kl">Not yet priced</div><div class="nb2-kv ' + (t.missing.length ? 'nb2-amber' : 'nb2-green') + '">' + (t.missing.length || 'None') + '</div><div class="nb2-ks">' + (t.missing.length ? esc(t.missing.join(', ')) : 'every category has a figure') + '</div></div>';
+  s += '</div>';
+
+  s += '<div class="nb2-scroll"><table class="nb2-t"><thead><tr>';
+  s += '<th>Category</th><th class="nb2-r">Amount</th><th>Source</th><th>Basis / what we know</th>';
+  s += '</tr></thead><tbody>';
+
+  ORDER.forEach(function(k){
+    var c = cat(k);
+    var a = amountOf(k);
+    var comp = computedFor(k);
+    s += '<tr data-nb2row="' + k + '">';
+    s += '<td class="nb2-cat">' + esc(LABELS[k]);
+    if(k === 'venues'){ s += ' <button type="button" class="nb2-link" data-nb2act="venues">' + (showVenues ? 'hide sites' : 'show sites') + '</button>'; }
+    s += '</td>';
+
+    s += '<td class="nb2-r"><input class="nb2-in" type="text" inputmode="numeric" data-nb2amt="' + k + '" placeholder="N/A" value="' + (a === null ? '' : nf(a)) + '"></td>';
+
+    s += '<td>';
+    if(c.mode === 'auto'){ s += '<span class="nb2-pill nb2-auto">computed</span>'; }
+    else if(c.mode === 'excluded'){ s += '<span class="nb2-pill nb2-info">not on budget</span>'; }
+    else if(a === null){ s += '<span class="nb2-pill nb2-warn">no figure</span>'; }
+    else { s += '<span class="nb2-pill nb2-man">entered</span>'; }
+    if(c.mode === 'manual' && comp !== null){
+      s += ' <button type="button" class="nb2-link" data-nb2reset="' + k + '">use ' + money(comp) + '</button>';
+    }
+    s += '</td>';
+
+    s += '<td class="nb2-basis">';
+    s += '<input class="nb2-btxt" type="text" data-nb2basis="' + k + '" placeholder="where this number comes from" value="' + esc(c.basis || '') + '">';
+    s += '<div class="nb2-rec">' + esc(onRecord(k)) + '</div>';
+    s += '</td>';
+    s += '</tr>';
+
+    if(k === 'venues' && showVenues){
+      s += '<tr class="nb2-sub"><td colspan="4"><table class="nb2-inner">';
+      liveVenues().forEach(function(r){
+        s += '<tr><td>' + esc(r.name) + '</td><td class="nb2-st">' + esc(r.status) + '</td><td class="nb2-r nb2-num">' + (r.amount > 0 ? money(r.amount) : '—') + '</td></tr>';
+      });
+      s += '</table><div class="nb2-rec">Declined sites are excluded. Sites showing a dash have no usable total on record — a rate sheet or an unquoted line.</div></td></tr>';
+    }
+  });
+
+  s += '</tbody><tfoot><tr><td class="nb2-strong">TOTAL</td><td class="nb2-r nb2-strong nb2-num">' + money(t.sum) + '</td><td colspan="2" class="nb2-rec">Before tax. Categories showing N/A add nothing — the real total is higher.</td></tr></tfoot></table></div>';
+
+  s += '<div class="nb2-bar"><div class="nb2-save" id="nb2Save"></div><div class="nb2-rec">Type over any amount to set your own figure. Computed lines follow the hub data until you overwrite them. Chart of accounts codes can be added once they land.</div></div>';
+
+  host.innerHTML = s;
+}
+
+/* ---------- events ---------- */
+function wire(panel){
+  panel.addEventListener('input', function(ev){
+    var t = ev.target;
+    if(!t || !t.getAttribute) return;
+    var ka = t.getAttribute('data-nb2amt');
+    if(ka){
+      var raw = String(t.value || '').replace(/[^0-9.]/g,'');
+      var c = cat(ka);
+      if(raw === ''){ c.amount = null; c.mode = (ka === 'hotels') ? 'excluded' : 'manual'; }
+      else { c.amount = parseFloat(raw); c.mode = 'manual'; }
+      var tt = totals();
+      var kv = panel.querySelector('.nb2-big .nb2-kv');
+      if(kv) kv.textContent = money(tt.sum);
+      queueSave();
+      return;
+    }
+    var kb = t.getAttribute('data-nb2basis');
+    if(kb){ cat(kb).basis = t.value; queueSave(); }
+  });
+  panel.addEventListener('click', function(ev){
+    var t = ev.target;
+    if(!t || !t.getAttribute) return;
+    if(t.getAttribute('data-nb2act') === 'venues'){ showVenues = !showVenues; render(); return; }
+    var kr = t.getAttribute('data-nb2reset');
+    if(kr){ cat(kr).mode = 'auto'; cat(kr).amount = null; render(); queueSave(); }
+  });
+}
+
+/* ---------- old tracker removal ---------- */
+function purgeOld(section){
+  var removed = 0;
+  var kids = Array.prototype.slice.call(section.children);
+  kids.forEach(function(c){
+    if(c.id === 'naigBudget2') return;
+    c.parentNode.removeChild(c);
+    removed++;
+  });
+  /* park a hidden node so the retired v1 module never rebuilds itself */
+  if(!document.getElementById('naigBudget')){
+    var ghost = document.createElement('div');
+    ghost.id = 'naigBudget';
+    ghost.setAttribute('data-naigskip','1');
+    ghost.style.display = 'none';
+    section.appendChild(ghost);
+  }
+  return removed;
+}
+
+/* ---------- styles ---------- */
+function styles(){
+  if(document.getElementById('nb2Style')) return;
+  var css = [
+    '#naigBudget2{background:#0f1a2e;border:1px solid rgba(148,163,184,0.18);border-radius:14px;padding:18px;margin:0 0 18px 0;color:#e2e8f0;}',
+    '#naigBudget2 .nb2-title{font-size:17px;font-weight:700;color:#f8fafc;}',
+    '#naigBudget2 .nb2-sub{font-size:12px;color:#94a3b8;margin:3px 0 16px 0;line-height:1.5;}',
+    '#naigBudget2 .nb2-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:18px;}',
+    '#naigBudget2 .nb2-kpi{background:#111d33;border:1px solid rgba(148,163,184,0.16);border-radius:10px;padding:11px 13px;}',
+    '#naigBudget2 .nb2-big{border-color:rgba(59,130,246,0.5);}',
+    '#naigBudget2 .nb2-kl{font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;}',
+    '#naigBudget2 .nb2-kv{font-size:22px;font-weight:700;color:#f8fafc;margin-top:3px;font-variant-numeric:tabular-nums;}',
+    '#naigBudget2 .nb2-ks{font-size:10px;color:#64748b;margin-top:4px;line-height:1.4;}',
+    '#naigBudget2 .nb2-amber{color:#fbbf24;}',
+    '#naigBudget2 .nb2-green{color:#4ade80;}',
+    '#naigBudget2 .nb2-scroll{overflow-x:auto;border:1px solid rgba(148,163,184,0.14);border-radius:10px;}',
+    '#naigBudget2 .nb2-t{width:100%;border-collapse:collapse;font-size:13px;}',
+    '#naigBudget2 .nb2-t th{background:#111d33;color:#cbd5e1;font-weight:700;text-align:left;padding:9px 11px;white-space:nowrap;border-bottom:1px solid rgba(148,163,184,0.2);font-size:11px;text-transform:uppercase;letter-spacing:0.04em;}',
+    '#naigBudget2 .nb2-t td{padding:9px 11px;border-bottom:1px solid rgba(148,163,184,0.09);vertical-align:top;}',
+    '#naigBudget2 .nb2-r{text-align:right;}',
+    '#naigBudget2 .nb2-num{font-variant-numeric:tabular-nums;white-space:nowrap;}',
+    '#naigBudget2 .nb2-cat{font-weight:700;color:#f8fafc;white-space:nowrap;}',
+    '#naigBudget2 .nb2-strong{font-weight:700;color:#f8fafc;font-size:15px;}',
+    '#naigBudget2 .nb2-in{width:120px;background:#0b1425;border:1px solid rgba(148,163,184,0.3);border-radius:7px;color:#f8fafc;font-size:14px;font-weight:700;padding:5px 8px;text-align:right;font-family:inherit;font-variant-numeric:tabular-nums;}',
+    '#naigBudget2 .nb2-in:focus{outline:none;border-color:#3B82F6;}',
+    '#naigBudget2 .nb2-in::placeholder{color:#64748b;font-weight:400;}',
+    '#naigBudget2 .nb2-btxt{width:100%;min-width:190px;background:transparent;border:1px solid transparent;border-radius:6px;color:#cbd5e1;font-size:12px;padding:3px 5px;font-family:inherit;}',
+    '#naigBudget2 .nb2-btxt:focus{outline:none;border-color:#3B82F6;background:#0b1425;}',
+    '#naigBudget2 .nb2-btxt::placeholder{color:#475569;}',
+    '#naigBudget2 .nb2-rec{font-size:11px;color:#64748b;margin-top:4px;line-height:1.45;}',
+    '#naigBudget2 .nb2-pill{font-size:10px;font-weight:700;border-radius:999px;padding:2px 8px;border:1px solid;white-space:nowrap;}',
+    '#naigBudget2 .nb2-auto{background:rgba(59,130,246,0.16);color:#60a5fa;border-color:rgba(59,130,246,0.45);}',
+    '#naigBudget2 .nb2-man{background:rgba(34,197,94,0.14);color:#4ade80;border-color:rgba(34,197,94,0.4);}',
+    '#naigBudget2 .nb2-warn{background:rgba(245,158,11,0.18);color:#fbbf24;border-color:rgba(245,158,11,0.45);}',
+    '#naigBudget2 .nb2-info{background:rgba(148,163,184,0.14);color:#94a3b8;border-color:rgba(148,163,184,0.38);}',
+    '#naigBudget2 .nb2-link{background:none;border:none;color:#60a5fa;font-size:11px;cursor:pointer;padding:0 2px;text-decoration:underline;font-family:inherit;}',
+    '#naigBudget2 .nb2-link:hover{color:#93c5fd;}',
+    '#naigBudget2 tfoot td{border-top:1px solid rgba(148,163,184,0.3);background:#0c1626;border-bottom:none;}',
+    '#naigBudget2 .nb2-sub td{background:#0b1425;}',
+    '#naigBudget2 .nb2-inner{width:100%;border-collapse:collapse;font-size:12px;}',
+    '#naigBudget2 .nb2-inner td{padding:4px 8px;border-bottom:1px solid rgba(148,163,184,0.07);color:#cbd5e1;}',
+    '#naigBudget2 .nb2-st{font-size:11px;color:#94a3b8;}',
+    '#naigBudget2 .nb2-bar{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin-top:12px;}',
+    '#naigBudget2 .nb2-save{font-size:11px;color:#22c55e;min-width:70px;}'
+  ].join('\n');
+  var st = document.createElement('style');
+  st.id = 'nb2Style';
+  st.appendChild(document.createTextNode(css));
+  document.head.appendChild(st);
+}
+
+/* ---------- boot ---------- */
+function build(section){
+  styles();
+  purgeOld(section);
+  var p = document.createElement('div');
+  p.id = 'naigBudget2';
+  p.setAttribute('data-naigskip','1');
+  p.innerHTML = [
+    '<div class="nb2-title">Budget — NAIG 2027</div>',
+    '<div class="nb2-sub">Six categories: food, transportation, hotels, venues, rentals, signage. Food and venues are computed from live hub data; everything else is what you enter. Nothing is estimated for you — a category with no number reads N/A.</div>',
+    '<div id="nb2Body"></div>'
+  ].join('');
+  section.insertBefore(p, section.firstChild);
+  wire(p);
+  return p;
+}
+
+function load(section){
+  return import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js')
+    .then(function(mod){
+      FB = mod;
+      return Promise.all([
+        mod.get(_dbRef('naig2027/venues')),
+        mod.get(_dbRef('naig2027/food')),
+        mod.get(_dbRef('naig2027/teamModel')),
+        mod.get(_dbRef('naig2027/transportation')),
+        mod.get(_dbRef('naig2027/hotels')),
+        mod.get(_dbRef('naig2027/budget'))
+      ]);
+    })
+    .then(function(s){
+      G.venues = s[0].val() || {};
+      G.food   = s[1].val() || {};
+      G.team   = s[2].val() || {};
+      G.trans  = s[3].val() || {};
+      G.hotels = s[4].val() || {};
+      B = s[5].val() || {};
+      if(!B.categories) B.categories = defaults();
+      ORDER.forEach(function(k){ cat(k); });
+      build(section);
+      render();
+      if(!s[5].val()) persist();
+      window.__naigBudgetReload = function(){
+        return FB.get(_dbRef('naig2027/food')).then(function(f){
+          G.food = f.val() || G.food;
+          render();
+        });
+      };
+    })
+    .catch(function(e){
+      try { console.log('[naigBudget2] ' + (e && e.message ? e.message : e)); } catch(x){}
+    });
+}
+
+var tries = 0;
+var iv = setInterval(function(){
+  try {
+    tries++;
+    var sec = document.getElementById('sectionBudget');
+    if(sec && typeof _dbRef === 'function'){
+      clearInterval(iv);
+      load(sec);
+      return;
+    }
+    if(tries >= 40){ clearInterval(iv); }
+  } catch(e){ clearInterval(iv); }
+}, 800);
+
+/* keep the panel visible and the old tracker gone */
+var n = 0;
+var iv2 = setInterval(function(){
+  n++;
+  try {
+    var sec = document.getElementById('sectionBudget');
+    var p = document.getElementById('naigBudget2');
+    if(sec && p){
+      if(p.style.display === 'none') p.style.display = '';
+      if(sec.children.length > 2) purgeOld(sec);
+    }
+  } catch(e){}
+  if(n > 80) clearInterval(iv2);
+}, 600);
+
 })();
 </script>
 </body>
