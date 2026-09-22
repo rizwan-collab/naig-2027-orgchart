@@ -19172,7 +19172,13 @@ function load(){
     })
     .then(function(snaps){
       gReq = snaps[0].val() || {};
-      gVenues = snaps[1].val() || {};
+      var raw = snaps[1].val() || {};
+      gVenues = {};
+      Object.keys(raw).forEach(function(rk){
+        var st = String(raw[rk].status||'').toLowerCase();
+        if(st.indexOf('declined') > -1) return;
+        gVenues[rk] = raw[rk];
+      });
       initSel();
       render();
       try { if(typeof window.__naigCoverageDraw === 'function') window.__naigCoverageDraw(); } catch(e){}
@@ -19196,6 +19202,172 @@ var iv = setInterval(function(){
     if(tries >= 40){ clearInterval(iv); }
   } catch(e){ clearInterval(iv); }
 }, 900);
+
+})();
+
+</script>
+
+<script>
+/* NAIG panel collapse module */
+(function(){
+'use strict';
+if (window.__naigCollapseBooted) { return; }
+window.__naigCollapseBooted = true;
+
+var SKIP = ['hub-toolbar','hub-filters','summary-strip','plan-phase-bar','plan-progress-wrap','task-progress','task-progress-label','task-focusbar','task-relation-filter','naig-stub'];
+var KEY = 'naigCollapsed';
+var state = {};
+
+function loadState(){
+  try { state = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch(e){ state = {}; }
+}
+function saveState(){
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){}
+}
+
+function styles(){
+  if(document.getElementById('naigCollapseStyle')) return;
+  var css = [
+    '.naig-cwrap{position:relative;}',
+    '.naig-cbtn{position:absolute;top:10px;right:10px;z-index:20;width:26px;height:26px;line-height:1;border-radius:7px;border:1px solid rgba(148,163,184,0.32);background:rgba(17,29,51,0.9);color:#cbd5e1;font-size:13px;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;}',
+    '.naig-cbtn:hover{background:#1E3A8A;color:#fff;}',
+    '.naig-stub{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#0c1626;border:1px dashed rgba(148,163,184,0.28);border-radius:12px;padding:10px 14px;margin:0 0 14px 0;color:#94a3b8;font-size:13px;cursor:pointer;}',
+    '.naig-stub:hover{border-color:rgba(59,130,246,0.6);color:#cbd5e1;}',
+    '.naig-stub-t{font-weight:600;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
+    '.naig-stub-a{flex:none;font-size:11px;color:#60a5fa;}'
+  ].join('\n');
+  var st = document.createElement('style');
+  st.id = 'naigCollapseStyle';
+  st.appendChild(document.createTextNode(css));
+  document.head.appendChild(st);
+}
+
+function panelId(el, sectionId, idx){
+  if(el.id) return el.id;
+  var k = 'auto-' + sectionId + '-' + idx;
+  el.setAttribute('data-naigcid', k);
+  return k;
+}
+
+function titleOf(el){
+  var t = '';
+  var fc = el.firstElementChild;
+  if(fc){ t = String(fc.innerText || '').trim().split('\n')[0]; }
+  if(!t){ t = String(el.innerText || '').trim().split('\n')[0]; }
+  t = t.replace(/\s+/g, ' ').trim();
+  if(t.length > 64) t = t.slice(0, 64) + '…';
+  return t || 'Panel';
+}
+
+function eligible(el){
+  if(!el || el.nodeType !== 1) return false;
+  var tag = el.tagName;
+  if(tag !== 'DIV' && tag !== 'TABLE' && tag !== 'SECTION') return false;
+  var cls = String(el.className || '');
+  for(var i=0;i<SKIP.length;i++){ if(cls.indexOf(SKIP[i]) > -1) return false; }
+  if(el.getAttribute('data-naigskip')) return false;
+  var txt = String(el.innerText || '').trim();
+  if(txt.length < 40) return false;
+  if(el.offsetHeight < 60) return false;
+  return true;
+}
+
+function collapse(el, id){
+  if(el.getAttribute('data-naigcollapsed')) return;
+  var stub = document.createElement('div');
+  stub.className = 'naig-stub';
+  stub.setAttribute('data-naigstub', id);
+  stub.innerHTML = '<span class="naig-stub-t"></span><span class="naig-stub-a">show ▾</span>';
+  stub.firstChild.textContent = titleOf(el);
+  el.parentNode.insertBefore(stub, el);
+  el.setAttribute('data-naigprevdisplay', el.style.display || '');
+  el.style.display = 'none';
+  el.setAttribute('data-naigcollapsed', '1');
+  stub.addEventListener('click', function(){ expand(el, id); state[id] = false; saveState(); });
+}
+
+function expand(el, id){
+  var stub = document.querySelector('[data-naigstub="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
+  if(stub && stub.parentNode) stub.parentNode.removeChild(stub);
+  el.style.display = el.getAttribute('data-naigprevdisplay') || '';
+  el.removeAttribute('data-naigcollapsed');
+}
+
+function attach(el, id){
+  if(el.querySelector(':scope > .naig-cbtn')) return;
+  if(el.tagName === 'TABLE') return attachOuter(el, id);
+  el.classList.add('naig-cwrap');
+  var b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'naig-cbtn';
+  b.title = 'Hide this module';
+  b.textContent = '–';
+  b.addEventListener('click', function(ev){
+    ev.stopPropagation();
+    collapse(el, id);
+    state[id] = true;
+    saveState();
+  });
+  el.appendChild(b);
+}
+
+function attachOuter(el, id){
+  if(el.previousElementSibling && el.previousElementSibling.className === 'naig-outerbtn-wrap') return;
+  var w = document.createElement('div');
+  w.className = 'naig-outerbtn-wrap';
+  w.style.cssText = 'display:flex;justify-content:flex-end;margin-bottom:6px;';
+  var b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'naig-cbtn';
+  b.style.cssText = 'position:static;';
+  b.title = 'Hide this module';
+  b.textContent = '–';
+  b.addEventListener('click', function(ev){
+    ev.stopPropagation();
+    collapse(el, id);
+    if(w.parentNode) w.parentNode.removeChild(w);
+    state[id] = true;
+    saveState();
+  });
+  w.appendChild(b);
+  el.parentNode.insertBefore(w, el);
+}
+
+function sweep(){
+  var sections = document.querySelectorAll('section[id^="section"]');
+  for(var s=0;s<sections.length;s++){
+    var sec = sections[s];
+    var kids = sec.children;
+    var idx = 0;
+    for(var i=0;i<kids.length;i++){
+      var el = kids[i];
+      if(String(el.className||'').indexOf('naig-stub') > -1) continue;
+      if(String(el.className||'').indexOf('naig-outerbtn-wrap') > -1) continue;
+      if(el.getAttribute && el.getAttribute('data-naigcollapsed')) continue;
+      idx++;
+      if(!eligible(el)) continue;
+      var id = panelId(el, sec.id, idx);
+      attach(el, id);
+      if(state[id] === true){ collapse(el, id); }
+    }
+  }
+}
+
+window.__naigCollapseReset = function(){
+  state = {};
+  saveState();
+  var stubs = document.querySelectorAll('.naig-stub');
+  for(var i=0;i<stubs.length;i++){
+    var sid = stubs[i].getAttribute('data-naigstub');
+    var el = document.getElementById(sid) || document.querySelector('[data-naigcid="' + sid + '"]');
+    if(el) expand(el, sid);
+  }
+};
+
+loadState();
+styles();
+setTimeout(sweep, 1200);
+setInterval(function(){ try { sweep(); } catch(e){} }, 2500);
 
 })();
 
