@@ -19943,5 +19943,252 @@ var iv = setInterval(function(){
 })();
 
 </script>
+
+<script>
+/* NAIG Food tab */
+(function(){
+'use strict';
+if (window.__naigFoodTabBooted) { return; }
+window.__naigFoodTabBooted = true;
+
+var gF = {};
+var days = 4;
+
+function esc(s){ if(s===null||s===undefined) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function nf(n){ return Math.round(n).toLocaleString('en-US'); }
+function money(n){ return '$' + Math.round(n).toLocaleString('en-US'); }
+
+function basisKey(){
+  var a = gF.assumptions || {};
+  return String(a.activeBasis || 'rst14');
+}
+function heads(key){
+  var a = gF.assumptions || {};
+  var sc = (gF.headcountScenarios || {})[key] || {};
+  var vol = Number(a.volunteers) || 0;
+  var staff = Number(a.staff) || 0;
+  return {
+    athLow: Number(sc.athletesLow) || 0,
+    athHigh: Number(sc.athletesHigh) || 0,
+    label: String(sc.label || key),
+    low: (Number(sc.athletesLow)||0) + vol + staff,
+    high: (Number(sc.athletesHigh)||0) + vol + staff,
+    vol: vol, staff: staff
+  };
+}
+
+function styles(){
+  if(document.getElementById('nftStyle')) return;
+  var css = [
+    '#sectionFood{padding:0;}',
+    '#naigFoodTab .nft-card{background:#0f1a2e;border:1px solid rgba(148,163,184,0.18);border-radius:14px;padding:16px;margin:0 0 18px 0;color:#e2e8f0;}',
+    '#naigFoodTab .nft-h{font-size:15px;font-weight:700;color:#f8fafc;margin-bottom:3px;}',
+    '#naigFoodTab .nft-sub{font-size:12px;color:#94a3b8;margin-bottom:12px;}',
+    '#naigFoodTab .nft-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;}',
+    '#naigFoodTab .nft-box{background:#111d33;border:1px solid rgba(148,163,184,0.16);border-radius:10px;padding:10px 12px;}',
+    '#naigFoodTab .nft-l{font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;}',
+    '#naigFoodTab .nft-v{font-size:15px;font-weight:700;color:#f8fafc;margin-top:3px;}',
+    '#naigFoodTab .nft-s{font-size:11px;color:#64748b;margin-top:3px;line-height:1.45;}',
+    '#naigFoodTab table{width:100%;border-collapse:collapse;font-size:12px;}',
+    '#naigFoodTab th{background:#111d33;color:#cbd5e1;font-weight:700;text-align:left;padding:8px 10px;border-bottom:1px solid rgba(148,163,184,0.2);white-space:nowrap;}',
+    '#naigFoodTab td{padding:8px 10px;border-bottom:1px solid rgba(148,163,184,0.09);}',
+    '#naigFoodTab .nft-r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}',
+    '#naigFoodTab .nft-strong{font-weight:700;color:#f8fafc;}',
+    '#naigFoodTab tr.nft-live{background:rgba(59,130,246,0.11);}',
+    '#naigFoodTab tr.nft-live td{color:#f8fafc;}',
+    '#naigFoodTab .nft-pill{font-size:10px;font-weight:700;border-radius:999px;padding:2px 8px;border:1px solid;white-space:nowrap;}',
+    '#naigFoodTab .nft-ok{background:rgba(34,197,94,0.16);color:#4ade80;border-color:rgba(34,197,94,0.45);}',
+    '#naigFoodTab .nft-warn{background:rgba(245,158,11,0.18);color:#fbbf24;border-color:rgba(245,158,11,0.45);}',
+    '#naigFoodTab .nft-bad{background:rgba(239,68,68,0.16);color:#f87171;border-color:rgba(239,68,68,0.45);}',
+    '#naigFoodTab .nft-gap{background:rgba(239,68,68,0.09);border:1px solid rgba(239,68,68,0.32);border-radius:12px;padding:14px 16px;margin-bottom:14px;}',
+    '#naigFoodTab .nft-gt{font-size:13px;font-weight:700;color:#f87171;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:5px;}',
+    '#naigFoodTab .nft-open{border-left:3px solid rgba(245,158,11,0.6);padding:8px 0 8px 12px;margin-bottom:10px;}',
+    '#naigFoodTab .nft-ok2{font-size:12px;font-weight:700;color:#fbbf24;text-transform:uppercase;letter-spacing:0.04em;}',
+    '#naigFoodTab .nft-od{font-size:12px;color:#cbd5e1;margin-top:3px;line-height:1.55;}',
+    '#naigFoodTab .nft-foot{margin-top:10px;font-size:11px;color:#94a3b8;line-height:1.5;}',
+    '#naigFoodTab .nft-btn{background:#111d33;color:#cbd5e1;border:1px solid rgba(148,163,184,0.3);border-radius:8px;padding:5px 11px;font-size:11px;cursor:pointer;margin-right:6px;}',
+    '#naigFoodTab .nft-btn.nft-on{background:#1E3A8A;color:#fff;}'
+  ].join('\n');
+  var st = document.createElement('style');
+  st.id = 'nftStyle';
+  st.appendChild(document.createTextNode(css));
+  document.head.appendChild(st);
+}
+
+function render(){
+  var host = document.getElementById('nftBody');
+  if(!host) return;
+  var a = gF.assumptions || {};
+  var rate = Number(a.ratePerPersonPerDay) || 0;
+  var bk = basisKey();
+  var h = heads(bk);
+  var mb = gF.mealBuild || {};
+  var out = '';
+
+  /* headline */
+  out += '<div class="nft-card">';
+  out += '<div class="nft-h">Food — the biggest line in the Games</div>';
+  out += '<div class="nft-sub">Everything here is the record in the hub. The athlete basis is set once at naig2027/food/assumptions/activeBasis and the Budget tab uses the same numbers.</div>';
+  out += '<div class="nft-grid">';
+  out += '<div class="nft-box"><div class="nft-l">Rate</div><div class="nft-v">$' + rate + '</div><div class="nft-s">per person per day · ' + esc(String(a.confirmedBy||'owner not recorded')) + '</div></div>';
+  out += '<div class="nft-box"><div class="nft-l">People fed</div><div class="nft-v">' + nf(h.low) + '–' + nf(h.high) + '</div><div class="nft-s">' + nf(h.athLow) + '–' + nf(h.athHigh) + ' athletes + ' + nf(h.vol) + ' volunteers + ' + nf(h.staff) + ' staff</div></div>';
+  out += '<div class="nft-box"><div class="nft-l">Total, 4 days</div><div class="nft-v">' + money(h.low*rate*4) + '–' + money(h.high*rate*4) + '</div><div class="nft-s">Thu 25 – Sun 28</div></div>';
+  out += '<div class="nft-box"><div class="nft-l">Total, 3 days</div><div class="nft-v">' + money(h.low*rate*3) + '–' + money(h.high*rate*3) + '</div><div class="nft-s">Fri 26 – Sun 28</div></div>';
+  out += '</div></div>';
+
+  /* the matrix */
+  out += '<div class="nft-card">';
+  out += '<div class="nft-h">Cost matrix</div>';
+  out += '<div class="nft-sub">Every headcount basis against both day counts. The highlighted row is the one the hub is running on.</div>';
+  out += '<table><thead><tr><th>Athlete basis</th><th class="nft-r">Athletes</th><th class="nft-r">People fed</th><th class="nft-r">3 days</th><th class="nft-r">4 days</th><th class="nft-r">Difference</th></tr></thead><tbody>';
+  ['rst14','scopeTab','driveMaster'].forEach(function(k){
+    var x = heads(k);
+    if(!x.athLow) return;
+    var t3l = x.low*rate*3, t3h = x.high*rate*3, t4l = x.low*rate*4, t4h = x.high*rate*4;
+    out += '<tr class="' + (k === bk ? 'nft-live' : '') + '">';
+    out += '<td class="nft-strong">' + esc(x.label.slice(0,42)) + (k === bk ? ' <span class="nft-pill nft-ok">active</span>' : '') + '</td>';
+    out += '<td class="nft-r">' + nf(x.athLow) + '–' + nf(x.athHigh) + '</td>';
+    out += '<td class="nft-r">' + nf(x.low) + '–' + nf(x.high) + '</td>';
+    out += '<td class="nft-r">' + money(t3l) + '–' + money(t3h) + '</td>';
+    out += '<td class="nft-r nft-strong">' + money(t4l) + '–' + money(t4h) + '</td>';
+    out += '<td class="nft-r">' + money(t4l-t3l) + '–' + money(t4h-t3h) + '</td>';
+    out += '</tr>';
+  });
+  out += '</tbody></table>';
+  out += '<div class="nft-foot">The 3-day column assumes nobody eats on Thursday. Cricket plays Thursday, so 3 days only works if cricket feeds itself — which nobody has agreed.</div>';
+  out += '</div>';
+
+  /* meal build */
+  var order = ['breakfast','lunch','dinner','snacks'];
+  var bl = 0, bh = 0, any = false;
+  order.forEach(function(k){ if(mb[k]){ bl += Number(mb[k].low)||0; bh += Number(mb[k].high)||0; any = true; } });
+  if(any){
+    out += '<div class="nft-card">';
+    out += '<div class="nft-h">What the $' + rate + ' is made of</div>';
+    out += '<div class="nft-sub">Per person per day.</div>';
+    out += '<table><thead><tr><th>Meal</th><th class="nft-r">Per person</th><th class="nft-r">Per day, all people</th><th class="nft-r">Across ' + days + ' days</th></tr></thead><tbody>';
+    order.forEach(function(k){
+      var x = mb[k];
+      if(!x) return;
+      var lo = Number(x.low)||0, hi = Number(x.high)||0;
+      out += '<tr><td class="nft-strong">' + esc(String(x.label||k)) + '</td>';
+      out += '<td class="nft-r">$' + lo + '–$' + hi + '</td>';
+      out += '<td class="nft-r">' + money(h.low*lo) + '–' + money(h.high*hi) + '</td>';
+      out += '<td class="nft-r">' + money(h.low*lo*days) + '–' + money(h.high*hi*days) + '</td></tr>';
+    });
+    out += '</tbody><tfoot><tr><td class="nft-strong">BUILD TOTAL</td><td class="nft-r nft-strong">$' + bl + '–$' + bh + '</td><td class="nft-r"></td><td class="nft-r nft-strong">' + money(h.low*bl*days) + '–' + money(h.high*bh*days) + '</td></tr></tfoot></table>';
+    if(bh <= rate){
+      out += '<div class="nft-gap" style="margin-top:12px;"><div class="nft-gt">No headroom in the rate</div><div class="nft-od">' + esc(String(mb.note || '')) + '</div></div>';
+    }
+    out += '</div>';
+  }
+
+  /* menu */
+  out += '<div class="nft-card">';
+  out += '<div class="nft-h">Menu</div>';
+  out += '<div class="nft-gap"><div class="nft-gt">No menu exists</div>';
+  out += '<div class="nft-od">There is no menu on record anywhere in the hub — not a draft, not a shortlist, not a cuisine decision. The $' + rate + ' rate is a per-head allowance with nothing behind it. Owner: ' + esc(String(a.confirmedBy||'not assigned')) + '. The task <strong>Food menu and logistics plan finalized</strong> is not due until 28 Feb 2027, which is 25 days before the Games.</div></div>';
+  out += '<div class="nft-foot">Until a menu exists, the $' + rate + ' cannot be validated and no caterer can quote against it.</div>';
+  out += '</div>';
+
+  /* open items */
+  var oi = gF.openItems || {};
+  var ks = Object.keys(oi);
+  if(ks.length){
+    out += '<div class="nft-card">';
+    out += '<div class="nft-h">Open questions — ' + ks.length + ' unanswered</div>';
+    out += '<div class="nft-sub">Each of these moves the number. None has an owner or a date.</div>';
+    ks.forEach(function(k){
+      out += '<div class="nft-open"><div class="nft-ok2">' + esc(k.replace(/([A-Z])/g, ' $1')) + '</div><div class="nft-od">' + esc(String(oi[k])) + '</div></div>';
+    });
+    out += '</div>';
+  }
+
+  /* what would change the number */
+  out += '<div class="nft-card">';
+  out += '<div class="nft-h">What actually moves this number</div>';
+  out += '<table><thead><tr><th>Lever</th><th class="nft-r">Swing</th><th>Status</th></tr></thead><tbody>';
+  var r14 = heads('rst14'), dm = heads('driveMaster');
+  out += '<tr><td class="nft-strong">Athlete basis</td><td class="nft-r">' + money(Math.abs(r14.high*rate*4 - dm.high*rate*4)) + '</td><td><span class="nft-pill nft-ok">settled — RST-14</span></td></tr>';
+  out += '<tr><td class="nft-strong">3 days vs 4 days</td><td class="nft-r">' + money(h.low*rate) + '–' + money(h.high*rate) + '</td><td><span class="nft-pill nft-bad">open</span></td></tr>';
+  out += '<tr><td class="nft-strong">Hotel breakfast included</td><td class="nft-r">' + money(h.low*(Number((mb.breakfast||{}).low)||0)*days) + '–' + money(h.high*(Number((mb.breakfast||{}).high)||0)*days) + '</td><td><span class="nft-pill nft-bad">open</span></td></tr>';
+  out += '<tr><td class="nft-strong">Volunteers fed all days vs on shift</td><td class="nft-r">up to ' + money(h.vol*rate*days) + '</td><td><span class="nft-pill nft-bad">open</span></td></tr>';
+  out += '</tbody></table>';
+  out += '<div class="nft-foot">If the hotel block includes breakfast and volunteers only eat on shift, food drops by roughly ' + money(h.low*((Number((mb.breakfast||{}).low)||0))*days + h.vol*rate*days*0.5) + '. Nobody has asked either question.</div>';
+  out += '</div>';
+
+  host.innerHTML = out;
+}
+
+function buildTab(){
+  if(document.getElementById('sectionFood')) return true;
+  var budget = document.getElementById('sectionBudget');
+  var nav = document.querySelector('.tab-nav');
+  if(!budget || !nav) return false;
+  styles();
+
+  var sec = document.createElement('div');
+  sec.id = 'sectionFood';
+  sec.style.display = 'none';
+  sec.innerHTML = '<div id="naigFoodTab"><div id="nftBody"></div></div>';
+  budget.parentNode.insertBefore(sec, budget.nextSibling);
+
+  var btn = document.createElement('button');
+  btn.id = 'tabfood';
+  btn.className = 'tab-btn';
+  btn.type = 'button';
+  btn.textContent = 'Food';
+  var budgetBtn = document.getElementById('tabbudget');
+  if(budgetBtn && budgetBtn.parentNode === nav){ nav.insertBefore(btn, budgetBtn.nextSibling); }
+  else { nav.appendChild(btn); }
+
+  function showFood(){
+    var secs = document.querySelectorAll('div[id^="section"]');
+    for(var i=0;i<secs.length;i++){ secs[i].style.display = 'none'; }
+    sec.style.display = '';
+    var bs = document.querySelectorAll('.tab-btn');
+    for(var j=0;j<bs.length;j++){ bs[j].classList.remove('active'); }
+    btn.classList.add('active');
+    render();
+  }
+  btn.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); showFood(); });
+
+  /* when any other tab is clicked, hand control back */
+  document.addEventListener('click', function(ev){
+    var t = ev.target;
+    if(!t || !t.classList || !t.classList.contains('tab-btn')) return;
+    if(t === btn) return;
+    sec.style.display = 'none';
+    btn.classList.remove('active');
+  }, true);
+
+  return true;
+}
+
+function load(){
+  return Promise.resolve()
+    .then(function(){ return import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js'); })
+    .then(function(mod){ return mod.get(_dbRef('naig2027/food')); })
+    .then(function(s){ gF = s.val() || {}; render(); })
+    .catch(function(e){
+      var host = document.getElementById('nftBody');
+      if(host) host.innerHTML = '<div class="nft-card">Could not load food data: ' + esc(e && e.message ? e.message : String(e)) + '</div>';
+    });
+}
+
+var tries = 0;
+var iv = setInterval(function(){
+  try {
+    tries++;
+    if(typeof _dbRef === 'function' && document.getElementById('sectionBudget') && document.querySelector('.tab-nav')){
+      if(buildTab()){ clearInterval(iv); load(); return; }
+    }
+    if(tries >= 40){ clearInterval(iv); }
+  } catch(e){ clearInterval(iv); }
+}, 900);
+
+})();
+
+</script>
 </body>
 </html>
