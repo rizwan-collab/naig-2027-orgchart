@@ -18637,7 +18637,7 @@ function buildSportRows(){
     var carriers = [];
     Object.keys(gVenues).forEach(function(vk){
       var v = gVenues[vk];
-      if(LIVE.indexOf(v.status) === -1) return;
+      if(!_nvcIn(vk, v)) return;
       if(!venueHasSport(v, sp)) return;
       var cap = capacityFor(v, sp);
       carriers.push({ name: v.name||vk, status: v.status, cap: cap });
@@ -18660,6 +18660,7 @@ function buildVenueRows(){
   var rows = [];
   Object.keys(gVenues).forEach(function(vk){
     var v = gVenues[vk];
+    if(!_nvcIn(vk, v)) return;
     var carried = [];
     SPORTS.forEach(function(sp){
       if(!venueHasSport(v, sp)) return;
@@ -18840,7 +18841,15 @@ function load(){
     });
 }
 
+function _nvcIn(vk, v){
+  if(typeof window.__naigSel === 'function'){
+    var r = window.__naigSel(vk);
+    if(r !== null) return r;
+  }
+  return LIVE.indexOf(v.status) > -1;
+}
 window.__naigCoverageRefresh = function(){ try { load(); } catch(e){} };
+window.__naigCoverageDraw = function(){ try { draw(); } catch(e){} };
 
 var tries = 0;
 var iv = setInterval(function(){
@@ -18854,6 +18863,337 @@ var iv = setInterval(function(){
       return;
     }
     if(tries >= 60){ clearInterval(iv); }
+  } catch(e){ clearInterval(iv); }
+}, 900);
+
+})();
+
+</script>
+
+<script>
+/* NAIG Venue Matrix grid module */
+(function(){
+'use strict';
+if (window.__naigMatrixGridBooted) { return; }
+window.__naigMatrixGridBooted = true;
+
+var LIVE = ['Confirmed','Contract Review','Reserved'];
+var gReq = {}, gVenues = {};
+var gSel = {}, gSelReady = false;
+
+var SPORTS = [
+  { key:'tennis', label:'Tennis', req:'tennis', aliases:['tennis'] },
+  { key:'pickleball', label:'Pickleball', req:'pickleball', aliases:['pickleball'] },
+  { key:'basketball', label:'Basketball', req:'basketball', aliases:['basketball'] },
+  { key:'volleyball', label:'Volleyball', req:'volleyball', aliases:['volleyball'] },
+  { key:'badminton', label:'Badminton', req:'badminton', aliases:['badminton'] },
+  { key:'table-tennis', label:'Table Tennis', req:'table-tennis', aliases:['table tennis','table-tennis'] },
+  { key:'throwball', label:'Throwball', req:'throwball', aliases:['throwball'] },
+  { key:'chess', label:'Chess', req:'chess', aliases:['chess'] },
+  { key:'soccer-11v11', label:'Soccer 11v11', req:'soccer-11v11', aliases:['11v11','soccer'] },
+  { key:'soccer-7v7', label:'Soccer 7v7', req:'soccer-7v7', aliases:['7v7','soccer'] },
+  { key:'flag-football', label:'Flag Football', req:'flag-football', aliases:['flag football','flag-football'] },
+  { key:'cricket-mens', label:'Cricket (M)', req:'cricket-mens', aliases:['cricket'] },
+  { key:'cricket-womens', label:'Cricket (W)', req:'cricket-womens', aliases:['cricket'] },
+  { key:'track', label:'Track', req:'track', aliases:['track','athletics'] },
+  { key:'dance', label:'Dance', req:null, aliases:['dance'] }
+];
+
+function esc(s){ if(s===null||s===undefined) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function dash(s){ return (s===null||s===undefined||s==='') ? '—' : String(s); }
+function isLive(v){ return LIVE.indexOf(v.status) > -1; }
+
+function reqFor(key){
+  return (gReq.indoor && gReq.indoor[key]) || (gReq.outdoor && gReq.outdoor[key]) || null;
+}
+
+function venueHasSport(vRec, sport){
+  var hay = String(vRec.sports||'').toLowerCase().replace(/\bno\s+[a-z][a-z-]*/g, ' ');
+  if(!hay) return false;
+  if(sport.key === 'tennis'){
+    return hay.replace(/table\s*-?\s*tennis/g,'').indexOf('tennis') > -1;
+  }
+  if(sport.key === 'soccer-11v11' || sport.key === 'soccer-7v7'){
+    return hay.indexOf('soccer') > -1;
+  }
+  for(var i=0;i<sport.aliases.length;i++){
+    if(hay.indexOf(sport.aliases[i]) > -1) return true;
+  }
+  return false;
+}
+
+function capacityFor(vRec, sport){
+  if(sport.key==='tennis' && vRec.courtsTennis){
+    var mt=String(vRec.courtsTennis).match(/(\d+)/); if(mt) return parseInt(mt[1],10);
+  }
+  if(sport.key==='pickleball' && vRec.courtsPickleball){
+    var mp=String(vRec.courtsPickleball).match(/(\d+)/); if(mp) return parseInt(mp[1],10);
+  }
+  var low = (String(vRec.capacity||'') + ' | ' + String(vRec.fieldCount||'')).toLowerCase();
+  for(var i=0;i<sport.aliases.length;i++){
+    var a = sport.aliases[i].replace(/[-[\]{}()*+?.,\\^$|#\s]/g,'\\$&');
+    var mm = low.match(new RegExp('(\\d+)\\s*(?:x\\s*)?' + a));
+    if(mm) return parseInt(mm[1],10);
+  }
+  if(sport.key==='soccer-11v11' || sport.key==='soccer-7v7' || sport.key==='flag-football'){
+    var mf = low.match(/(\d+)\s*(?:numbered\s*)?(?:rectangular\s*)?fields?/);
+    if(mf) return parseInt(mf[1],10);
+    var mg = low.match(/(\d+)\s*grounds?/);
+    if(mg) return parseInt(mg[1],10);
+  }
+  if(sport.key==='cricket-mens' || sport.key==='cricket-womens'){
+    var mc = low.match(/(\d+)\s*(?:cricket\s*)?grounds?/);
+    if(mc) return parseInt(mc[1],10);
+  }
+  return null;
+}
+
+function venueOrder(){
+  var keys = Object.keys(gVenues);
+  keys.sort(function(a,b){
+    var la = isLive(gVenues[a]), lb = isLive(gVenues[b]);
+    if(la !== lb) return la ? -1 : 1;
+    return String(gVenues[a].name||a).localeCompare(String(gVenues[b].name||b));
+  });
+  return keys;
+}
+
+function initSel(){
+  if(gSelReady) return;
+  Object.keys(gVenues).forEach(function(k){ gSel[k] = true; });
+  gSelReady = true;
+}
+
+function selected(){ return Object.keys(gVenues).filter(function(k){ return gSel[k]; }); }
+
+function carriersFor(sp){
+  var out = [];
+  selected().forEach(function(k){
+    var v = gVenues[k];
+    if(!venueHasSport(v, sp)) return;
+    out.push({ key:k, name: v.name||k, cap: capacityFor(v, sp) });
+  });
+  return out;
+}
+
+function totalFor(sp){
+  var c = carriersFor(sp), n = 0, known = false;
+  c.forEach(function(x){ if(x.cap){ n += x.cap; known = true; } });
+  return { n:n, known:known, carriers:c };
+}
+
+function verdictFor(sp){
+  var t = totalFor(sp);
+  var r = sp.req ? reqFor(sp.req) : null;
+  if(!t.carriers.length) return { s:'NONE', cls:'nvg-bad', t:'No venue in view carries this sport' };
+  if(!r) return { s:'OK', cls:'nvg-ok', t:'Housed, no stated requirement' };
+  if(!t.known) return { s:'?', cls:'nvg-warn', t:'Carried, but no capacity count on record' };
+  if(t.n >= (r.ideal||r.min)) return { s:'OK', cls:'nvg-ok', t:'Meets the ideal' };
+  if(t.n >= r.min) return { s:'MIN', cls:'nvg-okish', t:'Meets the minimum, below ideal' };
+  return { s:'SHORT', cls:'nvg-bad', t:'Below the stated minimum' };
+}
+
+window.__naigSel = function(key){
+  if(!gSelReady) return null;
+  return !!gSel[key];
+};
+
+function render(){
+  var host = document.getElementById('nvgBody');
+  if(!host) return;
+  initSel();
+  var keys = venueOrder();
+  var sel = selected();
+  var offLive = 0;
+  sel.forEach(function(k){ if(!isLive(gVenues[k])) offLive++; });
+
+  var scroller = host.querySelector('.nvg-scroll');
+  var keepScroll = scroller ? scroller.scrollLeft : 0;
+
+  var h = '';
+  h += '<div class="nvg-summary">';
+  h += '<span class="nvg-chip nvg-ok">' + sel.length + ' of ' + keys.length + ' sites in view</span>';
+  if(offLive > 0){
+    h += '<span class="nvg-chip nvg-warn">' + offLive + ' of those are not live — totals include them</span>';
+  }
+  h += '<button type="button" class="nvg-btn" data-nvgact="all">All sites</button>';
+  h += '<button type="button" class="nvg-btn" data-nvgact="live">Live only</button>';
+  h += '<button type="button" class="nvg-btn" data-nvgact="none">Clear</button>';
+  h += '</div>';
+
+  h += '<div class="nvg-scroll"><table class="nvg-table"><thead><tr>';
+  h += '<th class="nvg-stick nvg-stickh">Site</th><th class="nvg-st">Status</th>';
+  SPORTS.forEach(function(sp){ h += '<th class="nvg-num">' + esc(sp.label) + '</th>'; });
+  h += '</tr></thead><tbody>';
+
+  keys.forEach(function(k){
+    var v = gVenues[k];
+    var on = !!gSel[k];
+    h += '<tr class="' + (on ? '' : 'nvg-off') + '">';
+    h += '<td class="nvg-stick"><label class="nvg-lbl"><input type="checkbox" data-nvgkey="' + esc(k) + '"' + (on ? ' checked' : '') + '><span>' + esc(v.name||k) + '</span></label></td>';
+    h += '<td class="nvg-st' + (isLive(v) ? '' : ' nvg-muted') + '">' + esc(dash(v.status)) + '</td>';
+    SPORTS.forEach(function(sp){
+      if(!venueHasSport(v, sp)){ h += '<td class="nvg-num nvg-blank">·</td>'; return; }
+      var cap = capacityFor(v, sp);
+      h += '<td class="nvg-num nvg-has">' + (cap === null ? '✓' : cap) + '</td>';
+    });
+    h += '</tr>';
+  });
+
+  h += '</tbody><tfoot>';
+  h += '<tr class="nvg-tot"><td class="nvg-stick">HAVE (sites in view)</td><td class="nvg-st"></td>';
+  SPORTS.forEach(function(sp){ var t = totalFor(sp); h += '<td class="nvg-num">' + (t.known ? t.n : '—') + '</td>'; });
+  h += '</tr>';
+  h += '<tr class="nvg-need"><td class="nvg-stick">NEED (min / ideal)</td><td class="nvg-st"></td>';
+  SPORTS.forEach(function(sp){
+    var r = sp.req ? reqFor(sp.req) : null;
+    h += '<td class="nvg-num">' + (r ? (r.min + ' / ' + r.ideal) : '—') + '</td>';
+  });
+  h += '</tr>';
+  h += '<tr class="nvg-verd"><td class="nvg-stick">VERDICT</td><td class="nvg-st"></td>';
+  SPORTS.forEach(function(sp){
+    var vd = verdictFor(sp);
+    h += '<td class="nvg-num"><span class="nvg-pill ' + vd.cls + '" title="' + esc(vd.t) + '">' + esc(vd.s) + '</span></td>';
+  });
+  h += '</tr>';
+  h += '</tfoot></table></div>';
+
+  h += '<div class="nvg-foot">Numbers are the capacity on each site’s own record. A tick means the site carries the sport but no count is recorded. A dot means it does not carry it. NEED comes from the Sports team requirements at naig2027/courtRequirements. Untick a site to see what the picture looks like without it — the Coverage tile below follows the same selection.</div>';
+
+  host.innerHTML = h;
+  var sc2 = host.querySelector('.nvg-scroll');
+  if(sc2) sc2.scrollLeft = keepScroll;
+}
+
+function styles(){
+  if(document.getElementById('nvgStyle')) return;
+  var css = [
+    '#naigMatrixGrid{background:#0f1a2e;border:1px solid rgba(148,163,184,0.18);border-radius:14px;padding:16px;margin:0 0 22px 0;color:#e2e8f0;}',
+    '#naigMatrixGrid .nvg-title{font-size:16px;font-weight:700;color:#f8fafc;}',
+    '#naigMatrixGrid .nvg-sub{font-size:12px;color:#94a3b8;margin:2px 0 12px 0;}',
+    '#naigMatrixGrid .nvg-summary{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px;}',
+    '#naigMatrixGrid .nvg-chip{font-size:11px;font-weight:600;border-radius:999px;padding:3px 10px;border:1px solid;}',
+    '#naigMatrixGrid .nvg-btn{background:#111d33;color:#cbd5e1;border:1px solid rgba(148,163,184,0.3);border-radius:8px;padding:4px 11px;font-size:11px;cursor:pointer;}',
+    '#naigMatrixGrid .nvg-btn:hover{background:#1E3A8A;color:#fff;}',
+    '#naigMatrixGrid .nvg-scroll{overflow-x:auto;border:1px solid rgba(148,163,184,0.14);border-radius:10px;}',
+    '#naigMatrixGrid .nvg-table{border-collapse:separate;border-spacing:0;font-size:12px;width:auto;min-width:100%;}',
+    '#naigMatrixGrid .nvg-table th{background:#111d33;color:#cbd5e1;font-weight:700;padding:8px 9px;text-align:center;white-space:nowrap;border-bottom:1px solid rgba(148,163,184,0.22);position:sticky;top:0;z-index:2;}',
+    '#naigMatrixGrid .nvg-table td{padding:6px 9px;border-bottom:1px solid rgba(148,163,184,0.09);white-space:nowrap;}',
+    '#naigMatrixGrid .nvg-stick{position:sticky;left:0;z-index:3;background:#0f1a2e;min-width:230px;max-width:260px;overflow:hidden;text-overflow:ellipsis;border-right:1px solid rgba(148,163,184,0.18);}',
+    '#naigMatrixGrid th.nvg-stickh{z-index:4;background:#111d33;text-align:left;}',
+    '#naigMatrixGrid .nvg-lbl{display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600;color:#f8fafc;}',
+    '#naigMatrixGrid .nvg-lbl input{cursor:pointer;accent-color:#3b82f6;flex:none;}',
+    '#naigMatrixGrid .nvg-st{font-size:11px;color:#cbd5e1;}',
+    '#naigMatrixGrid .nvg-muted{color:#64748b;}',
+    '#naigMatrixGrid .nvg-num{text-align:center;}',
+    '#naigMatrixGrid .nvg-blank{color:#334155;}',
+    '#naigMatrixGrid .nvg-has{font-weight:700;color:#60a5fa;}',
+    '#naigMatrixGrid tr.nvg-off{opacity:0.32;}',
+    '#naigMatrixGrid tr.nvg-off .nvg-has{color:#64748b;}',
+    '#naigMatrixGrid tfoot td{border-top:1px solid rgba(148,163,184,0.3);font-weight:700;background:#0c1626;}',
+    '#naigMatrixGrid tfoot .nvg-stick{background:#0c1626;}',
+    '#naigMatrixGrid tfoot tr.nvg-need td{font-weight:600;color:#94a3b8;border-top:none;}',
+    '#naigMatrixGrid tfoot tr.nvg-verd td{border-top:none;}',
+    '#naigMatrixGrid .nvg-pill{font-size:10px;font-weight:700;border-radius:999px;padding:2px 8px;border:1px solid;}',
+    '#naigMatrixGrid .nvg-ok{background:rgba(34,197,94,0.16);color:#4ade80;border-color:rgba(34,197,94,0.45);}',
+    '#naigMatrixGrid .nvg-okish{background:rgba(59,130,246,0.16);color:#60a5fa;border-color:rgba(59,130,246,0.45);}',
+    '#naigMatrixGrid .nvg-warn{background:rgba(245,158,11,0.18);color:#fbbf24;border-color:rgba(245,158,11,0.45);}',
+    '#naigMatrixGrid .nvg-bad{background:rgba(239,68,68,0.16);color:#f87171;border-color:rgba(239,68,68,0.45);}',
+    '#naigMatrixGrid .nvg-foot{margin-top:10px;font-size:11px;color:#94a3b8;line-height:1.5;}'
+  ].join('\n');
+  var st = document.createElement('style');
+  st.id = 'nvgStyle';
+  st.appendChild(document.createTextNode(css));
+  document.head.appendChild(st);
+}
+
+function afterChange(){
+  render();
+  try { if(typeof window.__naigCoverageDraw === 'function') window.__naigCoverageDraw(); } catch(e){}
+}
+
+function build(section){
+  if(document.getElementById('naigMatrixGrid')) return;
+  styles();
+  var panel = document.createElement('div');
+  panel.id = 'naigMatrixGrid';
+  panel.innerHTML = [
+    '<div class="nvg-title">Venue Matrix — sites against sports</div>',
+    '<div class="nvg-sub">Every site down the side, every sport across the top. Tick a site to include it; untick to take it out of the picture.</div>',
+    '<div id="nvgBody"></div>'
+  ].join('');
+  section.insertBefore(panel, section.firstChild);
+
+  panel.addEventListener('click', function(ev){
+    var t = ev.target;
+    if(!t || !t.getAttribute) return;
+    var act = t.getAttribute('data-nvgact');
+    if(act){
+      Object.keys(gVenues).forEach(function(k){
+        if(act === 'all') gSel[k] = true;
+        else if(act === 'none') gSel[k] = false;
+        else if(act === 'live') gSel[k] = isLive(gVenues[k]);
+      });
+      afterChange();
+    }
+  });
+  panel.addEventListener('change', function(ev){
+    var t = ev.target;
+    if(!t || !t.getAttribute) return;
+    var k = t.getAttribute('data-nvgkey');
+    if(k === null) return;
+    gSel[k] = !!t.checked;
+    afterChange();
+  });
+}
+
+function retitleOldPanel(){
+  var old = document.getElementById('naigVenueMatrix');
+  if(!old || old.getAttribute('data-nvgretitled')) return;
+  var walk = document.createTreeWalker(old, NodeFilter.SHOW_TEXT, null, false);
+  var node;
+  while((node = walk.nextNode())){
+    if(String(node.nodeValue).trim() === 'Venue Matrix'){
+      node.nodeValue = 'Venue Directory';
+      old.setAttribute('data-nvgretitled','1');
+      break;
+    }
+  }
+}
+
+function load(){
+  return Promise.resolve()
+    .then(function(){ return import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js'); })
+    .then(function(mod){
+      return Promise.all([
+        mod.get(_dbRef('naig2027/courtRequirements')),
+        mod.get(_dbRef('naig2027/venues'))
+      ]);
+    })
+    .then(function(snaps){
+      gReq = snaps[0].val() || {};
+      gVenues = snaps[1].val() || {};
+      initSel();
+      render();
+      try { if(typeof window.__naigCoverageDraw === 'function') window.__naigCoverageDraw(); } catch(e){}
+    })
+    .catch(function(e){
+      var host = document.getElementById('nvgBody');
+      if(host) host.innerHTML = '<div class="nvg-foot">Could not load the matrix: ' + esc(e && e.message ? e.message : String(e)) + '</div>';
+    });
+}
+
+var tries = 0;
+var iv = setInterval(function(){
+  try {
+    tries++;
+    retitleOldPanel();
+    var section = document.getElementById('sectionVenues');
+    if(section && typeof _dbRef === 'function' && !document.getElementById('naigMatrixGrid')){
+      build(section);
+      load();
+    }
+    if(tries >= 40){ clearInterval(iv); }
   } catch(e){ clearInterval(iv); }
 }, 900);
 
