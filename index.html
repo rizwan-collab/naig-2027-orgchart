@@ -19846,6 +19846,8 @@ window.__naigHeadcountBooted = true;
 
 function nf(n){ return Math.round(n).toLocaleString('en-US'); }
 function money(n){ return '$' + Math.round(n).toLocaleString('en-US'); }
+function rg(a,b){ a=Math.round(a); b=Math.round(b); return a===b ? nf(a) : nf(a)+'\u2013'+nf(b); }
+function rm(a,b){ a=Math.round(a); b=Math.round(b); return a===b ? money(a) : money(a)+'\u2013'+money(b); }
 
 function apply(food){
   var tile = document.getElementById('naigHeadFood');
@@ -19890,10 +19892,10 @@ function apply(food){
     kids[2].textContent = sub;
   }
 
-  setCell(cells[0], nf(lo) + '–' + nf(hi), String(sc.label || basis).slice(0, 48));
-  setCell(cells[1], nf(lo*attF) + '–' + nf(hi*attF), 'incl. family at 30% × 1.5');
-  setCell(cells[2], nf(lo*mealF) + '–' + nf(hi*mealF), nf(mealF*100) + '% of athletes · veg ' + nf(lo*vegF) + '–' + nf(hi*vegF));
-  setCell(cells[3], money((lo+vol+staff)*rate*days) + '–' + money((hi+vol+staff)*rate*days), '$' + rate + '/person/day × ' + days + ' days');
+  setCell(cells[0], rg(lo,hi), String(sc.label || basis).slice(0, 48));
+  setCell(cells[1], rg(lo*attF,hi*attF), 'incl. family at 30% × 1.5');
+  setCell(cells[2], rg(lo*mealF,hi*mealF), nf(mealF*100) + '% of athletes · veg ' + rg(lo*vegF,hi*vegF));
+  setCell(cells[3], rm((lo+vol+staff)*rate*days,(hi+vol+staff)*rate*days), '$' + rate + '/person/day × ' + days + ' days');
 
   var note = grid.nextElementSibling;
   if(note && note.tagName === 'DIV' && note.children.length === 0){
@@ -19915,15 +19917,15 @@ function syncScope(lo, hi, attF){
     var kids = all[i].children;
     if(kids.length !== 2) continue;
     var lbl = String(kids[1].textContent || '').trim().toLowerCase();
-    if(lbl === 'athletes on-site'){ kids[0].textContent = nf(lo) + '\u2013' + nf(hi); }
-    else if(lbl === 'total attendance'){ kids[0].textContent = nf(lo*attF) + '\u2013' + nf(hi*attF); }
+    if(lbl === 'athletes on-site'){ kids[0].textContent = rg(lo,hi); }
+    else if(lbl === 'total attendance'){ kids[0].textContent = rg(lo*attF,hi*attF); }
   }
-  var re = /[\d,]+\u2013[\d,]+ athletes on-site/;
+  var re = /[\d,]+(?:\u2013[\d,]+)? athletes on-site/;
   var leaves = s.getElementsByTagName('*');
   for(var m=0;m<leaves.length;m++){
     if(leaves[m].children.length) continue;
     var tx = leaves[m].textContent || '';
-    if(re.test(tx)){ leaves[m].textContent = tx.replace(re, nf(lo) + '\u2013' + nf(hi) + ' athletes on-site'); }
+    if(re.test(tx)){ leaves[m].textContent = tx.replace(re, rg(lo,hi) + ' athletes on-site'); }
   }
 }
 
@@ -20537,6 +20539,20 @@ var iv = setInterval(function(){
   } catch(e){ clearInterval(iv); }
 }, 800);
 
+})();
+</script>
+<script>
+/* naigTeamsVisWatch */
+(function(){
+  var n = 0;
+  var iv = setInterval(function(){
+    n++;
+    try {
+      var el = document.getElementById("naigTeams");
+      if(el && el.style.display === "none" && !el.getAttribute("data-naigcollapsed")){ el.style.display = ""; }
+    } catch(e){}
+    if(n > 80) clearInterval(iv);
+  }, 500);
 })();
 </script>
 </body>
