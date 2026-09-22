@@ -19740,6 +19740,25 @@ function styles(){
   document.head.appendChild(st);
 }
 
+function hideOld(section){
+  var kids = section.children;
+  for(var i=0;i<kids.length;i++){
+    var c = kids[i];
+    if(c.id === 'naigBudget') continue;
+    if(String(c.className||'').indexOf('naig-stub') > -1) continue;
+    if(c.getAttribute('data-naigretired')) continue;
+    c.setAttribute('data-naigretired','1');
+    c.setAttribute('data-naigskip','1');
+    c.style.display = 'none';
+  }
+}
+window.__naigShowOldBudget = function(){
+  var s = document.getElementById('sectionBudget');
+  if(!s) return;
+  var k = s.querySelectorAll('[data-naigretired]');
+  for(var i=0;i<k.length;i++){ k[i].style.display = ''; k[i].removeAttribute('data-naigretired'); }
+};
+
 function build(section){
   if(document.getElementById('naigBudget')) return;
   styles();
@@ -19809,6 +19828,7 @@ var iv = setInterval(function(){
       build(sec);
       load();
     }
+    if(sec) hideOld(sec);
     if(tries >= 40){ clearInterval(iv); }
   } catch(e){ clearInterval(iv); }
 }, 900);
