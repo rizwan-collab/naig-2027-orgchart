@@ -19883,7 +19883,21 @@ function apply(food){
   }
 
   tile.setAttribute('data-naigsynced', basis);
+  syncScope(lo, hi, attF);
   return true;
+}
+
+function syncScope(lo, hi, attF){
+  var s = document.getElementById('sectionScope');
+  if(!s) return;
+  var all = s.getElementsByTagName('div');
+  for(var i=0;i<all.length;i++){
+    var kids = all[i].children;
+    if(kids.length !== 2) continue;
+    var lbl = String(kids[1].textContent || '').trim().toLowerCase();
+    if(lbl === 'athletes on-site'){ kids[0].textContent = nf(lo) + '\u2013' + nf(hi); }
+    else if(lbl === 'total attendance'){ kids[0].textContent = nf(lo*attF) + '\u2013' + nf(hi*attF); }
+  }
 }
 
 function load(){
@@ -19893,7 +19907,8 @@ function load(){
     .then(function(s){
       var food = s.val() || {};
       window.__naigFood = food;
-      var done = apply(food);
+      apply(food);
+      var done = false;
       if(!done){
         var n = 0;
         var iv2 = setInterval(function(){
