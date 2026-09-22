@@ -1,7 +1,7 @@
 // Cache version — BUMP THIS ON EVERY DEPLOY that changes cached assets.
 // The activate handler deletes every cache whose name !== CACHE_NAME, so
 // bumping the version is what forces stale entries out of existing installs.
-const CACHE_NAME = 'naig2027-v10';
+const CACHE_NAME = 'naig2027-v11';
 const APP_SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
