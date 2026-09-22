@@ -20834,5 +20834,326 @@ var iv2 = setInterval(function(){
 
 })();
 </script>
+<script>
+(function(){
+'use strict';
+if (window.__naigFoodMenuBooted) { return; }
+window.__naigFoodMenuBooted = true;
+
+var FB = null, M = null, saveTimer = null, filterDay = 'all';
+
+function nf(n){ return Math.round(n).toLocaleString('en-US'); }
+function money(n){ return '$' + Math.round(n).toLocaleString('en-US'); }
+function esc(s){ if(s===null||s===undefined) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function grid(){ return (window.__naigFoodGridData) || {}; }
+function dayOpts(){
+  var d = grid().days || {};
+  return Object.keys(d).map(function(k){ return { key:k, label:String(d[k].label||k), order:Number(d[k].order)||0 }; })
+    .sort(function(a,b){ return a.order - b.order; });
+}
+function mealOpts(){
+  var m = grid().meals || {};
+  return Object.keys(m).map(function(k){ return { key:k, label:String(m[k].label||k), price:Number(m[k].price)||0, order:Number(m[k].order)||0 }; })
+    .sort(function(a,b){ return a.order - b.order; });
+}
+function slotHeads(dk, mk){
+  var g = grid();
+  var c = (g.cells||{})[dk + '_' + mk];
+  if(!c || !c.on) return 0;
+  var h = window.__naigFoodHeads || {};
+  var n = 0;
+  if(c.athletes) n += Number(h.athletes)||0;
+  if(c.volunteers) n += Number(h.volunteers)||0;
+  if(c.staff) n += Number(h.staff)||0;
+  return n;
+}
+
+function rows(){
+  var it = (M && M.items) || {};
+  return Object.keys(it).map(function(k){
+    var r = it[k] || {};
+    return {
+      key: k,
+      day: String(r.day||''),
+      meal: String(r.meal||''),
+      dish: String(r.dish||''),
+      type: String(r.type||''),
+      cost: Number(r.cost)||0,
+      count: Number(r.count)||0,
+      vendor: String(r.vendor||''),
+      notes: String(r.notes||''),
+      order: Number(r.order)||0
+    };
+  }).sort(function(a,b){ return a.order - b.order; });
+}
+function totals(list){
+  var cost = 0, portions = 0;
+  list.forEach(function(r){ cost += r.cost * r.count; portions += r.count; });
+  return { cost: cost, portions: portions, lines: list.length };
+}
+
+function flash(msg, color){
+  var el = document.getElementById('fmSave');
+  if(!el) return;
+  el.style.color = color || '#22c55e';
+  el.textContent = msg;
+  if(msg) setTimeout(function(){ if(el.textContent === msg) el.textContent = ''; }, 2600);
+}
+function persist(){
+  if(!FB) return;
+  var list = rows();
+  var t = totals(list);
+  var items = {};
+  list.forEach(function(r){
+    items[r.key] = { day:r.day, meal:r.meal, dish:r.dish, type:r.type, cost:r.cost, count:r.count, vendor:r.vendor, notes:r.notes, order:r.order };
+  });
+  flash('saving…', '#94a3b8');
+  FB.set(_dbRef('naig2027/food/menu'), {
+    items: items,
+    plannedCost: t.cost,
+    plannedPortions: t.portions,
+    owner: 'Humera Kabani and the F&B team',
+    note: 'Planning detail. The Budget food line is driven by the day-by-meal grid, not by this table.',
+    updatedAt: new Date().toISOString(),
+    updatedBy: 'hub-food-menu'
+  }).then(function(){ flash('saved ✓', '#22c55e'); })
+    .catch(function(e){ flash('save failed: ' + (e && e.message ? e.message : 'error'), '#ef4444'); });
+}
+function queueSave(){
+  if(saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(persist, 700);
+}
+
+function styles(){
+  if(document.getElementById('fmStyle')) return;
+  var css = [
+    '#naigFoodMenu{background:#0f1a2e;border:1px solid rgba(148,163,184,0.18);border-radius:14px;padding:18px;margin:0 0 18px 0;color:#e2e8f0;}',
+    '#naigFoodMenu .fm-title{font-size:17px;font-weight:700;color:#f8fafc;}',
+    '#naigFoodMenu .fm-sub{font-size:12px;color:#94a3b8;margin:3px 0 14px 0;line-height:1.5;}',
+    '#naigFoodMenu .fm-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px;margin-bottom:14px;}',
+    '#naigFoodMenu .fm-kpi{background:#111d33;border:1px solid rgba(148,163,184,0.16);border-radius:10px;padding:10px 13px;}',
+    '#naigFoodMenu .fm-big{border-color:rgba(59,130,246,0.5);}',
+    '#naigFoodMenu .fm-kl{font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;}',
+    '#naigFoodMenu .fm-kv{font-size:20px;font-weight:700;color:#f8fafc;margin-top:3px;font-variant-numeric:tabular-nums;}',
+    '#naigFoodMenu .fm-ks{font-size:10px;color:#64748b;margin-top:4px;line-height:1.4;}',
+    '#naigFoodMenu .fm-amber{color:#fbbf24;}',
+    '#naigFoodMenu .fm-scroll{overflow-x:auto;border:1px solid rgba(148,163,184,0.14);border-radius:10px;}',
+    '#naigFoodMenu table{width:100%;border-collapse:collapse;font-size:12px;}',
+    '#naigFoodMenu th{background:#111d33;color:#cbd5e1;text-align:left;padding:8px 9px;border-bottom:1px solid rgba(148,163,184,0.2);font-size:10px;text-transform:uppercase;letter-spacing:0.04em;font-weight:700;white-space:nowrap;}',
+    '#naigFoodMenu td{padding:5px 9px;border-bottom:1px solid rgba(148,163,184,0.09);vertical-align:middle;}',
+    '#naigFoodMenu .fm-r{text-align:right;}',
+    '#naigFoodMenu input,#naigFoodMenu select{background:#0b1425;border:1px solid rgba(148,163,184,0.26);border-radius:6px;color:#e2e8f0;font-size:12px;padding:4px 6px;font-family:inherit;}',
+    '#naigFoodMenu input:focus,#naigFoodMenu select:focus{outline:none;border-color:#3B82F6;}',
+    '#naigFoodMenu input::placeholder{color:#475569;}',
+    '#naigFoodMenu .fm-dish{width:100%;min-width:170px;}',
+    '#naigFoodMenu .fm-type{width:100%;min-width:100px;}',
+    '#naigFoodMenu .fm-ven{width:100%;min-width:110px;}',
+    '#naigFoodMenu .fm-note{width:100%;min-width:130px;}',
+    '#naigFoodMenu .fm-num{width:74px;text-align:right;font-variant-numeric:tabular-nums;}',
+    '#naigFoodMenu .fm-line{font-variant-numeric:tabular-nums;font-weight:700;color:#60a5fa;white-space:nowrap;}',
+    '#naigFoodMenu .fm-hint{font-size:10px;color:#64748b;white-space:nowrap;}',
+    '#naigFoodMenu .fm-hint b{color:#94a3b8;font-weight:700;cursor:pointer;text-decoration:underline;}',
+    '#naigFoodMenu .fm-del{background:none;border:none;color:#64748b;cursor:pointer;font-size:14px;padding:0 4px;line-height:1;}',
+    '#naigFoodMenu .fm-del:hover{color:#ef4444;}',
+    '#naigFoodMenu tfoot td{border-top:1px solid rgba(148,163,184,0.3);background:#0c1626;border-bottom:none;font-weight:700;color:#f8fafc;font-variant-numeric:tabular-nums;}',
+    '#naigFoodMenu .fm-bar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:12px;}',
+    '#naigFoodMenu .fm-btn{background:#1E3A8A;border:none;color:#fff;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit;}',
+    '#naigFoodMenu .fm-btn:hover{background:#2547a8;}',
+    '#naigFoodMenu .fm-btn2{background:#111d33;color:#cbd5e1;border:1px solid rgba(148,163,184,0.3);}',
+    '#naigFoodMenu .fm-save{font-size:11px;color:#22c55e;min-width:64px;}',
+    '#naigFoodMenu .fm-foot{font-size:11px;color:#64748b;line-height:1.5;margin-top:8px;}',
+    '#naigFoodMenu .fm-empty{padding:18px;text-align:center;color:#64748b;font-size:12px;}'
+  ].join('\n');
+  var st = document.createElement('style');
+  st.id = 'fmStyle';
+  st.appendChild(document.createTextNode(css));
+  document.head.appendChild(st);
+}
+
+function render(){
+  var host = document.getElementById('fmBody');
+  if(!host) return;
+  var all = rows();
+  var list = filterDay === 'all' ? all : all.filter(function(r){ return r.day === filterDay || r.day === ''; });
+  var t = totals(all);
+  var g = grid();
+  var gridCost = Number(g.computedTotal) || 0;
+  var diff = t.cost - gridCost;
+
+  var ds = dayOpts(), ms = mealOpts();
+
+  var s = '';
+  s += '<div class="fm-kpis">';
+  s += '<div class="fm-kpi fm-big"><div class="fm-kl">Menu cost</div><div class="fm-kv">' + money(t.cost) + '</div><div class="fm-ks">' + t.lines + ' menu lines entered</div></div>';
+  s += '<div class="fm-kpi"><div class="fm-kl">Portions</div><div class="fm-kv">' + nf(t.portions) + '</div><div class="fm-ks">across everything listed</div></div>';
+  s += '<div class="fm-kpi"><div class="fm-kl">Against the grid</div><div class="fm-kv ' + (Math.abs(diff) > 1 ? 'fm-amber' : '') + '">' + (t.cost > 0 ? (diff >= 0 ? '+' : '−') + money(Math.abs(diff)) : 'N/A') + '</div><div class="fm-ks">grid says ' + money(gridCost) + '</div></div>';
+  s += '</div>';
+
+  s += '<div class="fm-bar" style="margin:0 0 12px 0">';
+  s += '<button type="button" class="fm-btn" data-fmact="add">+ Add menu line</button>';
+  s += '<select data-fmfilter style="min-width:130px"><option value="all"' + (filterDay==='all'?' selected':'') + '>All days</option>';
+  ds.forEach(function(d){ s += '<option value="' + d.key + '"' + (filterDay===d.key?' selected':'') + '>' + esc(d.label) + '</option>'; });
+  s += '</select>';
+  s += '<div class="fm-save" id="fmSave"></div>';
+  s += '</div>';
+
+  if(!list.length){
+    s += '<div class="fm-scroll"><div class="fm-empty">Nothing entered yet. Add a line and fill in the dish, what it costs per person and how many portions.</div></div>';
+  } else {
+    s += '<div class="fm-scroll"><table><thead><tr>';
+    s += '<th>Day</th><th>Meal</th><th>Dish</th><th>Type</th><th class="fm-r">Cost/person</th><th class="fm-r">Count</th><th class="fm-r">Line cost</th><th>Vendor</th><th>Notes</th><th></th>';
+    s += '</tr></thead><tbody>';
+    list.forEach(function(r){
+      var sug = slotHeads(r.day, r.meal);
+      s += '<tr data-fmrow="' + r.key + '">';
+      s += '<td><select data-fmf="day" data-fmk="' + r.key + '"><option value="">any day</option>';
+      ds.forEach(function(d){ s += '<option value="' + d.key + '"' + (r.day===d.key?' selected':'') + '>' + esc(d.label) + '</option>'; });
+      s += '</select></td>';
+      s += '<td><select data-fmf="meal" data-fmk="' + r.key + '"><option value="">—</option>';
+      ms.forEach(function(m){ s += '<option value="' + m.key + '"' + (r.meal===m.key?' selected':'') + '>' + esc(m.label) + '</option>'; });
+      s += '</select></td>';
+      s += '<td><input class="fm-dish" type="text" data-fmf="dish" data-fmk="' + r.key + '" value="' + esc(r.dish) + '" placeholder="dish name"></td>';
+      s += '<td><input class="fm-type" type="text" data-fmf="type" data-fmk="' + r.key + '" value="' + esc(r.type) + '" placeholder="veg / halal / etc"></td>';
+      s += '<td class="fm-r"><input class="fm-num" type="text" inputmode="decimal" data-fmf="cost" data-fmk="' + r.key + '" value="' + (r.cost || '') + '" placeholder="0"></td>';
+      s += '<td class="fm-r"><input class="fm-num" type="text" inputmode="numeric" data-fmf="count" data-fmk="' + r.key + '" value="' + (r.count || '') + '" placeholder="0">';
+      if(sug > 0 && r.count !== sug){ s += '<div class="fm-hint">grid: <b data-fmuse="' + r.key + '|' + sug + '">' + nf(sug) + '</b></div>'; }
+      s += '</td>';
+      s += '<td class="fm-r fm-line" data-fmline="' + r.key + '">' + money(r.cost * r.count) + '</td>';
+      s += '<td><input class="fm-ven" type="text" data-fmf="vendor" data-fmk="' + r.key + '" value="' + esc(r.vendor) + '" placeholder="vendor"></td>';
+      s += '<td><input class="fm-note" type="text" data-fmf="notes" data-fmk="' + r.key + '" value="' + esc(r.notes) + '" placeholder="allergens, prep, timing"></td>';
+      s += '<td><button type="button" class="fm-del" data-fmdel="' + r.key + '" title="Remove this line">×</button></td>';
+      s += '</tr>';
+    });
+    s += '</tbody><tfoot><tr><td colspan="6">TOTAL' + (filterDay !== 'all' ? ' (all days, not just the filter)' : '') + '</td><td class="fm-r">' + money(t.cost) + '</td><td colspan="3"></td></tr></tfoot></table></div>';
+  }
+
+  s += '<div class="fm-foot">Humera and the F&amp;B team own this table. Count suggestions come from the day-by-meal grid — click one to use it. This is planning detail: the Budget food line still follows the grid, so entering a menu here does not move the budget on its own.</div>';
+
+  host.innerHTML = s;
+}
+
+function newRow(){
+  var maxOrd = 0;
+  rows().forEach(function(r){ if(r.order > maxOrd) maxOrd = r.order; });
+  var k = 'm' + Date.now().toString(36);
+  if(!M.items) M.items = {};
+  M.items[k] = { day: (filterDay === 'all' ? '' : filterDay), meal:'', dish:'', type:'', cost:0, count:0, vendor:'', notes:'', order: maxOrd + 1 };
+  return k;
+}
+
+function wire(panel){
+  panel.addEventListener('input', function(ev){
+    var t = ev.target;
+    if(!t || !t.getAttribute) return;
+    var f = t.getAttribute('data-fmf'), k = t.getAttribute('data-fmk');
+    if(!f || !k || !M.items[k]) return;
+    if(f === 'cost' || f === 'count'){
+      var v = parseFloat(String(t.value||'').replace(/[^0-9.]/g,''));
+      if(isNaN(v) || v < 0) v = 0;
+      M.items[k][f] = v;
+      var cellEl = panel.querySelector('[data-fmline="' + k + '"]');
+      if(cellEl) cellEl.textContent = money(M.items[k].cost * M.items[k].count);
+      var tt = totals(rows());
+      var kv = panel.querySelector('.fm-big .fm-kv');
+      if(kv) kv.textContent = money(tt.cost);
+    } else {
+      M.items[k][f] = t.value;
+    }
+    queueSave();
+  });
+  panel.addEventListener('change', function(ev){
+    var t = ev.target;
+    if(!t || !t.getAttribute) return;
+    if(t.hasAttribute('data-fmfilter')){ filterDay = t.value; render(); return; }
+    var f = t.getAttribute('data-fmf'), k = t.getAttribute('data-fmk');
+    if(f && k && M.items[k] && (f === 'day' || f === 'meal')){
+      M.items[k][f] = t.value;
+      render();
+      queueSave();
+    }
+  });
+  panel.addEventListener('click', function(ev){
+    var t = ev.target;
+    if(!t || !t.getAttribute) return;
+    if(t.getAttribute('data-fmact') === 'add'){ newRow(); render(); queueSave(); return; }
+    var dk = t.getAttribute('data-fmdel');
+    if(dk){ delete M.items[dk]; render(); queueSave(); return; }
+    var u = t.getAttribute('data-fmuse');
+    if(u){
+      var p = u.split('|');
+      if(M.items[p[0]]){ M.items[p[0]].count = parseInt(p[1], 10) || 0; render(); queueSave(); }
+    }
+  });
+}
+
+function mount(){
+  var sec = document.getElementById('sectionFood');
+  if(!sec) return null;
+  if(document.getElementById('naigFoodMenu')) return document.getElementById('naigFoodMenu');
+  var p = document.createElement('div');
+  p.id = 'naigFoodMenu';
+  p.setAttribute('data-naigskip','1');
+  p.innerHTML = [
+    '<div class="fm-title">Menu — what actually gets served</div>',
+    '<div class="fm-sub">One line per dish. Set the day and meal it belongs to, what it costs per person, and how many portions. Everything saves as you type.</div>',
+    '<div id="fmBody"></div>'
+  ].join('');
+  sec.appendChild(p);
+  wire(p);
+  return p;
+}
+
+function load(){
+  return import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js')
+    .then(function(mod){
+      FB = mod;
+      return Promise.all([
+        mod.get(_dbRef('naig2027/food/menu')),
+        mod.get(_dbRef('naig2027/food/grid')),
+        mod.get(_dbRef('naig2027/food/assumptions')),
+        mod.get(_dbRef('naig2027/food/headcountScenarios'))
+      ]);
+    })
+    .then(function(s){
+      M = s[0].val() || { items:{} };
+      if(!M.items) M.items = {};
+      window.__naigFoodGridData = s[1].val() || {};
+      var A = s[2].val() || {};
+      var sc = (s[3].val() || {})[String(A.activeBasis||'teamModel')] || {};
+      window.__naigFoodHeads = {
+        athletes: Number(sc.athletesLow)||0,
+        volunteers: Number(A.volunteers)||0,
+        staff: Number(A.staff)||0
+      };
+      styles();
+      if(mount()) render();
+      window.__naigFoodMenuReload = function(){
+        return FB.get(_dbRef('naig2027/food/grid')).then(function(x){
+          window.__naigFoodGridData = x.val() || {};
+          render();
+        });
+      };
+    })
+    .catch(function(e){
+      try { console.log('[naigFoodMenu] ' + (e && e.message ? e.message : e)); } catch(x){}
+    });
+}
+
+var tries = 0;
+var iv = setInterval(function(){
+  try {
+    tries++;
+    if(typeof _dbRef === 'function' && document.getElementById('sectionFood')){
+      clearInterval(iv);
+      setTimeout(load, 1400);
+      return;
+    }
+    if(tries >= 50){ clearInterval(iv); }
+  } catch(e){ clearInterval(iv); }
+}, 800);
+
+})();
+</script>
 </body>
 </html>
