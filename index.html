@@ -20129,6 +20129,8 @@ function headcount(){
   return { ath:ath, vol:vol, staff:staff, fed:ath+vol+staff, rate:Number(a.ratePerPersonPerDay)||0, days:4, label:String(sc.label||basis) };
 }
 function foodComputed(){
+  var g = (G.food && G.food.grid) || {};
+  if(g.drivesBudget && Number(g.computedTotal) > 0) return Number(g.computedTotal);
   var h = headcount();
   return h.fed * h.rate * h.days;
 }
@@ -20174,7 +20176,13 @@ function onRecord(key){
   }
   if(key === 'food'){
     var h = headcount();
-    return nf(h.ath) + ' athletes + ' + nf(h.vol) + ' volunteers + ' + nf(h.staff) + ' staff = ' + nf(h.fed) + ' fed × $' + h.rate + '/day × ' + h.days + ' days';
+    var gg = (G.food && G.food.grid) || {};
+    if(gg.drivesBudget && Number(gg.computedTotal) > 0){
+      var onN = 0, totN = 0;
+      Object.keys(gg.cells||{}).forEach(function(ck){ totN++; if(gg.cells[ck].on) onN++; });
+      return 'from the day-by-meal grid on the Food tab · ' + onN + ' of ' + totN + ' meal slots on · ' + nf(gg.computedServings||0) + ' servings';
+    }
+    return nf(h.ath) + ' athletes + ' + nf(h.vol) + ' volunteers + ' + nf(h.staff) + ' staff · $' + h.rate + '/day flat-rate cross-check';
   }
   return '';
 }
@@ -20492,6 +20500,334 @@ var iv2 = setInterval(function(){
       if(p.style.display === 'none') p.style.display = '';
       if(sec.children.length > 2) purgeOld(sec);
     }
+  } catch(e){}
+  if(n > 80) clearInterval(iv2);
+}, 600);
+
+})();
+</script>
+<script>
+(function(){
+'use strict';
+if (window.__naigFoodGridBooted) { return; }
+window.__naigFoodGridBooted = true;
+
+var FB = null;
+var G = null;
+var A = {};
+var saveTimer = null;
+
+function nf(n){ return Math.round(n).toLocaleString('en-US'); }
+function money(n){ return '$' + Math.round(n).toLocaleString('en-US'); }
+function esc(s){ if(s===null||s===undefined) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function heads(){
+  var basis = String(A.activeBasis || 'teamModel');
+  var sc = (window.__naigFoodScenarios || {})[basis] || {};
+  return {
+    athletes: Number(sc.athletesLow) || 0,
+    volunteers: Number(A.volunteers) || 0,
+    staff: Number(A.staff) || 0
+  };
+}
+
+function mealList(){
+  var m = G.meals || {};
+  return Object.keys(m).map(function(k){
+    return { key:k, label:String(m[k].label||k), price:Number(m[k].price)||0, order:Number(m[k].order)||0 };
+  }).sort(function(a,b){ return a.order - b.order; });
+}
+function dayList(){
+  var d = G.days || {};
+  return Object.keys(d).map(function(k){
+    return { key:k, label:String(d[k].label||k), note:String(d[k].note||''), order:Number(d[k].order)||0 };
+  }).sort(function(a,b){ return a.order - b.order; });
+}
+function cell(dk, mk){
+  var id = dk + '_' + mk;
+  if(!G.cells) G.cells = {};
+  if(!G.cells[id]) G.cells[id] = { day:dk, meal:mk, on:false, athletes:true, volunteers:true, staff:true };
+  return G.cells[id];
+}
+function covered(c){
+  var h = heads();
+  var n = 0;
+  if(c.athletes) n += h.athletes;
+  if(c.volunteers) n += h.volunteers;
+  if(c.staff) n += h.staff;
+  return n;
+}
+function cellCost(dk, mk, price){
+  var c = cell(dk, mk);
+  if(!c.on) return 0;
+  return covered(c) * price;
+}
+function totals(){
+  var ms = mealList(), ds = dayList();
+  var grand = 0, byDay = {}, byMeal = {}, servings = 0, onCount = 0;
+  ds.forEach(function(d){ byDay[d.key] = 0; });
+  ms.forEach(function(m){ byMeal[m.key] = 0; });
+  ds.forEach(function(d){
+    ms.forEach(function(m){
+      var v = cellCost(d.key, m.key, m.price);
+      byDay[d.key] += v;
+      byMeal[m.key] += v;
+      grand += v;
+      var c = cell(d.key, m.key);
+      if(c.on){ onCount++; servings += covered(c); }
+    });
+  });
+  return { grand:grand, byDay:byDay, byMeal:byMeal, servings:servings, onCount:onCount, slots: ds.length * ms.length };
+}
+
+function flash(msg, color){
+  var el = document.getElementById('fgSave');
+  if(!el) return;
+  el.style.color = color || '#22c55e';
+  el.textContent = msg;
+  if(msg) setTimeout(function(){ if(el.textContent === msg) el.textContent = ''; }, 2600);
+}
+
+function persist(){
+  if(!FB) return;
+  var t = totals();
+  var meals = {};
+  mealList().forEach(function(m){ meals[m.key] = { label:m.label, price:m.price, order:m.order }; });
+  var cells = {};
+  Object.keys(G.cells || {}).forEach(function(k){
+    var c = G.cells[k];
+    cells[k] = { day:c.day, meal:c.meal, on:!!c.on, athletes:!!c.athletes, volunteers:!!c.volunteers, staff:!!c.staff };
+  });
+  flash('saving…', '#94a3b8');
+  FB.update(_dbRef('naig2027/food/grid'), {
+    meals: meals,
+    cells: cells,
+    computedTotal: t.grand,
+    computedServings: t.servings,
+    drivesBudget: true,
+    updatedAt: new Date().toISOString(),
+    updatedBy: 'hub-food-grid'
+  }).then(function(){
+    flash('saved ✓', '#22c55e');
+    try { if(typeof window.__naigBudgetReload === 'function') window.__naigBudgetReload(); } catch(e){}
+    try { if(typeof window.__naigHeadcountReload === 'function') window.__naigHeadcountReload(); } catch(e){}
+  }).catch(function(e){
+    flash('save failed: ' + (e && e.message ? e.message : 'error'), '#ef4444');
+  });
+}
+function queueSave(){
+  if(saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(persist, 700);
+}
+
+function styles(){
+  if(document.getElementById('fgStyle')) return;
+  var css = [
+    '#naigFoodGrid{background:#0f1a2e;border:1px solid rgba(148,163,184,0.18);border-radius:14px;padding:18px;margin:0 0 18px 0;color:#e2e8f0;}',
+    '#naigFoodGrid .fg-title{font-size:17px;font-weight:700;color:#f8fafc;}',
+    '#naigFoodGrid .fg-sub{font-size:12px;color:#94a3b8;margin:3px 0 16px 0;line-height:1.5;}',
+    '#naigFoodGrid .fg-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:16px;}',
+    '#naigFoodGrid .fg-kpi{background:#111d33;border:1px solid rgba(148,163,184,0.16);border-radius:10px;padding:10px 13px;}',
+    '#naigFoodGrid .fg-big{border-color:rgba(59,130,246,0.5);}',
+    '#naigFoodGrid .fg-kl{font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;}',
+    '#naigFoodGrid .fg-kv{font-size:21px;font-weight:700;color:#f8fafc;margin-top:3px;font-variant-numeric:tabular-nums;}',
+    '#naigFoodGrid .fg-ks{font-size:10px;color:#64748b;margin-top:4px;line-height:1.4;}',
+    '#naigFoodGrid .fg-scroll{overflow-x:auto;border:1px solid rgba(148,163,184,0.14);border-radius:10px;}',
+    '#naigFoodGrid table{width:100%;border-collapse:collapse;font-size:13px;}',
+    '#naigFoodGrid th{background:#111d33;color:#cbd5e1;text-align:left;padding:9px 11px;border-bottom:1px solid rgba(148,163,184,0.2);font-size:11px;text-transform:uppercase;letter-spacing:0.04em;font-weight:700;vertical-align:top;}',
+    '#naigFoodGrid th .fg-dnote{display:block;font-size:10px;color:#64748b;text-transform:none;letter-spacing:0;font-weight:400;margin-top:3px;max-width:150px;line-height:1.35;}',
+    '#naigFoodGrid td{padding:8px 11px;border-bottom:1px solid rgba(148,163,184,0.09);vertical-align:top;}',
+    '#naigFoodGrid .fg-meal{font-weight:700;color:#f8fafc;white-space:nowrap;}',
+    '#naigFoodGrid .fg-price{width:62px;background:#0b1425;border:1px solid rgba(148,163,184,0.3);border-radius:6px;color:#f8fafc;font-size:12px;padding:3px 6px;text-align:right;font-family:inherit;font-variant-numeric:tabular-nums;margin-top:4px;}',
+    '#naigFoodGrid .fg-price:focus{outline:none;border-color:#3B82F6;}',
+    '#naigFoodGrid .fg-cell{border-radius:8px;padding:6px 7px;border:1px solid rgba(148,163,184,0.16);background:#0b1425;min-width:126px;}',
+    '#naigFoodGrid .fg-cell.off{opacity:0.42;}',
+    '#naigFoodGrid .fg-crow{display:flex;align-items:center;gap:7px;}',
+    '#naigFoodGrid .fg-crow input[type=checkbox]{accent-color:#3b82f6;cursor:pointer;flex:none;margin:0;}',
+    '#naigFoodGrid .fg-amt{font-size:13px;font-weight:700;color:#60a5fa;font-variant-numeric:tabular-nums;}',
+    '#naigFoodGrid .fg-chips{display:flex;gap:4px;margin-top:5px;}',
+    '#naigFoodGrid .fg-chip{font-size:10px;font-weight:700;border-radius:5px;padding:2px 6px;border:1px solid rgba(148,163,184,0.3);background:transparent;color:#64748b;cursor:pointer;font-family:inherit;line-height:1.5;}',
+    '#naigFoodGrid .fg-chip.on{background:rgba(59,130,246,0.2);color:#93c5fd;border-color:rgba(59,130,246,0.55);}',
+    '#naigFoodGrid .fg-chip:hover{border-color:rgba(59,130,246,0.7);}',
+    '#naigFoodGrid tfoot td,#naigFoodGrid tfoot th{border-top:1px solid rgba(148,163,184,0.3);background:#0c1626;border-bottom:none;font-weight:700;color:#f8fafc;font-variant-numeric:tabular-nums;}',
+    '#naigFoodGrid .fg-rowtot{font-variant-numeric:tabular-nums;font-weight:700;color:#e2e8f0;white-space:nowrap;}',
+    '#naigFoodGrid .fg-bar{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin-top:12px;}',
+    '#naigFoodGrid .fg-save{font-size:11px;color:#22c55e;min-width:64px;}',
+    '#naigFoodGrid .fg-note{font-size:11px;color:#64748b;line-height:1.5;}',
+    '#naigFoodGrid .fg-btn{background:#111d33;color:#cbd5e1;border:1px solid rgba(148,163,184,0.3);border-radius:7px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:inherit;}',
+    '#naigFoodGrid .fg-btn:hover{background:#1E3A8A;color:#fff;}'
+  ].join('\n');
+  var st = document.createElement('style');
+  st.id = 'fgStyle';
+  st.appendChild(document.createTextNode(css));
+  document.head.appendChild(st);
+}
+
+function render(){
+  var host = document.getElementById('fgBody');
+  if(!host) return;
+  var ms = mealList(), ds = dayList();
+  var t = totals();
+  var h = heads();
+  var perDay = 0;
+  ms.forEach(function(m){ perDay += m.price; });
+
+  var s = '';
+  s += '<div class="fg-kpis">';
+  s += '<div class="fg-kpi fg-big"><div class="fg-kl">Food cost</div><div class="fg-kv">' + money(t.grand) + '</div><div class="fg-ks">' + t.onCount + ' of ' + t.slots + ' meal slots switched on</div></div>';
+  s += '<div class="fg-kpi"><div class="fg-kl">Servings</div><div class="fg-kv">' + nf(t.servings) + '</div><div class="fg-ks">total plates across the Games</div></div>';
+  s += '<div class="fg-kpi"><div class="fg-kl">Per person per day</div><div class="fg-kv">$' + perDay.toFixed(2).replace(/\.00$/,'') + '</div><div class="fg-ks">all four meals · $60 planning rate leaves $' + (60 - perDay).toFixed(2).replace(/\.00$/,'') + ' headroom</div></div>';
+  s += '<div class="fg-kpi"><div class="fg-kl">Who eats</div><div class="fg-kv" style="font-size:15px">' + nf(h.athletes + h.volunteers + h.staff) + '</div><div class="fg-ks">' + nf(h.athletes) + ' athletes · ' + nf(h.volunteers) + ' volunteers · ' + nf(h.staff) + ' staff</div></div>';
+  s += '</div>';
+
+  s += '<div class="fg-scroll"><table><thead><tr><th>Meal</th>';
+  ds.forEach(function(d){ s += '<th>' + esc(d.label) + '<span class="fg-dnote">' + esc(d.note) + '</span></th>'; });
+  s += '<th style="text-align:right">Meal total</th></tr></thead><tbody>';
+
+  ms.forEach(function(m){
+    s += '<tr><td class="fg-meal">' + esc(m.label) + '<br><input class="fg-price" type="text" inputmode="decimal" data-fgprice="' + m.key + '" value="' + m.price + '"></td>';
+    ds.forEach(function(d){
+      var c = cell(d.key, m.key);
+      var v = cellCost(d.key, m.key, m.price);
+      s += '<td><div class="fg-cell' + (c.on ? '' : ' off') + '">';
+      s += '<div class="fg-crow"><input type="checkbox" data-fgon="' + d.key + '|' + m.key + '"' + (c.on ? ' checked' : '') + '>';
+      s += '<span class="fg-amt">' + (c.on ? money(v) : '—') + '</span></div>';
+      s += '<div class="fg-chips">';
+      s += '<button type="button" class="fg-chip' + (c.athletes ? ' on' : '') + '" data-fgwho="' + d.key + '|' + m.key + '|athletes" title="Athletes">ATH</button>';
+      s += '<button type="button" class="fg-chip' + (c.volunteers ? ' on' : '') + '" data-fgwho="' + d.key + '|' + m.key + '|volunteers" title="Volunteers">VOL</button>';
+      s += '<button type="button" class="fg-chip' + (c.staff ? ' on' : '') + '" data-fgwho="' + d.key + '|' + m.key + '|staff" title="Staff and officials">STF</button>';
+      s += '</div></div></td>';
+    });
+    s += '<td class="fg-rowtot" style="text-align:right">' + money(t.byMeal[m.key]) + '</td></tr>';
+  });
+
+  s += '</tbody><tfoot><tr><th>Day total</th>';
+  ds.forEach(function(d){ s += '<td class="fg-rowtot">' + money(t.byDay[d.key]) + '</td>'; });
+  s += '<td class="fg-rowtot" style="text-align:right">' + money(t.grand) + '</td></tr></tfoot></table></div>';
+
+  s += '<div class="fg-bar">';
+  s += '<button type="button" class="fg-btn" data-fgact="allon">Switch all on</button>';
+  s += '<button type="button" class="fg-btn" data-fgact="alloff">Switch all off</button>';
+  s += '<div class="fg-save" id="fgSave"></div>';
+  s += '</div>';
+  s += '<div class="fg-note" style="margin-top:8px">ATH, VOL and STF set who that meal covers. Switch a meal off and it stops costing — the Budget tab follows this grid, so the food line moves with it. Meal prices are the midpoint of the build on record; spectators and family are not covered anywhere here.</div>';
+
+  host.innerHTML = s;
+}
+
+function wire(panel){
+  panel.addEventListener('change', function(ev){
+    var t = ev.target;
+    if(!t || !t.getAttribute) return;
+    var k = t.getAttribute('data-fgon');
+    if(k){
+      var p = k.split('|');
+      cell(p[0], p[1]).on = !!t.checked;
+      render();
+      queueSave();
+    }
+  });
+  panel.addEventListener('input', function(ev){
+    var t = ev.target;
+    if(!t || !t.getAttribute) return;
+    var k = t.getAttribute('data-fgprice');
+    if(k){
+      var v = parseFloat(String(t.value||'').replace(/[^0-9.]/g,''));
+      if(isNaN(v) || v < 0) v = 0;
+      G.meals[k].price = v;
+      var tt = totals();
+      var kv = panel.querySelector('.fg-big .fg-kv');
+      if(kv) kv.textContent = money(tt.grand);
+      queueSave();
+    }
+  });
+  panel.addEventListener('click', function(ev){
+    var t = ev.target;
+    if(!t || !t.getAttribute) return;
+    var w = t.getAttribute('data-fgwho');
+    if(w){
+      var p = w.split('|');
+      var c = cell(p[0], p[1]);
+      c[p[2]] = !c[p[2]];
+      render();
+      queueSave();
+      return;
+    }
+    var a = t.getAttribute('data-fgact');
+    if(a === 'allon' || a === 'alloff'){
+      dayList().forEach(function(d){ mealList().forEach(function(m){ cell(d.key, m.key).on = (a === 'allon'); }); });
+      render();
+      queueSave();
+    }
+  });
+}
+
+function mount(){
+  var sec = document.getElementById('sectionFood');
+  if(!sec) return null;
+  if(document.getElementById('naigFoodGrid')) return document.getElementById('naigFoodGrid');
+  var p = document.createElement('div');
+  p.id = 'naigFoodGrid';
+  p.setAttribute('data-naigskip','1');
+  p.innerHTML = [
+    '<div class="fg-title">What we serve — day by meal</div>',
+    '<div class="fg-sub">Four days, four meals. Switch a meal on or off for a given day and set who it covers. This grid is what the Budget food line is built from.</div>',
+    '<div id="fgBody"></div>'
+  ].join('');
+  sec.insertBefore(p, sec.firstChild);
+  wire(p);
+  return p;
+}
+
+function load(){
+  return import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js')
+    .then(function(mod){
+      FB = mod;
+      return Promise.all([
+        mod.get(_dbRef('naig2027/food/grid')),
+        mod.get(_dbRef('naig2027/food/assumptions')),
+        mod.get(_dbRef('naig2027/food/headcountScenarios'))
+      ]);
+    })
+    .then(function(s){
+      G = s[0].val() || { meals:{}, days:{}, cells:{} };
+      A = s[1].val() || {};
+      window.__naigFoodScenarios = s[2].val() || {};
+      if(!G.cells) G.cells = {};
+      styles();
+      if(mount()) render();
+      window.__naigFoodGridReload = function(){
+        return FB.get(_dbRef('naig2027/food/headcountScenarios')).then(function(x){
+          window.__naigFoodScenarios = x.val() || {};
+          render();
+          persist();
+        });
+      };
+    })
+    .catch(function(e){
+      try { console.log('[naigFoodGrid] ' + (e && e.message ? e.message : e)); } catch(x){}
+    });
+}
+
+var tries = 0;
+var iv = setInterval(function(){
+  try {
+    tries++;
+    if(typeof _dbRef === 'function' && document.getElementById('sectionFood')){
+      clearInterval(iv);
+      load();
+      return;
+    }
+    if(tries >= 50){ clearInterval(iv); }
+  } catch(e){ clearInterval(iv); }
+}, 800);
+
+var n = 0;
+var iv2 = setInterval(function(){
+  n++;
+  try {
+    var p = document.getElementById('naigFoodGrid');
+    if(p && p.style.display === 'none' && !p.getAttribute('data-naigcollapsed')) p.style.display = '';
   } catch(e){}
   if(n > 80) clearInterval(iv2);
 }, 600);
