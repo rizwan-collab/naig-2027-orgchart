@@ -20210,5 +20210,334 @@ var iv = setInterval(function(){
 })();
 
 </script>
+<script>
+(function(){
+'use strict';
+if (window.__naigTeamsBooted) { return; }
+window.__naigTeamsBooted = true;
+
+var FB = null;
+var model = null;
+var saveTimer = null;
+
+function nf(n){ return Math.round(n).toLocaleString('en-US'); }
+
+function styles(){
+  if(document.getElementById('naigTeamsStyle')) return;
+  var css = [
+    '#naigTeams{background:#0f1c33;border:1px solid rgba(148,163,184,0.22);border-radius:14px;padding:18px 18px 14px;margin:0 0 16px 0;}',
+    '#naigTeams h3{margin:0 0 4px 0;font-size:16px;color:#e2e8f0;font-weight:700;}',
+    '#naigTeams .tm-sub{font-size:12px;color:#94a3b8;margin:0 0 14px 0;line-height:1.5;}',
+    '#naigTeams table{width:100%;border-collapse:collapse;font-size:13px;}',
+    '#naigTeams th{text-align:left;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:#94a3b8;font-weight:600;padding:6px 8px;border-bottom:1px solid rgba(148,163,184,0.25);}',
+    '#naigTeams th.num,#naigTeams td.num{text-align:right;}',
+    '#naigTeams td{padding:5px 8px;border-bottom:1px solid rgba(148,163,184,0.10);color:#cbd5e1;}',
+    '#naigTeams tr:hover td{background:rgba(30,58,138,0.16);}',
+    '#naigTeams input.tm-in{width:72px;background:#0b1425;border:1px solid rgba(148,163,184,0.28);border-radius:6px;color:#e2e8f0;font-size:13px;padding:3px 6px;text-align:right;font-family:inherit;}',
+    '#naigTeams input.tm-in:focus{outline:none;border-color:#3B82F6;background:#0d1a30;}',
+    '#naigTeams select.tm-sel{background:#0b1425;border:1px solid rgba(148,163,184,0.28);border-radius:6px;color:#cbd5e1;font-size:12px;padding:3px 6px;font-family:inherit;}',
+    '#naigTeams .tm-calc{color:#60a5fa;font-weight:700;font-variant-numeric:tabular-nums;}',
+    '#naigTeams tfoot td{border-top:1px solid rgba(148,163,184,0.3);border-bottom:none;padding-top:9px;font-weight:700;color:#e2e8f0;}',
+    '#naigTeams .tm-bar{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid rgba(148,163,184,0.18);}',
+    '#naigTeams .tm-stat{background:#0b1425;border:1px solid rgba(148,163,184,0.2);border-radius:10px;padding:8px 14px;min-width:120px;}',
+    '#naigTeams .tm-stat b{display:block;font-size:20px;color:#fff;font-variant-numeric:tabular-nums;line-height:1.2;}',
+    '#naigTeams .tm-stat span{font-size:11px;color:#94a3b8;}',
+    '#naigTeams .tm-ov{font-size:12px;color:#cbd5e1;display:flex;align-items:center;gap:7px;}',
+    '#naigTeams .tm-save{font-size:11px;color:#22c55e;min-height:14px;}',
+    '#naigTeams .tm-add{background:#1E3A8A;border:none;color:#fff;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit;}',
+    '#naigTeams .tm-add:hover{background:#2547a8;}',
+    '#naigTeams .tm-del{background:none;border:none;color:#64748b;cursor:pointer;font-size:14px;padding:0 4px;line-height:1;}',
+    '#naigTeams .tm-del:hover{color:#ef4444;}',
+    '#naigTeams input.tm-name{width:100%;min-width:130px;text-align:left;background:transparent;border:1px solid transparent;border-radius:6px;color:#cbd5e1;font-size:13px;padding:3px 6px;font-family:inherit;}',
+    '#naigTeams input.tm-name:focus{outline:none;border-color:#3B82F6;background:#0b1425;}'
+  ].join('\n');
+  var st = document.createElement('style');
+  st.id = 'naigTeamsStyle';
+  st.appendChild(document.createTextNode(css));
+  document.head.appendChild(st);
+}
+
+function rows(){
+  var sp = model.sports || {};
+  var out = [];
+  Object.keys(sp).forEach(function(k){
+    var r = sp[k] || {};
+    out.push({
+      key: k,
+      label: String(r.label || k),
+      unit: String(r.unit || 'teams'),
+      count: Number(r.count) || 0,
+      perUnit: Number(r.perUnit) || 0,
+      order: Number(r.order) || 0
+    });
+  });
+  out.sort(function(a,b){ return a.order - b.order; });
+  return out;
+}
+
+function totals(list){
+  var raw = 0;
+  list.forEach(function(r){ raw += r.count * r.perUnit; });
+  var ov = Number(model.overlapPct);
+  if(isNaN(ov)) ov = 20;
+  var ath = Math.round(raw * (1 - ov/100));
+  return { raw: Math.round(raw), overlapPct: ov, athletes: ath };
+}
+
+function flash(msg, color){
+  var el = document.getElementById('naigTeamsSave');
+  if(!el) return;
+  el.style.color = color || '#22c55e';
+  el.textContent = msg;
+  if(msg){ setTimeout(function(){ if(el.textContent === msg) el.textContent = ''; }, 2600); }
+}
+
+function persist(){
+  if(!FB) return;
+  var list = rows();
+  var t = totals(list);
+  var sports = {};
+  list.forEach(function(r){
+    sports[r.key] = { label: r.label, unit: r.unit, count: r.count, perUnit: r.perUnit, order: r.order };
+  });
+  var payload = {
+    sports: sports,
+    overlapPct: t.overlapPct,
+    rawRegistrations: t.raw,
+    athletes: t.athletes,
+    updatedAt: new Date().toISOString(),
+    updatedBy: 'hub-teams-table'
+  };
+  flash('saving…', '#94a3b8');
+  Promise.all([
+    FB.set(_dbRef('naig2027/teamModel'), payload),
+    FB.update(_dbRef('naig2027/food/headcountScenarios/teamModel'), {
+      athletesLow: t.athletes,
+      athletesHigh: t.athletes,
+      label: 'Bottom-up team roster (' + list.length + ' sports, ' + t.overlapPct + '% overlap)'
+    })
+  ]).then(function(){
+    flash('saved ✓', '#22c55e');
+    fanout();
+  }).catch(function(e){
+    flash('save failed: ' + (e && e.message ? e.message : 'error'), '#ef4444');
+  });
+}
+
+function queueSave(){
+  if(saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(persist, 700);
+}
+
+function fanout(){
+  var fns = ['__naigHeadcountReload','__naigBudgetReload','__naigFoodReload'];
+  for(var i=0;i<fns.length;i++){
+    try { if(typeof window[fns[i]] === 'function') window[fns[i]](); } catch(e){}
+  }
+}
+
+function recalc(){
+  var list = rows();
+  var t = totals(list);
+  list.forEach(function(r){
+    var c = document.querySelector('[data-tmcalc="' + r.key + '"]');
+    if(c) c.textContent = nf(r.count * r.perUnit);
+  });
+  var rw = document.getElementById('naigTeamsRaw');
+  if(rw) rw.textContent = nf(t.raw);
+  var s1 = document.getElementById('naigTeamsStatRaw');
+  if(s1) s1.textContent = nf(t.raw);
+  var s2 = document.getElementById('naigTeamsStatAth');
+  if(s2) s2.textContent = nf(t.athletes);
+  var s3 = document.getElementById('naigTeamsStatDrop');
+  if(s3) s3.textContent = '−' + nf(t.raw - t.athletes);
+  window.__naigTeamAthletes = t.athletes;
+}
+
+function render(){
+  var host = document.getElementById('naigTeams');
+  if(!host) return;
+  var list = rows();
+  var t = totals(list);
+
+  var h = [];
+  h.push('<h3>Athlete count — team roster</h3>');
+  h.push('<p class="tm-sub">Enter how many teams (or regions) enter each sport and the roster size per team. Everything on the hub — dashboard, budget and food — reads the athlete number this table produces. Edits save automatically.</p>');
+  h.push('<table><thead><tr>');
+  h.push('<th>Sport</th><th>Entering as</th><th class="num">Count</th><th class="num">Per unit</th><th class="num">Registrations</th><th></th>');
+  h.push('</tr></thead><tbody id="naigTeamsBody"></tbody>');
+  h.push('<tfoot><tr><td colspan="4">Total registrations (before overlap)</td><td class="num" id="naigTeamsRaw">0</td><td></td></tr></tfoot>');
+  h.push('</table>');
+  h.push('<div class="tm-bar">');
+  h.push('<button type="button" class="tm-add" id="naigTeamsAdd">+ Add sport</button>');
+  h.push('<label class="tm-ov">Dual-sport overlap <input class="tm-in" id="naigTeamsOv" type="number" min="0" max="60" step="1" style="width:56px"> %</label>');
+  h.push('<div class="tm-stat"><b id="naigTeamsStatRaw">0</b><span>registrations</span></div>');
+  h.push('<div class="tm-stat"><b id="naigTeamsStatDrop">0</b><span>double-counted</span></div>');
+  h.push('<div class="tm-stat"><b id="naigTeamsStatAth">0</b><span>unique athletes</span></div>');
+  h.push('<div class="tm-save" id="naigTeamsSave"></div>');
+  h.push('</div>');
+  host.innerHTML = h.join('');
+
+  var body = document.getElementById('naigTeamsBody');
+  list.forEach(function(r){ body.appendChild(rowEl(r)); });
+
+  var ov = document.getElementById('naigTeamsOv');
+  ov.value = t.overlapPct;
+  ov.addEventListener('input', function(){
+    var v = parseFloat(ov.value);
+    if(isNaN(v) || v < 0) v = 0;
+    if(v > 60) v = 60;
+    model.overlapPct = v;
+    recalc();
+    queueSave();
+  });
+
+  document.getElementById('naigTeamsAdd').addEventListener('click', function(){
+    var k = 'sport' + Date.now().toString(36);
+    var maxOrd = 0;
+    rows().forEach(function(r){ if(r.order > maxOrd) maxOrd = r.order; });
+    model.sports[k] = { label: 'New sport', unit: 'teams', count: 0, perUnit: 0, order: maxOrd + 1 };
+    body.appendChild(rowEl({ key: k, label: 'New sport', unit: 'teams', count: 0, perUnit: 0, order: maxOrd + 1 }));
+    recalc();
+    queueSave();
+  });
+
+  recalc();
+}
+
+function rowEl(r){
+  var tr = document.createElement('tr');
+  tr.setAttribute('data-tmrow', r.key);
+
+  var tdN = document.createElement('td');
+  var inN = document.createElement('input');
+  inN.className = 'tm-name';
+  inN.type = 'text';
+  inN.value = r.label;
+  inN.addEventListener('input', function(){
+    model.sports[r.key].label = inN.value;
+    queueSave();
+  });
+  tdN.appendChild(inN);
+
+  var tdU = document.createElement('td');
+  var sel = document.createElement('select');
+  sel.className = 'tm-sel';
+  [['teams','teams'],['regions','regions'],['players','individuals']].forEach(function(o){
+    var op = document.createElement('option');
+    op.value = o[0];
+    op.textContent = o[1];
+    if(o[0] === r.unit) op.selected = true;
+    sel.appendChild(op);
+  });
+  sel.addEventListener('change', function(){
+    model.sports[r.key].unit = sel.value;
+    queueSave();
+  });
+  tdU.appendChild(sel);
+
+  function numCell(field, step){
+    var td = document.createElement('td');
+    td.className = 'num';
+    var inp = document.createElement('input');
+    inp.className = 'tm-in';
+    inp.type = 'number';
+    inp.min = '0';
+    inp.step = step;
+    inp.value = r[field];
+    inp.addEventListener('input', function(){
+      var v = parseFloat(inp.value);
+      if(isNaN(v) || v < 0) v = 0;
+      model.sports[r.key][field] = v;
+      recalc();
+      queueSave();
+    });
+    td.appendChild(inp);
+    return td;
+  }
+
+  var tdC = document.createElement('td');
+  tdC.className = 'num tm-calc';
+  tdC.setAttribute('data-tmcalc', r.key);
+  tdC.textContent = nf(r.count * r.perUnit);
+
+  var tdX = document.createElement('td');
+  tdX.style.width = '26px';
+  var del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'tm-del';
+  del.title = 'Remove this sport';
+  del.textContent = '×';
+  del.addEventListener('click', function(){
+    delete model.sports[r.key];
+    if(tr.parentNode) tr.parentNode.removeChild(tr);
+    recalc();
+    queueSave();
+  });
+  tdX.appendChild(del);
+
+  tr.appendChild(tdN);
+  tr.appendChild(tdU);
+  tr.appendChild(numCell('count','1'));
+  tr.appendChild(numCell('perUnit','0.5'));
+  tr.appendChild(tdC);
+  tr.appendChild(tdX);
+  return tr;
+}
+
+function mount(){
+  var sec = document.getElementById('sectionScope');
+  if(!sec) return false;
+  if(document.getElementById('naigTeams')) return true;
+  var host = document.createElement('div');
+  host.id = 'naigTeams';
+  host.setAttribute('data-naigskip','1');
+  var anchor = sec.firstElementChild;
+  if(anchor && anchor.nextElementSibling){ sec.insertBefore(host, anchor.nextElementSibling); }
+  else { sec.appendChild(host); }
+  return true;
+}
+
+function load(){
+  return import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js')
+    .then(function(mod){
+      FB = mod;
+      return mod.get(_dbRef('naig2027/teamModel'));
+    })
+    .then(function(s){
+      model = s.val() || { sports: {}, overlapPct: 20 };
+      if(!model.sports) model.sports = {};
+      if(model.overlapPct === undefined) model.overlapPct = 20;
+      window.__naigTeamModel = model;
+      styles();
+      if(mount()) render();
+      window.__naigTeamsReload = function(){
+        return FB.get(_dbRef('naig2027/teamModel')).then(function(s2){
+          model = s2.val() || model;
+          if(!model.sports) model.sports = {};
+          render();
+        });
+      };
+    })
+    .catch(function(e){
+      try { console.log('[naigTeams] ' + (e && e.message ? e.message : e)); } catch(x){}
+    });
+}
+
+var tries = 0;
+var iv = setInterval(function(){
+  try {
+    tries++;
+    if(typeof _dbRef === 'function' && document.getElementById('sectionScope')){
+      clearInterval(iv);
+      load();
+      return;
+    }
+    if(tries >= 40){ clearInterval(iv); }
+  } catch(e){ clearInterval(iv); }
+}, 800);
+
+})();
+</script>
 </body>
 </html>
