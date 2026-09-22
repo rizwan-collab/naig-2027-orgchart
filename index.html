@@ -19268,7 +19268,7 @@ function eligible(el){
   if(el.getAttribute('data-naigskip')) return false;
   var txt = String(el.innerText || '').trim();
   if(txt.length < 40) return false;
-  if(el.offsetHeight < 60) return false;
+  if(el.offsetParent !== null && el.offsetHeight < 60) return false;
   return true;
 }
 
@@ -19334,7 +19334,7 @@ function attachOuter(el, id){
 }
 
 function sweep(){
-  var sections = document.querySelectorAll('section[id^="section"]');
+  var sections = document.querySelectorAll('div[id^="section"], section[id^="section"]');
   for(var s=0;s<sections.length;s++){
     var sec = sections[s];
     var kids = sec.children;
