@@ -17502,7 +17502,7 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
       if (checksEl){
         var statusKeysB = Object.keys(statusLayers);
         for (var m = 0; m < statusKeysB.length; m++){
-          naigAppendCheckbox(checksEl, statusKeysB[m], statusLayers[statusKeysB[m]], map1, true);
+          naigAppendCheckbox(checksEl, statusKeysB[m], statusLayers[statusKeysB[m]], map1, ['Not Available','Declined','Not Selected'].indexOf(statusKeysB[m]) < 0);
         }
       }
 
