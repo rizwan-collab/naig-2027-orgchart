@@ -21155,5 +21155,23 @@ var iv = setInterval(function(){
 
 })();
 </script>
+<!-- NAIG_SCOPE_TRIM 28 Sep 2026 - Logistics-only scope. Hides the multi-team switcher, the Manage Teams button and the Org Watch panel (other verticals, ours:false). Data untouched at naig2027/orgWatch and naig2027/teams; delete this block to restore. -->
+<style id="naigScopeTrimCss">#orgWatch,#teamSwitcher{display:none !important;}</style>
+<script>
+(function(){
+  function trim(){
+    try{
+      var ow=document.getElementById("orgWatch"); if(ow){ow.style.display="none";}
+      var ts=document.getElementById("teamSwitcher"); if(ts){ts.style.display="none";}
+      var hr=document.querySelector(".header-right");
+      if(hr){ Array.prototype.slice.call(hr.querySelectorAll("span")).forEach(function(s){
+        if((s.textContent||"").trim()==="Manage Teams"){ s.style.display="none"; }
+      }); }
+    }catch(e){}
+  }
+  if(document.readyState==="loading"){ document.addEventListener("DOMContentLoaded",trim); } else { trim(); }
+  setTimeout(trim,1200); setTimeout(trim,3500); setTimeout(trim,8000);
+})();
+</script>
 </body>
 </html>
