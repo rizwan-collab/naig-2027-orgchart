@@ -18875,7 +18875,7 @@ var SPORTS = [
 
 function esc(s){ if(s===null||s===undefined) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function dash(s){ return (s===null||s===undefined||s==='') ? '—' : String(s); }
-function isLive(v){ return LIVE.indexOf(v.status) > -1; }
+function isLive(v){ if(v && typeof v.archived !== 'undefined') return !v.archived; return LIVE.indexOf(v.status) > -1; }
 
 function reqFor(key){
   return (gReq.indoor && gReq.indoor[key]) || (gReq.outdoor && gReq.outdoor[key]) || null;
