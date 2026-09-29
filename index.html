@@ -21173,5 +21173,50 @@ var iv = setInterval(function(){
   setTimeout(trim,1200); setTimeout(trim,3500); setTimeout(trim,8000);
 })();
 </script>
+<!-- NAIG_TASK_DEEPLINK: opens a single task from an email link.
+     Usage: index.html with a task parameter set to the firebase key (hash form also accepted).
+     To revert, delete this whole script block. -->
+<script>
+(function(){
+  function wanted(){
+    try{
+      var p = new URLSearchParams(location.search).get('task');
+      if (p) return p;
+      var h = (location.hash||'').replace(/^#/,'');
+      if (h.indexOf('task') === 0 && h.charAt(4) === '=') return decodeURIComponent(h.slice(5));
+    }catch(e){}
+    return null;
+  }
+  var key = wanted();
+  if (!key) return;
+  var tries = 0;
+  function toast(msg){
+    var d = document.createElement('div');
+    d.textContent = msg;
+    d.style.cssText = 'position:fixed;left:50%;top:18px;transform:translateX(-50%);z-index:99999;background:#1f2937;color:#fff;padding:10px 16px;border-radius:8px;font:14px/1.4 system-ui,sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.25)';
+    document.body.appendChild(d);
+    setTimeout(function(){ d.remove(); }, 6000);
+  }
+  function go(){
+    tries++;
+    var data = window._tasksData;
+    if (data && Object.keys(data).length) {
+      if (!data[key]) { toast('That task no longer exists.'); return; }
+      try { if (typeof switchTab === 'function') switchTab('tasks'); } catch(e){}
+      setTimeout(function(){
+        try {
+          if (typeof openTaskModal === 'function') openTaskModal(null, key);
+          else toast('Could not open that task.');
+        } catch(e){ toast('Could not open that task.'); }
+      }, 350);
+      return;
+    }
+    if (tries > 40) { toast('Tasks did not load in time. Open the Tasks tab manually.'); return; }
+    setTimeout(go, 400);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(go, 800); });
+  else setTimeout(go, 800);
+})();
+</script>
 </body>
 </html>
