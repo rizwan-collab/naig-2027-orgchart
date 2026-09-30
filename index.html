@@ -14512,7 +14512,7 @@ window.renderScope = function() {
       <td style="font-size:11px">${esc(s.genderDivisions || '—')}</td>
       <td style="font-size:11px;text-align:center">${esc(s.numTeams || '—')}</td>
       <td style="font-size:11px;white-space:nowrap">${esc(s.sessionDates || '—')}</td>
-      <td style="font-size:11px">${esc(s.venue || '—')}</td>
+      <td style="font-size:11px">${scopeVenuesLive(s)}</td>
       <td style="font-size:12px;font-weight:600">${esc(s.sportLead || '—')}</td>
       <td style="font-size:11px">${s.leadPOC ? esc(s.leadPOC) : '—'}</td>
       <td><span style="background:${sc.bg};color:${sc.color};padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap">${esc(s.status || 'TBD')}</span></td>
@@ -21216,6 +21216,62 @@ var iv = setInterval(function(){
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(go, 800); });
   else setTimeout(go, 800);
+})();
+</script>
+<!-- SCOPE_VENUE_LIVE: the Scope table's venue column is computed from the venue
+     register instead of stored text, so it can never drift again.
+     To revert, restore the cell to esc(s.venue) and delete this block. -->
+<script>
+(function(){
+  var KEY = {
+    'badminton':['badminton'], 'basketball':['basketball'], 'chess':['chess'],
+    'cricket':['cricket'], 'dance':['dance'],
+    'flag football':['flag football','football'], 'pickleball':['pickleball'],
+    'football (soccer)':['soccer'], 'soccer':['soccer'],
+    'table tennis':['table tennis'], 'tennis':['tennis'],
+    'throwball':['throwball'], 'track':['track'],
+    'volleyball':['volleyball']
+  };
+  var RANK = {'Confirmed':1,'Contract Review':2,'Reserved':3,'In Works':4,
+              'In Conversation':5,'Identified':6,'Backup':7};
+  var COLOR = {'Confirmed':'#15803d','Contract Review':'#1d4ed8','Reserved':'#6d28d9',
+               'In Works':'#b45309','In Conversation':'#b45309',
+               'Identified':'#64748b','Backup':'#64748b'};
+
+  function keysFor(sportName){
+    var s = String(sportName || '').toLowerCase();
+    for (var k in KEY) { if (s.indexOf(k) > -1) return KEY[k]; }
+    var first = s.split(' ')[0];
+    return first ? [first] : [];
+  }
+
+  window.scopeVenuesLive = function(sp){
+    var data = window._venuesData || {};
+    var keys = keysFor(sp && sp.sport);
+    if (!keys.length) return '&mdash;';
+    var hits = Object.keys(data).filter(function(id){
+      var v = data[id] || {};
+      if (v.archived === true) return false;
+      var blob = String(v.sports || v.sport || '').toLowerCase();
+      return keys.some(function(kw){
+        if (kw === 'tennis') return blob.split('table tennis').join(' ').indexOf('tennis') > -1;
+        return blob.indexOf(kw) > -1;
+      });
+    }).sort(function(a,b){
+      return (RANK[(data[a]||{}).status] || 9) - (RANK[(data[b]||{}).status] || 9);
+    });
+    if (!hits.length) {
+      return '<span style="color:#b91c1c;font-weight:600">No live venue</span>';
+    }
+    return hits.map(function(id, i){
+      var v = data[id] || {};
+      var nm = String(v.name || '').replace(/\s*\(.*$/, '');
+      var st = v.status || '';
+      return '<div style="margin-bottom:2px' + (i === 0 ? ';font-weight:600' : '') + '">' +
+        (window.esc ? window.esc(nm) : nm) +
+        ' <span style="color:' + (COLOR[st] || '#64748b') + ';font-size:10px">' + st + '</span></div>';
+    }).join('');
+  };
 })();
 </script>
 </body>
