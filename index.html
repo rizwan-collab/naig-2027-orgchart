@@ -1931,7 +1931,7 @@ html.onboard-mode #onboardScreen { display: flex !important; }
 <div class="hub-section" id="sectionVenues">
  <div class="hub-toolbar">
  <div>
- <div class="hub-title"> Venue Directory</div>
+ <div class="hub-title"> Venue Pipeline Detail</div>
  <div class="hub-subtitle">Live venue pipeline — contracts, availability, facility fit, pricing, and source-backed updates.</div>
  </div>
  <div class="section-actions">
@@ -9734,7 +9734,7 @@ window.renderVenueDaylight = function () {
   if (!wrap) return;
   const q = (document.getElementById('venueSearch')?.value || '').toLowerCase();
   let rows = Object.entries(window._venuesData || {})
-    .filter(([, v]) => !/dropped|declined|not selected|closed|cancelled|not available/i.test(v.status || ''));
+    .filter(([, v]) => v.archived !== true);   // archived flag, not status text (30 Sep 2026)
   if (q) rows = rows.filter(([, v]) => JSON.stringify(v).toLowerCase().includes(q));
 
   const rank = { closed: -1, dark: 0, tight: 1, partial: 2, unknown: 3, ok: 4, lit: 5, na: 6 };
@@ -9995,7 +9995,7 @@ window.renderVenueSpecs = function () {
   if (!wrap) return;
   const q = (document.getElementById('venueSearch')?.value || '').toLowerCase();
   let rows = Object.entries(window._venuesData || {})
-    .filter(([, v]) => !/dropped|declined|not selected|closed|cancelled|not available/i.test(v.status || ''));
+    .filter(([, v]) => v.archived !== true);   // archived flag, not status text (30 Sep 2026)
   if (q) rows = rows.filter(([, v]) => JSON.stringify(v).toLowerCase().includes(q));
   rows.sort((a, b) => String(a[1].name || '').localeCompare(String(b[1].name || '')));
 
@@ -10068,7 +10068,7 @@ window.renderVenueFit = function () {
   if (!wrap) return;
   const q = (document.getElementById('venueSearch')?.value || '').toLowerCase();
   let rows = Object.entries(window._venuesData || {})
-    .filter(([, v]) => !/dropped|declined|not selected|closed|cancelled|not available/i.test(v.status || ''));
+    .filter(([, v]) => v.archived !== true);   // archived flag, not status text (30 Sep 2026)
   if (q) rows = rows.filter(([, v]) => JSON.stringify(v).toLowerCase().includes(q));
 
   const rank = { fits: 0, gap: 1, ask: 2 };
@@ -10235,7 +10235,9 @@ window.renderVenues = function() {
   const confirmed      = items.filter(([,v]) => _statusMatch(v.status, ['Confirmed','Walk Done','Ops Ready']));
   const pendingDeposit = items.filter(([,v]) => _statusMatch(v.status, ['Pending Deposit','Signed','Executed']));
   const inWorks        = items.filter(([,v]) => _statusMatch(v.status, ['In Works','In Conversation','Identified','Outreach','LOI Sent','Contract Review','Exploring','Shortlisted','Negotiating','Site Visit','Evaluating','Under Evaluation','Under Review','Prospect','Reserved']));
-  const closed         = items.filter(([,v]) => _statusMatch(v.status, ['Dropped','Closed','Cancelled','Not Available','Not Selected','Declined']));
+  // Archived is the source of truth for out-of-play, not the status string:
+  // 'Fallback' is archived but matches none of the closed statuses. (30 Sep 2026)
+  const closed         = items.filter(([,v]) => v.archived === true);
 
   // Financial snapshot
   const parseNum = s => moneyNum(s);
