@@ -14553,6 +14553,7 @@ function openSportModal(editKey) {
   document.getElementById('sportNumTeams').value     = s.numTeams         || '';
   document.getElementById('sportSessionDates').value = s.sessionDates     || '';
   document.getElementById('sportVenue').value        = s.venue            || '';
+    try { document.getElementById('sportVenueLive').innerHTML = scopeVenuesLive(s); } catch (e) {}
   document.getElementById('sportLead').value         = s.sportLead        || '';
   document.getElementById('sportLeadPOC').value      = s.leadPOC          || '';
   document.getElementById('sportStatus').value       = s.status           || 'Planning';
@@ -16190,8 +16191,9 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
     <input type="text" id="sportLead" placeholder="Name or TBD" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
    </div>
    <div class="form-group" style="grid-column:1/-1">
-    <label>Venue</label>
-    <input type="text" id="sportVenue" placeholder="Primary venue name" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+    <label>Venues <span style="font-weight:400;color:#64748b;font-size:11px">&mdash; read from the venue register, not editable here</span></label>
+    <div id="sportVenueLive" style="padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;background:#f8fafc;min-height:34px;line-height:1.5"></div>
+    <input type="hidden" id="sportVenue">
    </div>
    <div class="form-group" style="grid-column:1/-1">
     <label>Sport Lead POC (phone / email)</label>
