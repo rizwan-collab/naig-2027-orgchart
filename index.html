@@ -7833,8 +7833,9 @@ function _leadershipModel(m) {
 
   const contracted = Object.values(V).filter(v =>
     /confirm|signed|executed|booked/i.test(v.status || '')).length;
-  const liveVenues = Object.values(V).filter(v =>
-    !/dropped|declined|not selected|closed|cancelled/i.test(v.status || '')).length;
+  // Archived flag, not status text. The old regex omitted 'not available'
+  // and 'fallback' entirely and overstated live venues. (30 Sep 2026)
+  const liveVenues = Object.values(V).filter(v => v.archived !== true).length;
 
   // An "ask" is anything blocked, or critical and owned outside Logistics.
   const asks = Object.entries(M)
@@ -10179,7 +10180,7 @@ window.exportVenueSpecsCSV = function () {
                'Site Address','Field Dimensions','Drainage System','Pricing','Contact Info'];
   const out = [hdr];
   Object.values(window._venuesData || {})
-    .filter(v => !/dropped|declined|not selected|closed|cancelled|not available/i.test(v.status || ''))
+    .filter(v => v.archived !== true)   // archived flag, not status text (30 Sep 2026)
     .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
     .forEach(v => out.push([
       v.name || '', v.datesAvailable || '', v.datesReady || '', v.fieldCount || '',
