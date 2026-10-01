@@ -21279,5 +21279,71 @@ var iv = setInterval(function(){
   };
 })();
 </script>
+<script>
+/* NAIG_FORM_TRIM - Rizwan, 1 Oct 2026. Simplifies the task form without touching
+   the modal markup or the save path: Est. Hours hidden, linking fields collapsed,
+   assignees become search + chips. All field IDs and values stay where saveTask expects them. */
+(function () {
+  function grp(id) { var e = document.getElementById(id); return e ? e.closest(".form-group") : null; }
+  document.addEventListener("click", function (ev) {
+    var el = ev.target && ev.target.closest ? ev.target.closest("[data-naig-owner]") : null;
+    if (el && typeof window._toggleOwnerPill === "function") {
+      ev.preventDefault();
+      window._toggleOwnerPill(el.getAttribute("data-naig-owner"));
+    }
+  }, true);
+  function initTrim() {
+    var ov = document.getElementById("taskOverlay");
+    if (!ov || ov.getAttribute("data-naig-trim") === "1") return;
+    var eh = grp("taskEstHours"); if (eh) eh.style.display = "none";
+    var groups = ["taskLinkedTo","taskWorkstreamDependencies","taskVerticalDependencies","taskParent"].map(grp).filter(Boolean);
+    var notes = grp("taskNotes");
+    if (groups.length && notes && notes.parentElement) {
+      var d = document.createElement("details");
+      d.className = "naig-more";
+      d.style.cssText = "margin:10px 0;border:1px solid #e2e8f0;border-radius:8px;padding:0 12px 4px;background:#f8fafc;grid-column:1 / -1";
+      var s = document.createElement("summary");
+      s.textContent = "Linking and dependencies (optional)";
+      s.style.cssText = "cursor:pointer;padding:10px 0;font-size:13px;font-weight:600;color:#475569";
+      d.appendChild(s);
+      notes.parentElement.insertBefore(d, notes);
+      groups.forEach(function (g) { d.appendChild(g); });
+    }
+    var pills = document.getElementById("taskOwnerPills");
+    if (pills && pills.parentElement && !document.getElementById("naigOwnerSearch")) {
+      var box = document.createElement("input");
+      box.id = "naigOwnerSearch"; box.type = "text"; box.placeholder = "Type a name to assign...";
+      box.setAttribute("autocomplete", "off");
+      box.style.cssText = "width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;margin-bottom:8px;box-sizing:border-box";
+      pills.parentElement.insertBefore(box, pills);
+      box.addEventListener("input", function () { window._renderOwnerPills(window.__naigOwnerSel || []); });
+      var res = document.createElement("div"); res.id = "naigOwnerResults";
+      res.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;margin-top:8px";
+      pills.parentElement.insertBefore(res, pills.nextSibling);
+    }
+    ov.setAttribute("data-naig-trim", "1");
+  }
+  function chipHtml(name, on) {
+    var e = window.esc ? window.esc(name) : String(name);
+    return "<span data-naig-owner=\"" + e + "\" style=\"padding:5px 10px;border-radius:14px;font-size:12px;cursor:pointer;user-select:none;border:1px solid " +
+      (on ? "#1E3A8A" : "#cbd5e1") + ";background:" + (on ? "#1E3A8A" : "#fff") + ";color:" + (on ? "#fff" : "#475569") +
+      ";font-weight:" + (on ? 600 : 400) + ";transition:all .12s\">" + e + (on ? " &times;" : "") + "</span>";
+  }
+  window._renderOwnerPills = function (selected) {
+    initTrim();
+    selected = selected || []; window.__naigOwnerSel = selected;
+    var c = document.getElementById("taskOwnerPills"); if (!c) return;
+    c.style.display = "flex"; c.style.flexWrap = "wrap"; c.style.gap = "6px";
+    c.innerHTML = selected.length ? selected.map(function (n) { return chipHtml(n, true); }).join("") : "<span style=\"font-size:12px;color:#94a3b8\">No one assigned yet</span>";
+    var res = document.getElementById("naigOwnerResults"); if (!res) return;
+    var box = document.getElementById("naigOwnerSearch");
+    var q = box ? box.value.trim().toLowerCase() : "";
+    if (!q) { res.innerHTML = ""; return; }
+    var all = (window.assigneeNames ? window.assigneeNames() : []) || [];
+    var hits = all.filter(function (n) { return selected.indexOf(n) < 0 && String(n).toLowerCase().indexOf(q) > -1; }).slice(0, 10);
+    res.innerHTML = hits.length ? hits.map(function (n) { return chipHtml(n, false); }).join("") : "<span style=\"font-size:12px;color:#94a3b8\">No match</span>";
+  };
+})();
+</script>
 </body>
 </html>
