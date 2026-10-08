@@ -21345,5 +21345,112 @@ var iv = setInterval(function(){
   };
 })();
 </script>
+<script>
+
+<!-- NAIG_VENUE_LAYOUTS - added 8 Oct 2026. Layouts tab on the venue modal: Drive folder link, inline thumbnails, add/remove. Data at naig2027/venues/<key>/layouts -->
+(function () {
+  var FB = 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+  function esc(s) { return window.esc ? window.esc(String(s == null ? '' : s)) : String(s == null ? '' : s); }
+  function key() { var e = document.getElementById('venueKey'); return e ? e.value : ''; }
+  function driveId(raw) {
+    var s = String(raw || '').trim();
+    if (!s) return '';
+    var m = s.match(/\/d\/([A-Za-z0-9_-]{20,})/) || s.match(/[?&]id=([A-Za-z0-9_-]{20,})/);
+    if (m) return m[1];
+    if (/^[A-Za-z0-9_-]{20,}$/.test(s)) return s;
+    return '';
+  }
+  function thumb(id, w) { return 'https://drive.google.com/thumbnail?id=' + id + '&sz=w' + (w || 700); }
+  function openUrl(id) { return 'https://drive.google.com/file/d/' + id + '/view'; }
+  function ensureTab() {
+    var ov = document.getElementById('venueOverlay');
+    if (!ov || ov.getAttribute('data-naig-layouts') === '1') return;
+    var nav = ov.querySelector('.vmodal-tabs');
+    var anyPanel = ov.querySelector('.vmodal-panel');
+    if (!nav || !anyPanel) return;
+    var btn = document.createElement('button');
+    btn.className = 'vmodal-tab'; btn.type = 'button'; btn.textContent = 'Layouts';
+    btn.setAttribute('data-naig-layouts-tab', '1');
+    nav.appendChild(btn);
+    var panel = document.createElement('div');
+    panel.className = 'vmodal-panel'; panel.id = 'vp-layouts';
+    panel.innerHTML = '<div id="naigLayoutsBody" style="font-size:13px"></div>';
+    anyPanel.parentElement.appendChild(panel);
+    ov.setAttribute('data-naig-layouts', '1');
+  }
+  function cardHtml(it, i) {
+    var id = it.fileId || '';
+    var src = it.dataUri || (id ? thumb(id, 700) : '');
+    var href = it.url || (id ? openUrl(id) : '');
+    var pin = it.dataUri ? '<span style="font-size:10px;font-weight:700;color:#065f46;background:#d1fae5;border-radius:4px;padding:1px 5px;margin-left:6px">EMBEDDED</span>' : '';
+    var img = src ? '<img src="' + esc(src) + '" alt="' + esc(it.title || 'Layout') + '" loading="lazy" style="width:100%;height:150px;object-fit:cover;display:block;background:#f1f5f9" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' : '';
+    var fallback = '<div style="height:150px;display:' + (src ? 'none' : 'flex') + ';align-items:center;justify-content:center;background:#f1f5f9;color:#94a3b8;font-size:11px;text-align:center;padding:8px">' + (src ? 'Preview unavailable. Open it in Drive.' : 'No preview') + '</div>';
+    return '<div style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;background:#fff">' +
+      (href ? '<a href="' + esc(href) + '" target="_blank" rel="noopener" style="display:block;text-decoration:none">' : '<div>') + img + fallback + (href ? '</a>' : '</div>') +
+      '<div style="padding:8px 10px"><div style="font-weight:600;color:#1e293b;font-size:12px;line-height:1.3">' + esc(it.title || 'Untitled') + pin + '</div>' +
+      (it.note ? '<div style="color:#64748b;font-size:11px;margin-top:3px">' + esc(it.note) + '</div>' : '') +
+      '<div style="margin-top:6px;display:flex;gap:10px">' + (href ? '<a href="' + esc(href) + '" target="_blank" rel="noopener" style="font-size:11px;color:#1E3A8A;font-weight:600">Open</a>' : '') +
+      '<span data-naig-layout-del="' + i + '" style="font-size:11px;color:#b91c1c;cursor:pointer">Remove</span></div></div></div>';
+  }
+  window.__naigRenderLayouts = async function () {
+    ensureTab();
+    var body = document.getElementById('naigLayoutsBody');
+    if (!body) return;
+    var k = key();
+    if (!k) { body.innerHTML = '<div style="color:#94a3b8">Save the venue first, then layouts can be attached.</div>'; return; }
+    body.innerHTML = '<div style="color:#94a3b8">Loading...</div>';
+    try {
+      var m = await import(FB);
+      var v = (await m.get(_dbRef('naig2027/venues/' + k))).val() || {};
+      var items = Array.isArray(v.layouts) ? v.layouts : [];
+      window.__naigLayoutItems = items;
+      var folder = v.layoutsFolderUrl || '';
+      var head = '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap"><div style="color:#475569">Site maps, field layouts and 1-pagers for this venue.</div>' +
+        (folder ? '<a href="' + esc(folder) + '" target="_blank" rel="noopener" style="font-size:12px;font-weight:600;color:#fff;background:#1E3A8A;padding:6px 12px;border-radius:7px;text-decoration:none">Open Drive folder</a>' : '<span style="font-size:12px;color:#b45309;background:#fef3c7;padding:5px 9px;border-radius:6px">No Drive folder linked yet</span>') + '</div>';
+      var grid = items.length ? '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px">' + items.map(cardHtml).join('') + '</div>'
+        : '<div style="border:1px dashed #cbd5e1;border-radius:10px;padding:22px;text-align:center;color:#94a3b8;background:#f8fafc">Nothing here yet. Drop files in the Drive folder, then add them below so they show on this page.</div>';
+      var form = '<div style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:12px"><div style="font-weight:600;color:#475569;margin-bottom:8px;font-size:12px">Add a layout</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1.4fr auto;gap:8px;align-items:center">' +
+        '<input id="naigLayoutTitle" placeholder="Title, e.g. Railroad Park site map" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12px">' +
+        '<input id="naigLayoutLink" placeholder="Paste the Drive link or file ID" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12px">' +
+        '<button type="button" data-naig-layout-add="1" style="padding:7px 14px;border:0;border-radius:7px;background:#1E3A8A;color:#fff;font-size:12px;font-weight:600;cursor:pointer">Add</button></div>' +
+        '<div style="color:#94a3b8;font-size:11px;margin-top:6px">Previews only render if the file is shared so anyone with the link can view it.</div></div>';
+      body.innerHTML = head + grid + form;
+    } catch (e) { body.innerHTML = '<div style="color:#b91c1c">Could not load layouts: ' + esc(e.message) + '</div>'; }
+  };
+  async function saveItems(items) {
+    var m = await import(FB);
+    await m.set(_dbRef('naig2027/venues/' + key() + '/layouts'), items);
+    var a = (await m.get(_dbRef('naig2027/activityLog'))).val() || [];
+    await m.set(_dbRef('naig2027/activityLog/' + a.length), { ts: Date.now(), who: 'Rizwan Ali', what: 'Venue layouts updated on ' + ((document.getElementById('venueName') || {}).value || '') });
+  }
+  document.addEventListener('click', function (ev) {
+    var t = ev.target; if (!t || !t.closest) return;
+    var tab = t.closest('[data-naig-layouts-tab]');
+    if (tab) { ev.preventDefault(); window.switchVenueTab('layouts', tab); window.__naigRenderLayouts(); return; }
+    var add = t.closest('[data-naig-layout-add]');
+    if (add) { ev.preventDefault();
+      var ti = document.getElementById('naigLayoutTitle'), li = document.getElementById('naigLayoutLink');
+      var id = driveId(li ? li.value : '');
+      if (!id) { alert('That does not look like a Drive link or file ID.'); return; }
+      var items = (window.__naigLayoutItems || []).slice();
+      items.push({ title: (ti ? ti.value.trim() : '') || 'Untitled layout', fileId: id, addedOn: new Date().toISOString().slice(0, 10) });
+      saveItems(items).then(window.__naigRenderLayouts); return; }
+    var del = t.closest('[data-naig-layout-del]');
+    if (del) { ev.preventDefault();
+      var i = parseInt(del.getAttribute('data-naig-layout-del'), 10);
+      var cur = (window.__naigLayoutItems || []).slice();
+      if (isNaN(i) || !cur[i]) return;
+      if (!confirm('Remove this layout from the hub? The file stays in Drive.')) return;
+      cur.splice(i, 1); saveItems(cur).then(window.__naigRenderLayouts); return; }
+  }, true);
+  if (typeof window.openVenueModal === 'function' && !window.__naigLayoutsWrapped) {
+    var orig = window.openVenueModal;
+    window.openVenueModal = function () { var r = orig.apply(this, arguments); setTimeout(ensureTab, 0); return r; };
+    window.__naigLayoutsWrapped = true;
+  }
+  ensureTab();
+})();
+</script>
 </body>
 </html>
