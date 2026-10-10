@@ -14882,10 +14882,17 @@ function axPermsFor(person) {
 }
 
 function axFindByEmail(email) {
-  const k = axEmailKey(email);
-  if (!k) return null;
-  return (window._prospects || []).find(p => p && axEmailKey(p.email) === k) || null;
-}
+    const k = axEmailKey(email);
+    if (!k) return null;
+    const list = window._prospects || [];
+    const direct = list.find(p => p && axEmailKey(p.email) === k);
+    if (direct) return direct;
+    return list.find(function (p) {
+      if (!p || !p.altEmails) return false;
+      const raw = Array.isArray(p.altEmails) ? p.altEmails : String(p.altEmails).split(/[,;\s]+/);
+      return raw.some(function (e) { return e && axEmailKey(e) === k; });
+    }) || null;
+  }
 
 function axApply() {
   const perms = window._axPerms || { tabs: AX_ALL, edit:true, manageAccess:true };
@@ -19412,7 +19419,15 @@ function apply(food){
   setCell(cells[0], rg(lo,hi), String(sc.label || basis).slice(0, 48));
   setCell(cells[1], rg(lo*attF,hi*attF), 'incl. family at 30% × 1.5');
   setCell(cells[2], rg(lo*mealF,hi*mealF), nf(mealF*100) + '% of athletes · veg ' + rg(lo*vegF,hi*vegF));
+  var __fg = food.grid || {};
+var __gt = Number(__fg.computedTotal) || 0;
+if (__fg.drivesBudget && __gt > 0) {
+  var __fed = (lo + vol + staff) * days;
+  var __pp = __fed > 0 ? Math.round(__gt / __fed) : 0;
+  setCell(cells[3], money(__gt), 'from the Food meal grid · $' + __pp + '/person/day');
+} else {
   setCell(cells[3], rm((lo+vol+staff)*rate*days,(hi+vol+staff)*rate*days), '$' + rate + '/person/day × ' + days + ' days');
+}
 
   var note = grid.nextElementSibling;
   if(note && note.tagName === 'DIV' && note.children.length === 0){
