@@ -21467,5 +21467,126 @@ var iv = setInterval(function(){
   ensureTab();
 })();
 </script>
+<script>
+/* NAIG_VENUES_TIDY - one view at a time on the Venues tab. 10 Oct 2026. */
+(function () {
+  if (window.__naigVenuesTidy) return;
+  window.__naigVenuesTidy = true;
+  var KEY = 'naigVenueView';
+  function byId(i) { return document.getElementById(i); }
+  function sec() { return document.getElementById('sectionVenues'); }
+  var VIEWS = [
+    { id: 'list',      label: 'Venues',    ids: ['venuesTierWrap', 'venueSearch'] },
+    { id: 'directory', label: 'Directory', ids: ['naigVenueMatrix'] },
+    { id: 'matrix',    label: 'Matrix',    ids: ['naigMatrixGrid'] },
+    { id: 'coverage',  label: 'Coverage',  ids: ['naigCoverage'] },
+    { id: 'specs',     label: 'Specs',     ids: ['venuesSpecsWrap'] }
+  ];
+  function styles() {
+    if (byId('naigVTidyCss')) return;
+    var st = document.createElement('style');
+    st.id = 'naigVTidyCss';
+    st.textContent = [
+      '#sectionVenues .naig-vt-hide{display:none !important}',
+      '#naigVTidyBar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 14px 0}',
+      '#naigVTidyBar .vt-btn{background:#16233c;border:1px solid #2b3c5c;color:#cbd5e1;border-radius:8px;padding:7px 14px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;line-height:1.2}',
+      '#naigVTidyBar .vt-btn:hover{background:#1d2d4c;color:#fff}',
+      '#naigVTidyBar .vt-btn[aria-pressed="true"]{background:#1E3A8A;border-color:#1E3A8A;color:#fff}',
+      '#naigVTidyBar .vt-note{color:#64748b;font-size:11.5px;margin-left:4px}',
+      '@media print{#sectionVenues .naig-vt-hide{display:block !important}#naigVTidyBar{display:none}}'
+    ].join('');
+    document.head.appendChild(st);
+  }
+  function dropEmptyPipeline() {
+    var s = sec();
+    if (!s) return;
+    var kids = s.children;
+    for (var i = 0; i < kids.length; i++) {
+      var el = kids[i];
+      if (el.getAttribute('data-naig-vt-dead') === '1') continue;
+      var t = (el.innerText || '').replace(/\s+/g, ' ').trim();
+      if (t.indexOf('Venue Pipeline Detail') === 0 && t.length < 400) {
+        el.setAttribute('data-naig-vt-dead', '1');
+        el.classList.add('naig-vt-hide');
+        var nx = el.nextElementSibling;
+        if (nx && !(nx.innerText || '').trim() && !nx.id) {
+          nx.setAttribute('data-naig-vt-dead', '1');
+          nx.classList.add('naig-vt-hide');
+        }
+      }
+    }
+  }
+  function current() {
+    try { var v = localStorage.getItem(KEY); if (v) return v; } catch (e) {}
+    return 'list';
+  }
+  function apply(which) {
+    var s = sec();
+    if (!s) return;
+    VIEWS.forEach(function (v) {
+      v.ids.forEach(function (id) {
+        var el = byId(id);
+        if (!el) return;
+        if (v.id === which) el.classList.remove('naig-vt-hide');
+        else el.classList.add('naig-vt-hide');
+      });
+    });
+    dropEmptyPipeline();
+    var bar = byId('naigVTidyBar');
+    if (bar) {
+      var btns = bar.querySelectorAll('.vt-btn');
+      for (var i = 0; i < btns.length; i++) {
+        btns[i].setAttribute('aria-pressed', String(btns[i].getAttribute('data-vt') === which));
+      }
+    }
+    try { localStorage.setItem(KEY, which); } catch (e) {}
+    window.__naigVView = which;
+  }
+  function build() {
+    var s = sec();
+    if (!s) return false;
+    if (!byId('venuesTierWrap') || !byId('naigVenueMatrix')) return false;
+    if (byId('naigVTidyBar')) return true;
+    styles();
+    var bar = document.createElement('div');
+    bar.id = 'naigVTidyBar';
+    VIEWS.forEach(function (v) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'vt-btn';
+      b.textContent = v.label;
+      b.setAttribute('data-vt', v.id);
+      bar.appendChild(b);
+    });
+    var note = document.createElement('span');
+    note.className = 'vt-note';
+    note.textContent = 'One view at a time — your choice is remembered.';
+    bar.appendChild(note);
+    var summary = byId('venueSummary');
+    if (summary && summary.parentElement === s) {
+      s.insertBefore(summary, s.firstChild);
+      s.insertBefore(bar, summary.nextSibling);
+    } else {
+      s.insertBefore(bar, s.firstChild);
+    }
+    bar.addEventListener('click', function (ev) {
+      var b = ev.target && ev.target.closest ? ev.target.closest('.vt-btn') : null;
+      if (!b) return;
+      ev.preventDefault();
+      apply(b.getAttribute('data-vt'));
+    });
+    apply(current());
+    return true;
+  }
+  var tries = 0;
+  var boot = setInterval(function () {
+    tries++;
+    if (build() || tries > 40) clearInterval(boot);
+  }, 400);
+  setInterval(function () {
+    if (byId('naigVTidyBar') && window.__naigVView) apply(window.__naigVView);
+  }, 3000);
+})();
+</script>
 </body>
 </html>
