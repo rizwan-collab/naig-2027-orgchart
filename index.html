@@ -19930,7 +19930,18 @@ var iv = setInterval(function(){
       if (el2) el2.textContent = 'Could not save: ' + (e && e.message ? e.message : e);
     });
   }
-  function mount() { return !!document.getElementById('naigTeams'); }
+  function mount() {
+    var sec = document.getElementById('sectionScope');
+    if (!sec) return false;
+    if (document.getElementById('naigTeams')) return true;
+    var host = document.createElement('div');
+    host.id = 'naigTeams';
+    host.setAttribute('data-naigskip', '1');
+    var anchor = sec.firstElementChild;
+    if (anchor && anchor.nextElementSibling) { sec.insertBefore(host, anchor.nextElementSibling); }
+    else { sec.appendChild(host); }
+    return true;
+  }
   function load() {
     import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js').then(function (mod) {
       FB = mod; return FB.get(_dbRef('naig2027/teamModel'));
