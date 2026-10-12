@@ -16495,7 +16495,7 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
     var h="<div style=\""+W+"\"><div style=\""+HD+"\">Scope at a glance</div>";
     h+="<div style=\"display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px\">";
     h+=stat("Sports",String(rows.length),teamN+" team \u00b7 "+indN+" individual");
-    h+=stat("Athlete slots",fmt(tmin)+"\u2013"+fmt(tmax),"before overlap deduction");
+    h+=stat("Athlete slots",fmt(window.__naigTeamRaw||0),"before overlap \u00b7 "+fmt(window.__naigTeamAthletes||0)+" athletes on site");
     h+=stat("Regions","14","7 US \u00b7 7 Canada");
     h+="</div>";
     h+="<div style=\"font-size:11.5px;color:#64748b\">Divisions and roster sizes from naismailigames.com. Venues are PROPOSED \u2014 none contracted.</div></div>";
@@ -21561,41 +21561,64 @@ var iv = setInterval(function(){
 })();
 </script>
 <script>
-/* NAIG_SPORT_COUNT - Scope header counts the roster table rows. 12 Oct 2026. */
-(function () {
-  if (window.__naigSportCount) return;
-  window.__naigSportCount = true;
-  var FB = 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
-  var count = 0;
+/* NAIG_SCOPE_HEADER - 12 Oct 2026. Replaces NAIG_SPORT_COUNT.
+   Scope header, event-category count and the athlete tile all read naig2027/teamModel. */
+(function NAIG_SCOPE_HEADER() {
+  if (window.__naigScopeHeader) return;
+  window.__naigScopeHeader = true;
+  var M = null;
+  function nf(n) { return Math.round(Number(n) || 0).toLocaleString(); }
+  function rows() {
+    var s = M && M.sports; if (!s) return [];
+    return (Array.isArray(s) ? s : Object.keys(s).map(function (k) { return s[k]; })).filter(Boolean);
+  }
+  function figures() {
+    var r = rows(), sp = {};
+    r.forEach(function (x) { sp[x.sport || x.label] = 1; });
+    return { sports: Object.keys(sp).length, cats: r.length,
+             raw: Number(M.rawRegistrations) || 0, ath: Number(M.athletes) || 0 };
+  }
   function paint() {
-    if (!count) return;
+    if (!M) return;
+    var f = figures();
+    if (!f.sports) return;
+    var sub = document.getElementById('scopeSubtitle');
+    if (sub) {
+      var txt = sub.textContent;
+      txt = txt.replace(/\d+\s+sports/, f.sports + ' sports');
+      txt = txt.replace(/[\d,]+\s+event categories/, f.cats + ' event categories');
+      txt = txt.replace(/[\d,]+(–|-)[\d,]+\s+athletes on-site/, nf(f.ath) + ' athletes on-site');
+      txt = txt.replace(/(?:^|·\s)([\d,]+)\s+athletes on-site/, function (m0, g1) {
+        return m0.replace(g1, nf(f.ath)); });
+      if (txt !== sub.textContent) sub.textContent = txt;
+    }
+    /* the big teal tile in the scope overview that carried a hard coded range */
     var sec = document.getElementById('sectionScope');
-    if (!sec) return;
-    var re = /(\d+)(\s+sports)/;
-    var leaves = sec.getElementsByTagName('*');
-    for (var i = 0; i < leaves.length; i++) {
-      var el = leaves[i];
-      if (el.children.length) continue;
-      var tx = el.textContent || '';
-      var m = tx.match(re);
-      if (m && parseInt(m[1], 10) !== count) {
-        el.textContent = tx.replace(re, count + '$2');
+    if (sec) {
+      var all = sec.querySelectorAll('div');
+      for (var i = 0; i < all.length; i++) {
+        var e = all[i];
+        if (e.children.length) continue;
+        var s = (e.textContent || '').trim();
+        if (/^[\d,]+–[\d,]+$/.test(s) || e.getAttribute('data-naig-ath') === '1') {
+          e.setAttribute('data-naig-ath', '1');
+          if (e.textContent !== nf(f.ath)) e.textContent = nf(f.ath);
+        }
       }
     }
   }
   function load() {
-    return Promise.resolve()
-      .then(function () { return import(FB); })
-      .then(function (mo) { return mo.get(_dbRef('naig2027/teamModel')); })
-      .then(function (snap) {
-        var v = snap.val() || {};
-        var s = v.sports;
-        count = Array.isArray(s) ? s.length : (s ? Object.keys(s).length : 0);
-        paint();
-      })
+    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js')
+      .then(function (m) { return m.get(_dbRef('naig2027/teamModel')); })
+      .then(function (s) { M = s.val() || null; paint(); })
       .catch(function () {});
   }
-  load();
+  var tries = 0;
+  var iv = setInterval(function () {
+    tries++;
+    if (typeof _dbRef === 'function' && document.getElementById('sectionScope')) { clearInterval(iv); load(); }
+    else if (tries > 40) clearInterval(iv);
+  }, 800);
   setInterval(paint, 2500);
   setInterval(load, 30000);
 })();
