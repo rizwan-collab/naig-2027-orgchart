@@ -21588,5 +21588,82 @@ var iv = setInterval(function(){
   }, 3000);
 })();
 </script>
+<script>
+/* NAIG_ACCESS_BANNER - tell people why the hub looks limited. 12 Oct 2026. */
+(function () {
+  if (window.__naigAccessBanner) return;
+  window.__naigAccessBanner = true;
+  var ALL = 13;
+  function gmail() {
+    try {
+      var g = window._gUser || {};
+      return String(g.email || (window._axUser && window._axUser.email) || '');
+    } catch (e) { return ''; }
+  }
+  function css() {
+    if (document.getElementById('naigAccCss')) return;
+    var s = document.createElement('style');
+    s.id = 'naigAccCss';
+    s.textContent = [
+      '#naigAccBar{position:relative;margin:0;padding:11px 44px 11px 16px;font-size:13px;line-height:1.5;',
+      'font-family:inherit;border-bottom:1px solid rgba(0,0,0,.12)}',
+      '#naigAccBar.warn{background:#fef3c7;color:#78350f}',
+      '#naigAccBar.info{background:#dbeafe;color:#1e3a5f}',
+      '#naigAccBar b{font-weight:700}',
+      '#naigAccBar .x{position:absolute;top:7px;right:12px;cursor:pointer;font-size:17px;line-height:1;',
+      'opacity:.5;background:none;border:0;color:inherit;font-family:inherit}',
+      '#naigAccBar .x:hover{opacity:1}'
+    ].join('');
+    document.head.appendChild(s);
+  }
+  function show(kind, html) {
+    css();
+    var old = document.getElementById('naigAccBar');
+    if (old) old.parentElement.removeChild(old);
+    var d = document.createElement('div');
+    d.id = 'naigAccBar';
+    d.className = kind;
+    d.innerHTML = html + '<button type="button" class="x" title="Dismiss">&times;</button>';
+    document.body.insertBefore(d, document.body.firstChild);
+    d.querySelector('.x').addEventListener('click', function () {
+      d.parentElement.removeChild(d);
+      try { sessionStorage.setItem('naigAccDismissed', '1'); } catch (e) {}
+    });
+  }
+  function check() {
+    try { if (sessionStorage.getItem('naigAccDismissed') === '1') return true; } catch (e) {}
+    if (new URLSearchParams(location.search).get('onboard')) return true;
+    if (!window._authReady) return false;
+    var em = gmail();
+    if (!em) return false;
+    var p = window._axPerms;
+    if (!p) return false;
+    var u = window._axUser;
+    var esc = window.esc || function (x) { return String(x); };
+    if (!u) {
+      show('warn',
+        'You are signed in as <b>' + esc(em) + '</b>. That address is not on the Logistics directory, ' +
+        'so the hub is showing you a limited, view-only version. ' +
+        'Sign in with your NAIG address, or ask Rizwan to add this one.');
+      return true;
+    }
+    var tabs = (p.tabs || []).length;
+    if (p.edit === false) {
+      var miss = ALL - tabs;
+      show('info',
+        'You are signed in as <b>' + esc(em) + '</b> (' + esc(p.tier || 'member') + '). ' +
+        'This account is <b>view-only</b>' + (miss > 0 ? ', and ' + miss + ' tab' + (miss === 1 ? ' is' : 's are') + ' hidden' : '') +
+        '. Nothing you change here will save. Ask Rizwan if you need edit access.');
+      return true;
+    }
+    return true;
+  }
+  var n = 0;
+  var iv = setInterval(function () {
+    n++;
+    try { if (check() || n > 60) clearInterval(iv); } catch (e) { clearInterval(iv); }
+  }, 500);
+})();
+</script>
 </body>
 </html>
