@@ -16476,7 +16476,7 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
     h+="<div style=\"display:flex;gap:10px;flex-wrap:wrap\">";
     h+=stat("Athletes",(a.min===a.max?fmt(a.min):fmt(a.min)+"\u2013"+fmt(a.max)),"after 20% dual-category overlap");
     h+=stat("Total attendance",(t.min===t.max?fmt(t.min):fmt(t.min)+"\u2013"+fmt(t.max)),"incl. family at 30% \u00d7 1.5");
-    h+=stat("Meals per serving",fmt(f.mealsMin)+"\u2013"+fmt(f.mealsMax),"110% of athletes \u00b7 veg "+fmt(f.vegMin)+"\u2013"+fmt(f.vegMax),"#be185d");
+    h+=stat("Meals per serving",(f.mealsMin===f.mealsMax?fmt(f.mealsMin):fmt(f.mealsMin)+"\u2013"+fmt(f.mealsMax)),"110% of athletes \u00b7 veg "+(f.vegMin===f.vegMax?fmt(f.vegMin):fmt(f.vegMin)+"\u2013"+fmt(f.vegMax)),"#be185d");
     h+=stat("Food budget",money(f.totalAtDriveVolunteers&&f.totalAtDriveVolunteers.min)+"\u2013"+money(f.totalAtDriveVolunteers&&f.totalAtDriveVolunteers.max),"$60/person/day \u00d7 4 days","#be185d");
     h+="</div>";
     h+="<div style=\"font-size:11.5px;color:#64748b;margin-top:11px;line-height:1.6\">Food covers athletes and volunteers, Thu 25 \u2013 Sun 28. Build: breakfast $8\u201310 \u00b7 lunch $10\u201315 \u00b7 dinner $18\u201320 \u00b7 snacks and sundries $10\u201315. If volunteers scale at the Drive\u2019s own 50% ratio rather than its stated 750\u20131,000, food rises to "+money(f.totalAt50pctRatio&&f.totalAt50pctRatio.min)+"\u2013"+money(f.totalAt50pctRatio&&f.totalAt50pctRatio.max)+".</div>";
