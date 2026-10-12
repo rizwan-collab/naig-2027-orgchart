@@ -21665,5 +21665,45 @@ var iv = setInterval(function(){
   }, 500);
 })();
 </script>
+<script>
+/* NAIG_SPORT_COUNT - Scope header counts the roster table rows. 12 Oct 2026. */
+(function () {
+  if (window.__naigSportCount) return;
+  window.__naigSportCount = true;
+  var FB = 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+  var count = 0;
+  function paint() {
+    if (!count) return;
+    var sec = document.getElementById('sectionScope');
+    if (!sec) return;
+    var re = /(\d+)(\s+sports)/;
+    var leaves = sec.getElementsByTagName('*');
+    for (var i = 0; i < leaves.length; i++) {
+      var el = leaves[i];
+      if (el.children.length) continue;
+      var tx = el.textContent || '';
+      var m = tx.match(re);
+      if (m && parseInt(m[1], 10) !== count) {
+        el.textContent = tx.replace(re, count + '$2');
+      }
+    }
+  }
+  function load() {
+    return Promise.resolve()
+      .then(function () { return import(FB); })
+      .then(function (mo) { return mo.get(_dbRef('naig2027/teamModel')); })
+      .then(function (snap) {
+        var v = snap.val() || {};
+        var s = v.sports;
+        count = Array.isArray(s) ? s.length : (s ? Object.keys(s).length : 0);
+        paint();
+      })
+      .catch(function () {});
+  }
+  load();
+  setInterval(paint, 2500);
+  setInterval(load, 30000);
+})();
+</script>
 </body>
 </html>
