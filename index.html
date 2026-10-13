@@ -21623,5 +21623,128 @@ var iv = setInterval(function(){
   setInterval(load, 30000);
 })();
 </script>
+
+<script>
+/* NAIG_TASKS_REBUILD - Tasks tab layout: folds analysis panels into a collapsible Overview,
+   moves the filter bar above the table and makes it sticky, hides completed tasks by default,
+   and labels the close control. Added 13 Oct 2026. */
+(function NAIG_TASKS_REBUILD(){
+  if(window.__naigTasksRebuild) return;
+  window.__naigTasksRebuild = true;
+  var K_OVERVIEW='naigTasksOverviewOpen', K_HIDEDONE='naigTasksHideDone';
+  function get(k,d){ try{ var v=localStorage.getItem(k); return v===null?d:v; }catch(e){ return d; } }
+  function set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+  function sec(){ return document.getElementById('sectionTasks'); }
+  function panel(){ return document.getElementById('tpanel-tasktable'); }
+  function css(){
+    if(document.getElementById('naigTRCss')) return;
+    var st=document.createElement('style'); st.id='naigTRCss';
+    st.textContent=['#naigTOverview{border:1px solid #243049;border-radius:10px;background:#101a2e;margin:0 0 12px;overflow:hidden}',
+    '#naigTOverviewBtn{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;color:#cbd5e1;font:600 12.5px/1.2 inherit;padding:11px 14px;cursor:pointer;text-align:left}',
+    '#naigTOverviewBtn:hover{background:#16233c}','#naigTOverviewBtn .cv{color:#64748b;display:inline-block;width:12px}',
+    '#naigTOverviewBtn .sub{color:#64748b;font-weight:500;margin-left:auto;font-size:11.5px}',
+    '#naigTOverviewBody{padding:4px 14px 14px}','#naigTOverview.closed #naigTOverviewBody{display:none}',
+    '.naig-stickybar{position:sticky;top:0;z-index:40;background:#0b1424;border-bottom:1px solid #243049;padding:10px 0 9px;margin:0 0 4px}',
+    '#naigTBits{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:8px 2px 0}',
+    '#naigTDoneTgl{display:inline-flex;align-items:center;gap:7px;background:#16233c;border:1px solid #243049;border-radius:8px;padding:7px 12px;color:#cbd5e1;font:600 12.5px inherit;cursor:pointer}',
+    '#naigTDoneTgl:hover{background:#1d2c49}','#naigTDoneTgl .dot{width:8px;height:8px;border-radius:50%;background:#475569}',
+    '#naigTDoneTgl[aria-pressed="true"] .dot{background:#5cc08b}','#naigTCount{color:#64748b;font-size:12.5px;margin-left:auto}',
+    'tr[data-naig-done-hidden="1"]{display:none}',
+    '.naig-closebtn{font:600 11.5px inherit!important;padding:4px 10px!important;border-radius:6px!important;white-space:nowrap}'].join('');
+    document.head.appendChild(st);
+  }
+  function buildOverview(){
+    var s=sec(); if(!s) return false;
+    if(document.getElementById('naigTOverview')) return true;
+    var picks=[];
+    ['taskSummaryStrip','taskDependencyMatrices','taskWorkloadStrip'].forEach(function(id){
+      var e=document.getElementById(id); if(e && e.parentElement===s) picks.push(e); });
+    [].slice.call(s.children).forEach(function(c){
+      if(c.id || picks.indexOf(c)>-1) return;
+      if(c.querySelector && c.querySelector('#tpanel-tasktable')) return;
+      var t=(c.textContent||'').replace(/\s+/g,' ').trim();
+      if(/tasks complete/i.test(t) && t.length<140) picks.push(c);
+      else if(/Personal team lens/i.test(t)) picks.push(c); });
+    if(!picks.length) return true;
+    var wrap=document.createElement('div'); wrap.id='naigTOverview'; wrap.className='closed';
+    var btn=document.createElement('button'); btn.type='button'; btn.id='naigTOverviewBtn';
+    var body=document.createElement('div'); body.id='naigTOverviewBody';
+    wrap.appendChild(btn); wrap.appendChild(body);
+    s.insertBefore(wrap,picks[0]); picks.forEach(function(p){ body.appendChild(p); });
+    function label(){
+      var open=!wrap.classList.contains('closed'); btn.textContent='';
+      var cv=document.createElement('span'); cv.className='cv'; cv.innerHTML=open?'&#9662;':'&#9656;';
+      var sb=document.createElement('span'); sb.className='sub'; sb.textContent=open?'hide':(picks.length+' panels hidden');
+      btn.appendChild(cv); btn.appendChild(document.createTextNode('Overview — counts, team lens, dependencies and workload')); btn.appendChild(sb);
+    }
+    btn.addEventListener('click',function(){ wrap.classList.toggle('closed'); set(K_OVERVIEW, wrap.classList.contains('closed')?'0':'1'); label(); });
+    if(get(K_OVERVIEW,'0')==='1') wrap.classList.remove('closed');
+    label();
+    [].slice.call(s.children).forEach(function(c){
+      if(c===wrap || c.id) return;
+      if(c.querySelector && c.querySelector('#tpanel-tasktable')) return;
+      if(!(c.textContent||'').trim() && !c.querySelector('input,button,select,table,svg,img')) c.style.display='none'; });
+    return true;
+  }
+  function moveControls(){
+    var p=panel(); var fs=document.getElementById('filterStatus');
+    if(!fs||!p) return false;
+    var cw=fs.closest('.naig-cwrap')||fs.parentElement.parentElement;
+    if(!cw) return false;
+    if(cw.getAttribute('data-naig-moved')==='1') return true;
+    var host=document.createElement('div'); host.className='naig-stickybar'; host.id='naigTBar';
+    p.parentElement.insertBefore(host,p); host.appendChild(cw); cw.setAttribute('data-naig-moved','1');
+    var bits=document.createElement('div'); bits.id='naigTBits'; host.appendChild(bits);
+    var tgl=document.createElement('button'); tgl.type='button'; tgl.id='naigTDoneTgl';
+    var dot=document.createElement('span'); dot.className='dot'; tgl.appendChild(dot);
+    tgl.appendChild(document.createTextNode('Hide completed')); bits.appendChild(tgl);
+    var cnt=document.createElement('span'); cnt.id='naigTCount'; bits.appendChild(cnt);
+    function sync(){ tgl.setAttribute('aria-pressed', get(K_HIDEDONE,'1')==='1'?'true':'false'); applyRows(); }
+    tgl.addEventListener('click',function(){ set(K_HIDEDONE, get(K_HIDEDONE,'1')==='1'?'0':'1'); sync(); });
+    sync(); return true;
+  }
+  var applying=false;
+  function applyRows(){
+    var p=panel(); if(!p||applying) return;
+    applying=true;
+    try{
+      var hideDone=get(K_HIDEDONE,'1')==='1';
+      var rows=[].slice.call(p.querySelectorAll('tbody tr')); var total=0,done=0;
+      rows.forEach(function(tr){
+        if(!tr.children.length) return;
+        total++;
+        var c=tr.children[1]; var st=c?(c.textContent||'').trim().toLowerCase():'';
+        var isDone=(st==='done'); if(isDone) done++;
+        if(isDone&&hideDone) tr.setAttribute('data-naig-done-hidden','1');
+        else tr.removeAttribute('data-naig-done-hidden');
+        var b=tr.querySelector('button');
+        if(b && !b.getAttribute('data-naig-lbl')){
+          var t=(b.textContent||'').trim();
+          if(t==='✓'||t==='✔'||t===''){
+            b.setAttribute('data-naig-lbl','1'); b.classList.add('naig-closebtn');
+            b.textContent=isDone?'Reopen':'Close';
+            b.title=isDone?'Reopen this task':'Mark this task complete'; }
+        } else if(b && b.getAttribute('data-naig-lbl')==='1'){
+          var w=isDone?'Reopen':'Close'; if(b.textContent!==w) b.textContent=w; }
+      });
+      var cnt=document.getElementById('naigTCount');
+      if(cnt){ var open=total-done;
+        cnt.textContent = hideDone ? (open+' open · '+done+' completed hidden')
+                                   : (total+' tasks · '+open+' open, '+done+' completed'); }
+    } finally { applying=false; }
+  }
+  function watch(){
+    var p=panel(); if(!p||p.getAttribute('data-naig-watched')==='1') return;
+    if(!p.querySelector('tbody')) return;
+    p.setAttribute('data-naig-watched','1');
+    var pending=null;
+    new MutationObserver(function(){ if(pending) return;
+      pending=setTimeout(function(){ pending=null; applyRows(); },60); }).observe(p,{childList:true,subtree:true});
+  }
+  function boot(){ if(!sec()||!panel()) return false; css(); buildOverview(); var ok=moveControls(); applyRows(); watch(); return ok; }
+  var tries=0;
+  var iv=setInterval(function(){ tries++; if(boot()||tries>60) clearInterval(iv); },500);
+})();
+</script>
 </body>
 </html>
