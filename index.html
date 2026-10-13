@@ -19921,7 +19921,7 @@ var iv = setInterval(function(){
     model.rawRegistrations = t.raw;
     model.athletes = t.athletes;
     model.updatedAt = new Date().toISOString();
-    Promise.all([FB.set(_dbRef('naig2027/teamModel'), model), FB.set(_dbRef('naig2027/food/headcountScenarios/teamModel'), model)]).then(function () {
+    Promise.all([FB.set(_dbRef('naig2027/teamModel'), model), FB.set(_dbRef('naig2027/food/headcountScenarios/teamModel'), Object.assign({}, model, { athletesLow: t.athletes, athletesHigh: t.athletes, label: 'Scope table (teamModel) - 47 rows, official categories', basis: 'Single figure from naig2027/teamModel. Low and High are equal because the model carries one figure, not a range. The Food meal grid reads athletesLow and athletesHigh, so these must always be written or the grid counts zero athletes.' }))]).then(function () {
       var el = document.getElementById('naigTeamsSave');
       if (el) el.textContent = 'Saved - ' + nf(t.athletes) + ' athletes. Dashboard, budget and food now read this.';
       try { if (window.__naigRecalcFood) window.__naigRecalcFood(); } catch (e) {}
