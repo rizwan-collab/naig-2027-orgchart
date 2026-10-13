@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAIG 2027 — Venue Plan</title>
+<meta name="description" content="NAIG 2027 venue plan — which sport plays where.">
+<style>
+:root{
+  --bg:#f6f7f9; --card:#fff; --ink:#15212e; --muted:#64748b; --line:#e2e7ed;
+  --accent:#1f5f8b; --good:#1d7a4d; --warn:#9a6b00; --bad:#9b2c2c; --soft:#f0f3f7;
+  --sel:#1f5f8b; --selink:#fff;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d1420; --card:#151e2c; --ink:#e8eef5; --muted:#8fa0b3; --line:#243144;
+    --accent:#6fb3de; --good:#5cc08b; --warn:#d9a441; --bad:#e08585; --soft:#1a2535;
+    --sel:#2c6da0; --selink:#fff;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d1420; --card:#151e2c; --ink:#e8eef5; --muted:#8fa0b3; --line:#243144;
+  --accent:#6fb3de; --good:#5cc08b; --warn:#d9a441; --bad:#e08585; --soft:#1a2535;
+  --sel:#2c6da0; --selink:#fff;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:900px;margin:0 auto;padding:30px 16px 80px}
+
+header.top{margin-bottom:22px}
+h1{font-size:24px;margin:0 0 5px;letter-spacing:-.02em;font-weight:650}
+.sub{color:var(--muted);font-size:14px;margin:0 0 10px}
+.meta{color:var(--muted);font-size:12.5px}
+.meta span + span::before{content:"·";margin:0 7px;opacity:.6}
+
+.bar{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:14px 16px;margin:0 0 18px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;flex:0 0 auto}
+.seg button{background:transparent;border:0;color:var(--ink);font:600 13px/1 inherit;
+  padding:10px 16px;cursor:pointer}
+.seg button + button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--sel);color:var(--selink)}
+.seg button:hover:not([aria-pressed="true"]){background:var(--soft)}
+select,input[type=search]{background:var(--bg);color:var(--ink);border:1px solid var(--line);
+  border-radius:9px;padding:9px 12px;font:14px inherit;min-width:0}
+select{flex:0 1 230px}
+input[type=search]{flex:1 1 170px}
+.cnt{color:var(--muted);font-size:12.5px;margin-left:auto;white-space:nowrap}
+
+h2{font-size:17px;margin:30px 0 8px;letter-spacing:-.01em;font-weight:650}
+.lead{color:var(--muted);font-size:13.5px;margin:0 0 12px}
+
+.note{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--warn);
+  border-radius:0 10px 10px 0;padding:13px 17px;margin:0 0 18px;font-size:13.5px;color:var(--ink)}
+.note b{color:var(--warn)}
+
+.vgroup{background:var(--card);border:1px solid var(--line);border-radius:12px;margin:0 0 10px;overflow:hidden}
+.vhead{padding:13px 17px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;
+  align-items:baseline;gap:9px}
+.vhead .nm{font-weight:650;font-size:15px}
+.vhead .lo{color:var(--muted);font-size:12.5px}
+.vhead .tag{margin-left:auto}
+.vbody{padding:4px 17px 13px}
+.srow{display:flex;flex-wrap:wrap;align-items:baseline;gap:9px;padding:8px 0;
+  border-bottom:1px solid var(--line)}
+.srow:last-child{border-bottom:0}
+.srow .sp{font-weight:600;font-size:14px;min-width:150px}
+.srow .nt{color:var(--muted);font-size:12.5px}
+.srow.diff{position:relative}
+.srow.diff .sp::after{content:"changed";font-size:10px;font-weight:700;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--warn);margin-left:8px;vertical-align:middle}
+
+.tag{display:inline-block;font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px;
+  border:1px solid var(--line);background:var(--soft);color:var(--muted);white-space:nowrap}
+.t-ok{color:var(--good);border-color:var(--good)}
+.t-wk{color:var(--warn);border-color:var(--warn)}
+.t-no{color:var(--bad);border-color:var(--bad)}
+
+.empty{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:30px 16px;text-align:center;color:var(--muted);font-size:14px}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:0 0 12px}
+.card h3{margin:0 0 8px;font-size:15px;font-weight:650}
+ul{margin:6px 0 0;padding-left:19px}
+li{margin:4px 0}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:9px 10px 9px 0;border-bottom:1px solid var(--line)}
+th{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:650}
+tbody tr:last-child td{border-bottom:0}
+
+footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px}
+@media (max-width:620px){
+  .cnt{margin-left:0;flex-basis:100%}
+  select,input[type=search]{flex-basis:100%}
+  .seg{width:100%}
+  .seg button{flex:1}
+  .srow .sp{min-width:0;flex-basis:100%}
+  table,thead,tbody,th,td,tr{display:block}
+  thead{display:none}
+  tbody tr{border-bottom:1px solid var(--line);padding:8px 0}
+  td{border:0;padding:2px 0}
+  td::before{content:attr(data-l) " — ";color:var(--muted);font-size:12px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>NAIG 2027 — Venue Plan</h1>
+  <p class="sub">Which sport plays where.</p>
+  <div class="meta">
+    <span>Updated 13 October 2026</span><span>Games: Thu 25 – Sun 28 March 2027</span><span>Logistics</span>
+  </div>
+</header>
+
+<div class="bar">
+  <div class="seg" role="group" aria-label="Scenario">
+    <button type="button" id="s1" aria-pressed="true">Scenario 1</button>
+    <button type="button" id="s2" aria-pressed="false">Scenario 2</button>
+  </div>
+  <select id="vsel" aria-label="Filter by venue"></select>
+  <input type="search" id="q" placeholder="Search sport or venue…" autocomplete="off">
+  <span class="cnt" id="cnt"></span>
+</div>
+
+<div id="note"></div>
+<div id="out"></div>
+
+<h2>The two scenarios</h2>
+<p class="lead">They differ in one place only. Everything else is identical.</p>
+
+<div class="card">
+  <h3>Scenario 1 — default</h3>
+  <ul>
+    <li>Men's and women's matches both at Railroad Park, on lit grounds that are already locked.</li>
+    <li>Lake Park's existing pitch carries daytime matches.</li>
+    <li>One site, one setup, one crew. Shortest travel for athletes and volunteers.</li>
+    <li>Trade-off: Lake Park has no lighting, so the schedule has to absorb any delays at Railroad.</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>Scenario 2 — only if the Texomo contract lands</h3>
+  <ul>
+    <li>Men's matches move to Texomo in Calera, Oklahoma — five grounds on one site.</li>
+    <li>Women's matches stay at Railroad Park.</li>
+    <li>Lake Park drops to soccer 7v7 backup only.</li>
+    <li>Trade-off: two sites instead of one, so two setups, two crews and two schedules, plus the travel to Calera.</li>
+    <li><strong>Not selectable yet</strong> — the Texomo contract has not been received.</li>
+  </ul>
+</div>
+
+<h2>What we need from Sports</h2>
+<div class="card">
+  <ul style="margin:4px 0 0">
+    <li><strong>Can the draw run entirely in daylight at Lake Park?</strong> If yes, Scenario 1 holds comfortably. If evening slots are needed, Railroad carries more and the schedule tightens.</li>
+    <li><strong>Is splitting men's and women's across two sites acceptable?</strong> That is what Scenario 2 means in practice — it affects officials, equipment and how finals are staged.</li>
+    <li><strong>Track and field has no venue.</strong> If Sports has a facility in mind, now is the moment.</li>
+    <li><strong>Opening ceremony</strong> — the stadium is still to be decided.</li>
+  </ul>
+</div>
+
+<h2>Dates on record</h2>
+<div class="card">
+<table>
+  <thead><tr><th>Venue</th><th>Setup</th><th>Play</th><th>Breakdown</th></tr></thead>
+  <tbody>
+    <tr><td data-l="Venue">Lewisville</td><td data-l="Setup">Wed 24 Mar</td><td data-l="Play">Thu 25 – Sun 28 Mar</td><td data-l="Breakdown">Sun 28 eve</td></tr>
+    <tr><td data-l="Venue">Courts of McKinney</td><td data-l="Setup">Thu 25 Mar</td><td data-l="Play">Fri 26 – Sun 28 Mar</td><td data-l="Breakdown">Sun 28 eve</td></tr>
+  </tbody>
+</table>
+<p class="lead" style="margin:12px 0 0">Setup and breakdown access has been requested at both venues and is not yet granted at either.</p>
+</div>
+
+<footer>
+  Prepared by Logistics from the NAIG 2027 Logistics Hub. Statuses reflect what is contracted or committed as of
+  13 October 2026; items marked TBD have no venue identified yet. Questions to Rizwan Ali.
+</footer>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var DATA = [
+    {sport:"Badminton",         v1:"StarCenter Farmers Branch", l1:"Farmers Branch", s1:"ok", t1:"Confirmed"},
+    {sport:"Table Tennis",      v1:"StarCenter Farmers Branch", l1:"Farmers Branch", s1:"ok", t1:"Confirmed"},
+    {sport:"Basketball",        v1:"StarCenter Northlake",      l1:"Northlake",      s1:"ok", t1:"Confirmed"},
+    {sport:"Volleyball",        v1:"StarCenter Northlake",      l1:"Northlake",      s1:"ok", t1:"Confirmed"},
+    {sport:"Throwball",         v1:"StarCenter Northlake",      l1:"Northlake",      s1:"ok", t1:"Confirmed"},
+    {sport:"Pickleball",        v1:"Pickler Universe",          l1:"Carrollton",     s1:"wk", t1:"Reserved"},
+    {sport:"Dance",             v1:"Pickler Universe",          l1:"Carrollton",     s1:"wk", t1:"Reserved"},
+    {sport:"Tennis",            v1:"Courts of McKinney",        l1:"McKinney",       s1:"wk", t1:"Contract review",
+      n1:"16 outdoor courts", n2:"16 outdoor courts"},
+    {sport:"Chess",             v1:"Courts of McKinney",        l1:"McKinney",       s1:"wk", t1:"Contract review",
+      n1:"Upstairs room", n2:"Upstairs room"},
+    {sport:"Soccer",            v1:"Railroad Park",             l1:"Lewisville",     s1:"wk", t1:"In works",
+      n1:"Lake Park holds 7v7 as backup", n2:"Lake Park holds 7v7 as backup"},
+    {sport:"Flag Football",     v1:"Railroad Park",             l1:"Lewisville",     s1:"wk", t1:"In works"},
+    {sport:"Men's matches",     v1:"Railroad Park",             l1:"Lewisville",     s1:"ok", t1:"Grounds locked",
+      v2:"Texomo Ground",         l2:"Calera, OK",  s2:"no", t2:"Contract not received",
+      n1:"Two lit grounds · Lake Park pitch for daytime play", n2:"Five grounds on one site"},
+    {sport:"Women's matches",   v1:"Railroad Park",             l1:"Lewisville",     s1:"ok", t1:"Ground locked",
+      n1:"Lit ground", n2:"Stays in Lewisville"},
+    {sport:"Track and Field",   v1:"To be decided",             l1:"TBD",            s1:"no", t1:"No venue yet"},
+    {sport:"Opening Ceremony",  v1:"Stadium — to be decided",   l1:"TBD",            s1:"no", t1:"No venue yet"}
+  ];
+
+  var NOTES = {
+    1:'<div class="note"><b>Lake Park is daylight only.</b> It has one pitch already, but the pitch is not lit, and the City of Lewisville has said tree coverage and light pole placement make adding further pitches difficult. Railroad Park is lit, so anything that may run into the evening has to be scheduled there.</div>',
+    2:'<div class="note"><b>Scenario 2 is not selectable yet.</b> The Texomo contract has not been received. Until it arrives, Scenario 1 is the plan we are building against.</div>'
+  };
+
+  var scenario = 1, venueFilter = "", query = "";
+  var $out = document.getElementById("out");
+  var $note = document.getElementById("note");
+  var $cnt = document.getElementById("cnt");
+  var $vsel = document.getElementById("vsel");
+  var $q = document.getElementById("q");
+  var $s1 = document.getElementById("s1"), $s2 = document.getElementById("s2");
+
+  function view(r){
+    return {
+      sport: r.sport,
+      venue: (scenario === 2 && r.v2) ? r.v2 : r.v1,
+      loc:   (scenario === 2 && r.l2) ? r.l2 : r.l1,
+      st:    (scenario === 2 && r.s2) ? r.s2 : r.s1,
+      stt:   (scenario === 2 && r.t2) ? r.t2 : r.t1,
+      note:  (scenario === 2 ? r.n2 : r.n1) || "",
+      diff:  scenario === 2 && !!r.v2
+    };
+  }
+
+  function fillVenues(){
+    var prev = venueFilter, seen = [];
+    DATA.forEach(function(r){
+      var v = view(r).venue;
+      if (seen.indexOf(v) === -1) seen.push(v);
+    });
+    seen.sort();
+    $vsel.textContent = "";
+    var all = document.createElement("option");
+    all.value = ""; all.textContent = "All venues";
+    $vsel.appendChild(all);
+    seen.forEach(function(v){
+      var o = document.createElement("option");
+      o.value = v; o.textContent = v;
+      $vsel.appendChild(o);
+    });
+    venueFilter = seen.indexOf(prev) > -1 ? prev : "";
+    $vsel.value = venueFilter;
+  }
+
+  function el(tag, cls, txt){
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (txt != null) e.textContent = txt;
+    return e;
+  }
+
+  function render(){
+    $note.innerHTML = NOTES[scenario];
+
+    var groups = [], index = {};
+    var shown = 0, diffs = 0;
+
+    DATA.forEach(function(r){
+      var v = view(r);
+      if (venueFilter && v.venue !== venueFilter) return;
+      if (query){
+        var hay = (v.sport + " " + v.venue + " " + v.loc + " " + v.stt + " " + v.note).toLowerCase();
+        if (hay.indexOf(query) === -1) return;
+      }
+      if (!index[v.venue]){
+        index[v.venue] = {venue:v.venue, loc:v.loc, st:v.st, stt:v.stt, items:[]};
+        groups.push(index[v.venue]);
+      }
+      index[v.venue].items.push(v);
+      shown++;
+      if (v.diff) diffs++;
+    });
+
+    $out.textContent = "";
+    if (!groups.length){
+      $out.appendChild(el("div","empty","Nothing matches that filter."));
+    } else {
+      groups.forEach(function(g){
+        var box = el("div","vgroup");
+        var head = el("div","vhead");
+        head.appendChild(el("span","nm",g.venue));
+        head.appendChild(el("span","lo",g.loc));
+        var tag = el("span","tag t-" + g.st, g.stt);
+        head.appendChild(tag);
+        box.appendChild(head);
+
+        var body = el("div","vbody");
+        g.items.forEach(function(it){
+          var row = el("div","srow" + (it.diff ? " diff" : ""));
+          row.appendChild(el("span","sp",it.sport));
+          if (it.note) row.appendChild(el("span","nt",it.note));
+          body.appendChild(row);
+        });
+        box.appendChild(body);
+        $out.appendChild(box);
+      });
+    }
+
+    $cnt.textContent = shown + (shown === 1 ? " entry" : " entries") +
+      " · " + groups.length + (groups.length === 1 ? " venue" : " venues") +
+      (scenario === 2 && diffs ? " · " + diffs + " changed" : "");
+  }
+
+  function setScenario(n){
+    scenario = n;
+    $s1.setAttribute("aria-pressed", n === 1 ? "true" : "false");
+    $s2.setAttribute("aria-pressed", n === 2 ? "true" : "false");
+    fillVenues();
+    render();
+  }
+
+  $s1.addEventListener("click", function(){ setScenario(1); });
+  $s2.addEventListener("click", function(){ setScenario(2); });
+  $vsel.addEventListener("change", function(){ venueFilter = $vsel.value; render(); });
+  $q.addEventListener("input", function(){ query = $q.value.trim().toLowerCase(); render(); });
+
+  fillVenues();
+  render();
+})();
+</script>
+</body>
+</html>
