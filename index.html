@@ -21657,7 +21657,7 @@ var iv = setInterval(function(){
     var s=sec(); if(!s) return false;
     if(document.getElementById('naigTOverview')) return true;
     var picks=[];
-    ['taskSummaryStrip','taskDependencyMatrices','taskWorkloadStrip'].forEach(function(id){
+    ['taskSummaryStrip'].forEach(function(id){
       var e=document.getElementById(id); if(e && e.parentElement===s) picks.push(e); });
     [].slice.call(s.children).forEach(function(c){
       if(c.id || picks.indexOf(c)>-1) return;
