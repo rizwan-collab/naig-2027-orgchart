@@ -1,7 +1,7 @@
 // Cache version — BUMP THIS ON EVERY DEPLOY that changes cached assets.
 // The activate handler deletes every cache whose name !== CACHE_NAME, so
 // bumping the version is what forces stale entries out of existing installs.
-const CACHE_NAME = 'naig2027-v38';
+const CACHE_NAME = 'naig2027-v39';
 const APP_SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
@@ -49,6 +49,10 @@ self.addEventListener('fetch', (event) => {
 
   // Weekly briefs change every week and should always come directly from Pages.
   if (url.pathname.includes('/weekly-briefs/')) return;
+
+  // The Sports venue page is shared outside the hub and must never be served
+  // stale: bypass the cache entirely and always go to Pages.
+  if (url.pathname.endsWith('/venues.html')) return;
 
   if (isAppCode(event.request, url)) {
     event.respondWith(

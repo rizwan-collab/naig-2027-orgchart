@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NAIG 2027 — Venue Plan</title>
-<meta name="description" content="NAIG 2027 venue plan — which sport plays where.">
+<meta name="description" content="NAIG 2027 venue plan — sports, headcount and nearest urgent care by venue.">
 <style>
 :root{
   --bg:#f6f7f9; --card:#fff; --ink:#15212e; --muted:#64748b; --line:#e2e7ed;
@@ -27,50 +27,68 @@
 body{margin:0;background:var(--bg);color:var(--ink);
   font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   -webkit-font-smoothing:antialiased}
-.wrap{max-width:900px;margin:0 auto;padding:30px 16px 80px}
+.wrap{max-width:920px;margin:0 auto;padding:30px 16px 80px}
 
-header.top{margin-bottom:22px}
+header.top{margin-bottom:20px}
 h1{font-size:24px;margin:0 0 5px;letter-spacing:-.02em;font-weight:650}
 .sub{color:var(--muted);font-size:14px;margin:0 0 10px}
 .meta{color:var(--muted);font-size:12.5px}
 .meta span + span::before{content:"·";margin:0 7px;opacity:.6}
 
 .bar{background:var(--card);border:1px solid var(--line);border-radius:12px;
-  padding:14px 16px;margin:0 0 18px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+  padding:14px 16px;margin:0 0 16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;flex:0 0 auto}
-.seg button{background:transparent;border:0;color:var(--ink);font:600 13px/1 inherit;
-  padding:10px 16px;cursor:pointer}
+.seg button{background:transparent;border:0;color:var(--ink);font:600 13px/1 inherit;padding:10px 16px;cursor:pointer}
 .seg button + button{border-left:1px solid var(--line)}
 .seg button[aria-pressed="true"]{background:var(--sel);color:var(--selink)}
 .seg button:hover:not([aria-pressed="true"]){background:var(--soft)}
 select,input[type=search]{background:var(--bg);color:var(--ink);border:1px solid var(--line);
   border-radius:9px;padding:9px 12px;font:14px inherit;min-width:0}
-select{flex:0 1 230px}
-input[type=search]{flex:1 1 170px}
+select{flex:0 1 240px}
+input[type=search]{flex:1 1 160px}
 .cnt{color:var(--muted);font-size:12.5px;margin-left:auto;white-space:nowrap}
 
-h2{font-size:17px;margin:30px 0 8px;letter-spacing:-.01em;font-weight:650}
+h2{font-size:17px;margin:28px 0 8px;letter-spacing:-.01em;font-weight:650}
 .lead{color:var(--muted);font-size:13.5px;margin:0 0 12px}
 
 .note{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--warn);
-  border-radius:0 10px 10px 0;padding:13px 17px;margin:0 0 18px;font-size:13.5px;color:var(--ink)}
+  border-radius:0 10px 10px 0;padding:13px 17px;margin:0 0 16px;font-size:13.5px}
 .note b{color:var(--warn)}
 
-.vgroup{background:var(--card);border:1px solid var(--line);border-radius:12px;margin:0 0 10px;overflow:hidden}
-.vhead{padding:13px 17px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;
-  align-items:baseline;gap:9px}
-.vhead .nm{font-weight:650;font-size:15px}
-.vhead .lo{color:var(--muted);font-size:12.5px}
-.vhead .tag{margin-left:auto}
-.vbody{padding:4px 17px 13px}
-.srow{display:flex;flex-wrap:wrap;align-items:baseline;gap:9px;padding:8px 0;
+.v{background:var(--card);border:1px solid var(--line);border-radius:12px;margin:0 0 12px;overflow:hidden}
+.vh{padding:14px 18px 12px;border-bottom:1px solid var(--line)}
+.vh .r1{display:flex;flex-wrap:wrap;align-items:baseline;gap:9px}
+.vh .nm{font-weight:650;font-size:16px}
+.vh .tag{margin-left:auto}
+.vh .ad{color:var(--muted);font-size:13px;margin-top:3px}
+.vh .ad a{color:var(--accent);text-decoration:none}
+.vh .ad a:hover{text-decoration:underline}
+.vh .pk{font-weight:650;color:var(--ink)}
+
+.vstat{display:flex;flex-wrap:wrap;gap:18px;padding:11px 18px;background:var(--soft);
   border-bottom:1px solid var(--line)}
-.srow:last-child{border-bottom:0}
-.srow .sp{font-weight:600;font-size:14px;min-width:150px}
+.vstat div{min-width:0}
+.vstat .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
+.vstat .val{font-size:19px;font-weight:650;font-variant-numeric:tabular-nums;line-height:1.25}
+.vstat .val small{font-size:12px;font-weight:500;color:var(--muted)}
+
+.sec{padding:11px 18px}
+.sec + .sec{border-top:1px solid var(--line)}
+.sec h4{margin:0 0 7px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--muted);font-weight:700}
+.srow{display:flex;flex-wrap:wrap;align-items:baseline;gap:9px;padding:5px 0}
+.srow + .srow{border-top:1px dashed var(--line)}
+.srow .sp{font-weight:600;font-size:14px;min-width:140px}
+.srow .num{color:var(--muted);font-size:12.5px;font-variant-numeric:tabular-nums}
 .srow .nt{color:var(--muted);font-size:12.5px}
-.srow.diff{position:relative}
 .srow.diff .sp::after{content:"changed";font-size:10px;font-weight:700;letter-spacing:.04em;
-  text-transform:uppercase;color:var(--warn);margin-left:8px;vertical-align:middle}
+  text-transform:uppercase;color:var(--warn);margin-left:8px}
+
+.uc{padding:5px 0;font-size:13.5px}
+.uc + .uc{border-top:1px dashed var(--line)}
+.uc .n{font-weight:600}
+.uc .d{color:var(--muted);font-size:12.5px}
+.uc .er{color:var(--bad);font-weight:700;font-size:10.5px;letter-spacing:.04em;margin-left:6px}
 
 .tag{display:inline-block;font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px;
   border:1px solid var(--line);background:var(--soft);color:var(--muted);white-space:nowrap}
@@ -80,7 +98,6 @@ h2{font-size:17px;margin:30px 0 8px;letter-spacing:-.01em;font-weight:650}
 
 .empty{background:var(--card);border:1px solid var(--line);border-radius:12px;
   padding:30px 16px;text-align:center;color:var(--muted);font-size:14px}
-
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:0 0 12px}
 .card h3{margin:0 0 8px;font-size:15px;font-weight:650}
 ul{margin:6px 0 0;padding-left:19px}
@@ -89,14 +106,13 @@ table{width:100%;border-collapse:collapse;font-size:14px}
 th,td{text-align:left;padding:9px 10px 9px 0;border-bottom:1px solid var(--line)}
 th{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:650}
 tbody tr:last-child td{border-bottom:0}
-
-footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px}
-@media (max-width:620px){
+footer{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px}
+@media (max-width:640px){
   .cnt{margin-left:0;flex-basis:100%}
   select,input[type=search]{flex-basis:100%}
-  .seg{width:100%}
-  .seg button{flex:1}
+  .seg{width:100%} .seg button{flex:1}
   .srow .sp{min-width:0;flex-basis:100%}
+  .vstat{gap:14px}
   table,thead,tbody,th,td,tr{display:block}
   thead{display:none}
   tbody tr{border-bottom:1px solid var(--line);padding:8px 0}
@@ -110,9 +126,9 @@ footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:v
 
 <header class="top">
   <h1>NAIG 2027 — Venue Plan</h1>
-  <p class="sub">Which sport plays where.</p>
+  <p class="sub">Sports, headcount and nearest urgent care, by venue.</p>
   <div class="meta">
-    <span>Updated 13 October 2026</span><span>Games: Thu 25 – Sun 28 March 2027</span><span>Logistics</span>
+    <span>Updated 14 October 2026</span><span>Games: Thu 25 – Sun 28 March 2027</span><span>Logistics</span>
   </div>
 </header>
 
@@ -128,6 +144,15 @@ footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:v
 
 <div id="note"></div>
 <div id="out"></div>
+
+<h2>How the counts are built</h2>
+<div class="note">
+  <b>These are registrations, not unique people.</b> Each figure is the number of competition slots at that venue,
+  taken from the scope model: 14 regions × the per-region allocation for each sport, plus published team rosters.
+  Across all venues that totals <strong>4,064 registrations</strong>. Allowing for the 20% multi-sport overlap, the
+  Games are planned around <strong>3,251 unique athletes</strong>. Venue figures do not include coaches, officials,
+  volunteers or spectators.
+</div>
 
 <h2>The two scenarios</h2>
 <p class="lead">They differ in one place only. Everything else is identical.</p>
@@ -177,7 +202,8 @@ footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:v
 
 <footer>
   Prepared by Logistics from the NAIG 2027 Logistics Hub. Statuses reflect what is contracted or committed as of
-  13 October 2026; items marked TBD have no venue identified yet. Questions to Rizwan Ali.
+  14 October 2026; items marked TBD have no venue identified. Urgent care listings are for planning reference only —
+  confirm hours before the Games. Questions to Rizwan Ali.
 </footer>
 
 </div>
@@ -186,149 +212,224 @@ footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:v
 (function(){
   "use strict";
 
+  /* Venue master. counts are registrations per sport, from the scope model:
+     individual sports = per-region allocation x 14 regions; team sports = teams x roster. */
+  var VENUES = {
+    "StarCenter Farmers Branch": {
+      addr:"2400 Pike St, Farmers Branch, TX 75234", st:"ok", stt:"Confirmed",
+      uc:[
+        {n:"Little Spurs Pediatric Urgent Care", d:"12895 Josey Ln #114, Farmers Branch · (972) 212-6668 · Sat–Sun 9am–5pm"},
+        {n:"Z-2-H Family Med & Urgent Care", d:"9 Medical Pkwy Ste 102, Farmers Branch · (469) 283-0076 · weekdays only, closed Sat–Sun"},
+        {n:"UrgentCare2go (mobile)", d:"9 Medical Pkwy #102, Dallas · (817) 508-8169 · open 24 hours"}
+      ]},
+    "StarCenter Northlake": {
+      addr:"13850 Chadwick Pkwy, Northlake, TX 76262", st:"ok", stt:"Confirmed",
+      uc:[
+        {n:"Doctors Urgent Care of Northlake", d:"1234 FM 407 Ste 200, Northlake · (940) 222-5215 · Sat–Sun 10am–5pm"},
+        {n:"CareNow Urgent Care — Roanoke", d:"1530 N US Hwy 377, Roanoke · (682) 549-9920 · Sat 8am–8pm, Sun 8am–5pm"}
+      ]},
+    "Pickler Universe": {
+      addr:"2800 N Interstate 35E, Carrollton, TX 75007", st:"wk", stt:"Reserved",
+      uc:[
+        {n:"CareNow Urgent Care — Carrollton", d:"1017 W Hebron Pkwy, Carrollton · (972) 939-9495 · Sat 8am–8pm, Sun 8am–5pm"},
+        {n:"Baylor Scott & White Urgent Care+", d:"1213 E Trinity Mills Rd Ste 100, Carrollton · (972) 431-0820 · Sat–Sun 8am–4pm"}
+      ]},
+    "Courts of McKinney": {
+      addr:"3253 Alma Rd, McKinney, TX — ZIP unconfirmed (contract 75009, signature 75070)", st:"wk", stt:"Contract review",
+      poc:"Dawn, Impact Activities · our channel is Kiran Surani",
+      uc:[
+        {n:"CareNow Urgent Care — Stonebridge Ranch", d:"6200 Eldorado Pkwy, McKinney · (469) 617-4130 · Sat 8am–8pm, Sun 8am–5pm"},
+        {n:"Priority Emergency Room McKinney", d:"5000 Eldorado Pkwy, McKinney · (469) 634-4995 · open 24 hours", er:true}
+      ]},
+    "Railroad Park": {
+      addr:"1301 Bennett Ln, Lewisville, TX 75057", st:"ok", stt:"Grounds locked",
+      poc:"Erika Tang, City of Lewisville · Ramiro Espinosa, Athletics Supervisor (pricing)",
+      uc:[
+        {n:"Baylor Scott & White Urgent Care+ Lewisville", d:"540 Surf St, Lewisville · (972) 420-9900 · Sat–Sun 8am–5pm"},
+        {n:"Medical City ER Cross Timbers", d:"1596 W Main St, Lewisville · (972) 829-4862 · open 24 hours", er:true},
+        {n:"CareNow Urgent Care — Lewisville", d:"1559 W Main St, Lewisville · (972) 436-0333 · Sat 8am–8pm, Sun 8am–5pm"}
+      ]},
+    "Lake Park": {
+      addr:"600 Sandy Beach Rd, Lewisville, TX 75057", st:"wk", stt:"Unlit — daytime only",
+      poc:"Erika Tang, City of Lewisville · Ramiro Espinosa, Athletics Supervisor (pricing)",
+      uc:[
+        {n:"Baylor Scott & White Urgent Care+ Lewisville", d:"540 Surf St, Lewisville · (972) 420-9900 · Sat–Sun 8am–5pm"},
+        {n:"Medical City ER Cross Timbers", d:"1596 W Main St, Lewisville · (972) 829-4862 · open 24 hours", er:true}
+      ]},
+    "Texomo Ground": {
+      addr:"11 Platter Cutoff Rd, Calera, OK 74730", st:"wk", stt:"Quoted — contract pending",
+      poc:"Abid (Sports team) · our channel is Kiran Surani",
+      uc:[{n:"Not yet researched", d:"Calera is in Bryan County, Oklahoma — nearest urgent care and ER still to be confirmed."}]},
+    "Frisco ISD Athletic Complex": {
+      addr:"7210 Stadium Lane, Frisco, TX 75033", st:"wk", stt:"In conversation",
+      poc:"Nicholas R. Sharp, Assistant Director of Athletics, Frisco ISD · sharpn@friscoisd.org · (469) 633-6170 x36124",
+      uc:[
+        {n:"Frisco Quick Care", d:"8845 Gary Burns Dr Ste 180, Frisco · (469) 382-9970 · Sat–Sun 9am–5pm · approx. 2 miles"},
+        {n:"Legacy ER & Urgent Care — Frisco West", d:"9205 Legacy Dr, Frisco · (972) 668-6020 · open 24 hours · approx. 3 miles", er:true},
+        {n:"iCare ER & Urgent Care — Frisco", d:"2955 Eldorado Pkwy Ste 100, Frisco · (214) 407-8668 · open 24 hours", er:true}
+      ]},
+    "Grand Prairie Cricket Stadium": {
+      addr:"1600 Lone Star Pkwy, Grand Prairie, TX 75050", st:"wk", stt:"In conversation",
+      uc:[
+        {n:"CareNow Urgent Care — Grand Prairie", d:"2520 I-20, Grand Prairie · (972) 264-5858 · Sat 8am–8pm, Sun 8am–5pm · approx. 7 miles south"},
+        {n:"Integra Urgent Care — Grand Prairie", d:"3950 S Carrier Pkwy #110, Grand Prairie · (469) 340-1710 · Sat–Sun 9am–5pm · approx. 7 miles south"},
+        {n:"Alpha Express Urgent Care", d:"2626 S Carrier Pkwy Ste 100, Grand Prairie · (469) 251-8991 · opens 12pm, CLOSED SUNDAY — not usable for a Sunday ceremony"}
+      ]}
+  };
+
   var DATA = [
-    {sport:"Badminton",         v1:"StarCenter Farmers Branch", l1:"Farmers Branch", s1:"ok", t1:"Confirmed"},
-    {sport:"Table Tennis",      v1:"StarCenter Farmers Branch", l1:"Farmers Branch", s1:"ok", t1:"Confirmed"},
-    {sport:"Basketball",        v1:"StarCenter Northlake",      l1:"Northlake",      s1:"ok", t1:"Confirmed"},
-    {sport:"Volleyball",        v1:"StarCenter Northlake",      l1:"Northlake",      s1:"ok", t1:"Confirmed"},
-    {sport:"Throwball",         v1:"StarCenter Northlake",      l1:"Northlake",      s1:"ok", t1:"Confirmed"},
-    {sport:"Pickleball",        v1:"Pickler Universe",          l1:"Carrollton",     s1:"wk", t1:"Reserved"},
-    {sport:"Dance",             v1:"Pickler Universe",          l1:"Carrollton",     s1:"wk", t1:"Reserved"},
-    {sport:"Tennis",            v1:"Courts of McKinney",        l1:"McKinney",       s1:"wk", t1:"Contract review",
-      n1:"16 outdoor courts", n2:"16 outdoor courts"},
-    {sport:"Chess",             v1:"Courts of McKinney",        l1:"McKinney",       s1:"wk", t1:"Contract review",
-      n1:"Upstairs room", n2:"Upstairs room"},
-    {sport:"Soccer",            v1:"Railroad Park",             l1:"Lewisville",     s1:"wk", t1:"In works",
-      n1:"Lake Park holds 7v7 as backup", n2:"Lake Park holds 7v7 as backup"},
-    {sport:"Flag Football",     v1:"Railroad Park",             l1:"Lewisville",     s1:"wk", t1:"In works"},
-    {sport:"Men's matches",     v1:"Railroad Park",             l1:"Lewisville",     s1:"ok", t1:"Grounds locked",
-      v2:"Texomo Ground",         l2:"Calera, OK",  s2:"no", t2:"Contract not received",
-      n1:"Two lit grounds · Lake Park pitch for daytime play", n2:"Five grounds on one site"},
-    {sport:"Women's matches",   v1:"Railroad Park",             l1:"Lewisville",     s1:"ok", t1:"Ground locked",
-      n1:"Lit ground", n2:"Stays in Lewisville"},
-    {sport:"Track and Field",   v1:"To be decided",             l1:"TBD",            s1:"no", t1:"No venue yet"},
-    {sport:"Opening Ceremony",  v1:"Stadium — to be decided",   l1:"TBD",            s1:"no", t1:"No venue yet"}
+    {sport:"Badminton",        n:336, v1:"StarCenter Farmers Branch", note:"24 per region × 14 regions"},
+    {sport:"Table Tennis",     n:336, v1:"StarCenter Farmers Branch", note:"24 per region × 14 regions"},
+    {sport:"Basketball",       n:440, v1:"StarCenter Northlake",      note:"44 teams × 10 roster"},
+    {sport:"Volleyball",       n:440, v1:"StarCenter Northlake",      note:"44 teams × 10 roster"},
+    {sport:"Throwball",        n:168, v1:"StarCenter Northlake",      note:"14 teams × 12 roster"},
+    {sport:"Pickleball",       n:336, v1:"Pickler Universe",          note:"24 per region × 14 regions"},
+    {sport:"Dance",            n:280, v1:"Pickler Universe",          note:"28 groups × 10"},
+    {sport:"Tennis",           n:224, v1:"Courts of McKinney",        note:"16 per region × 14 · 16 outdoor courts"},
+    {sport:"Chess",            n:56,  v1:"Courts of McKinney",        note:"4 per region × 14 · upstairs room"},
+    {sport:"Soccer",           n:660, v1:"Railroad Park",             note:"44 teams × 15 · Lake Park holds 7v7 backup"},
+    {sport:"Flag Football",    n:264, v1:"Railroad Park",             note:"22 teams × 12"},
+    {sport:"Men's matches",    n:210, v1:"Railroad Park",             v2:"Texomo Ground",
+      note:"Two lit grounds · Lake Park pitch for daytime play", note2:"Five grounds on one site"},
+    {sport:"Women's matches",  n:90,  v1:"Railroad Park",             note:"Lit ground", note2:"Stays in Lewisville"},
+    {sport:"Track and Field",  n:224, v1:"Frisco ISD Athletic Complex", note:"16 per region × 14 · max 3 of 6 events"},
+    {sport:"Opening Ceremony", n:0,   v1:"Grand Prairie Cricket Stadium", note:"Whole-Games attendance — not counted as competition registrations"},
+    {sport:"Cricket (stadium use)", n:0, v1:"Grand Prairie Cricket Stadium", note:"Earmarked for stadium cricket — which matches, and whether any move off Railroad, still to be confirmed"}
   ];
 
   var NOTES = {
     1:'<div class="note"><b>Lake Park is daylight only.</b> It has one pitch already, but the pitch is not lit, and the City of Lewisville has said tree coverage and light pole placement make adding further pitches difficult. Railroad Park is lit, so anything that may run into the evening has to be scheduled there.</div>',
-    2:'<div class="note"><b>Scenario 2 is not selectable yet.</b> The Texomo contract has not been received. Until it arrives, Scenario 1 is the plan we are building against.</div>'
+    2:'<div class="note"><b>Scenario 2 is not committed.</b> Texomo has quoted for Thursday to Sunday, five grounds per day, and the quote came in on 14 October \u2014 but the contract itself has still not been received. Railroad Park still hosts the women\'s matches in this scenario, so cricket would run at two sites. Calera is in Oklahoma, so travel, volunteer cover and urgent care all need working through before this can be chosen.</div>'
   };
 
-  var scenario = 1, venueFilter = "", query = "";
-  var $out = document.getElementById("out");
-  var $note = document.getElementById("note");
-  var $cnt = document.getElementById("cnt");
-  var $vsel = document.getElementById("vsel");
-  var $q = document.getElementById("q");
-  var $s1 = document.getElementById("s1"), $s2 = document.getElementById("s2");
+  var scenario=1, venueFilter="", query="";
+  var $out=document.getElementById("out"), $note=document.getElementById("note"),
+      $cnt=document.getElementById("cnt"), $vsel=document.getElementById("vsel"),
+      $q=document.getElementById("q"), $s1=document.getElementById("s1"), $s2=document.getElementById("s2");
 
   function view(r){
-    return {
-      sport: r.sport,
-      venue: (scenario === 2 && r.v2) ? r.v2 : r.v1,
-      loc:   (scenario === 2 && r.l2) ? r.l2 : r.l1,
-      st:    (scenario === 2 && r.s2) ? r.s2 : r.s1,
-      stt:   (scenario === 2 && r.t2) ? r.t2 : r.t1,
-      note:  (scenario === 2 ? r.n2 : r.n1) || "",
-      diff:  scenario === 2 && !!r.v2
-    };
+    var venue=(scenario===2&&r.v2)?r.v2:r.v1;
+    return {sport:r.sport,n:r.n,venue:venue,
+      note:(scenario===2&&r.note2)?r.note2:r.note,
+      diff:scenario===2&&!!r.v2};
   }
+
+  function fmt(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,","); }
 
   function fillVenues(){
-    var prev = venueFilter, seen = [];
-    DATA.forEach(function(r){
-      var v = view(r).venue;
-      if (seen.indexOf(v) === -1) seen.push(v);
-    });
+    var prev=venueFilter, seen=[];
+    DATA.forEach(function(r){ var v=view(r).venue; if(seen.indexOf(v)===-1) seen.push(v); });
     seen.sort();
-    $vsel.textContent = "";
-    var all = document.createElement("option");
-    all.value = ""; all.textContent = "All venues";
+    $vsel.textContent="";
+    var all=document.createElement("option"); all.value=""; all.textContent="All venues";
     $vsel.appendChild(all);
-    seen.forEach(function(v){
-      var o = document.createElement("option");
-      o.value = v; o.textContent = v;
-      $vsel.appendChild(o);
-    });
-    venueFilter = seen.indexOf(prev) > -1 ? prev : "";
-    $vsel.value = venueFilter;
+    seen.forEach(function(v){ var o=document.createElement("option"); o.value=v; o.textContent=v; $vsel.appendChild(o); });
+    venueFilter = seen.indexOf(prev)>-1 ? prev : "";
+    $vsel.value=venueFilter;
   }
 
-  function el(tag, cls, txt){
-    var e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (txt != null) e.textContent = txt;
-    return e;
-  }
+  function el(tag,cls,txt){ var e=document.createElement(tag); if(cls)e.className=cls; if(txt!=null)e.textContent=txt; return e; }
 
   function render(){
-    $note.innerHTML = NOTES[scenario];
-
-    var groups = [], index = {};
-    var shown = 0, diffs = 0;
+    $note.innerHTML=NOTES[scenario];
+    var groups=[], ix={}, shown=0, diffs=0, people=0;
 
     DATA.forEach(function(r){
-      var v = view(r);
-      if (venueFilter && v.venue !== venueFilter) return;
-      if (query){
-        var hay = (v.sport + " " + v.venue + " " + v.loc + " " + v.stt + " " + v.note).toLowerCase();
-        if (hay.indexOf(query) === -1) return;
+      var v=view(r);
+      if(venueFilter && v.venue!==venueFilter) return;
+      if(query){
+        var hay=(v.sport+" "+v.venue+" "+(VENUES[v.venue]||{}).addr+" "+v.note).toLowerCase();
+        if(hay.indexOf(query)===-1) return;
       }
-      if (!index[v.venue]){
-        index[v.venue] = {venue:v.venue, loc:v.loc, st:v.st, stt:v.stt, items:[]};
-        groups.push(index[v.venue]);
-      }
-      index[v.venue].items.push(v);
-      shown++;
-      if (v.diff) diffs++;
+      if(!ix[v.venue]){ ix[v.venue]={venue:v.venue,items:[],total:0}; groups.push(ix[v.venue]); }
+      ix[v.venue].items.push(v);
+      ix[v.venue].total+=v.n;
+      shown++; people+=v.n; if(v.diff) diffs++;
     });
 
-    $out.textContent = "";
-    if (!groups.length){
-      $out.appendChild(el("div","empty","Nothing matches that filter."));
-    } else {
-      groups.forEach(function(g){
-        var box = el("div","vgroup");
-        var head = el("div","vhead");
-        head.appendChild(el("span","nm",g.venue));
-        head.appendChild(el("span","lo",g.loc));
-        var tag = el("span","tag t-" + g.st, g.stt);
-        head.appendChild(tag);
-        box.appendChild(head);
+    $out.textContent="";
+    if(!groups.length){ $out.appendChild(el("div","empty","Nothing matches that filter.")); }
+    else groups.forEach(function(g){
+      var meta=VENUES[g.venue]||{addr:"Address not on record",st:"no",stt:"Unknown",uc:[]};
+      var box=el("div","v");
 
-        var body = el("div","vbody");
-        g.items.forEach(function(it){
-          var row = el("div","srow" + (it.diff ? " diff" : ""));
-          row.appendChild(el("span","sp",it.sport));
-          if (it.note) row.appendChild(el("span","nt",it.note));
-          body.appendChild(row);
-        });
-        box.appendChild(body);
-        $out.appendChild(box);
+      var h=el("div","vh");
+      var r1=el("div","r1");
+      r1.appendChild(el("span","nm",g.venue));
+      r1.appendChild(el("span","tag t-"+meta.st, meta.stt));
+      h.appendChild(r1);
+      var ad=el("div","ad");
+      if(/^No venue|Address not/.test(meta.addr)) ad.appendChild(document.createTextNode(meta.addr));
+      else {
+        var a=document.createElement("a");
+        a.href="https://maps.google.com/?q="+encodeURIComponent(meta.addr.split(" — ")[0]);
+        a.target="_blank"; a.rel="noopener"; a.textContent=meta.addr;
+        ad.appendChild(a);
+      }
+      h.appendChild(ad);
+      if(meta.poc){
+        var pc=el("div","ad");
+        pc.appendChild(el("span","pk","Contact: "));
+        pc.appendChild(document.createTextNode(meta.poc));
+        h.appendChild(pc);
+      }
+      box.appendChild(h);
+
+      var st=el("div","vstat");
+      var d1=el("div");
+      d1.appendChild(el("div","k","Approx. registrations"));
+      var v1=el("div","val", g.total ? fmt(g.total) : "—");
+      d1.appendChild(v1);
+      st.appendChild(d1);
+      var d2=el("div");
+      d2.appendChild(el("div","k","Sports here"));
+      d2.appendChild(el("div","val",String(g.items.length)));
+      st.appendChild(d2);
+      box.appendChild(st);
+
+      var s1=el("div","sec");
+      s1.appendChild(el("h4","","Sports allocated"));
+      g.items.forEach(function(it){
+        var row=el("div","srow"+(it.diff?" diff":""));
+        row.appendChild(el("span","sp",it.sport));
+        row.appendChild(el("span","num", it.n ? fmt(it.n)+" registrations" : "—"));
+        if(it.note) row.appendChild(el("span","nt",it.note));
+        s1.appendChild(row);
       });
-    }
+      box.appendChild(s1);
 
-    $cnt.textContent = shown + (shown === 1 ? " entry" : " entries") +
-      " · " + groups.length + (groups.length === 1 ? " venue" : " venues") +
-      (scenario === 2 && diffs ? " · " + diffs + " changed" : "");
+      var s2=el("div","sec");
+      s2.appendChild(el("h4","","Nearest urgent care"));
+      (meta.uc||[]).forEach(function(u){
+        var d=el("div","uc");
+        var nm=el("div","n",u.n);
+        if(u.er){ var b=el("span","er","24H ER"); nm.appendChild(b); }
+        d.appendChild(nm);
+        d.appendChild(el("div","d",u.d));
+        s2.appendChild(d);
+      });
+      box.appendChild(s2);
+
+      $out.appendChild(box);
+    });
+
+    $cnt.textContent = groups.length + (groups.length===1?" venue":" venues") +
+      " · " + fmt(people) + " registrations" +
+      (scenario===2&&diffs ? " · "+diffs+" changed" : "");
   }
 
   function setScenario(n){
-    scenario = n;
-    $s1.setAttribute("aria-pressed", n === 1 ? "true" : "false");
-    $s2.setAttribute("aria-pressed", n === 2 ? "true" : "false");
-    fillVenues();
-    render();
+    scenario=n;
+    $s1.setAttribute("aria-pressed", n===1?"true":"false");
+    $s2.setAttribute("aria-pressed", n===2?"true":"false");
+    fillVenues(); render();
   }
+  $s1.addEventListener("click",function(){setScenario(1);});
+  $s2.addEventListener("click",function(){setScenario(2);});
+  $vsel.addEventListener("change",function(){venueFilter=$vsel.value;render();});
+  $q.addEventListener("input",function(){query=$q.value.trim().toLowerCase();render();});
 
-  $s1.addEventListener("click", function(){ setScenario(1); });
-  $s2.addEventListener("click", function(){ setScenario(2); });
-  $vsel.addEventListener("change", function(){ venueFilter = $vsel.value; render(); });
-  $q.addEventListener("input", function(){ query = $q.value.trim().toLowerCase(); render(); });
-
-  fillVenues();
-  render();
+  fillVenues(); render();
 })();
 </script>
 </body>
