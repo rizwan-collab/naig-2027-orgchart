@@ -46,6 +46,26 @@ select,input[type=search]{background:var(--bg);color:var(--ink);border:1px solid
   border-radius:9px;padding:9px 12px;font:14px inherit;min-width:0}
 select{flex:0 1 240px}
 input[type=search]{flex:1 1 160px}
+.finbtn{background:var(--card);color:var(--muted);border:1px solid var(--line);border-radius:9px;
+  padding:9px 14px;font:600 13px inherit;cursor:pointer;flex:0 0 auto}
+.finbtn:hover{background:var(--soft);color:var(--ink)}
+.finbtn[aria-pressed="true"]{background:var(--sel);color:var(--selink);border-color:var(--sel)}
+.pinbox{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;
+  margin:0 0 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.pinbox label{font-size:13.5px;font-weight:600;flex:0 0 auto}
+.pinbox input{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:9px;
+  padding:9px 12px;font:14px inherit;width:130px;letter-spacing:.18em}
+.pinbox button{background:var(--sel);color:var(--selink);border:0;border-radius:9px;
+  padding:9px 16px;font:600 13px inherit;cursor:pointer}
+.pinbox button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
+.pinerr{color:var(--bad);font-size:13px;font-weight:600}
+.fintotal{background:var(--card);border:1px solid var(--sel);border-left:3px solid var(--sel);
+  border-radius:0 12px 12px 0;padding:14px 18px;margin:0 0 16px;font-size:13.5px}
+.fintotal .big{font-size:22px;font-weight:650;font-variant-numeric:tabular-nums;display:block;margin:2px 0 4px}
+.fintotal .lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
+.vh .cst{margin-top:5px;font-size:13px;color:var(--ink)}
+.vh .cst b{font-variant-numeric:tabular-nums}
+.vh .cst .cn{color:var(--muted);font-size:12.5px;display:block;margin-top:2px}
 .cnt{color:var(--muted);font-size:12.5px;margin-left:auto;white-space:nowrap}
 
 h2{font-size:17px;margin:28px 0 8px;letter-spacing:-.01em;font-weight:650}
@@ -139,8 +159,19 @@ footer{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);color:v
   </div>
   <select id="vsel" aria-label="Filter by venue"></select>
   <input type="search" id="q" placeholder="Search sport or venue…" autocomplete="off">
+  <button type="button" id="finbtn" class="finbtn">Finance</button>
   <span class="cnt" id="cnt"></span>
 </div>
+
+<div id="pinbox" class="pinbox" hidden>
+  <label for="pin">Enter PIN to show venue costs</label>
+  <input type="password" id="pin" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="PIN">
+  <button type="button" id="pinok">Unlock</button>
+  <button type="button" id="pincancel" class="ghost">Cancel</button>
+  <span id="pinerr" class="pinerr"></span>
+</div>
+
+<div id="fintotal" class="fintotal" hidden></div>
 
 <div id="note"></div>
 <div id="out"></div>
@@ -280,6 +311,26 @@ footer{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);color:v
     2:'<div class="note"><b>Scenario 2 is not committed.</b> Texomo has quoted for Thursday to Sunday, five grounds per day, and the quote came in on 14 October \u2014 but the contract itself has still not been received. Railroad Park still hosts the women\'s matches in this scenario, so cricket would run at two sites. Calera is in Oklahoma, so travel, volunteer cover and urgent care all need working through before this can be chosen.</div>'
   };
 
+
+  /* Finance. Gated by PIN in the UI. Figures as of 14 Oct 2026. */
+  var COSTS = {
+    "StarCenter Farmers Branch": {amt:88929, note:"Share of the $227,615 + tax combined StarCenter package. Signed by both parties. Allocated by registration share."},
+    "StarCenter Northlake":      {amt:138686, note:"Share of the $227,615 + tax combined StarCenter package. Signed by both parties. Only the $11,500 combined deposit is paid."},
+    "Pickler Universe":          {amt:52000, approx:true, note:"$15,000/day \u00d7 3 days + $7,000 Thursday setup. Proposal only; pricing and documentation reconfirmation pending."},
+    "Courts of McKinney":        {amt:31800, note:"16 outdoor tennis courts $28,800 + upstairs room $3,000. Deposit $15,900 paid. Contract unsigned."},
+    "Railroad Park":             {amt:12000, note:"12 fields (10 soccer, 2 football) \u00d7 5 days Wed\u2013Sun \u00d7 $200/field/day. Maintenance crew charges not included."},
+    "Lake Park":                 {amt:1000,  note:"1 cricket pitch \u00d7 5 days \u00d7 $200/field/day. Scenario 1 only."},
+    "Texomo Ground":             {amt:38500, note:"Thursday to Sunday, 5 fields per day \u2014 20 field-days at $1,925 each. Quote received 14 Oct; contract not in hand."},
+    "Frisco ISD Athletic Complex":{amt:null, note:"No quote requested yet."},
+    "Grand Prairie Cricket Stadium":{amt:16000, note:"$4,000/day \u00d7 4 days, Thursday to Sunday. Tentative."}
+  };
+  var SCENARIO_TOTAL = {1:340415, 2:377915};
+
+  /* PIN gate. This is a convenience screen, not security \u2014 the page is public. */
+  var PIN_H = 712760;
+  var fin = false;
+  function money(n){ return "$" + n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+
   var scenario=1, venueFilter="", query="";
   var $out=document.getElementById("out"), $note=document.getElementById("note"),
       $cnt=document.getElementById("cnt"), $vsel=document.getElementById("vsel"),
@@ -351,6 +402,15 @@ footer{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);color:v
         pc.appendChild(document.createTextNode(meta.poc));
         h.appendChild(pc);
       }
+      if(fin && COSTS[g.venue]){
+        var c=COSTS[g.venue], cs=el("div","cst");
+        cs.appendChild(el("span","pk","Venue cost: "));
+        var b=document.createElement("b");
+        b.textContent = c.amt===null ? "Not quoted" : (c.approx?"~":"")+money(c.amt);
+        cs.appendChild(b);
+        cs.appendChild(el("span","cn",c.note));
+        h.appendChild(cs);
+      }
       box.appendChild(h);
 
       var st=el("div","vstat");
@@ -391,6 +451,17 @@ footer{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);color:v
       $out.appendChild(box);
     });
 
+    var ft=document.getElementById("fintotal");
+    if(fin){
+      ft.hidden=false; ft.textContent="";
+      ft.appendChild(el("span","lbl","Scenario "+scenario+" \u2014 total venue cost"));
+      ft.appendChild(el("span","big",money(SCENARIO_TOTAL[scenario])));
+      var sub = scenario===1
+        ? "Cricket stays in Lewisville. Frisco track is not quoted, so it is not in this total."
+        : "Men's cricket at Texomo adds $37,500 over Scenario 1. Frisco track is not quoted, so it is not in this total.";
+      ft.appendChild(document.createTextNode(sub));
+    } else { ft.hidden=true; }
+
     $cnt.textContent = groups.length + (groups.length===1?" venue":" venues") +
       " · " + fmt(people) + " registrations" +
       (scenario===2&&diffs ? " · "+diffs+" changed" : "");
@@ -406,6 +477,33 @@ footer{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);color:v
   $s2.addEventListener("click",function(){setScenario(2);});
   $vsel.addEventListener("change",function(){venueFilter=$vsel.value;render();});
   $q.addEventListener("input",function(){query=$q.value.trim().toLowerCase();render();});
+
+  /* ---- Finance PIN gate ---- */
+  var $fb=document.getElementById("finbtn"), $pb=document.getElementById("pinbox"),
+      $pin=document.getElementById("pin"), $pe=document.getElementById("pinerr");
+  function setFin(on){
+    fin=on; $fb.setAttribute("aria-pressed",on?"true":"false");
+    $fb.textContent = on ? "Finance on" : "Finance";
+    $pb.hidden=true; $pe.textContent=""; $pin.value="";
+    try{ on ? sessionStorage.setItem("naigFin","1") : sessionStorage.removeItem("naigFin"); }catch(e){}
+    render();
+  }
+  function tryPin(){
+    var v=parseInt($pin.value,10);
+    if(!isNaN(v) && v*7+13===PIN_H){ setFin(true); }
+    else { $pe.textContent="Wrong PIN"; $pin.select(); }
+  }
+  $fb.addEventListener("click",function(){
+    if(fin){ setFin(false); return; }
+    $pb.hidden=!$pb.hidden; $pe.textContent="";
+    if(!$pb.hidden) $pin.focus();
+  });
+  document.getElementById("pinok").addEventListener("click",tryPin);
+  document.getElementById("pincancel").addEventListener("click",function(){ $pb.hidden=true; $pe.textContent=""; $pin.value=""; });
+  $pin.addEventListener("keydown",function(e){ if(e.key==="Enter") tryPin(); });
+  try{ if(sessionStorage.getItem("naigFin")==="1") fin=true; }catch(e){}
+  $fb.setAttribute("aria-pressed",fin?"true":"false");
+  $fb.textContent = fin ? "Finance on" : "Finance";
 
   fillVenues(); render();
 })();
