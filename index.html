@@ -21556,6 +21556,11 @@ var iv = setInterval(function(){
     if (!em) return false;
     var p = window._axPerms;
     if (!p) return false;
+    /* The bar used to be shown once and never re-checked, so a slow perms
+       resolve left a view-only warning on screen for someone who is in fact
+       an admin. Clear it the moment the real permissions land. */
+    var _bar = document.getElementById('naigAccBar');
+    if (p.edit !== false && _bar && _bar.parentElement) { _bar.parentElement.removeChild(_bar); }
     var u = window._axUser;
     var esc = window.esc || function (x) { return String(x); };
     if (!u) {
@@ -21563,7 +21568,7 @@ var iv = setInterval(function(){
         'You are signed in as <b>' + esc(em) + '</b>. That address is not on the Logistics directory, ' +
         'so the hub is showing you a limited, view-only version. ' +
         'Sign in with your NAIG address, or ask Rizwan to add this one.');
-      return true;
+      return false;
     }
     var tabs = (p.tabs || []).length;
     if (p.edit === false) {
@@ -21572,7 +21577,7 @@ var iv = setInterval(function(){
         'You are signed in as <b>' + esc(em) + '</b> (' + esc(p.tier || 'member') + '). ' +
         'This account is <b>view-only</b>' + (miss > 0 ? ', and ' + miss + ' tab' + (miss === 1 ? ' is' : 's are') + ' hidden' : '') +
         '. Nothing you change here will save. Ask Rizwan if you need edit access.');
-      return true;
+      return false;
     }
     return true;
   }
