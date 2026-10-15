@@ -1961,6 +1961,7 @@ html.onboard-mode #onboardScreen { display: flex !important; }
     </div>
     <div><a class="btn" href="sportsplan.html" target="_blank" rel="noopener">Open the form</a></div>
   </div>
+  <div id="sportsDrift"></div>
   <div class="summary-strip" id="sportsSummary"></div>
   <div id="sportsByVenue"></div>
   <div id="sportsQuestions"></div>
@@ -10587,6 +10588,11 @@ function saveVenue() {
   const key = document.getElementById('venueKey').value || hubKey();
   const _isNewVenue = !document.getElementById('venueKey').value;
   const _oldVenue = window._venuesData ? window._venuesData[key] : null;
+  /* A venue rename breaks the Sports form, which carries its own venue list.
+     Warn at the moment of the change rather than letting the link go quiet. */
+  if (!_isNewVenue && _oldVenue && _oldVenue.name && _oldVenue.name !== name) {
+    if (typeof window._venueRenameGuard === 'function' && !window._venueRenameGuard(_oldVenue.name, name)) return;
+  }
   const _newStatus = document.getElementById('venueStatus').value;
   hubSave('venues', key, {
     name, type: document.getElementById('venueType').value,
@@ -21845,13 +21851,76 @@ var iv = setInterval(function(){
        '<div style="white-space:pre-wrap;background:#fff7ed;border-left:3px solid #d97706;padding:10px 14px;border-radius:0 8px 8px 0">'+
        esc2(p.questions)+"</div>"):"";
   }
+  /* --- VENUE RENAME GUARD -------------------------------------------
+     The Sports form (sportsplan.html) carries its own hard-coded venue
+     list. Renaming a venue record here does NOT reach it, and the card
+     chip would simply stop appearing rather than throwing an error.
+     So: warn at the moment of the rename, say whether that venue is
+     actually carrying slots, and write it to the activity log either way. */
+  window._venueRenameGuard = function(oldName, newName){
+    var p = window._sportsPlan, carrying = null;
+    if(p && p.byVenue){
+      var want = keyOf(oldName);
+      Object.keys(p.byVenue).forEach(function(k){
+        var kk = keyOf(k);
+        if(kk && (want.indexOf(kk)===0 || kk.indexOf(want)===0)) carrying = p.byVenue[k];
+      });
+    }
+    var msg = "RENAMING A VENUE\n\n" + oldName + "\n  becomes\n" + newName + "\n\n";
+    if(carrying && carrying.slots){
+      msg += "The Sports team has " + carrying.slots + " slots (" +
+        carrying.people.toLocaleString() + " athletes at max) booked against this venue.\n\n";
+    }
+    msg += "The Sports allocation form keeps its own venue list and will NOT follow this change.\n" +
+      "Until the form is updated, this venue\u2019s athlete figure will disappear from its card\n" +
+      "and from the Sports Allocation tab. Nothing will error - the number just goes quiet.\n\n" +
+      "Tell Rizwan so the form list is updated in the same breath.\n\nRename anyway?";
+    var ok = window.confirm(msg);
+    try{
+      if(typeof _dbRef === "function" && window.__M2){
+        window.__M2.get(_dbRef("naig2027/activityLog")).then(function(s){
+          var arr = s.val() || [];
+          window.__M2.set(_dbRef("naig2027/activityLog/" + arr.length), {
+            what: (ok ? "Venue renamed" : "Venue rename cancelled") + ": " + oldName + " -> " + newName,
+            detail: carrying && carrying.slots ? (carrying.slots + " slots on the Sports plan") : "no slots booked",
+            who: (window._gUser && window._gUser.email) || "unknown",
+            ts: new Date().toISOString()
+          });
+        }).catch(function(){});
+      }
+    }catch(e){}
+    return ok;
+  };
+
+  /* --- DRIFT CHECK ---------------------------------------------------
+     Catches the case where a rename already happened: a venue the Sports
+     form is using that no longer matches any venue record. */
+  function renderDrift(){
+    var el = document.getElementById("sportsDrift"); if(!el) return;
+    var p = window._sportsPlan, recs = window._venuesData;
+    if(!p || !p.byVenue || !recs){ el.innerHTML=""; return; }
+    var names = Object.keys(recs).map(function(k){ return keyOf((recs[k]||{}).name); }).filter(Boolean);
+    var orphans = Object.keys(p.byVenue).filter(function(v){
+      if(v==="TBD" || !p.byVenue[v].slots) return false;
+      var kk = keyOf(v);
+      return !names.some(function(nm){ return nm.indexOf(kk)===0 || kk.indexOf(nm)===0; });
+    });
+    el.innerHTML = orphans.length
+      ? '<div style="background:#fff3cd;border-left:4px solid #b02a37;padding:11px 15px;border-radius:0 8px 8px 0;margin-bottom:12px">' +
+        '<b style="color:#b02a37">Venue names have drifted.</b> The Sports form is using ' +
+        orphans.map(esc2).join(", ") + ' \u2014 no venue record matches. Either a venue was renamed here, ' +
+        'or the form needs updating. The athlete figures for these will not show on venue cards.</div>'
+      : "";
+  }
+  window._sportsRenderDrift = renderDrift;
   (async function(){
     for(var i=0;i<80&&!window._authReady;i++) await new Promise(function(r){setTimeout(r,250);});
     try{
       var m=await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js");
+      window.__M2=m;
       m.onValue(_dbRef("naig2027/sportsPlan"),function(snap){
         window._sportsPlan=snap.exists()?compute(snap.val()):null;
-        render();
+        render(); renderDrift();
         if(typeof window.renderVenues==="function"){try{window.renderVenues();}catch(e){}}
       },function(){});
     }catch(e){}
