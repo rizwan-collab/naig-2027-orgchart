@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NAIG 2027 — Sports Allocation</title>
-<meta name="description" content="Sports team working plan: slots per sport, division, gender and age group, and which venue each lands at.">
+<meta name="description" content="Sports team working plan: slots per sport, gender and age group, and which venue each lands at.">
 <style>
 :root{
   --bg:#f6f7f9; --card:#fff; --ink:#15212e; --muted:#64748b; --line:#e2e7ed;
@@ -107,7 +107,7 @@ footer{margin-top:34px;padding-top:15px;border-top:1px solid var(--line);color:v
 
 <header class="top">
   <h1>NAIG 2027 — Sports Allocation</h1>
-  <p class="sub">Slots by sport, division, gender and age group — and which venue each one lands at.</p>
+  <p class="sub">Slots by sport, gender and age group — and which venue each one lands at.</p>
   <div class="meta">
     <span>Games: Thu 25 – Sun 28 March 2027</span><span>Logistics</span><span id="lastsave">—</span>
   </div>
@@ -130,7 +130,6 @@ footer{margin-top:34px;padding-top:15px;border-top:1px solid var(--line);color:v
   <div class="half theirs">
     <h3>Yours to enter</h3>
     <ul>
-      <li><b>Division</b> — name it however you run the draw</li>
       <li><b>Age group</b> — blank on every row</li>
       <li><b>Slots</b> — the number that matters most to us</li>
       <li>Add, split or delete rows freely — the 20 are a starting shape, not a rule</li>
@@ -160,16 +159,15 @@ footer{margin-top:34px;padding-top:15px;border-top:1px solid var(--line);color:v
 </div>
 
 <h2>Entries</h2>
-<p class="lead">One row per division. Split by gender and age group wherever they compete separately.</p>
+<p class="lead">One row per competing group. Split by gender and age group wherever they compete separately.</p>
 
 <div class="tblwrap">
   <table>
     <thead><tr>
-      <th style="width:16%">Sport <span class="tag set">set</span></th>
-      <th style="width:15%">Division <span class="tag you">you</span></th>
-      <th style="width:11%">Gender</th>
-      <th style="width:12%">Age group <span class="tag you">you</span></th>
-      <th style="width:9%">Slots <span class="tag you">you</span></th>
+      <th style="width:20%">Sport <span class="tag set">set</span></th>
+      <th style="width:14%">Gender</th>
+      <th style="width:16%">Age group <span class="tag you">you</span></th>
+      <th style="width:10%">Slots <span class="tag you">you</span></th>
       <th style="width:22%">Venue <span class="tag set">set</span></th>
       <th style="width:13%">Notes</th>
       <th></th>
@@ -225,7 +223,7 @@ const REF = { "StarCenter Northlake":1048, "StarCenter Farmers Branch":672, "Pic
   "Courts of McKinney":560, "Railroad Park":1224, "Frisco ISD Athletic Complex":224 };
 
 /* Sport + venue come from the confirmed venue plan. Gender is a starting structure.
-   Division, age group and slots are deliberately blank — that is the Sports team's call. */
+   Age group and slots are deliberately blank — that is the Sports team's call. */
 const SEED = [
   ["Basketball","","Men's","","","StarCenter Northlake",""],
   ["Basketball","","Women's","","","StarCenter Northlake",""],
@@ -282,7 +280,6 @@ function render(){
     const tr=document.createElement("tr");
     const add=(node,cls)=>{ const td=document.createElement("td"); if(cls) td.className=cls; td.appendChild(node); tr.appendChild(td); };
     add(sel(r.sport, SPORTS, v=>{ r.sport=v; touch(); }));
-    add(txt(r.division,"e.g. Division A", v=>{ r.division=v; touch(true); }));
     add(sel(r.gender, GENDERS, v=>{ r.gender=v; touch(); }));
     add(sel(r.age, AGES, v=>{ r.age=v; touch(); }));
     add(txt(r.slots,"0", v=>{ r.slots=v; touch(true); }, true), "num");
@@ -348,7 +345,7 @@ function totals(){
     const sp=document.createElement("div"); sp.className="sp";
     sp.textContent=[...byS[k].v].sort().join(" · ")||"no venue set";
     const ct=document.createElement("div"); ct.className="ct"; ct.textContent=byS[k].n.toLocaleString();
-    const rf=document.createElement("div"); rf.className="rf"; rf.textContent=byS[k].d+" division"+(byS[k].d===1?"":"s");
+    const rf=document.createElement("div"); rf.className="rf"; rf.textContent=byS[k].d+" row"+(byS[k].d===1?"":"s");
     d.appendChild(nm); d.appendChild(sp); d.appendChild(ct); d.appendChild(rf);
     swrap.appendChild(d);
   });
