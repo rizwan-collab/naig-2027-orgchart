@@ -7,21 +7,11 @@
 <meta name="description" content="Sports team working plan: slots per sport, gender and age group, and which venue each lands at.">
 <style>
 :root{
-  --bg:#f6f7f9; --card:#fff; --ink:#15212e; --muted:#64748b; --line:#e2e7ed;
-  --accent:#1f5f8b; --good:#1d7a4d; --warn:#9a6b00; --bad:#9b2c2c; --soft:#f0f3f7;
-  --sel:#1f5f8b; --selink:#fff; --head:#14213d;
-}
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    --bg:#0d1420; --card:#151e2c; --ink:#e8eef5; --muted:#8fa0b3; --line:#243144;
-    --accent:#6fb3de; --good:#5cc08b; --warn:#d9a441; --bad:#e08585; --soft:#1a2535;
-    --sel:#2c6da0; --selink:#fff; --head:#0b1424;
-  }
-}
-:root[data-theme="dark"]{
-  --bg:#0d1420; --card:#151e2c; --ink:#e8eef5; --muted:#8fa0b3; --line:#243144;
-  --accent:#6fb3de; --good:#5cc08b; --warn:#d9a441; --bad:#e08585; --soft:#1a2535;
-  --sel:#2c6da0; --selink:#fff; --head:#0b1424;
+  /* One palette, always dark. This page is read on phones in car parks and in
+     bright gyms; the light/dark switch made the rows hard to scan. */
+  --bg:#0f1621; --card:#18222f; --ink:#e9eef4; --muted:#93a3b5; --line:#273344;
+  --accent:#7fb8dd; --good:#63c08d; --warn:#d9a441; --bad:#e08585; --soft:#141d29;
+  --sel:#2c6da0; --selink:#fff; --head:#111a26;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);
@@ -71,12 +61,15 @@ h2{font-size:16px;margin:24px 0 8px;font-weight:650;letter-spacing:-.01em}
 table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:900px}
 thead th{background:var(--head);color:#fff;font-size:10.5px;text-transform:uppercase;
   letter-spacing:.05em;font-weight:700;text-align:left;padding:10px 9px;white-space:nowrap}
-tbody td{border-bottom:1px solid var(--line);padding:5px 7px;vertical-align:middle}
+tbody td{border-bottom:1px solid var(--line);padding:7px;vertical-align:middle}
+td.ro{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+td.ro.key{color:var(--ink);font-weight:600}
 tbody tr:last-child td{border-bottom:0}
-tbody tr:nth-child(even){background:var(--soft)}
+tbody tr:hover{background:var(--soft)}
 td input,td select{width:100%;border:1px solid transparent;background:transparent;padding:6px 7px}
 td input:focus,td select:focus{border-color:var(--accent);background:var(--bg);outline:none}
-td.num input{text-align:right;font-variant-numeric:tabular-nums}
+td.num input{text-align:right;font-variant-numeric:tabular-nums;background:rgba(127,184,221,.08);border-radius:5px}
+td.num.locked{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
 td.del{width:34px;text-align:center}
 td.del button{background:transparent;color:var(--muted);border:0;padding:4px 7px;font-size:15px}
 td.del button:hover{color:var(--bad)}
@@ -149,7 +142,6 @@ footer{margin-top:34px;padding-top:15px;border-top:1px solid var(--line);color:v
   <select id="fVenue"><option value="">All venues</option></select>
   <select id="fSport"><option value="">All sports</option></select>
   <select id="fAge"><option value="">All ages</option></select>
-  <button type="button" id="add">+ Add row</button>
   <button type="button" id="seed" class="ghost">Reset to the official 100</button>
   <span class="status" id="status">Connecting…</span>
 </div>
@@ -168,15 +160,14 @@ footer{margin-top:34px;padding-top:15px;border-top:1px solid var(--line);color:v
 <div class="tblwrap">
   <table>
     <thead><tr>
-      <th style="width:16%">Sport <span class="tag set">set</span></th>
-      <th style="width:12%">Event <span class="tag set">set</span></th>
-      <th style="width:7%">Age <span class="tag set">set</span></th>
-      <th style="width:10%">Division <span class="tag set">set</span></th>
+      <th style="width:16%">Sport</th>
+      <th style="width:12%">Event</th>
+      <th style="width:7%">Age</th>
+      <th style="width:10%">Division</th>
       <th style="width:8%">Slots <span class="tag you">you</span></th>
-      <th style="width:9%">Max per slot <span class="tag set">set</span></th>
-      <th style="width:19%">Venue <span class="tag set">set</span></th>
+      <th style="width:9%">Max per slot</th>
+      <th style="width:19%">Venue</th>
       <th style="width:15%">Notes</th>
-      <th></th>
     </tr></thead>
     <tbody id="rows"></tbody>
   </table>
@@ -395,17 +386,18 @@ function render(){
     const tr=document.createElement("tr");
     const add=(node,cls)=>{ const td=document.createElement("td"); if(cls) td.className=cls;
       td.appendChild(node); tr.appendChild(td); };
-    add(txt(r.sport,"", v=>{ r.sport=v; touch(true); }));
-    add(txt(r.event,"", v=>{ r.event=v; touch(true); }));
-    add(txt(r.age,"", v=>{ r.age=v; touch(true); }));
-    add(txt(r.division,"", v=>{ r.division=v; touch(true); }));
-    add(txt(r.slots,"0", v=>{ r.slots=v; touch(true); }, true), "num");
-    add(txt(r.cap,"0", v=>{ r.cap=v; touch(true); }, true), "num");
-    add(sel(r.venue, VENUES, v=>{ r.venue=v; touch(); }));
-    add(txt(r.notes,"", v=>{ r.notes=v; touch(true); }));
-    const d=document.createElement("button"); d.type="button"; d.textContent="×"; d.title="Delete row";
-    d.addEventListener("click",()=>{ const i=rows.indexOf(r); if(i>-1) rows.splice(i,1); render(); touch(); });
-    add(d,"del");
+    /* Sport, Event, Age, Division, Max per slot and Venue are the official event
+       list from naismailigames.com. They render as plain text, not inputs, so they
+       cannot be edited or emptied by accident. Slots and Notes stay editable. */
+    const ro=function(v){ var s=document.createElement("span"); s.textContent=esc(v)||"\u2014"; return s; };
+    add(ro(r.sport),"ro key");
+    add(ro(r.event),"ro");
+    add(ro(r.age),"ro");
+    add(ro(r.division),"ro");
+    add(txt(r.slots,"0", function(v){ r.slots=v; touch(true); }, true), "num");
+    add(ro(r.cap),"num locked");
+    add(ro(r.venue),"ro");
+    add(txt(r.notes,"", function(v){ r.notes=v; touch(true); }));
     tb.appendChild(tr);
   });
   $("shown").textContent = shown===rows.length
@@ -505,7 +497,6 @@ async function save(){
   }catch(e){ stat("Not saved — "+e.message, "err"); }
 }
 
-$("add").addEventListener("click", ()=>{ rows.push(blank()); fillFilters(); render(); touch(); });
 $("seed").addEventListener("click", ()=>{
   if(rows.some(r=>num(r.slots)) &&
      !confirm("This replaces the table with the official 100 events and clears every slot count. Continue?")) return;
