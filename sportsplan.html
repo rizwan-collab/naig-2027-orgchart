@@ -107,7 +107,7 @@ footer{margin-top:34px;padding-top:15px;border-top:1px solid var(--line);color:v
 
 <header class="top">
   <h1>NAIG 2027 — Sports Allocation</h1>
-  <p class="sub">Slots by sport, gender and age group — and which venue each one lands at.</p>
+  <p class="sub">Slots by sport, gender and age group — which venue each lands at, and how many athletes that adds up to.</p>
   <div class="meta">
     <span>Games: Thu 25 – Sun 28 March 2027</span><span>Logistics</span><span id="lastsave">—</span>
   </div>
@@ -125,13 +125,15 @@ footer{margin-top:34px;padding-top:15px;border-top:1px solid var(--line);color:v
       <li><b>Sport</b> and <b>Venue</b> — from the confirmed venue plan</li>
       <li>13 sports across 6 venues, 20 starting rows</li>
       <li>Registration figures to plan against, in the By venue table below</li>
+      <li>The athlete maths — slots × max per slot, totalled per venue</li>
     </ul>
   </div>
   <div class="half theirs">
     <h3>Yours to enter</h3>
     <ul>
       <li><b>Age group</b> — blank on every row</li>
-      <li><b>Slots</b> — the number that matters most to us</li>
+      <li><b>Slots</b> — teams or entries, not people</li>
+      <li><b>Max per slot</b> — the largest roster one slot can bring. Singles events are 1</li>
       <li>Add, split or delete rows freely — the 20 are a starting shape, not a rule</li>
     </ul>
   </div>
@@ -152,7 +154,8 @@ footer{margin-top:34px;padding-top:15px;border-top:1px solid var(--line);color:v
 
 <div class="cards">
   <div class="kpi"><div class="k">Total slots</div><div class="v" id="kTotal">0</div></div>
-  <div class="kpi"><div class="k">Rows filled</div><div class="v" id="kRows">0</div></div>
+  <div class="kpi"><div class="k">Athletes at max</div><div class="v" id="kPeople">0</div></div>
+  <div class="kpi"><div class="k">Needs max per slot</div><div class="v" id="kNoCap">0</div></div>
   <div class="kpi"><div class="k">Sports covered</div><div class="v" id="kSports">0</div></div>
   <div class="kpi"><div class="k">Venues used</div><div class="v" id="kVenues">0</div></div>
   <div class="kpi"><div class="k">Unassigned</div><div class="v" id="kTbd">0</div></div>
@@ -164,11 +167,12 @@ footer{margin-top:34px;padding-top:15px;border-top:1px solid var(--line);color:v
 <div class="tblwrap">
   <table>
     <thead><tr>
-      <th style="width:20%">Sport <span class="tag set">set</span></th>
+      <th style="width:17%">Sport <span class="tag set">set</span></th>
       <th style="width:14%">Gender</th>
-      <th style="width:16%">Age group <span class="tag you">you</span></th>
-      <th style="width:10%">Slots <span class="tag you">you</span></th>
-      <th style="width:22%">Venue <span class="tag set">set</span></th>
+      <th style="width:14%">Age group <span class="tag you">you</span></th>
+      <th style="width:9%">Slots <span class="tag you">you</span></th>
+      <th style="width:11%">Max per slot <span class="tag you">you</span></th>
+      <th style="width:20%">Venue <span class="tag set">set</span></th>
       <th style="width:13%">Notes</th>
       <th></th>
     </tr></thead>
@@ -216,7 +220,7 @@ const SPORTS = ["Badminton","Basketball","Chess","Cricket","Dance","Flag Footbal
   "Soccer","Table Tennis","Tennis","Throwball","Track and Field","Volleyball","Other"];
 const GENDERS = ["Men's","Women's","Mixed","Open"];
 const AGES = ["Open / Adult","U19","U16","U14","U12","Masters 35+","Masters 45+","All ages"];
-const VENUES = ["StarCenter Northlake","StarCenter Farmers Branch","Pickler Universe",
+const VENUES = ["StarCenter Northlake","","StarCenter Farmers Branch","Pickler Universe",
   "Courts of McKinney","Railroad Park","Lake Park","Frisco ISD Athletic Complex",
   "Grand Prairie Cricket Stadium","Texomo Ground","TBD"];
 const REF = { "StarCenter Northlake":1048, "StarCenter Farmers Branch":672, "Pickler Universe":336,
@@ -225,29 +229,29 @@ const REF = { "StarCenter Northlake":1048, "StarCenter Farmers Branch":672, "Pic
 /* Sport + venue come from the confirmed venue plan. Gender is a starting structure.
    Age group and slots are deliberately blank — that is the Sports team's call. */
 const SEED = [
-  ["Basketball","","Men's","","","StarCenter Northlake",""],
-  ["Basketball","","Women's","","","StarCenter Northlake",""],
-  ["Volleyball","","Men's","","","StarCenter Northlake",""],
-  ["Volleyball","","Women's","","","StarCenter Northlake",""],
-  ["Throwball","","","","","StarCenter Northlake",""],
-  ["Badminton","","Men's","","","StarCenter Farmers Branch",""],
-  ["Badminton","","Women's","","","StarCenter Farmers Branch",""],
-  ["Table Tennis","","Men's","","","StarCenter Farmers Branch",""],
-  ["Table Tennis","","Women's","","","StarCenter Farmers Branch",""],
-  ["Pickleball","","","","","Pickler Universe",""],
-  ["Dance","","","","","Pickler Universe",""],
-  ["Tennis","","Men's","","","Courts of McKinney",""],
-  ["Tennis","","Women's","","","Courts of McKinney",""],
-  ["Chess","","","","","Courts of McKinney","Indoor room upstairs — no court needed"],
-  ["Soccer","","Men's","","","Railroad Park",""],
-  ["Soccer","","Women's","","","Railroad Park",""],
-  ["Flag Football","","","","","Railroad Park",""],
-  ["Cricket","","Men's","","","Railroad Park","Moves to Texomo under scenario 2"],
-  ["Cricket","","Women's","","","Railroad Park",""],
-  ["Track and Field","","","","","Frisco ISD Athletic Complex","Quote not yet received"]
+  ["Basketball","","Men's","","","","StarCenter Northlake",""],
+  ["Basketball","","Women's","","","","StarCenter Northlake",""],
+  ["Volleyball","","Men's","","","","StarCenter Northlake",""],
+  ["Volleyball","","Women's","","","","StarCenter Northlake",""],
+  ["Throwball","","","","","","StarCenter Northlake",""],
+  ["Badminton","","Men's","","","","StarCenter Farmers Branch",""],
+  ["Badminton","","Women's","","","","StarCenter Farmers Branch",""],
+  ["Table Tennis","","Men's","","","","StarCenter Farmers Branch",""],
+  ["Table Tennis","","Women's","","","","StarCenter Farmers Branch",""],
+  ["Pickleball","","","","","","Pickler Universe",""],
+  ["Dance","","","","","","Pickler Universe",""],
+  ["Tennis","","Men's","","","","Courts of McKinney",""],
+  ["Tennis","","Women's","","","","Courts of McKinney",""],
+  ["Chess","","","","","","Courts of McKinney","Indoor room upstairs — no court needed"],
+  ["Soccer","","Men's","","","","Railroad Park",""],
+  ["Soccer","","Women's","","","","Railroad Park",""],
+  ["Flag Football","","","","","","Railroad Park",""],
+  ["Cricket","","Men's","","","","Railroad Park","Moves to Texomo under scenario 2"],
+  ["Cricket","","Women's","","","","Railroad Park",""],
+  ["Track and Field","","","","","","Frisco ISD Athletic Complex","Quote not yet received"]
 ];
 function seedRows(){
-  return SEED.map(a=>({sport:a[0],division:a[1],gender:a[2],age:a[3],slots:a[4],venue:a[5],notes:a[6]}));
+  return SEED.map(a=>({sport:a[0],division:a[1],gender:a[2],age:a[3],slots:a[4],cap:a[5],venue:a[6],notes:a[7]}));
 }
 
 let rows = [], saveTimer = null, ready = false, applying = false;
@@ -255,7 +259,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s==null?"":s);
 const stat = (t, cls) => { const e=$("status"); e.textContent=t; e.className="status"+(cls?" "+cls:""); };
 
-function blank(){ return {sport:"",division:"",gender:"",age:"",slots:"",venue:"",notes:""}; }
+function blank(){ return {sport:"",division:"",gender:"",age:"",slots:"",cap:"",venue:"",notes:""}; }
 
 function sel(val, opts, onchange){
   const s=document.createElement("select");
@@ -283,6 +287,7 @@ function render(){
     add(sel(r.gender, GENDERS, v=>{ r.gender=v; touch(); }));
     add(sel(r.age, AGES, v=>{ r.age=v; touch(); }));
     add(txt(r.slots,"0", v=>{ r.slots=v; touch(true); }, true), "num");
+    add(txt(r.cap,"0", v=>{ r.cap=v; touch(true); }, true), "num");
     add(sel(r.venue, VENUES, v=>{ r.venue=v; touch(); }));
     add(txt(r.notes,"", v=>{ r.notes=v; touch(true); }));
     const d=document.createElement("button"); d.type="button"; d.textContent="×"; d.title="Delete row";
@@ -294,21 +299,29 @@ function render(){
 }
 
 function num(v){ const n=parseInt(v,10); return isNaN(n)?0:n; }
+/* Athletes implied by a row. We deliberately use the MAXIMUM roster per slot:
+   venues, food and transport have to hold the biggest version of the draw,
+   not the smallest. A row with no max entered contributes 0 and is counted
+   in "Needs max per slot" so it is obvious the number is incomplete. */
+function people(r){ return num(r.slots) * num(r.cap); }
 
 function totals(){
-  const filled = rows.filter(r=>r.sport||num(r.slots));
   const total = rows.reduce((a,r)=>a+num(r.slots),0);
+  const heads = rows.reduce((a,r)=>a+people(r),0);
+  const noCap = rows.filter(r=>num(r.slots)>0 && num(r.cap)<=0).length;
   const sports = new Set(rows.filter(r=>r.sport).map(r=>r.sport));
   const venues = new Set(rows.filter(r=>r.venue&&r.venue!=="TBD").map(r=>r.venue));
-  const tbd = rows.filter(r=>!r.venue||r.venue==="TBD").reduce((a,r)=>a+num(r.slots),0);
+  const tbd = rows.filter(r=>!r.venue||r.venue==="TBD").reduce((a,r)=>a+people(r),0);
   $("kTotal").textContent = total.toLocaleString();
-  $("kRows").textContent = filled.length;
+  $("kPeople").textContent = heads.toLocaleString();
+  $("kNoCap").textContent = noCap;
   $("kSports").textContent = sports.size;
   $("kVenues").textContent = venues.size;
   $("kTbd").textContent = tbd.toLocaleString();
 
   const byV={};
-  rows.forEach(r=>{ const v=r.venue||"TBD"; (byV[v]=byV[v]||{n:0,s:new Set()}); byV[v].n+=num(r.slots);
+  rows.forEach(r=>{ const v=r.venue||"TBD"; (byV[v]=byV[v]||{n:0,sl:0,s:new Set()});
+    byV[v].n+=people(r); byV[v].sl+=num(r.slots);
     if(r.sport) byV[v].s.add(r.sport); });
   const vwrap=$("byVenue"); vwrap.textContent="";
   const order = VENUES.filter(v=>byV[v]).concat(Object.keys(byV).filter(v=>VENUES.indexOf(v)===-1));
@@ -318,7 +331,7 @@ function totals(){
     const d=document.createElement("div"); d.className="vrow";
     const nm=document.createElement("div"); nm.className="nm"; nm.textContent=v;
     const sp=document.createElement("div"); sp.className="sp";
-    sp.textContent=[...byV[v].s].sort().join(" · ")||"—";
+    sp.textContent=([...byV[v].s].sort().join(" · ")||"—")+(byV[v].sl?"  —  "+byV[v].sl+" slot"+(byV[v].sl===1?"":"s"):"");
     const ct=document.createElement("div"); ct.className="ct"; ct.textContent=byV[v].n.toLocaleString();
     const rf=document.createElement("div"); rf.className="rf";
     if(REF[v]){
@@ -333,8 +346,9 @@ function totals(){
   });
 
   const byS={};
-  rows.forEach(r=>{ if(!r.sport) return; (byS[r.sport]=byS[r.sport]||{n:0,v:new Set(),d:0});
-    byS[r.sport].n+=num(r.slots); byS[r.sport].d+=1; if(r.venue) byS[r.sport].v.add(r.venue); });
+  rows.forEach(r=>{ if(!r.sport) return; (byS[r.sport]=byS[r.sport]||{n:0,sl:0,v:new Set(),d:0});
+    byS[r.sport].n+=people(r); byS[r.sport].sl+=num(r.slots); byS[r.sport].d+=1;
+    if(r.venue) byS[r.sport].v.add(r.venue); });
   const swrap=$("bySport"); swrap.textContent="";
   const skeys=Object.keys(byS).sort();
   if(!skeys.length){ const d=document.createElement("div"); d.className="vrow";
@@ -345,7 +359,7 @@ function totals(){
     const sp=document.createElement("div"); sp.className="sp";
     sp.textContent=[...byS[k].v].sort().join(" · ")||"no venue set";
     const ct=document.createElement("div"); ct.className="ct"; ct.textContent=byS[k].n.toLocaleString();
-    const rf=document.createElement("div"); rf.className="rf"; rf.textContent=byS[k].d+" row"+(byS[k].d===1?"":"s");
+    const rf=document.createElement("div"); rf.className="rf"; rf.textContent=byS[k].sl+" slot"+(byS[k].sl===1?"":"s")+" · "+byS[k].d+" row"+(byS[k].d===1?"":"s");
     d.appendChild(nm); d.appendChild(sp); d.appendChild(ct); d.appendChild(rf);
     swrap.appendChild(d);
   });
