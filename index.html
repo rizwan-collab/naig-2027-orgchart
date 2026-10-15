@@ -1453,7 +1453,8 @@ html.onboard-mode #onboardScreen { display: flex !important; }
  <button class="tab-btn" id="tabplan" onclick="switchTab('plan')">Project Plan <span class="tab-badge" id="badge-plan"></span></button>
  <button class="tab-btn" id="tabtasks" onclick="switchTab('tasks')">Logistics Team Tasks <span class="tab-badge" id="badge-tasks">0</span></button>
  <button class="tab-btn" id="tabvenues" onclick="switchTab('venues')">Venues <span class="tab-badge" id="badge-venues">0</span></button>
- <button class="tab-btn" id="tabvendors" onclick="switchTab('vendors')">Vendors <span class="tab-badge" id="badge-vendors">0</span></button>
+ <button class="tab-btn" id="tabsports" onclick="switchTab('sports')">Sports Allocation <span class="tab-badge" id="badge-sports">0</span></button>
+        <button class="tab-btn" id="tabvendors" onclick="switchTab('vendors')">Vendors <span class="tab-badge" id="badge-vendors">0</span></button>
  <button class="tab-btn" id="tabhotels" onclick="switchTab('hotels')">Hotels <span class="tab-badge" id="badge-hotels">0</span></button>
  <button class="tab-btn" id="tabtransport" onclick="switchTab('transport')">Transportation <span class="tab-badge" id="badge-transport">0</span></button>
  <button class="tab-btn" id="tabdocs" onclick="switchTab('docs')">Documents <span class="tab-badge" id="badge-docs">0</span></button>
@@ -1949,6 +1950,20 @@ html.onboard-mode #onboardScreen { display: flex !important; }
  <div class="summary-strip" id="venueSummary"></div>
  <div id="venuesTierWrap"></div>
  <div id="venuesSpecsWrap" style="display:none"></div>
+</div>
+
+<!-- Sports Allocation (read-only mirror of naig2027/sportsPlan) -->
+<div class="hub-section" id="sectionSports">
+  <div class="hub-toolbar">
+    <div>
+      <div class="hub-title">Sports Allocation</div>
+      <div class="hub-subtitle">What the Sports team has entered on the allocation form. Read-only here &mdash; edits happen on the form.</div>
+    </div>
+    <div><a class="btn" href="sportsplan.html" target="_blank" rel="noopener">Open the form</a></div>
+  </div>
+  <div class="summary-strip" id="sportsSummary"></div>
+  <div id="sportsByVenue"></div>
+  <div id="sportsQuestions"></div>
 </div>
 
 <!-- Vendors -->
@@ -4043,7 +4058,7 @@ function renderIdentityBadge() {
 
 // ── TEAMS / PER-TEAM MODULE SCOPING (foundation only — no Sports data seeded yet) ──
 const BASE_PICKABLE_MODULES = { orgchart:'Org Chart', tasks:'Logistics Team Tasks', vendors:'Vendors', docs:'Documents', budget:'Budget', scope:'Scope' };
-const TAB_ID_MAP = { orgchart:'taborg', plan:'tabplan', tasks:'tabtasks', venues:'tabvenues', vendors:'tabvendors',
+const TAB_ID_MAP = { orgchart:'taborg', plan:'tabplan', tasks:'tabtasks', venues: 'tabvenues', sports: 'tabsports', vendors: 'tabvendors',
   hotels:'tabhotels', transport:'tabtransport', docs:'tabdocs', budget:'tabbudget', scope:'tabscope' };
 
 function seedDefaultTeams() {
@@ -7217,7 +7232,7 @@ function switchTab(tab) {
   window._axCurrentTab = tab;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   const isCustom = typeof tab === 'string' && tab.indexOf('custom_') === 0;
-  const tabMap = { dashboard:'tabdashboard', orgchart:'taborg', plan:'tabplan', tasks:'tabtasks', venues:'tabvenues', vendors:'tabvendors',
+  const tabMap = { dashboard:'tabdashboard', orgchart:'taborg', plan:'tabplan', tasks:'tabtasks', venues: 'tabvenues', sports: 'tabsports', vendors: 'tabvendors',
     hotels:'tabhotels', transport:'tabtransport', docs:'tabdocs', scope:'tabscope', brief:'tabbrief' };
   const activeBtn = isCustom ? document.getElementById('tabcustom_' + tab.slice(7)) : document.getElementById(tabMap[tab]);
   if (activeBtn) activeBtn.classList.add('active');
@@ -7236,7 +7251,7 @@ function switchTab(tab) {
   }
 
   // Hub sections
-  const hubSections = ['sectionDashboard','sectionPlan','sectionTasks','sectionVenues','sectionVendors','sectionHotels',
+  const hubSections = ['sectionDashboard','sectionPlan','sectionTasks','sectionVenues', 'sectionSports','sectionVendors','sectionHotels',
     'sectionTransport','sectionDocs','sectionBudget','sectionScope','sectionBrief','sectionChangelog'];
   hubSections.forEach(id => {
     const el = document.getElementById(id);
@@ -7245,7 +7260,7 @@ function switchTab(tab) {
   document.querySelectorAll('.custom-section').forEach(el => { el.style.display = 'none'; el.classList.remove('active'); });
 
   const sectionMap = {
-    dashboard:'sectionDashboard', plan:'sectionPlan', tasks:'sectionTasks', venues:'sectionVenues', vendors:'sectionVendors',
+    dashboard:'sectionDashboard', plan:'sectionPlan', tasks:'sectionTasks', venues:'sectionVenues', sports: 'sectionSports', vendors:'sectionVendors',
     hotels:'sectionHotels', transport:'sectionTransport', docs:'sectionDocs', budget:'sectionBudget', scope:'sectionScope',
     brief:'sectionBrief', changelog:'sectionChangelog'
   };
@@ -10293,6 +10308,7 @@ window.renderVenues = function() {
       ${v.sports?`<div class="vc-sports">${esc(v.sports)}</div>`:''}
       ${poc}
       ${_touchChip(v)}
+      ${_sportsAthleteChip(v.name)}
       ${v.notes?`<div class="vc-notes">${esc(v.notes.slice(0,120))}${v.notes.length>120?'…':''}</div>`:''}
     </div>`;
   }
@@ -14817,6 +14833,7 @@ const AX_TABS = [
   { key:'plan',      label:'Project Plan' },
   { key:'tasks',     label:'Team Tasks' },
   { key:'venues',    label:'Venues' },
+  { key: 'sports',    label: 'Sports Allocation' },
   { key:'vendors',   label:'Vendors' },
   { key:'hotels',    label:'Hotels' },
   { key:'transport', label:'Transportation' },
@@ -14839,7 +14856,7 @@ const AX_TIERS = {
   lead:   { label:'Vertical Lead — everything but Budget, can edit',
             tabs: AX_ALL.filter(k => k !== 'budget'), edit:true, manageAccess:false },
   member: { label:'Team member — read-only on the working tabs',
-            tabs: ['dashboard','orgchart','plan','tasks','venues','hotels','transport','docs','scope'],
+            tabs: ['dashboard','orgchart','plan','tasks', 'venues', 'sports', 'hotels','transport','docs','scope'],
             edit:false, manageAccess:false },
   viewer: { label:'Viewer — org chart and dashboard only',
             tabs: ['dashboard','orgchart'], edit:false, manageAccess:false }
@@ -21744,6 +21761,101 @@ var iv = setInterval(function(){
   function boot(){ if(!sec()||!panel()) return false; css(); buildOverview(); var ok=moveControls(); applyRows(); watch(); return ok; }
   var tries=0;
   var iv=setInterval(function(){ tries++; if(boot()||tries>60) clearInterval(iv); },500);
+})();
+</script>
+<script type="module">
+/* SPORTS ALLOCATION MIRROR (added 15 Oct 2026)
+   Single source: naig2027/sportsPlan, written by sportsplan.html.
+   The hub only READS it - nothing here writes, so the open-write rule on
+   sportsPlan never becomes a way into the venue records.
+   Two surfaces, one subscription: the Sports Allocation tab, and a chip on
+   each venue card. If we later keep only one, delete a renderer, not data.
+   Athletes = slots x max per slot, using the MAXIMUM roster the rules allow.
+   Must stay identical to sportsplan.html. */
+(function(){
+  var REF={"StarCenter Northlake":1048,"StarCenter Farmers Branch":672,
+    "Pickler Universe":336,"Courts of McKinney":560,"Railroad Park":1224,
+    "Frisco ISD Athletic Complex":224};
+  function n(v){var x=parseInt(v,10);return isNaN(x)?0:x;}
+  function esc2(s){return String(s==null?"":s).replace(/[&<>]/g,function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c];});}
+  window._sportsPlan=null;
+  function keyOf(s){return String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");}
+  window._sportsAthleteChip=function(venueName){
+    var p=window._sportsPlan; if(!p||!p.byVenue) return "";
+    var want=keyOf(venueName); if(!want) return "";
+    var hit=null;
+    Object.keys(p.byVenue).forEach(function(k){var kk=keyOf(k);
+      if(kk&&(want.indexOf(kk)===0||kk.indexOf(want)===0)) hit=p.byVenue[k];});
+    if(!hit||!hit.people) return "";
+    var ref=REF[hit.name], tail="";
+    if(ref){var d=hit.people-ref; tail=" &middot; "+(d>0?"+":"")+d+" vs "+ref;}
+    return '<div class="vc-sports" style="background:#fff7ed;color:#9a3412">'+
+      hit.people.toLocaleString()+" athletes at max &middot; "+hit.slots+" slots"+tail+"</div>";
+  };
+  function compute(v){
+    var rows=(v&&Array.isArray(v.rows))?v.rows:[], byVenue={}, slots=0, people=0, done=0;
+    rows.forEach(function(r){
+      var s=n(r.slots), pe=s*n(r.cap);
+      slots+=s; people+=pe; if(s>0) done++;
+      var vn=r.venue||"TBD";
+      if(!byVenue[vn]) byVenue[vn]={name:vn,slots:0,people:0,sports:{}};
+      byVenue[vn].slots+=s; byVenue[vn].people+=pe;
+      if(r.sport) byVenue[vn].sports[r.sport]=1;});
+    return {rows:rows.length,slots:slots,people:people,done:done,byVenue:byVenue,
+      questions:(v&&typeof v.questions==="string")?v.questions:"",
+      by:(v&&v.updatedBy)||"",at:(v&&v.updatedAt)||""};
+  }
+  function card(k,v){return '<div class="summary-card"><div class="summary-label">'+k+
+    '</div><div class="summary-value">'+v+"</div></div>";}
+  function render(){
+    var p=window._sportsPlan;
+    var sum=document.getElementById("sportsSummary");
+    var bv=document.getElementById("sportsByVenue");
+    var qs=document.getElementById("sportsQuestions");
+    var badge=document.getElementById("badge-sports");
+    if(!sum||!bv) return;
+    if(!p){sum.innerHTML='<div style="padding:10px;color:#64748b">Nothing entered yet.</div>';
+      bv.innerHTML=""; if(qs) qs.innerHTML=""; return;}
+    if(badge) badge.textContent=p.done+"/"+p.rows;
+    sum.innerHTML=card("Events with slots",p.done+" / "+p.rows)+
+      card("Total slots",p.slots.toLocaleString())+
+      card("Athletes at max",p.people.toLocaleString())+
+      card("Venues used",String(Object.keys(p.byVenue).filter(function(k){return k!=="TBD";}).length));
+    var h='<table class="hub-table"><thead><tr><th>Venue</th><th>Sports</th>'+
+      '<th style="text-align:right">Slots</th><th style="text-align:right">Athletes at max</th>'+
+      '<th style="text-align:right">Vs registrations</th></tr></thead><tbody>';
+    Object.keys(p.byVenue).sort().forEach(function(k){
+      var r=p.byVenue[k], ref=REF[k], cmp="&mdash;";
+      if(ref){var d=r.people-ref;
+        var col=r.people===0?"#64748b":(Math.abs(d)<=ref*0.1?"#157347":(d>0?"#b02a37":"#9a6b00"));
+        cmp='<span style="color:'+col+';font-weight:600">'+
+          (r.people===0?("ref "+ref):((d>0?"+":"")+d+" vs "+ref))+"</span>";}
+      h+="<tr><td><b>"+esc2(k)+'</b></td><td style="color:#64748b;font-size:.8rem">'+
+        esc2(Object.keys(r.sports).sort().join(" \u00b7 "))+"</td>"+
+        '<td style="text-align:right">'+r.slots+"</td>"+
+        '<td style="text-align:right;font-weight:600">'+r.people.toLocaleString()+"</td>"+
+        '<td style="text-align:right">'+cmp+"</td></tr>";});
+    h+="</tbody></table>";
+    if(p.by) h+='<div style="margin-top:8px;color:#64748b;font-size:.78rem">Last edited by '+
+      esc2(p.by)+(p.at?" &middot; "+new Date(p.at).toLocaleString():"")+"</div>";
+    bv.innerHTML=h;
+    if(qs) qs.innerHTML=p.questions?
+      ('<div class="hub-title" style="margin-top:18px">Raised by the Sports team</div>'+
+       '<div style="white-space:pre-wrap;background:#fff7ed;border-left:3px solid #d97706;padding:10px 14px;border-radius:0 8px 8px 0">'+
+       esc2(p.questions)+"</div>"):"";
+  }
+  (async function(){
+    for(var i=0;i<80&&!window._authReady;i++) await new Promise(function(r){setTimeout(r,250);});
+    try{
+      var m=await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js");
+      m.onValue(_dbRef("naig2027/sportsPlan"),function(snap){
+        window._sportsPlan=snap.exists()?compute(snap.val()):null;
+        render();
+        if(typeof window.renderVenues==="function"){try{window.renderVenues();}catch(e){}}
+      },function(){});
+    }catch(e){}
+  })();
 })();
 </script>
 </body>
