@@ -107,73 +107,75 @@ footer{margin-top:34px;padding-top:15px;border-top:1px solid var(--line);color:v
 
 <header class="top">
   <h1>NAIG 2027 — Sports Allocation</h1>
-  <p class="sub">Slots by sport, gender and age group — which venue each lands at, and how many athletes that adds up to.</p>
+  <p class="sub">Every official event, the venue it lands at, and how many athletes that adds up to.</p>
   <div class="meta">
     <span>Games: Thu 25 – Sun 28 March 2027</span><span>Logistics</span><span id="lastsave">—</span>
   </div>
 </header>
 
 <div class="note">
-  <b>This saves automatically.</b> Type and it is stored — no submit button. Totals update as you go.
+  <b>One number from you: slots.</b> Everything else is already filled in from the official
+  event list at naismailigames.com. Type a slot count and it saves itself — no submit button.
   Put your name in the box so we know who changed what.
 </div>
 
 <div class="split">
   <div class="half mine">
-    <h3>Already filled in for you</h3>
+    <h3>Taken from the official site</h3>
     <ul>
-      <li><b>Sport</b> and <b>Venue</b> — from the confirmed venue plan</li>
-      <li>13 sports across 6 venues, 20 starting rows</li>
-      <li>Registration figures to plan against, in the By venue table below</li>
-      <li>The athlete maths — slots × max per slot, totalled per venue</li>
+      <li>All <b>100 events</b> — 14 sports, divisions and age groups exactly as published</li>
+      <li><b>Max per slot</b> — the published roster maximum for every team sport</li>
+      <li><b>Venue</b> — from the logistics venue plan</li>
     </ul>
   </div>
   <div class="half theirs">
     <h3>Yours to enter</h3>
     <ul>
-      <li><b>Age group</b> — blank on every row</li>
-      <li><b>Slots</b> — teams or entries, not people</li>
-      <li><b>Max per slot</b> — the largest roster one slot can bring. Singles events are 1</li>
-      <li>Add, split or delete rows freely — the 20 are a starting shape, not a rule</li>
+      <li><b>Slots</b> — how many teams or entries in that event</li>
+      <li>Correct anything that is wrong. Add a row if an event is missing</li>
+      <li>Tell us what is blocking you in the box at the bottom</li>
     </ul>
   </div>
 </div>
 
 <div class="note">
-  <b>Gender rows are our guess, not a decision.</b> We split men's and women's where we assumed
-  separate competition. If a sport runs mixed, or needs three rows instead of two, change it.
-  Only the cricket split is fixed — men's and women's are planned at separate grounds.
+  <b>Slots are teams and entries, not people.</b> Athlete counts are slots &times; max per slot,
+  using the <b>maximum</b> roster the rules allow — venues, food and buses have to hold the
+  biggest version of the draw, not the smallest.
 </div>
 
 <div class="bar">
   <input type="text" id="who" class="who" placeholder="Your name — so we know who entered this" autocomplete="name">
+  <select id="fVenue"><option value="">All venues</option></select>
+  <select id="fSport"><option value="">All sports</option></select>
+  <select id="fAge"><option value="">All ages</option></select>
   <button type="button" id="add">+ Add row</button>
-  <button type="button" id="seed" class="ghost">Reset to the 20 starting rows</button>
+  <button type="button" id="seed" class="ghost">Reset to the official 100</button>
   <span class="status" id="status">Connecting…</span>
 </div>
 
 <div class="cards">
   <div class="kpi"><div class="k">Total slots</div><div class="v" id="kTotal">0</div></div>
   <div class="kpi"><div class="k">Athletes at max</div><div class="v" id="kPeople">0</div></div>
-  <div class="kpi"><div class="k">Needs max per slot</div><div class="v" id="kNoCap">0</div></div>
-  <div class="kpi"><div class="k">Sports covered</div><div class="v" id="kSports">0</div></div>
+  <div class="kpi"><div class="k">Events with slots</div><div class="v" id="kDone">0</div></div>
   <div class="kpi"><div class="k">Venues used</div><div class="v" id="kVenues">0</div></div>
-  <div class="kpi"><div class="k">Unassigned</div><div class="v" id="kTbd">0</div></div>
+  <div class="kpi"><div class="k">Unassigned athletes</div><div class="v" id="kTbd">0</div></div>
 </div>
 
-<h2>Entries</h2>
-<p class="lead">One row per competing group. Split by gender and age group wherever they compete separately.</p>
+<h2>Events</h2>
+<p class="lead" id="shown">One row per official event. Filter above to work through one venue at a time.</p>
 
 <div class="tblwrap">
   <table>
     <thead><tr>
-      <th style="width:17%">Sport <span class="tag set">set</span></th>
-      <th style="width:14%">Gender</th>
-      <th style="width:14%">Age group <span class="tag you">you</span></th>
-      <th style="width:9%">Slots <span class="tag you">you</span></th>
-      <th style="width:11%">Max per slot <span class="tag you">you</span></th>
-      <th style="width:20%">Venue <span class="tag set">set</span></th>
-      <th style="width:13%">Notes</th>
+      <th style="width:16%">Sport <span class="tag set">set</span></th>
+      <th style="width:12%">Event <span class="tag set">set</span></th>
+      <th style="width:7%">Age <span class="tag set">set</span></th>
+      <th style="width:10%">Division <span class="tag set">set</span></th>
+      <th style="width:8%">Slots <span class="tag you">you</span></th>
+      <th style="width:9%">Max per slot <span class="tag set">set</span></th>
+      <th style="width:19%">Venue <span class="tag set">set</span></th>
+      <th style="width:15%">Notes</th>
       <th></th>
     </tr></thead>
     <tbody id="rows"></tbody>
@@ -181,20 +183,21 @@ footer{margin-top:34px;padding-top:15px;border-top:1px solid var(--line);color:v
 </div>
 
 <h2>By venue</h2>
-<p class="lead">Running totals against the registration figures logistics is planning to. Large gaps either way are worth a conversation.</p>
+<p class="lead">Athletes at max against the registration figures logistics is planning to. Large gaps either way are worth a conversation.</p>
 <div class="tblwrap" id="byVenue"></div>
 
 <h2>By sport</h2>
 <div class="tblwrap" id="bySport"></div>
 
 <h2>Anything we got wrong, or need from us</h2>
-<p class="lead">Free text. Blockers, missing sports, a venue that will not work for your format,
-or a number you cannot give us until something else is settled. This saves with the table.</p>
+<p class="lead">Free text. Blockers, a venue that will not work for your format, or a number you
+cannot give us until something else is settled. This saves with the table.</p>
 <textarea class="qbox" id="questions" placeholder="e.g. Chess does not need a court — can it move off the McKinney allocation? / We cannot set volleyball slots until the regional rosters close."></textarea>
 
 <footer>
-  Saves live to the NAIG 2027 Logistics Hub. Reference registration figures come from the scope model —
-  14 regions × per-region allocation, plus published team rosters. Questions to Rizwan Ali.
+  Saves live to the NAIG 2027 Logistics Hub. Events, divisions, age groups and roster maximums
+  come from naismailigames.com/sports. Reference registration figures come from the logistics
+  scope model. Questions to Rizwan Ali.
 </footer>
 
 </div>
@@ -216,59 +219,148 @@ const app = initializeApp({
 const auth = getAuth(app), db = getDatabase(app);
 const PATH = "naig2027/sportsPlan";
 
-const SPORTS = ["Badminton","Basketball","Chess","Cricket","Dance","Flag Football","Pickleball",
-  "Soccer","Table Tennis","Tennis","Throwball","Track and Field","Volleyball","Other"];
-const GENDERS = ["Men's","Women's","Mixed","Open"];
-const AGES = ["Open / Adult","U19","U16","U14","U12","Masters 35+","Masters 45+","All ages"];
-const VENUES = ["StarCenter Northlake","","StarCenter Farmers Branch","Pickler Universe",
+/* Venues come from the logistics plan, not the public site. */
+const VENUES = ["StarCenter Northlake","StarCenter Farmers Branch","Pickler Universe",
   "Courts of McKinney","Railroad Park","Lake Park","Frisco ISD Athletic Complex",
   "Grand Prairie Cricket Stadium","Texomo Ground","TBD"];
+
+/* Registration figures the logistics scope model is planning to. */
 const REF = { "StarCenter Northlake":1048, "StarCenter Farmers Branch":672, "Pickler Universe":336,
   "Courts of McKinney":560, "Railroad Park":1224, "Frisco ISD Athletic Complex":224 };
 
-/* Sport + venue come from the confirmed venue plan. Gender is a starting structure.
-   Age group and slots are deliberately blank — that is the Sports team's call. */
+/* ------------------------------------------------------------------
+   The official event list, transcribed from naismailigames.com/sports
+   on 15 Oct 2026. 100 events across 14 sports.
+
+   Age divisions are U18 (15-17), 18+ (Adult Open) and 45+ (Legends).
+   Gender divisions are Girls (U18), Women's (18+ / 45+) and Open.
+   There is no Men's division and no Masters 35+ - do not add them.
+
+   "Max per slot" is the published roster MAXIMUM:
+     Basketball 12 - Cricket Hardball 18 - Cricket Tapeball 18
+     Flag Football 15 - Football (Soccer) 18 - Throwball 15
+     Volleyball 12 - Dance Solo & Duet 2 - Dance Group 16
+   Individual events are 1 for Singles and Individual, 2 for any Doubles.
+   ------------------------------------------------------------------ */
 const SEED = [
-  ["Basketball","","Men's","","","","StarCenter Northlake",""],
-  ["Basketball","","Women's","","","","StarCenter Northlake",""],
-  ["Volleyball","","Men's","","","","StarCenter Northlake",""],
-  ["Volleyball","","Women's","","","","StarCenter Northlake",""],
-  ["Throwball","","","","","","StarCenter Northlake",""],
-  ["Badminton","","Men's","","","","StarCenter Farmers Branch",""],
-  ["Badminton","","Women's","","","","StarCenter Farmers Branch",""],
-  ["Table Tennis","","Men's","","","","StarCenter Farmers Branch",""],
-  ["Table Tennis","","Women's","","","","StarCenter Farmers Branch",""],
-  ["Pickleball","","","","","","Pickler Universe",""],
-  ["Dance","","","","","","Pickler Universe",""],
-  ["Tennis","","Men's","","","","Courts of McKinney",""],
-  ["Tennis","","Women's","","","","Courts of McKinney",""],
-  ["Chess","","","","","","Courts of McKinney","Indoor room upstairs — no court needed"],
-  ["Soccer","","Men's","","","","Railroad Park",""],
-  ["Soccer","","Women's","","","","Railroad Park",""],
-  ["Flag Football","","","","","","Railroad Park",""],
-  ["Cricket","","Men's","","","","Railroad Park","Moves to Texomo under scenario 2"],
-  ["Cricket","","Women's","","","","Railroad Park",""],
-  ["Track and Field","","","","","","Frisco ISD Athletic Complex","Quote not yet received"]
+  ["Badminton", "Singles", "U18", "Girls", "", "1", "StarCenter Farmers Branch", ""],
+  ["Badminton", "Doubles", "U18", "Girls", "", "2", "StarCenter Farmers Branch", ""],
+  ["Badminton", "Singles", "U18", "Open", "", "1", "StarCenter Farmers Branch", ""],
+  ["Badminton", "Doubles", "U18", "Open", "", "2", "StarCenter Farmers Branch", ""],
+  ["Badminton", "Mixed Doubles", "U18", "Open", "", "2", "StarCenter Farmers Branch", ""],
+  ["Badminton", "Singles", "18+", "Women's", "", "1", "StarCenter Farmers Branch", ""],
+  ["Badminton", "Doubles", "18+", "Women's", "", "2", "StarCenter Farmers Branch", ""],
+  ["Badminton", "Singles", "18+", "Open", "", "1", "StarCenter Farmers Branch", ""],
+  ["Badminton", "Doubles", "18+", "Open", "", "2", "StarCenter Farmers Branch", ""],
+  ["Badminton", "Mixed Doubles", "18+", "Open", "", "2", "StarCenter Farmers Branch", ""],
+  ["Badminton", "Singles", "45+", "Women's", "", "1", "StarCenter Farmers Branch", ""],
+  ["Badminton", "Doubles", "45+", "Women's", "", "2", "StarCenter Farmers Branch", ""],
+  ["Badminton", "Singles", "45+", "Open", "", "1", "StarCenter Farmers Branch", ""],
+  ["Badminton", "Doubles", "45+", "Open", "", "2", "StarCenter Farmers Branch", ""],
+  ["Badminton", "Mixed Doubles", "45+", "Open", "", "2", "StarCenter Farmers Branch", ""],
+  ["Chess", "Singles", "U18", "Open", "", "1", "Courts of McKinney", "Indoor room upstairs - no court needed"],
+  ["Chess", "Singles", "18+", "Open", "", "1", "Courts of McKinney", ""],
+  ["Pickleball", "Singles", "U18", "Girls", "", "1", "Pickler Universe", ""],
+  ["Pickleball", "Doubles", "U18", "Girls", "", "2", "Pickler Universe", ""],
+  ["Pickleball", "Singles", "U18", "Open", "", "1", "Pickler Universe", ""],
+  ["Pickleball", "Doubles", "U18", "Open", "", "2", "Pickler Universe", ""],
+  ["Pickleball", "Mixed Doubles", "U18", "Open", "", "2", "Pickler Universe", ""],
+  ["Pickleball", "Singles", "18+", "Women's", "", "1", "Pickler Universe", ""],
+  ["Pickleball", "Doubles", "18+", "Women's", "", "2", "Pickler Universe", ""],
+  ["Pickleball", "Singles", "18+", "Open", "", "1", "Pickler Universe", ""],
+  ["Pickleball", "Doubles", "18+", "Open", "", "2", "Pickler Universe", ""],
+  ["Pickleball", "Mixed Doubles", "18+", "Open", "", "2", "Pickler Universe", ""],
+  ["Pickleball", "Singles", "45+", "Women's", "", "1", "Pickler Universe", ""],
+  ["Pickleball", "Doubles", "45+", "Women's", "", "2", "Pickler Universe", ""],
+  ["Pickleball", "Singles", "45+", "Open", "", "1", "Pickler Universe", ""],
+  ["Pickleball", "Doubles", "45+", "Open", "", "2", "Pickler Universe", ""],
+  ["Pickleball", "Mixed Doubles", "45+", "Open", "", "2", "Pickler Universe", ""],
+  ["Table Tennis", "Singles", "U18", "Girls", "", "1", "StarCenter Farmers Branch", ""],
+  ["Table Tennis", "Doubles", "U18", "Girls", "", "2", "StarCenter Farmers Branch", ""],
+  ["Table Tennis", "Singles", "U18", "Open", "", "1", "StarCenter Farmers Branch", ""],
+  ["Table Tennis", "Doubles", "U18", "Open", "", "2", "StarCenter Farmers Branch", ""],
+  ["Table Tennis", "Mixed Doubles", "U18", "Open", "", "2", "StarCenter Farmers Branch", ""],
+  ["Table Tennis", "Singles", "18+", "Women's", "", "1", "StarCenter Farmers Branch", ""],
+  ["Table Tennis", "Doubles", "18+", "Women's", "", "2", "StarCenter Farmers Branch", ""],
+  ["Table Tennis", "Singles", "18+", "Open", "", "1", "StarCenter Farmers Branch", ""],
+  ["Table Tennis", "Doubles", "18+", "Open", "", "2", "StarCenter Farmers Branch", ""],
+  ["Table Tennis", "Mixed Doubles", "18+", "Open", "", "2", "StarCenter Farmers Branch", ""],
+  ["Table Tennis", "Singles", "45+", "Women's", "", "1", "StarCenter Farmers Branch", ""],
+  ["Table Tennis", "Doubles", "45+", "Women's", "", "2", "StarCenter Farmers Branch", ""],
+  ["Table Tennis", "Singles", "45+", "Open", "", "1", "StarCenter Farmers Branch", ""],
+  ["Table Tennis", "Doubles", "45+", "Open", "", "2", "StarCenter Farmers Branch", ""],
+  ["Table Tennis", "Mixed Doubles", "45+", "Open", "", "2", "StarCenter Farmers Branch", ""],
+  ["Tennis", "Singles", "U18", "Girls", "", "1", "Courts of McKinney", ""],
+  ["Tennis", "Doubles", "U18", "Girls", "", "2", "Courts of McKinney", ""],
+  ["Tennis", "Singles", "U18", "Open", "", "1", "Courts of McKinney", ""],
+  ["Tennis", "Doubles", "U18", "Open", "", "2", "Courts of McKinney", ""],
+  ["Tennis", "Mixed Doubles", "U18", "Open", "", "2", "Courts of McKinney", ""],
+  ["Tennis", "Singles", "18+", "Women's", "", "1", "Courts of McKinney", ""],
+  ["Tennis", "Doubles", "18+", "Women's", "", "2", "Courts of McKinney", ""],
+  ["Tennis", "Singles", "18+", "Open", "", "1", "Courts of McKinney", ""],
+  ["Tennis", "Doubles", "18+", "Open", "", "2", "Courts of McKinney", ""],
+  ["Tennis", "Mixed Doubles", "18+", "Open", "", "2", "Courts of McKinney", ""],
+  ["Track - 100M", "Individual", "U18", "Girls", "", "1", "Frisco ISD Athletic Complex", ""],
+  ["Track - 100M", "Individual", "U18", "Open", "", "1", "Frisco ISD Athletic Complex", ""],
+  ["Track - 100M", "Individual", "18+", "Women's", "", "1", "Frisco ISD Athletic Complex", ""],
+  ["Track - 100M", "Individual", "18+", "Open", "", "1", "Frisco ISD Athletic Complex", ""],
+  ["Track - 200M", "Individual", "U18", "Girls", "", "1", "Frisco ISD Athletic Complex", ""],
+  ["Track - 200M", "Individual", "U18", "Open", "", "1", "Frisco ISD Athletic Complex", ""],
+  ["Track - 200M", "Individual", "18+", "Women's", "", "1", "Frisco ISD Athletic Complex", ""],
+  ["Track - 200M", "Individual", "18+", "Open", "", "1", "Frisco ISD Athletic Complex", ""],
+  ["Track - 400M", "Individual", "U18", "Girls", "", "1", "Frisco ISD Athletic Complex", ""],
+  ["Track - 400M", "Individual", "U18", "Open", "", "1", "Frisco ISD Athletic Complex", ""],
+  ["Track - 400M", "Individual", "18+", "Women's", "", "1", "Frisco ISD Athletic Complex", ""],
+  ["Track - 400M", "Individual", "18+", "Open", "", "1", "Frisco ISD Athletic Complex", ""],
+  ["Track - 800M", "Individual", "U18", "Girls", "", "1", "Frisco ISD Athletic Complex", ""],
+  ["Track - 800M", "Individual", "U18", "Open", "", "1", "Frisco ISD Athletic Complex", ""],
+  ["Track - 800M", "Individual", "18+", "Women's", "", "1", "Frisco ISD Athletic Complex", ""],
+  ["Track - 800M", "Individual", "18+", "Open", "", "1", "Frisco ISD Athletic Complex", ""],
+  ["Track - 1500M", "Individual", "U18", "Girls", "", "1", "Frisco ISD Athletic Complex", ""],
+  ["Track - 1500M", "Individual", "U18", "Open", "", "1", "Frisco ISD Athletic Complex", ""],
+  ["Track - 1500M", "Individual", "18+", "Women's", "", "1", "Frisco ISD Athletic Complex", ""],
+  ["Track - 1500M", "Individual", "18+", "Open", "", "1", "Frisco ISD Athletic Complex", ""],
+  ["Track - 5000M", "Individual", "U18", "Girls", "", "1", "Frisco ISD Athletic Complex", ""],
+  ["Track - 5000M", "Individual", "U18", "Open", "", "1", "Frisco ISD Athletic Complex", ""],
+  ["Track - 5000M", "Individual", "18+", "Women's", "", "1", "Frisco ISD Athletic Complex", ""],
+  ["Track - 5000M", "Individual", "18+", "Open", "", "1", "Frisco ISD Athletic Complex", ""],
+  ["Basketball", "Team", "U18", "Girls", "", "12", "StarCenter Northlake", ""],
+  ["Basketball", "Team", "U18", "Open", "", "12", "StarCenter Northlake", ""],
+  ["Basketball", "Team", "18+", "Women's", "", "12", "StarCenter Northlake", ""],
+  ["Basketball", "Team", "18+", "Open", "", "12", "StarCenter Northlake", ""],
+  ["Cricket (Hardball)", "Team", "18+", "Open", "", "18", "Railroad Park", "Moves to Texomo under scenario 2"],
+  ["Cricket (Tapeball)", "Team", "18+", "Women's", "", "18", "Railroad Park", ""],
+  ["Dance", "Solo & Duet", "18+", "Open", "", "2", "Pickler Universe", "1-2 dancers"],
+  ["Dance", "Group", "18+", "Open", "", "16", "Pickler Universe", "3-16 dancers"],
+  ["Flag Football", "Team", "18+", "Women's", "", "15", "Railroad Park", ""],
+  ["Flag Football", "Team", "18+", "Open", "", "15", "Railroad Park", ""],
+  ["Football (Soccer)", "Team", "U18", "Girls", "", "18", "Railroad Park", "U18 is 7v7"],
+  ["Football (Soccer)", "Team", "U18", "Open", "", "18", "Railroad Park", "U18 is 7v7"],
+  ["Football (Soccer)", "Team", "18+", "Women's", "", "18", "Railroad Park", ""],
+  ["Football (Soccer)", "Team", "18+", "Open", "", "18", "Railroad Park", ""],
+  ["Throwball", "Team", "18+", "Women's", "", "15", "StarCenter Northlake", ""],
+  ["Volleyball (International)", "Team", "U18", "Girls", "", "12", "StarCenter Northlake", ""],
+  ["Volleyball (International)", "Team", "U18", "Open", "", "12", "StarCenter Northlake", ""],
+  ["Volleyball (International)", "Team", "18+", "Women's", "", "12", "StarCenter Northlake", ""],
+  ["Volleyball (International)", "Team", "18+", "Open", "", "12", "StarCenter Northlake", ""]
 ];
+
 function seedRows(){
-  return SEED.map(a=>({sport:a[0],division:a[1],gender:a[2],age:a[3],slots:a[4],cap:a[5],venue:a[6],notes:a[7]}));
+  return SEED.map(a=>({sport:a[0],event:a[1],age:a[2],division:a[3],
+    slots:a[4],cap:a[5],venue:a[6],notes:a[7]}));
 }
+function blank(){ return {sport:"",event:"",age:"",division:"",slots:"",cap:"",venue:"",notes:""}; }
 
 let rows = [], saveTimer = null, ready = false, applying = false;
 const $ = id => document.getElementById(id);
 const esc = s => String(s==null?"":s);
 const stat = (t, cls) => { const e=$("status"); e.textContent=t; e.className="status"+(cls?" "+cls:""); };
+function num(v){ const n=parseInt(v,10); return isNaN(n)?0:n; }
 
-function blank(){ return {sport:"",division:"",gender:"",age:"",slots:"",cap:"",venue:"",notes:""}; }
+/* Athletes implied by a row. We deliberately use the MAXIMUM roster per slot:
+   venues, food and transport have to hold the biggest version of the draw. */
+function people(r){ return num(r.slots) * num(r.cap); }
 
-function sel(val, opts, onchange){
-  const s=document.createElement("select");
-  const b=document.createElement("option"); b.value=""; b.textContent="—"; s.appendChild(b);
-  opts.forEach(o=>{ const e=document.createElement("option"); e.value=o; e.textContent=o;
-    if(o===val) e.selected=true; s.appendChild(e); });
-  s.addEventListener("change", e=>onchange(e.target.value));
-  return s;
-}
 function txt(val, ph, onchange, numeric){
   const i=document.createElement("input");
   i.type = numeric ? "number" : "text";
@@ -277,52 +369,78 @@ function txt(val, ph, onchange, numeric){
   i.addEventListener("input", e=>onchange(e.target.value));
   return i;
 }
+function sel(val, opts, onchange){
+  const s=document.createElement("select");
+  const b=document.createElement("option"); b.value=""; b.textContent="—"; s.appendChild(b);
+  opts.forEach(o=>{ const e=document.createElement("option"); e.value=o; e.textContent=o;
+    if(o===val) e.selected=true; s.appendChild(e); });
+  s.addEventListener("change", e=>onchange(e.target.value));
+  return s;
+}
+
+function visible(r){
+  const v=$("fVenue").value, s=$("fSport").value, a=$("fAge").value;
+  if(v && (r.venue||"TBD")!==v) return false;
+  if(s && r.sport!==s) return false;
+  if(a && r.age!==a) return false;
+  return true;
+}
 
 function render(){
   const tb=$("rows"); tb.textContent="";
-  rows.forEach((r,i)=>{
+  let shown=0;
+  rows.forEach(r=>{
+    if(!visible(r)) return;
+    shown++;
     const tr=document.createElement("tr");
-    const add=(node,cls)=>{ const td=document.createElement("td"); if(cls) td.className=cls; td.appendChild(node); tr.appendChild(td); };
-    add(sel(r.sport, SPORTS, v=>{ r.sport=v; touch(); }));
-    add(sel(r.gender, GENDERS, v=>{ r.gender=v; touch(); }));
-    add(sel(r.age, AGES, v=>{ r.age=v; touch(); }));
+    const add=(node,cls)=>{ const td=document.createElement("td"); if(cls) td.className=cls;
+      td.appendChild(node); tr.appendChild(td); };
+    add(txt(r.sport,"", v=>{ r.sport=v; touch(true); }));
+    add(txt(r.event,"", v=>{ r.event=v; touch(true); }));
+    add(txt(r.age,"", v=>{ r.age=v; touch(true); }));
+    add(txt(r.division,"", v=>{ r.division=v; touch(true); }));
     add(txt(r.slots,"0", v=>{ r.slots=v; touch(true); }, true), "num");
     add(txt(r.cap,"0", v=>{ r.cap=v; touch(true); }, true), "num");
     add(sel(r.venue, VENUES, v=>{ r.venue=v; touch(); }));
     add(txt(r.notes,"", v=>{ r.notes=v; touch(true); }));
     const d=document.createElement("button"); d.type="button"; d.textContent="×"; d.title="Delete row";
-    d.addEventListener("click",()=>{ rows.splice(i,1); render(); touch(); });
+    d.addEventListener("click",()=>{ const i=rows.indexOf(r); if(i>-1) rows.splice(i,1); render(); touch(); });
     add(d,"del");
     tb.appendChild(tr);
   });
+  $("shown").textContent = shown===rows.length
+    ? ("Showing all "+rows.length+" events. Filter above to work through one venue at a time.")
+    : ("Showing "+shown+" of "+rows.length+" events.");
   totals();
 }
 
-function num(v){ const n=parseInt(v,10); return isNaN(n)?0:n; }
-/* Athletes implied by a row. We deliberately use the MAXIMUM roster per slot:
-   venues, food and transport have to hold the biggest version of the draw,
-   not the smallest. A row with no max entered contributes 0 and is counted
-   in "Needs max per slot" so it is obvious the number is incomplete. */
-function people(r){ return num(r.slots) * num(r.cap); }
+function fillFilters(){
+  const keep=(id,vals)=>{
+    const s=$(id), cur=s.value;
+    while(s.options.length>1) s.remove(1);
+    vals.forEach(v=>{ const o=document.createElement("option"); o.value=v; o.textContent=v; s.appendChild(o); });
+    s.value = vals.indexOf(cur)>-1 ? cur : "";
+  };
+  keep("fVenue", VENUES.filter(v=>rows.some(r=>(r.venue||"TBD")===v)));
+  keep("fSport", [...new Set(rows.map(r=>r.sport).filter(Boolean))].sort());
+  keep("fAge",   ["U18","18+","45+"].filter(a=>rows.some(r=>r.age===a)));
+}
 
 function totals(){
   const total = rows.reduce((a,r)=>a+num(r.slots),0);
   const heads = rows.reduce((a,r)=>a+people(r),0);
-  const noCap = rows.filter(r=>num(r.slots)>0 && num(r.cap)<=0).length;
-  const sports = new Set(rows.filter(r=>r.sport).map(r=>r.sport));
+  const done  = rows.filter(r=>num(r.slots)>0).length;
   const venues = new Set(rows.filter(r=>r.venue&&r.venue!=="TBD").map(r=>r.venue));
   const tbd = rows.filter(r=>!r.venue||r.venue==="TBD").reduce((a,r)=>a+people(r),0);
-  $("kTotal").textContent = total.toLocaleString();
+  $("kTotal").textContent  = total.toLocaleString();
   $("kPeople").textContent = heads.toLocaleString();
-  $("kNoCap").textContent = noCap;
-  $("kSports").textContent = sports.size;
+  $("kDone").textContent   = done + " / " + rows.length;
   $("kVenues").textContent = venues.size;
-  $("kTbd").textContent = tbd.toLocaleString();
+  $("kTbd").textContent    = tbd.toLocaleString();
 
   const byV={};
   rows.forEach(r=>{ const v=r.venue||"TBD"; (byV[v]=byV[v]||{n:0,sl:0,s:new Set()});
-    byV[v].n+=people(r); byV[v].sl+=num(r.slots);
-    if(r.sport) byV[v].s.add(r.sport); });
+    byV[v].n+=people(r); byV[v].sl+=num(r.slots); if(r.sport) byV[v].s.add(r.sport); });
   const vwrap=$("byVenue"); vwrap.textContent="";
   const order = VENUES.filter(v=>byV[v]).concat(Object.keys(byV).filter(v=>VENUES.indexOf(v)===-1));
   if(!order.length){ const d=document.createElement("div"); d.className="vrow";
@@ -331,7 +449,8 @@ function totals(){
     const d=document.createElement("div"); d.className="vrow";
     const nm=document.createElement("div"); nm.className="nm"; nm.textContent=v;
     const sp=document.createElement("div"); sp.className="sp";
-    sp.textContent=([...byV[v].s].sort().join(" · ")||"—")+(byV[v].sl?"  —  "+byV[v].sl+" slot"+(byV[v].sl===1?"":"s"):"");
+    sp.textContent=([...byV[v].s].sort().join(" · ")||"—")
+      + (byV[v].sl?"  —  "+byV[v].sl+" slot"+(byV[v].sl===1?"":"s"):"");
     const ct=document.createElement("div"); ct.className="ct"; ct.textContent=byV[v].n.toLocaleString();
     const rf=document.createElement("div"); rf.className="rf";
     if(REF[v]){
@@ -359,7 +478,8 @@ function totals(){
     const sp=document.createElement("div"); sp.className="sp";
     sp.textContent=[...byS[k].v].sort().join(" · ")||"no venue set";
     const ct=document.createElement("div"); ct.className="ct"; ct.textContent=byS[k].n.toLocaleString();
-    const rf=document.createElement("div"); rf.className="rf"; rf.textContent=byS[k].sl+" slot"+(byS[k].sl===1?"":"s")+" · "+byS[k].d+" row"+(byS[k].d===1?"":"s");
+    const rf=document.createElement("div"); rf.className="rf";
+    rf.textContent=byS[k].sl+" slot"+(byS[k].sl===1?"":"s")+" · "+byS[k].d+" event"+(byS[k].d===1?"":"s");
     d.appendChild(nm); d.appendChild(sp); d.appendChild(ct); d.appendChild(rf);
     swrap.appendChild(d);
   });
@@ -385,13 +505,13 @@ async function save(){
   }catch(e){ stat("Not saved — "+e.message, "err"); }
 }
 
-$("add").addEventListener("click", ()=>{ rows.push(blank()); render(); touch(); });
+$("add").addEventListener("click", ()=>{ rows.push(blank()); fillFilters(); render(); touch(); });
 $("seed").addEventListener("click", ()=>{
-  if(rows.some(r=>r.sport||num(r.slots)) &&
-     !confirm("This replaces what is in the table with the current venue plan. Continue?")) return;
-  rows = seedRows();
-  render(); touch();
+  if(rows.some(r=>num(r.slots)) &&
+     !confirm("This replaces the table with the official 100 events and clears every slot count. Continue?")) return;
+  rows = seedRows(); fillFilters(); render(); touch();
 });
+["fVenue","fSport","fAge"].forEach(id=>$(id).addEventListener("change", render));
 $("who").addEventListener("input", ()=>touch(true));
 $("questions").addEventListener("input", ()=>touch(true));
 
@@ -403,11 +523,10 @@ onAuthStateChanged(auth, u=>{
     const v=snap.val();
     if(applying) return;
     const incoming = (v && Array.isArray(v.rows)) ? v.rows : [];
-    const mine = JSON.stringify(rows);
-    if(JSON.stringify(incoming) !== mine){
+    if(JSON.stringify(incoming) !== JSON.stringify(rows)){
       applying=true;
       rows = incoming.length ? incoming.map(r=>Object.assign(blank(), r)) : seedRows();
-      render();
+      fillFilters(); render();
       applying=false;
     }
     if(v && typeof v.questions==="string" && document.activeElement!==$("questions")
@@ -421,8 +540,7 @@ onAuthStateChanged(auth, u=>{
   }, err=>stat("Cannot read — "+err.message,"err"));
 });
 
-rows=seedRows();
-render();
+rows=seedRows(); fillFilters(); render();
 </script>
 </body>
 </html>
