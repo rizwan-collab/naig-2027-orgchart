@@ -52,6 +52,20 @@ button:hover{opacity:.9}
 
 h2{font-size:16px;margin:24px 0 8px;font-weight:650;letter-spacing:-.01em}
 .lead{color:var(--muted);font-size:13px;margin:0 0 10px}
+.tag{display:inline-block;font-size:9px;letter-spacing:.06em;text-transform:uppercase;
+  padding:1px 5px;border-radius:3px;margin-left:5px;vertical-align:middle;font-weight:600}
+.tag.you{background:rgba(217,119,6,.18);color:var(--warn);border:1px solid rgba(217,119,6,.35)}
+.tag.set{background:rgba(120,130,150,.15);color:var(--muted);border:1px solid var(--line)}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 14px}
+@media(max-width:700px){.split{grid-template-columns:1fr}}
+.half{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:11px 13px}
+.half h3{margin:0 0 6px;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.half ul{margin:0;padding-left:16px;font-size:13px;line-height:1.65}
+.half.mine{border-left:3px solid rgba(120,130,150,.5)}
+.half.theirs{border-left:3px solid var(--warn)}
+.qbox{width:100%;min-height:110px;background:var(--card);border:1px solid var(--line);
+  border-radius:6px;color:inherit;font:inherit;padding:10px 12px;resize:vertical}
+.qbox:focus{outline:none;border-color:var(--warn)}
 
 .tblwrap{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:900px}
@@ -104,10 +118,36 @@ footer{margin-top:34px;padding-top:15px;border-top:1px solid var(--line);color:v
   Put your name in the box so we know who changed what.
 </div>
 
+<div class="split">
+  <div class="half mine">
+    <h3>Already filled in for you</h3>
+    <ul>
+      <li><b>Sport</b> and <b>Venue</b> — from the confirmed venue plan</li>
+      <li>13 sports across 6 venues, 20 starting rows</li>
+      <li>Registration figures to plan against, in the By venue table below</li>
+    </ul>
+  </div>
+  <div class="half theirs">
+    <h3>Yours to enter</h3>
+    <ul>
+      <li><b>Division</b> — name it however you run the draw</li>
+      <li><b>Age group</b> — blank on every row</li>
+      <li><b>Slots</b> — the number that matters most to us</li>
+      <li>Add, split or delete rows freely — the 20 are a starting shape, not a rule</li>
+    </ul>
+  </div>
+</div>
+
+<div class="note">
+  <b>Gender rows are our guess, not a decision.</b> We split men's and women's where we assumed
+  separate competition. If a sport runs mixed, or needs three rows instead of two, change it.
+  Only the cricket split is fixed — men's and women's are planned at separate grounds.
+</div>
+
 <div class="bar">
   <input type="text" id="who" class="who" placeholder="Your name — so we know who entered this" autocomplete="name">
   <button type="button" id="add">+ Add row</button>
-  <button type="button" id="seed" class="ghost">Load current plan</button>
+  <button type="button" id="seed" class="ghost">Reset to the 20 starting rows</button>
   <span class="status" id="status">Connecting…</span>
 </div>
 
@@ -125,12 +165,12 @@ footer{margin-top:34px;padding-top:15px;border-top:1px solid var(--line);color:v
 <div class="tblwrap">
   <table>
     <thead><tr>
-      <th style="width:16%">Sport</th>
-      <th style="width:15%">Division</th>
+      <th style="width:16%">Sport <span class="tag set">set</span></th>
+      <th style="width:15%">Division <span class="tag you">you</span></th>
       <th style="width:11%">Gender</th>
-      <th style="width:12%">Age group</th>
-      <th style="width:9%">Slots</th>
-      <th style="width:22%">Venue</th>
+      <th style="width:12%">Age group <span class="tag you">you</span></th>
+      <th style="width:9%">Slots <span class="tag you">you</span></th>
+      <th style="width:22%">Venue <span class="tag set">set</span></th>
       <th style="width:13%">Notes</th>
       <th></th>
     </tr></thead>
@@ -144,6 +184,11 @@ footer{margin-top:34px;padding-top:15px;border-top:1px solid var(--line);color:v
 
 <h2>By sport</h2>
 <div class="tblwrap" id="bySport"></div>
+
+<h2>Anything we got wrong, or need from us</h2>
+<p class="lead">Free text. Blockers, missing sports, a venue that will not work for your format,
+or a number you cannot give us until something else is settled. This saves with the table.</p>
+<textarea class="qbox" id="questions" placeholder="e.g. Chess does not need a court — can it move off the McKinney allocation? / We cannot set volleyball slots until the regional rosters close."></textarea>
 
 <footer>
   Saves live to the NAIG 2027 Logistics Hub. Reference registration figures come from the scope model —
@@ -179,28 +224,33 @@ const VENUES = ["StarCenter Northlake","StarCenter Farmers Branch","Pickler Univ
 const REF = { "StarCenter Northlake":1048, "StarCenter Farmers Branch":672, "Pickler Universe":336,
   "Courts of McKinney":560, "Railroad Park":1224, "Frisco ISD Athletic Complex":224 };
 
+/* Sport + venue come from the confirmed venue plan. Gender is a starting structure.
+   Division, age group and slots are deliberately blank — that is the Sports team's call. */
 const SEED = [
-  ["Basketball","","Men's","Open / Adult","","StarCenter Northlake",""],
-  ["Basketball","","Women's","Open / Adult","","StarCenter Northlake",""],
-  ["Volleyball","","Men's","Open / Adult","","StarCenter Northlake",""],
-  ["Volleyball","","Women's","Open / Adult","","StarCenter Northlake",""],
-  ["Throwball","","Women's","Open / Adult","","StarCenter Northlake",""],
-  ["Badminton","","Men's","Open / Adult","","StarCenter Farmers Branch",""],
-  ["Badminton","","Women's","Open / Adult","","StarCenter Farmers Branch",""],
-  ["Table Tennis","","Men's","Open / Adult","","StarCenter Farmers Branch",""],
-  ["Table Tennis","","Women's","Open / Adult","","StarCenter Farmers Branch",""],
-  ["Pickleball","","Mixed","Open / Adult","","Pickler Universe",""],
-  ["Dance","","Mixed","All ages","","Pickler Universe",""],
-  ["Tennis","","Men's","Open / Adult","","Courts of McKinney",""],
-  ["Tennis","","Women's","Open / Adult","","Courts of McKinney",""],
-  ["Chess","","Mixed","All ages","","Courts of McKinney",""],
-  ["Soccer","","Men's","Open / Adult","","Railroad Park",""],
-  ["Soccer","","Women's","Open / Adult","","Railroad Park",""],
-  ["Flag Football","","Men's","Open / Adult","","Railroad Park",""],
-  ["Cricket","","Men's","Open / Adult","","Railroad Park",""],
-  ["Cricket","","Women's","Open / Adult","","Railroad Park",""],
-  ["Track and Field","","Mixed","All ages","","Frisco ISD Athletic Complex",""]
+  ["Basketball","","Men's","","","StarCenter Northlake",""],
+  ["Basketball","","Women's","","","StarCenter Northlake",""],
+  ["Volleyball","","Men's","","","StarCenter Northlake",""],
+  ["Volleyball","","Women's","","","StarCenter Northlake",""],
+  ["Throwball","","","","","StarCenter Northlake",""],
+  ["Badminton","","Men's","","","StarCenter Farmers Branch",""],
+  ["Badminton","","Women's","","","StarCenter Farmers Branch",""],
+  ["Table Tennis","","Men's","","","StarCenter Farmers Branch",""],
+  ["Table Tennis","","Women's","","","StarCenter Farmers Branch",""],
+  ["Pickleball","","","","","Pickler Universe",""],
+  ["Dance","","","","","Pickler Universe",""],
+  ["Tennis","","Men's","","","Courts of McKinney",""],
+  ["Tennis","","Women's","","","Courts of McKinney",""],
+  ["Chess","","","","","Courts of McKinney","Indoor room upstairs — no court needed"],
+  ["Soccer","","Men's","","","Railroad Park",""],
+  ["Soccer","","Women's","","","Railroad Park",""],
+  ["Flag Football","","","","","Railroad Park",""],
+  ["Cricket","","Men's","","","Railroad Park","Moves to Texomo under scenario 2"],
+  ["Cricket","","Women's","","","Railroad Park",""],
+  ["Track and Field","","","","","Frisco ISD Athletic Complex","Quote not yet received"]
 ];
+function seedRows(){
+  return SEED.map(a=>({sport:a[0],division:a[1],gender:a[2],age:a[3],slots:a[4],venue:a[5],notes:a[6]}));
+}
 
 let rows = [], saveTimer = null, ready = false, applying = false;
 const $ = id => document.getElementById(id);
@@ -316,6 +366,7 @@ async function save(){
   try{
     await set(ref(db, PATH), {
       rows: rows,
+      questions: ($("questions").value||""),
       updatedBy: ($("who").value||"").trim() || "unnamed",
       updatedAt: new Date().toISOString()
     });
@@ -327,10 +378,11 @@ $("add").addEventListener("click", ()=>{ rows.push(blank()); render(); touch(); 
 $("seed").addEventListener("click", ()=>{
   if(rows.some(r=>r.sport||num(r.slots)) &&
      !confirm("This replaces what is in the table with the current venue plan. Continue?")) return;
-  rows = SEED.map(a=>({sport:a[0],division:a[1],gender:a[2],age:a[3],slots:a[4],venue:a[5],notes:a[6]}));
+  rows = seedRows();
   render(); touch();
 });
 $("who").addEventListener("input", ()=>touch(true));
+$("questions").addEventListener("input", ()=>touch(true));
 
 signInAnonymously(auth).catch(e=>stat("Sign-in failed — "+e.message,"err"));
 onAuthStateChanged(auth, u=>{
@@ -343,10 +395,12 @@ onAuthStateChanged(auth, u=>{
     const mine = JSON.stringify(rows);
     if(JSON.stringify(incoming) !== mine){
       applying=true;
-      rows = incoming.length ? incoming.map(r=>Object.assign(blank(), r)) : (rows.length?rows:[blank(),blank(),blank()]);
+      rows = incoming.length ? incoming.map(r=>Object.assign(blank(), r)) : seedRows();
       render();
       applying=false;
     }
+    if(v && typeof v.questions==="string" && document.activeElement!==$("questions")
+       && $("questions").value!==v.questions){ $("questions").value=v.questions; }
     if(v && v.updatedBy){
       $("lastsave").textContent = "Last edited by "+v.updatedBy+
         (v.updatedAt ? " — "+new Date(v.updatedAt).toLocaleString() : "");
@@ -356,7 +410,7 @@ onAuthStateChanged(auth, u=>{
   }, err=>stat("Cannot read — "+err.message,"err"));
 });
 
-rows=[blank(),blank(),blank()];
+rows=seedRows();
 render();
 </script>
 </body>
