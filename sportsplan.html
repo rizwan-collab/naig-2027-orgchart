@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAIG 2027 — Sports Allocation</title>
+<meta name="description" content="Sports team working plan: slots per sport, division, gender and age group, and which venue each lands at.">
+<style>
+:root{
+  --bg:#f6f7f9; --card:#fff; --ink:#15212e; --muted:#64748b; --line:#e2e7ed;
+  --accent:#1f5f8b; --good:#1d7a4d; --warn:#9a6b00; --bad:#9b2c2c; --soft:#f0f3f7;
+  --sel:#1f5f8b; --selink:#fff; --head:#14213d;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d1420; --card:#151e2c; --ink:#e8eef5; --muted:#8fa0b3; --line:#243144;
+    --accent:#6fb3de; --good:#5cc08b; --warn:#d9a441; --bad:#e08585; --soft:#1a2535;
+    --sel:#2c6da0; --selink:#fff; --head:#0b1424;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d1420; --card:#151e2c; --ink:#e8eef5; --muted:#8fa0b3; --line:#243144;
+  --accent:#6fb3de; --good:#5cc08b; --warn:#d9a441; --bad:#e08585; --soft:#1a2535;
+  --sel:#2c6da0; --selink:#fff; --head:#0b1424;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:26px 16px 90px}
+header.top{margin-bottom:18px}
+h1{font-size:23px;margin:0 0 5px;letter-spacing:-.02em;font-weight:650}
+.sub{color:var(--muted);font-size:14px;margin:0 0 10px}
+.meta{color:var(--muted);font-size:12.5px}
+.meta span + span::before{content:"·";margin:0 7px;opacity:.6}
+
+.bar{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:13px 15px;margin:0 0 14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+input[type=text],select,input[type=number]{background:var(--bg);color:var(--ink);
+  border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:14px inherit;min-width:0}
+button{background:var(--sel);color:var(--selink);border:0;border-radius:8px;
+  padding:9px 15px;font:600 13px inherit;cursor:pointer}
+button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
+button:hover{opacity:.9}
+.who{flex:1 1 220px}
+.status{margin-left:auto;font-size:12.5px;color:var(--muted);white-space:nowrap}
+.status.ok{color:var(--good)} .status.err{color:var(--bad)}
+
+.note{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--warn);
+  border-radius:0 10px 10px 0;padding:12px 16px;margin:0 0 16px;font-size:13.5px}
+.note b{color:var(--warn)}
+
+h2{font-size:16px;margin:24px 0 8px;font-weight:650;letter-spacing:-.01em}
+.lead{color:var(--muted);font-size:13px;margin:0 0 10px}
+
+.tblwrap{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:900px}
+thead th{background:var(--head);color:#fff;font-size:10.5px;text-transform:uppercase;
+  letter-spacing:.05em;font-weight:700;text-align:left;padding:10px 9px;white-space:nowrap}
+tbody td{border-bottom:1px solid var(--line);padding:5px 7px;vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:nth-child(even){background:var(--soft)}
+td input,td select{width:100%;border:1px solid transparent;background:transparent;padding:6px 7px}
+td input:focus,td select:focus{border-color:var(--accent);background:var(--bg);outline:none}
+td.num input{text-align:right;font-variant-numeric:tabular-nums}
+td.del{width:34px;text-align:center}
+td.del button{background:transparent;color:var(--muted);border:0;padding:4px 7px;font-size:15px}
+td.del button:hover{color:var(--bad)}
+
+.cards{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 4px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:12px 15px;flex:1 1 150px}
+.kpi .k{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
+.kpi .v{font-size:25px;font-weight:650;font-variant-numeric:tabular-nums;line-height:1.25;margin-top:2px}
+
+.vrow{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--line)}
+.vrow:last-child{border-bottom:0}
+.vrow .nm{font-weight:600;flex:1 1 230px;min-width:0}
+.vrow .sp{color:var(--muted);font-size:12.5px;flex:2 1 320px;min-width:0}
+.vrow .ct{font-variant-numeric:tabular-nums;font-weight:650;width:74px;text-align:right}
+.vrow .rf{color:var(--muted);font-size:12px;width:120px;text-align:right}
+.pill{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:5px;
+  border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.p-ok{color:var(--good);border-color:var(--good)}
+.p-hi{color:var(--bad);border-color:var(--bad)}
+.p-lo{color:var(--warn);border-color:var(--warn)}
+footer{margin-top:34px;padding-top:15px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px}
+@media (max-width:620px){ .wrap{padding:18px 12px 70px} .status{margin-left:0;flex-basis:100%} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>NAIG 2027 — Sports Allocation</h1>
+  <p class="sub">Slots by sport, division, gender and age group — and which venue each one lands at.</p>
+  <div class="meta">
+    <span>Games: Thu 25 – Sun 28 March 2027</span><span>Logistics</span><span id="lastsave">—</span>
+  </div>
+</header>
+
+<div class="note">
+  <b>This saves automatically.</b> Type and it is stored — no submit button. Totals update as you go.
+  Put your name in the box so we know who changed what.
+</div>
+
+<div class="bar">
+  <input type="text" id="who" class="who" placeholder="Your name — so we know who entered this" autocomplete="name">
+  <button type="button" id="add">+ Add row</button>
+  <button type="button" id="seed" class="ghost">Load current plan</button>
+  <span class="status" id="status">Connecting…</span>
+</div>
+
+<div class="cards">
+  <div class="kpi"><div class="k">Total slots</div><div class="v" id="kTotal">0</div></div>
+  <div class="kpi"><div class="k">Rows filled</div><div class="v" id="kRows">0</div></div>
+  <div class="kpi"><div class="k">Sports covered</div><div class="v" id="kSports">0</div></div>
+  <div class="kpi"><div class="k">Venues used</div><div class="v" id="kVenues">0</div></div>
+  <div class="kpi"><div class="k">Unassigned</div><div class="v" id="kTbd">0</div></div>
+</div>
+
+<h2>Entries</h2>
+<p class="lead">One row per division. Split by gender and age group wherever they compete separately.</p>
+
+<div class="tblwrap">
+  <table>
+    <thead><tr>
+      <th style="width:16%">Sport</th>
+      <th style="width:15%">Division</th>
+      <th style="width:11%">Gender</th>
+      <th style="width:12%">Age group</th>
+      <th style="width:9%">Slots</th>
+      <th style="width:22%">Venue</th>
+      <th style="width:13%">Notes</th>
+      <th></th>
+    </tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+</div>
+
+<h2>By venue</h2>
+<p class="lead">Running totals against the registration figures logistics is planning to. Large gaps either way are worth a conversation.</p>
+<div class="tblwrap" id="byVenue"></div>
+
+<h2>By sport</h2>
+<div class="tblwrap" id="bySport"></div>
+
+<footer>
+  Saves live to the NAIG 2027 Logistics Hub. Reference registration figures come from the scope model —
+  14 regions × per-region allocation, plus published team rosters. Questions to Rizwan Ali.
+</footer>
+
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getDatabase, ref, get, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const app = initializeApp({
+  apiKey:"AIzaSyC16ftKuUYRkwexYYUuk0i5fYsxxVzI_eU",
+  authDomain:"naig-2027.firebaseapp.com",
+  databaseURL:"https://naig-2027-default-rtdb.firebaseio.com",
+  projectId:"naig-2027",
+  storageBucket:"naig-2027.appspot.com",
+  messagingSenderId:"97335869563",
+  appId:"1:97335869563:web:1a15a49205c103333e22de"
+});
+const auth = getAuth(app), db = getDatabase(app);
+const PATH = "naig2027/sportsPlan";
+
+const SPORTS = ["Badminton","Basketball","Chess","Cricket","Dance","Flag Football","Pickleball",
+  "Soccer","Table Tennis","Tennis","Throwball","Track and Field","Volleyball","Other"];
+const GENDERS = ["Men's","Women's","Mixed","Open"];
+const AGES = ["Open / Adult","U19","U16","U14","U12","Masters 35+","Masters 45+","All ages"];
+const VENUES = ["StarCenter Northlake","StarCenter Farmers Branch","Pickler Universe",
+  "Courts of McKinney","Railroad Park","Lake Park","Frisco ISD Athletic Complex",
+  "Grand Prairie Cricket Stadium","Texomo Ground","TBD"];
+const REF = { "StarCenter Northlake":1048, "StarCenter Farmers Branch":672, "Pickler Universe":336,
+  "Courts of McKinney":560, "Railroad Park":1224, "Frisco ISD Athletic Complex":224 };
+
+const SEED = [
+  ["Basketball","","Men's","Open / Adult","","StarCenter Northlake",""],
+  ["Basketball","","Women's","Open / Adult","","StarCenter Northlake",""],
+  ["Volleyball","","Men's","Open / Adult","","StarCenter Northlake",""],
+  ["Volleyball","","Women's","Open / Adult","","StarCenter Northlake",""],
+  ["Throwball","","Women's","Open / Adult","","StarCenter Northlake",""],
+  ["Badminton","","Men's","Open / Adult","","StarCenter Farmers Branch",""],
+  ["Badminton","","Women's","Open / Adult","","StarCenter Farmers Branch",""],
+  ["Table Tennis","","Men's","Open / Adult","","StarCenter Farmers Branch",""],
+  ["Table Tennis","","Women's","Open / Adult","","StarCenter Farmers Branch",""],
+  ["Pickleball","","Mixed","Open / Adult","","Pickler Universe",""],
+  ["Dance","","Mixed","All ages","","Pickler Universe",""],
+  ["Tennis","","Men's","Open / Adult","","Courts of McKinney",""],
+  ["Tennis","","Women's","Open / Adult","","Courts of McKinney",""],
+  ["Chess","","Mixed","All ages","","Courts of McKinney",""],
+  ["Soccer","","Men's","Open / Adult","","Railroad Park",""],
+  ["Soccer","","Women's","Open / Adult","","Railroad Park",""],
+  ["Flag Football","","Men's","Open / Adult","","Railroad Park",""],
+  ["Cricket","","Men's","Open / Adult","","Railroad Park",""],
+  ["Cricket","","Women's","Open / Adult","","Railroad Park",""],
+  ["Track and Field","","Mixed","All ages","","Frisco ISD Athletic Complex",""]
+];
+
+let rows = [], saveTimer = null, ready = false, applying = false;
+const $ = id => document.getElementById(id);
+const esc = s => String(s==null?"":s);
+const stat = (t, cls) => { const e=$("status"); e.textContent=t; e.className="status"+(cls?" "+cls:""); };
+
+function blank(){ return {sport:"",division:"",gender:"",age:"",slots:"",venue:"",notes:""}; }
+
+function sel(val, opts, onchange){
+  const s=document.createElement("select");
+  const b=document.createElement("option"); b.value=""; b.textContent="—"; s.appendChild(b);
+  opts.forEach(o=>{ const e=document.createElement("option"); e.value=o; e.textContent=o;
+    if(o===val) e.selected=true; s.appendChild(e); });
+  s.addEventListener("change", e=>onchange(e.target.value));
+  return s;
+}
+function txt(val, ph, onchange, numeric){
+  const i=document.createElement("input");
+  i.type = numeric ? "number" : "text";
+  if(numeric){ i.min="0"; i.step="1"; }
+  i.value=esc(val); i.placeholder=ph||"";
+  i.addEventListener("input", e=>onchange(e.target.value));
+  return i;
+}
+
+function render(){
+  const tb=$("rows"); tb.textContent="";
+  rows.forEach((r,i)=>{
+    const tr=document.createElement("tr");
+    const add=(node,cls)=>{ const td=document.createElement("td"); if(cls) td.className=cls; td.appendChild(node); tr.appendChild(td); };
+    add(sel(r.sport, SPORTS, v=>{ r.sport=v; touch(); }));
+    add(txt(r.division,"e.g. Division A", v=>{ r.division=v; touch(true); }));
+    add(sel(r.gender, GENDERS, v=>{ r.gender=v; touch(); }));
+    add(sel(r.age, AGES, v=>{ r.age=v; touch(); }));
+    add(txt(r.slots,"0", v=>{ r.slots=v; touch(true); }, true), "num");
+    add(sel(r.venue, VENUES, v=>{ r.venue=v; touch(); }));
+    add(txt(r.notes,"", v=>{ r.notes=v; touch(true); }));
+    const d=document.createElement("button"); d.type="button"; d.textContent="×"; d.title="Delete row";
+    d.addEventListener("click",()=>{ rows.splice(i,1); render(); touch(); });
+    add(d,"del");
+    tb.appendChild(tr);
+  });
+  totals();
+}
+
+function num(v){ const n=parseInt(v,10); return isNaN(n)?0:n; }
+
+function totals(){
+  const filled = rows.filter(r=>r.sport||num(r.slots));
+  const total = rows.reduce((a,r)=>a+num(r.slots),0);
+  const sports = new Set(rows.filter(r=>r.sport).map(r=>r.sport));
+  const venues = new Set(rows.filter(r=>r.venue&&r.venue!=="TBD").map(r=>r.venue));
+  const tbd = rows.filter(r=>!r.venue||r.venue==="TBD").reduce((a,r)=>a+num(r.slots),0);
+  $("kTotal").textContent = total.toLocaleString();
+  $("kRows").textContent = filled.length;
+  $("kSports").textContent = sports.size;
+  $("kVenues").textContent = venues.size;
+  $("kTbd").textContent = tbd.toLocaleString();
+
+  const byV={};
+  rows.forEach(r=>{ const v=r.venue||"TBD"; (byV[v]=byV[v]||{n:0,s:new Set()}); byV[v].n+=num(r.slots);
+    if(r.sport) byV[v].s.add(r.sport); });
+  const vwrap=$("byVenue"); vwrap.textContent="";
+  const order = VENUES.filter(v=>byV[v]).concat(Object.keys(byV).filter(v=>VENUES.indexOf(v)===-1));
+  if(!order.length){ const d=document.createElement("div"); d.className="vrow";
+    d.textContent="Nothing entered yet."; vwrap.appendChild(d); }
+  order.forEach(v=>{
+    const d=document.createElement("div"); d.className="vrow";
+    const nm=document.createElement("div"); nm.className="nm"; nm.textContent=v;
+    const sp=document.createElement("div"); sp.className="sp";
+    sp.textContent=[...byV[v].s].sort().join(" · ")||"—";
+    const ct=document.createElement("div"); ct.className="ct"; ct.textContent=byV[v].n.toLocaleString();
+    const rf=document.createElement("div"); rf.className="rf";
+    if(REF[v]){
+      const diff=byV[v].n-REF[v];
+      const pill=document.createElement("span");
+      pill.className="pill "+(byV[v].n===0?"":(Math.abs(diff)<=REF[v]*0.1?"p-ok":(diff>0?"p-hi":"p-lo")));
+      pill.textContent = byV[v].n===0 ? ("ref "+REF[v]) : (diff>0?"+":"")+diff+" vs "+REF[v];
+      rf.appendChild(pill);
+    } else { rf.textContent="—"; }
+    d.appendChild(nm); d.appendChild(sp); d.appendChild(ct); d.appendChild(rf);
+    vwrap.appendChild(d);
+  });
+
+  const byS={};
+  rows.forEach(r=>{ if(!r.sport) return; (byS[r.sport]=byS[r.sport]||{n:0,v:new Set(),d:0});
+    byS[r.sport].n+=num(r.slots); byS[r.sport].d+=1; if(r.venue) byS[r.sport].v.add(r.venue); });
+  const swrap=$("bySport"); swrap.textContent="";
+  const skeys=Object.keys(byS).sort();
+  if(!skeys.length){ const d=document.createElement("div"); d.className="vrow";
+    d.textContent="Nothing entered yet."; swrap.appendChild(d); }
+  skeys.forEach(k=>{
+    const d=document.createElement("div"); d.className="vrow";
+    const nm=document.createElement("div"); nm.className="nm"; nm.textContent=k;
+    const sp=document.createElement("div"); sp.className="sp";
+    sp.textContent=[...byS[k].v].sort().join(" · ")||"no venue set";
+    const ct=document.createElement("div"); ct.className="ct"; ct.textContent=byS[k].n.toLocaleString();
+    const rf=document.createElement("div"); rf.className="rf"; rf.textContent=byS[k].d+" division"+(byS[k].d===1?"":"s");
+    d.appendChild(nm); d.appendChild(sp); d.appendChild(ct); d.appendChild(rf);
+    swrap.appendChild(d);
+  });
+}
+
+function touch(noRender){
+  if(!noRender) render(); else totals();
+  if(!ready) return;
+  stat("Saving…");
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(save, 700);
+}
+
+async function save(){
+  try{
+    await set(ref(db, PATH), {
+      rows: rows,
+      updatedBy: ($("who").value||"").trim() || "unnamed",
+      updatedAt: new Date().toISOString()
+    });
+    stat("Saved", "ok");
+  }catch(e){ stat("Not saved — "+e.message, "err"); }
+}
+
+$("add").addEventListener("click", ()=>{ rows.push(blank()); render(); touch(); });
+$("seed").addEventListener("click", ()=>{
+  if(rows.some(r=>r.sport||num(r.slots)) &&
+     !confirm("This replaces what is in the table with the current venue plan. Continue?")) return;
+  rows = SEED.map(a=>({sport:a[0],division:a[1],gender:a[2],age:a[3],slots:a[4],venue:a[5],notes:a[6]}));
+  render(); touch();
+});
+$("who").addEventListener("input", ()=>touch(true));
+
+signInAnonymously(auth).catch(e=>stat("Sign-in failed — "+e.message,"err"));
+onAuthStateChanged(auth, u=>{
+  if(!u) return;
+  stat("Connected");
+  onValue(ref(db, PATH), snap=>{
+    const v=snap.val();
+    if(applying) return;
+    const incoming = (v && Array.isArray(v.rows)) ? v.rows : [];
+    const mine = JSON.stringify(rows);
+    if(JSON.stringify(incoming) !== mine){
+      applying=true;
+      rows = incoming.length ? incoming.map(r=>Object.assign(blank(), r)) : (rows.length?rows:[blank(),blank(),blank()]);
+      render();
+      applying=false;
+    }
+    if(v && v.updatedBy){
+      $("lastsave").textContent = "Last edited by "+v.updatedBy+
+        (v.updatedAt ? " — "+new Date(v.updatedAt).toLocaleString() : "");
+    }
+    ready = true;
+    if(!$("status").textContent.startsWith("Saved")) stat("Connected","ok");
+  }, err=>stat("Cannot read — "+err.message,"err"));
+});
+
+rows=[blank(),blank(),blank()];
+render();
+</script>
+</body>
+</html>
