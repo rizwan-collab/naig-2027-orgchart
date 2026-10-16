@@ -5164,6 +5164,13 @@ function buildOrgTreeFromDirectory(people) {
     };
     if (p.city) node.city = p.city;
     if (p.roleType) node.roleType = p.roleType; // carried through for the layered renderer
+    // The Directory is the single source for a person. email and pid were
+    // never carried onto the node, so every regeneration silently dropped
+    // every email and the chart could not be traced back to its record.
+    // Fixed 16 Oct 2026. Do not edit name/email/role on an org node.
+    node.pid = p.id;
+    if (p.email) node.email = String(p.email).trim();
+    if (p.phone) node.phone = p.phone;
     if (p.vertical) node.vertical = p.vertical; // needed to pair co-leads
     // The onboarding token lives on the DIRECTORY record. Copy it onto the org
     // node so the existing ?onboard= lookup keeps working -- without this the
