@@ -8944,20 +8944,83 @@ function renderGrouped() {
   const today = new Date().toISOString().slice(0,10);
   const all = _taskFiltered();
   const groups = {};
+  /* Grouping mode: category | person | due | priority. Added 16 Oct 2026. */
+  if (!window._taskGroupBy) {
+    try { window._taskGroupBy = localStorage.getItem('naigTaskGroupBy') || 'category'; }
+    catch(e) { window._taskGroupBy = 'category'; }
+  }
+  (function(){
+    var _body = document.getElementById('taskGroupedBody');
+    if (!_body || !_body.parentNode) return;
+    var bar = document.getElementById('taskGroupBar');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'taskGroupBar';
+      bar.style.cssText = 'display:flex;gap:7px;flex-wrap:wrap;margin:0 0 12px';
+      _body.parentNode.insertBefore(bar, _body);
+    }
+    var opts = [['category','By category'],['person','By person'],['due','By due date'],['priority','By priority']];
+    bar.innerHTML = opts.map(function(o){
+      var on = (window._taskGroupBy === o[0]);
+      return '<button type="button" data-gb="'+o[0]+'" style="appearance:none;cursor:pointer;border:1px solid '+(on?'#2d6a9f':'#cfdae6')+';background:'+(on?'#2d6a9f':'#fff')+';color:'+(on?'#fff':'#1a3a5c')+';padding:6px 13px;border-radius:999px;font-size:12.5px;font-weight:600">'+o[1]+'</button>';
+    }).join('');
+    Array.prototype.forEach.call(bar.querySelectorAll('button'), function(b){
+      b.onclick = function(){
+        window._taskGroupBy = b.getAttribute('data-gb');
+        try { localStorage.setItem('naigTaskGroupBy', window._taskGroupBy); } catch(e){}
+        renderGrouped();
+      };
+    });
+  })();
+  var _gb = window._taskGroupBy;
+  var _GPRI = { critical:0, high:1, medium:2, low:3 };
+  var _gord = {};
+  var _nowMs = Date.now();
+  function _dueKey(t){
+    var d = String(t.due || t.dueDate || '').slice(0,10);
+    if (!d) return { k:'No date set', o:9 };
+    var ms = Date.parse(d + 'T00:00:00');
+    if (isNaN(ms)) return { k:'No date set', o:9 };
+    var days = Math.round((ms - _nowMs) / 86400000);
+    if (days < 0) return { k:'Overdue', o:0 };
+    if (days <= 7) return { k:'Next 7 days', o:1 };
+    if (days <= 30) return { k:'This month', o:2 };
+    if (days <= 90) return { k:'Next 3 months', o:3 };
+    return { k:'Later', o:4 };
+  }
+  function _priKey(t){
+    var p = String(t.priority || '').toLowerCase();
+    if (p in _GPRI) return { k: p.charAt(0).toUpperCase()+p.slice(1), o:_GPRI[p] };
+    return { k:'No priority set', o:9 };
+  }
   all.forEach(([k,t]) => {
-    const owners = taskOwners(t);
-    const persons = owners.length ? owners : ['(Unassigned)'];
-    persons.forEach(person => {
-      if (!groups[person]) groups[person] = [];
-      groups[person].push([k,t]);
+    var keys;
+    if (_gb === 'category')      keys = [{ k:(t.vertical || t.department || '(no category)'), o:null }];
+    else if (_gb === 'due')      keys = [_dueKey(t)];
+    else if (_gb === 'priority') keys = [_priKey(t)];
+    else {
+      var owners = taskOwners(t);
+      keys = (owners.length ? owners : ['(Unassigned)']).map(function(n){ return { k:n, o:null }; });
+    }
+    keys.forEach(function(x){
+      if (!groups[x.k]) groups[x.k] = [];
+      groups[x.k].push([k,t]);
+      if (x.o !== null) _gord[x.k] = x.o;
     });
   });
+  window._taskGroupOrd = _gord;
   // Sort each group by priority
   Object.values(groups).forEach(g => g.sort((a,b)=>(_PRI_ORDER[a[1].priority||'Medium']||2)-(_PRI_ORDER[b[1].priority||'Medium']||2)));
   const body = document.getElementById('taskGroupedBody');
   if (!body) return;
   const _an = assigneeNames();
-  const personOrder = [..._an.filter(n=>groups[n]), ...Object.keys(groups).filter(n=>_an.indexOf(n)===-1)];
+  const _gbNow = window._taskGroupBy || 'category';
+  const _gbOrd = window._taskGroupOrd || {};
+  const personOrder = (_gbNow === 'due' || _gbNow === 'priority')
+    ? Object.keys(groups).sort(function(a,b){ return (_gbOrd[a]==null?99:_gbOrd[a]) - (_gbOrd[b]==null?99:_gbOrd[b]); })
+    : (_gbNow === 'category'
+        ? Object.keys(groups).sort(function(a,b){ return groups[b].length - groups[a].length || a.localeCompare(b); })
+        : [..._an.filter(n=>groups[n]), ...Object.keys(groups).filter(n=>_an.indexOf(n) === -1)]);
   if (!personOrder.length) { body.innerHTML = `<div class="hub-empty">No tasks match filters.</div>`; return; }
   body.innerHTML = personOrder.map(person => {
     const items = groups[person] || [];
