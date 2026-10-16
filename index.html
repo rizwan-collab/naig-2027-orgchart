@@ -14276,9 +14276,12 @@ window.renderBudget = function() {
   let venueC=0, venueI=0, venueP=0, venueCount=0;
   const venueRows = [];
   Object.values(window._venuesData||{}).forEach(v => {
-    const c=parse(v.rentalFee), i=parse(v.invoiced), p=parse(v.paid);
+    if (v && v.archived) return;
+    var _amt=(v && v.rentalFeeAmount!=null)?Number(v.rentalFeeAmount):0;
+    var _elig=!!(v && v.budgetEligible);
+    const c=(_elig&&_amt)?_amt:0, i=parse(v.invoiced), p=parse(v.paid);
     venueC+=c; venueI+=i; venueP+=p;
-    if (c||i||p) { venueCount++; venueRows.push({name:v.name||'TBD',c,i,p}); }
+    if (c||i||p) { venueCount++; venueRows.push({name:v.name||"TBD",c,i,p}); }
   });
 
   // Aggregate vendors by category
@@ -14292,6 +14295,17 @@ window.renderBudget = function() {
   // Grand totals
   let grandC=venueC, grandI=venueI, grandP=venueP;
   Object.values(vendorCats).forEach(d=>{ grandC+=d.c; grandI+=d.i; grandP+=d.p; });
+  var _planRows=[], _planTotal=0;
+  (function(){ var BC=window._budgetCats||{};
+    Object.keys(BC).sort(function(x,y){return (BC[x].order||99)-(BC[y].order||99);}).forEach(function(k){
+      var c=BC[k]; if(!c||k==="venues") return;
+      if(String(c.mode||"")==="excluded") return;
+      var amt=Number(c.amount||0); if(!amt) return;
+      _planTotal+=amt;
+      var tag=c.placeholder?'<span style="background:#fff3cd;color:#856404;border:1px solid #ffe08a;border-radius:3px;padding:1px 5px;font-size:10px;margin-left:6px">PLACEHOLDER</span>':(String(c.mode||"")==="auto"?'<span style="background:#e7f3ff;color:#1a3a5c;border:1px solid #b8daff;border-radius:3px;padding:1px 5px;font-size:10px;margin-left:6px">AUTO</span>':"");
+      _planRows.push("<tr><td><strong>"+esc(c.label||k)+"</strong>"+tag+"</td>"+'<td style="font-size:11px;color:#888">Budget Plan</td><td style="font-size:11px">&mdash;</td><td style="font-weight:600;color:#1a3a5c">'+fmt(amt)+"</td>"+'<td style="font-size:11px;color:#aaa">&mdash;</td><td style="font-size:11px;color:#aaa">&mdash;</td><td style="font-size:11px;color:#aaa">&mdash;</td></tr>');
+    }); })();
+  grandC += _planTotal;
   const grandOut = Math.max(0, grandC - grandP);
 
   // KPI strip
@@ -14347,6 +14361,7 @@ window.renderBudget = function() {
   const tbody = document.getElementById('budgetTbody');
   if (!tbody) return;
   const rows = [];
+  rows.push.apply(rows,_planRows);
 
   if (venueC||venueI||venueP) {
     const out = Math.max(0,venueC-venueP);
@@ -21927,6 +21942,61 @@ var iv = setInterval(function(){
         window._sportsPlan=snap.exists()?compute(snap.val()):null;
         render(); renderDrift();
         if(typeof window.renderVenues==="function"){try{window.renderVenues();}catch(e){}}
+      },function(){});
+    }catch(e){}
+  })();
+})();
+</script>
+<script type="module">
+/* SINGLE SOURCE - added 16 Oct 2026. Budget tab reads naig2027/budget/categories.
+   Venue spend uses venues[].budgetEligible + rentalFeeAmount, never free-text rentalFee.
+   Headcount panel writes naig2027/headcount - Food, Venues and Sports all read it. */
+(function(){
+  function esc2(s){var d=document.createElement("div");d.textContent=String(s==null?"":s);return d.innerHTML;}
+  function mount(){
+    var host=document.getElementById("sectionBudget"); if(!host) return null;
+    var el=document.getElementById("hcPanel");
+    if(!el){el=document.createElement("div");el.id="hcPanel";
+      el.style.cssText="background:#f6f9fc;border:1px solid #d6e2ee;border-radius:8px;padding:14px 16px;margin:0 0 16px";
+      host.insertBefore(el,host.firstChild);}
+    return el;}
+  function fld(id,lab,val){return '<label style="font-size:11px;color:#667">'+lab+'<br><input id="'+id+'" type="number" value="'+Number(val||0)+'" style="width:108px;padding:5px;border:1px solid #c7d4e2;border-radius:4px;font-size:13px"></label>';}
+  function renderHC(){
+    var el=mount(); if(!el) return; var H=window._headcount||{};
+    var tot=Number(H.athletes||0)+Number(H.volunteers||0)+Number(H.staff||0);
+    el.innerHTML='<div style="font-weight:700;font-size:13px;color:#1a3a5c;margin-bottom:8px">Headcount &mdash; single source for Food, Venues and Sports</div>'
+      +'<div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end">'
+      +fld("hcAth","Athletes",H.athletes)+fld("hcVol","Volunteers",H.volunteers)+fld("hcStf","Staff",H.staff)
+      +'<button id="hcSave" style="padding:6px 14px;border:0;border-radius:4px;background:#2d6a9f;color:#fff;font-size:12px;cursor:pointer">Save</button>'
+      +'<span id="hcMsg" style="font-size:11px;color:#667"></span></div>'
+      +'<div style="font-size:11px;color:#8a97a5;margin-top:8px">Fed per meal slot: <strong>'+tot.toLocaleString()+'</strong> &middot; '+esc2(H.source||"")+'</div>';
+    var b=document.getElementById("hcSave");
+    if(b) b.onclick=function(){
+      var a=parseInt((document.getElementById("hcAth")||{}).value,10)||0;
+      var v=parseInt((document.getElementById("hcVol")||{}).value,10)||0;
+      var s=parseInt((document.getElementById("hcStf")||{}).value,10)||0;
+      var m=document.getElementById("hcMsg"); if(m) m.textContent="Saving...";
+      try{window._dbSet(_dbRef("naig2027/headcount/athletes"),a);
+        window._dbSet(_dbRef("naig2027/headcount/volunteers"),v);
+        window._dbSet(_dbRef("naig2027/headcount/staff"),s);
+        window._dbSet(_dbRef("naig2027/headcount/totalFed"),a+v+s);
+        window._dbSet(_dbRef("naig2027/headcount/updatedAt"),Date.now());
+        if(m) m.textContent="Saved.";
+      }catch(e){ if(m) m.textContent="Save failed: "+e.message; }
+    };}
+  window._renderHeadcount=renderHC;
+  (async function(){
+    for(var i=0;i<80 && !window._authReady;i++) await new Promise(function(r){setTimeout(r,250);});
+    try{
+      var m = window.__M2 || await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js");
+      m.onValue(_dbRef("naig2027/budget/categories"),function(s){
+        window._budgetCats = s.exists()? s.val() : {};
+        if(typeof window.renderBudget==="function"){try{window.renderBudget();}catch(e){}}
+      },function(){});
+      m.onValue(_dbRef("naig2027/headcount"),function(s){
+        window._headcount = s.exists()? s.val() : {};
+        renderHC();
+        if(typeof window.renderBudget==="function"){try{window.renderBudget();}catch(e){}}
       },function(){});
     }catch(e){}
   })();
