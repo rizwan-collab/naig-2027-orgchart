@@ -10323,7 +10323,13 @@ window.renderVenues = function() {
   const parseNum = s => moneyNum(s);
   const fmtN = n => n ? '$' + n.toLocaleString('en-US',{maximumFractionDigits:0}) : null;
   let totalCommitted=0, totalInvoiced=0, totalPaid=0;
-  all.forEach(([,v]) => { totalCommitted+=parseNum(v.rentalFee); totalInvoiced+=parseNum(v.invoiced); totalPaid+=parseNum(v.paid); });
+  /* Venue spend from NAIG.venues() so the Venues tab and the Budget tab agree.
+     Was a regex over free-text rentalFee across every venue including archived.
+     Fixed 16 Oct 2026. */
+  var _vf = (window.NAIG && window.NAIG.venues) ? window.NAIG.venues() : null;
+  if(_vf){ totalCommitted=_vf.committed; totalInvoiced=_vf.invoiced; totalPaid=_vf.paid; }
+  else { all.forEach(([,v]) => { totalCommitted+=parseNum(v.rentalFee); totalInvoiced+=parseNum(v.invoiced); totalPaid+=parseNum(v.paid); }); }
+
 
   const strip = document.getElementById('venueSummary');
   if (strip) strip.innerHTML =
@@ -21924,14 +21930,14 @@ var iv = setInterval(function(){
       card("Venues used",String(Object.keys(p.byVenue).filter(function(k){return k!=="TBD";}).length));
     var h='<table class="hub-table"><thead><tr><th>Venue</th><th>Sports</th>'+
       '<th style="text-align:right">Slots</th><th style="text-align:right">Athletes at max</th>'+
-      '<th style="text-align:right">Vs registrations</th></tr></thead><tbody>';
+      '</tr></thead><tbody>';
     Object.keys(p.byVenue).sort().forEach(function(k){
-      var r=p.byVenue[k], cmp=r.slots?(r.slots.toLocaleString()+" slots"):"&mdash;";
+      var r=p.byVenue[k];
       h+="<tr><td><b>"+esc2(k)+'</b></td><td style="color:#64748b;font-size:.8rem">'+
         esc2(Object.keys(r.sports).sort().join(" \u00b7 "))+"</td>"+
         '<td style="text-align:right">'+r.slots+"</td>"+
         '<td style="text-align:right;font-weight:600">'+r.people.toLocaleString()+"</td>"+
-        '<td style="text-align:right">'+cmp+"</td></tr>";});
+        '</tr>'; });
     h+="</tbody></table>";
     if(p.by) h+='<div style="margin-top:8px;color:#64748b;font-size:.78rem">Last edited by '+
       esc2(p.by)+(p.at?" &middot; "+new Date(p.at).toLocaleString():"")+"</div>";
@@ -22091,6 +22097,46 @@ var iv = setInterval(function(){
       },function(){});
     }catch(e){}
   })();
+})();
+</script>
+<script>
+/* ════ NAIG FACTS - ONE DEFINITION, MANY DISPLAYS. Added 16 Oct 2026. ════
+   Venue spend was computed in three places with three answers
+   ($431,844 / $356,615 / $227,615). Anything showing a venue count,
+   venue spend, slot count or athlete count reads from here. Do not
+   re-derive these anywhere else. */
+(function(){
+  function num(x){ var n=Number(x); return isFinite(n)?n:0; }
+  function money(s){ var m=String(s==null?"":s).replace(/,/g,"").match(/\$\s?([0-9][0-9.]*)/); return m?parseFloat(m[1]):0; }
+  var F={};
+  F.venues=function(){
+    var V=window._venuesData||{};
+    var live=0,confirmed=0,inWorks=0,closed=0,committed=0,invoiced=0,paid=0;
+    Object.keys(V).forEach(function(k){
+      var v=V[k]||{};
+      if(v.archived){ closed++; return; }
+      live++;
+      var st=String(v.status||"");
+      if(/^confirmed$/i.test(st)) confirmed++;
+      else if(/declined|not available|not selected/i.test(st)) closed++;
+      else inWorks++;
+      if(v.budgetEligible && v.rentalFeeAmount!=null) committed+=num(v.rentalFeeAmount);
+      invoiced+=money(v.invoiced); paid+=money(v.paid);
+    });
+    return {live:live, confirmed:confirmed, inWorks:inWorks, closed:closed,
+            committed:committed, invoiced:invoiced, paid:paid};
+  };
+  F.sports=function(){
+    var p=window._sportsPlan;
+    if(!p) return {slots:0, athletes:0, byVenue:{}};
+    return {slots:num(p.slots), athletes:num(p.people), byVenue:p.byVenue||{}};
+  };
+  F.headcount=function(){
+    var H=window._headcount||{};
+    return {athletes:num(H.athletes), registrations:num(H.athleteRegistrations),
+            volunteers:num(H.volunteers), staff:num(H.staff), totalFed:num(H.totalFed)};
+  };
+  window.NAIG=F;
 })();
 </script>
 </body>
