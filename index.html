@@ -22008,7 +22008,7 @@ var iv = setInterval(function(){
       Object.keys(V||{}).forEach(function(k){
         var v=V[k]||{}; if(v.archived) return;
         var nm=String(v.name||"").trim(); if(!nm) return;
-        out[k]={name:nm, status:String(v.status||""), plannedAthletes:(v.plannedAthletes!=null?Number(v.plannedAthletes):null)};
+        out[k]={name:nm, status:String(v.status||""), sports:String(v.sports||""), recordType:String(v.recordType||"site"), plannedAthletes:(v.plannedAthletes!=null?Number(v.plannedAthletes):null)};
         n++;
       });
       if(!n) return;

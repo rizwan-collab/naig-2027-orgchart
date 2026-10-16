@@ -516,5 +516,48 @@ footer{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);color:v
   fillVenues(); render();
 })();
 </script>
+<div id="liveVenueBox" style="max-width:1100px;margin:22px auto 0;padding:14px 16px;border:1px solid #d6e2ee;border-radius:8px;background:#f6f9fc;font:14px/1.5 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+<div style="font-weight:700;color:#1a3a5c;margin-bottom:6px">Live venue list</div>
+<div id="liveVenueBody" style="color:#55657a">Loading from the hub&hellip;</div>
+</div>
+<script type="module">
+/* Live venue list from naig2027/public/venueRef - the same mirror the Sports
+   form reads. The venue cards above are still the static copy in this file;
+   this box is the current truth and flags anything that has drifted.
+   Added 16 Oct 2026. Finance block deliberately untouched. */
+import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+(function(){
+  var cfg={apiKey:"AIzaSyC16ftKuUYRkwexYYUuk0i5fYsxxVzI_eU",authDomain:"naig-2027.firebaseapp.com",databaseURL:"https://naig-2027-default-rtdb.firebaseio.com",projectId:"naig-2027",storageBucket:"naig-2027.appspot.com",messagingSenderId:"97335869563",appId:"1:97335869563:web:1a15a49205c103333e22de"};
+  var app=getApps().length?getApps()[0]:initializeApp(cfg);
+  var auth=getAuth(app), db=getDatabase(app);
+  function esc(s){var d=document.createElement("div");d.textContent=String(s==null?"":s);return d.innerHTML;}
+  function paint(mv){
+    var box=document.getElementById("liveVenueBody"); if(!box) return;
+    var rows=[], staticNames=[];
+    try{ staticNames=Object.keys(VENUES||{}); }catch(e){}
+    var liveNames=[];
+    Object.keys(mv||{}).forEach(function(k){
+      var r=mv[k]||{}; var nm=String(r.name||"").trim(); if(!nm) return;
+      liveNames.push(nm);
+      if(String(r.recordType||"site")==="agreement") return;
+      rows.push("<tr><td style=\"padding:4px 10px 4px 0\">"+esc(nm)+"</td>"
+        +"<td style=\"padding:4px 10px 4px 0;color:#55657a\">"+esc(r.status||"")+"</td>"
+        +"<td style=\"padding:4px 10px 4px 0;color:#55657a\">"+(r.plannedAthletes!=null?Number(r.plannedAthletes).toLocaleString():"&mdash;")+"</td>"
+        +"<td style=\"padding:4px 0;color:#55657a\">"+esc(String(r.sports||"").slice(0,90))+"</td></tr>");
+    });
+    var missing=staticNames.filter(function(n){ return liveNames.indexOf(n)===-1; });
+    var warn = missing.length ? ('<div style="margin-top:10px;padding:8px 10px;border:1px solid #f0c36d;background:#fff8e6;border-radius:5px;color:#7a5b16">These venues appear on the cards above but no longer match a live venue record: '+esc(missing.join(", "))+'. The cards are a static copy in this file.</div>') : "";
+    box.innerHTML = '<table style="border-collapse:collapse;width:100%"><thead><tr style="text-align:left;color:#1a3a5c;font-size:12px"><th style="padding:0 10px 4px 0">Venue</th><th style="padding:0 10px 4px 0">Status</th><th style="padding:0 10px 4px 0">Athletes</th><th style="padding:0 0 4px 0">Sports</th></tr></thead><tbody>'+rows.join("")+'</tbody></table>'+warn;
+  }
+  onAuthStateChanged(auth,function(u){
+    if(!u){ signInAnonymously(auth).catch(function(){ var b=document.getElementById("liveVenueBody"); if(b) b.textContent="Could not reach the hub."; }); return; }
+    onValue(ref(db,"naig2027/public/venueRef/venues"),function(s){ paint(s.val()); },function(){
+      var b=document.getElementById("liveVenueBody"); if(b) b.textContent="Could not read the live venue list.";
+    });
+  });
+})();
+</script>
 </body>
 </html>
