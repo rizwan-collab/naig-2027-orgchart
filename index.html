@@ -20426,7 +20426,7 @@ function load(section){
       if(!s[5].val()) persist();
       try {
         FB.onValue(_dbRef('naig2027/headcount'), function(hs){ G.headcount = hs.val() || {}; render(); });
-        FB.onValue(_dbRef('naig2027/venues'),    function(vs){ G.venues    = vs.val() || {}; render(); });
+        FB.onValue(_dbRef('naig2027/venues'),    function(vs){ G.venues    = vs.val() || {}; render(); if(window._publishVenueMirror) window._publishVenueMirror(G.venues); });
         FB.onValue(_dbRef('naig2027/food'),      function(fs){ G.food      = fs.val() || {}; render(); });
       } catch(e){}
       window.__naigBudgetReload = function(){
@@ -21998,6 +21998,27 @@ var iv = setInterval(function(){
       }catch(e){ if(m) m.textContent="Save failed: "+e.message; }
     };}
   window._renderHeadcount=renderHC;
+  /* Keep naig2027/public/venueRef in step with naig2027/venues so the Sports
+     form (no sign-in) always sees the current venue names and athlete figures.
+     Mirror carries name, status and plannedAthletes ONLY - never contacts,
+     costs or contract terms. Added 16 Oct 2026. */
+  window._publishVenueMirror = function(V){
+    try{
+      var out={}, n=0;
+      Object.keys(V||{}).forEach(function(k){
+        var v=V[k]||{}; if(v.archived) return;
+        var nm=String(v.name||"").trim(); if(!nm) return;
+        out[k]={name:nm, status:String(v.status||""), plannedAthletes:(v.plannedAthletes!=null?Number(v.plannedAthletes):null)};
+        n++;
+      });
+      if(!n) return;
+      var sig=JSON.stringify(out);
+      if(window.__venueMirrorSig===sig) return;
+      window.__venueMirrorSig=sig;
+      window._dbSet(_dbRef("naig2027/public/venueRef/venues"), out);
+      window._dbSet(_dbRef("naig2027/public/venueRef/updatedAt"), Date.now());
+    }catch(e){}
+  };
   (async function(){
     for(var i=0;i<80 && !window._authReady;i++) await new Promise(function(r){setTimeout(r,250);});
     try{
