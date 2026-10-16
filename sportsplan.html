@@ -508,10 +508,13 @@ $("seed").addEventListener("click", ()=>{
 $("who").addEventListener("input", ()=>touch(true));
 $("questions").addEventListener("input", ()=>touch(true));
 
-signInAnonymously(auth).catch(e=>stat("Sign-in failed — "+e.message,"err"));
+/* Only create an anonymous session when there is NO existing session.
+   This page shares an origin and a Firebase app with the hub, so an
+   unconditional signInAnonymously() replaced a signed-in user's Google
+   session and dropped them to view-only on the hub. Fixed 16 Oct 2026. */
 onAuthStateChanged(auth, u=>{
-  if(!u) return;
-  stat("Connected");
+  if(!u){ signInAnonymously(auth).catch(e=>stat("Sign-in failed — "+e.message,"err")); return; }
+  stat(u.isAnonymous ? "Connected" : ("Connected as "+(u.email||"signed-in user")));
 
   /* Live venue list + athlete figures from the hub public mirror
      (naig2027/public/venueRef). Merged over the built-in defaults so existing
