@@ -211,13 +211,15 @@ const auth = getAuth(app), db = getDatabase(app);
 const PATH = "naig2027/sportsPlan";
 
 /* Venues come from the logistics plan, not the public site. */
-const VENUES = ["StarCenter Northlake","StarCenter Farmers Branch","Pickler Universe",
+const DEFAULT_VENUES = ["StarCenter Northlake","StarCenter Farmers Branch","Pickler Universe",
   "Courts of McKinney","Railroad Park","Lake Park","Frisco ISD Athletic Complex",
   "Grand Prairie Cricket Stadium","Texomo Ground","TBD"];
 
 /* Registration figures the logistics scope model is planning to. */
-const REF = { "StarCenter Northlake":1048, "StarCenter Farmers Branch":672, "Pickler Universe":336,
+const DEFAULT_REF = { "StarCenter Northlake":1048, "StarCenter Farmers Branch":672, "Pickler Universe":336,
   "Courts of McKinney":560, "Railroad Park":1224, "Frisco ISD Athletic Complex":224 };
+let VENUES = DEFAULT_VENUES.slice();
+let REF = Object.assign({}, DEFAULT_REF);
 
 /* ------------------------------------------------------------------
    The official event list, transcribed from naismailigames.com/sports
@@ -510,6 +512,29 @@ signInAnonymously(auth).catch(e=>stat("Sign-in failed — "+e.message,"err"));
 onAuthStateChanged(auth, u=>{
   if(!u) return;
   stat("Connected");
+
+  /* Live venue list + athlete figures from the hub public mirror
+     (naig2027/public/venueRef). Merged over the built-in defaults so existing
+     rows keep working if a name differs. Added 16 Oct 2026. */
+  onValue(ref(db, "naig2027/public/venueRef/venues"), function(vsnap){
+    var mv = vsnap.val();
+    if(!mv) return;
+    var names = [], refs = Object.assign({}, DEFAULT_REF);
+    Object.keys(mv).forEach(function(k){
+      var rec = mv[k] || {};
+      var nm = String(rec.name || "").trim();
+      if(!nm) return;
+      names.push(nm);
+      if(rec.plannedAthletes != null && rec.plannedAthletes !== "") refs[nm] = Number(rec.plannedAthletes);
+    });
+    if(!names.length) return;
+    names.sort(function(a,b){ return a.localeCompare(b); });
+    var merged = names.slice();
+    DEFAULT_VENUES.forEach(function(d){ if(merged.indexOf(d) === -1) merged.push(d); });
+    VENUES = merged;
+    REF = refs;
+    try { render(); } catch(e){}
+  }, function(){});
   onValue(ref(db, PATH), snap=>{
     const v=snap.val();
     if(applying) return;
