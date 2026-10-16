@@ -20073,6 +20073,12 @@ function venueComputed(){
   return t;
 }
 function headcount(){
+  var HC = G.headcount || {};
+  if (Number(HC.athletes) > 0) {
+    var _a = Number(HC.athletes)||0, _v = Number(HC.volunteers)||0, _s = Number(HC.staff)||0;
+    var _as = G.food.assumptions || {};
+    return { ath:_a, vol:_v, staff:_s, fed:_a+_v+_s, rate:Number(_as.ratePerPersonPerDay)||0, days:4, label:'naig2027/headcount (single source)' };
+  }
   var a = G.food.assumptions || {};
   var basis = String(a.activeBasis || 'teamModel');
   var sc = (G.food.headcountScenarios || {})[basis] || {};
@@ -20401,7 +20407,8 @@ function load(section){
         mod.get(_dbRef('naig2027/teamModel')),
         mod.get(_dbRef('naig2027/transportation')),
         mod.get(_dbRef('naig2027/hotels')),
-        mod.get(_dbRef('naig2027/budget'))
+        mod.get(_dbRef('naig2027/budget')),
+        mod.get(_dbRef('naig2027/headcount'))
       ]);
     })
     .then(function(s){
@@ -20411,11 +20418,17 @@ function load(section){
       G.trans  = s[3].val() || {};
       G.hotels = s[4].val() || {};
       B = s[5].val() || {};
+      G.headcount = (s[6] && s[6].val()) || {};
       if(!B.categories) B.categories = defaults();
       ORDER.forEach(function(k){ cat(k); });
       build(section);
       render();
       if(!s[5].val()) persist();
+      try {
+        FB.onValue(_dbRef('naig2027/headcount'), function(hs){ G.headcount = hs.val() || {}; render(); });
+        FB.onValue(_dbRef('naig2027/venues'),    function(vs){ G.venues    = vs.val() || {}; render(); });
+        FB.onValue(_dbRef('naig2027/food'),      function(fs){ G.food      = fs.val() || {}; render(); });
+      } catch(e){}
       window.__naigBudgetReload = function(){
         return FB.get(_dbRef('naig2027/food')).then(function(f){
           G.food = f.val() || G.food;
