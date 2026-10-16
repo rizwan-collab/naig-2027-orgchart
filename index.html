@@ -21875,9 +21875,8 @@ var iv = setInterval(function(){
    Athletes = slots x max per slot, using the MAXIMUM roster the rules allow.
    Must stay identical to sportsplan.html. */
 (function(){
-  var REF={"StarCenter Northlake":1048,"StarCenter Farmers Branch":672,
-    "Pickler Universe":336,"Courts of McKinney":560,"Railroad Park":1224,
-    "Frisco ISD Athletic Complex":224};
+  /* No "planned for" figure. Athlete counts come from naig2027/sportsPlan
+     slots only - that is the single source. Removed 16 Oct 2026. */
   function n(v){var x=parseInt(v,10);return isNaN(x)?0:x;}
   function esc2(s){return String(s==null?"":s).replace(/[&<>]/g,function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c];});}
@@ -21890,8 +21889,7 @@ var iv = setInterval(function(){
     Object.keys(p.byVenue).forEach(function(k){var kk=keyOf(k);
       if(kk&&(want.indexOf(kk)===0||kk.indexOf(want)===0)) hit=p.byVenue[k];});
     if(!hit||!hit.people) return "";
-    var ref=REF[hit.name], tail="";
-    if(ref){var d=hit.people-ref; tail=" &middot; "+(d>0?"+":"")+d+" vs "+ref;}
+        var tail="";
     return '<div class="vc-sports" style="background:#fff7ed;color:#9a3412">'+
       hit.people.toLocaleString()+" athletes at max &middot; "+hit.slots+" slots"+tail+"</div>";
   };
@@ -21928,11 +21926,7 @@ var iv = setInterval(function(){
       '<th style="text-align:right">Slots</th><th style="text-align:right">Athletes at max</th>'+
       '<th style="text-align:right">Vs registrations</th></tr></thead><tbody>';
     Object.keys(p.byVenue).sort().forEach(function(k){
-      var r=p.byVenue[k], ref=REF[k], cmp="&mdash;";
-      if(ref){var d=r.people-ref;
-        var col=r.people===0?"#64748b":(Math.abs(d)<=ref*0.1?"#157347":(d>0?"#b02a37":"#9a6b00"));
-        cmp='<span style="color:'+col+';font-weight:600">'+
-          (r.people===0?("ref "+ref):((d>0?"+":"")+d+" vs "+ref))+"</span>";}
+      var r=p.byVenue[k], cmp=r.slots?(r.slots.toLocaleString()+" slots"):"&mdash;";
       h+="<tr><td><b>"+esc2(k)+'</b></td><td style="color:#64748b;font-size:.8rem">'+
         esc2(Object.keys(r.sports).sort().join(" \u00b7 "))+"</td>"+
         '<td style="text-align:right">'+r.slots+"</td>"+
@@ -22063,7 +22057,7 @@ var iv = setInterval(function(){
   window._renderHeadcount=renderHC;
   /* Keep naig2027/public/venueRef in step with naig2027/venues so the Sports
      form (no sign-in) always sees the current venue names and athlete figures.
-     Mirror carries name, status and plannedAthletes ONLY - never contacts,
+     Mirror carries name, status, sports and recordType ONLY - never contacts,
      costs or contract terms. Added 16 Oct 2026. */
   window._publishVenueMirror = function(V){
     try{
@@ -22071,7 +22065,7 @@ var iv = setInterval(function(){
       Object.keys(V||{}).forEach(function(k){
         var v=V[k]||{}; if(v.archived) return;
         var nm=String(v.name||"").trim(); if(!nm) return;
-        out[k]={name:nm, status:String(v.status||""), sports:String(v.sports||""), recordType:String(v.recordType||"site"), plannedAthletes:(v.plannedAthletes!=null?Number(v.plannedAthletes):null)};
+        out[k]={name:nm, status:String(v.status||""), sports:String(v.sports||""), recordType:String(v.recordType||"site")};
         n++;
       });
       if(!n) return;

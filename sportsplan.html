@@ -174,7 +174,7 @@ footer{margin-top:34px;padding-top:15px;border-top:1px solid var(--line);color:v
 </div>
 
 <h2>By venue</h2>
-<p class="lead">Athletes at max against the registration figures logistics is planning to. Large gaps either way are worth a conversation.</p>
+<p class="lead">Athletes at max, worked out from the slots entered below. Nothing is compared against a separate planning figure are worth a conversation.</p>
 <div class="tblwrap" id="byVenue"></div>
 
 <h2>By sport</h2>
@@ -187,8 +187,8 @@ cannot give us until something else is settled. This saves with the table.</p>
 
 <footer>
   Saves live to the NAIG 2027 Logistics Hub. Events, divisions, age groups and roster maximums
-  come from naismailigames.com/sports. Reference registration figures come from the logistics
-  scope model. Questions to Rizwan Ali.
+  come from naismailigames.com/sports. Athlete counts are worked out from the slots on this page - there is no separate
+  planning figure. Questions to Rizwan Ali.
 </footer>
 
 </div>
@@ -215,11 +215,9 @@ const DEFAULT_VENUES = ["StarCenter Northlake","StarCenter Farmers Branch","Pick
   "Courts of McKinney","Railroad Park","Lake Park","Frisco ISD Athletic Complex",
   "Grand Prairie Cricket Stadium","Texomo Ground","TBD"];
 
-/* Registration figures the logistics scope model is planning to. */
-const DEFAULT_REF = { "StarCenter Northlake":1048, "StarCenter Farmers Branch":672, "Pickler Universe":336,
-  "Courts of McKinney":560, "Railroad Park":1224, "Frisco ISD Athletic Complex":224 };
-let VENUES = DEFAULT_VENUES.slice();
-let REF = Object.assign({}, DEFAULT_REF);
+/* Athlete counts come from the slots entered below. There is no separate
+   "planned for" figure any more - the slot sheet is the single source.
+   Removed 16 Oct 2026. */
 
 /* ------------------------------------------------------------------
    The official event list, transcribed from naismailigames.com/sports
@@ -447,13 +445,13 @@ function totals(){
       + (byV[v].sl?"  —  "+byV[v].sl+" slot"+(byV[v].sl===1?"":"s"):"");
     const ct=document.createElement("div"); ct.className="ct"; ct.textContent=byV[v].n.toLocaleString();
     const rf=document.createElement("div"); rf.className="rf";
-    if(REF[v]){
-      const diff=byV[v].n-REF[v];
+    if(byV[v].sl){
       const pill=document.createElement("span");
-      pill.className="pill "+(byV[v].n===0?"":(Math.abs(diff)<=REF[v]*0.1?"p-ok":(diff>0?"p-hi":"p-lo")));
-      pill.textContent = byV[v].n===0 ? ("ref "+REF[v]) : (diff>0?"+":"")+diff+" vs "+REF[v];
+      pill.className="pill p-ok";
+      pill.textContent=byV[v].sl.toLocaleString()+" slots";
       rf.appendChild(pill);
-    } else { rf.textContent="—"; }
+    } else { rf.textContent="\u2014"; }
+
     d.appendChild(nm); d.appendChild(sp); d.appendChild(ct); d.appendChild(rf);
     vwrap.appendChild(d);
   });
@@ -522,20 +520,18 @@ onAuthStateChanged(auth, u=>{
   onValue(ref(db, "naig2027/public/venueRef/venues"), function(vsnap){
     var mv = vsnap.val();
     if(!mv) return;
-    var names = [], refs = Object.assign({}, DEFAULT_REF);
+    var names = [];
     Object.keys(mv).forEach(function(k){
       var rec = mv[k] || {};
       var nm = String(rec.name || "").trim();
       if(!nm) return;
       names.push(nm);
-      if(rec.plannedAthletes != null && rec.plannedAthletes !== "") refs[nm] = Number(rec.plannedAthletes);
     });
     if(!names.length) return;
     names.sort(function(a,b){ return a.localeCompare(b); });
     var merged = names.slice();
     DEFAULT_VENUES.forEach(function(d){ if(merged.indexOf(d) === -1) merged.push(d); });
     VENUES = merged;
-    REF = refs;
     try { render(); } catch(e){}
   }, function(){});
   onValue(ref(db, PATH), snap=>{
