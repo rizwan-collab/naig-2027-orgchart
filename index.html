@@ -19684,108 +19684,83 @@ function styles(){
 }
 
 function render(){
-  var host = document.getElementById('nftBody');
-  if(!host) return;
-  var a = gF.assumptions || {};
-  var rate = Number(a.ratePerPersonPerDay) || 0;
-  var bk = basisKey();
-  var h = heads(bk);
-  var mb = gF.mealBuild || {};
-  var out = '';
-
-  /* headline */
-  out += '<div class="nft-card">';
-  out += '<div class="nft-h">Food — the biggest line in the Games</div>';
-  out += '<div class="nft-sub">Everything here is the record in the hub. The athlete basis is set once at naig2027/food/assumptions/activeBasis and the Budget tab uses the same numbers.</div>';
-  out += '<div class="nft-grid">';
-  out += '<div class="nft-box"><div class="nft-l">Rate</div><div class="nft-v">$' + rate + '</div><div class="nft-s">per person per day · ' + esc(String(a.confirmedBy||'owner not recorded')) + '</div></div>';
-  out += '<div class="nft-box"><div class="nft-l">People fed</div><div class="nft-v">' + nf(h.low) + '–' + nf(h.high) + '</div><div class="nft-s">' + nf(h.athLow) + '–' + nf(h.athHigh) + ' athletes + ' + nf(h.vol) + ' volunteers + ' + nf(h.staff) + ' staff</div></div>';
-  out += '<div class="nft-box"><div class="nft-l">Total, 4 days</div><div class="nft-v">' + money(h.low*rate*4) + '–' + money(h.high*rate*4) + '</div><div class="nft-s">Thu 25 – Sun 28</div></div>';
-  out += '<div class="nft-box"><div class="nft-l">Total, 3 days</div><div class="nft-v">' + money(h.low*rate*3) + '–' + money(h.high*rate*3) + '</div><div class="nft-s">Fri 26 – Sun 28</div></div>';
-  out += '</div></div>';
-
-  /* the matrix */
-  out += '<div class="nft-card">';
-  out += '<div class="nft-h">Cost matrix</div>';
-  out += '<div class="nft-sub">Every headcount basis against both day counts. The highlighted row is the one the hub is running on.</div>';
-  out += '<table><thead><tr><th>Athlete basis</th><th class="nft-r">Athletes</th><th class="nft-r">People fed</th><th class="nft-r">3 days</th><th class="nft-r">4 days</th><th class="nft-r">Difference</th></tr></thead><tbody>';
-  ['rst14','scopeTab','driveMaster'].forEach(function(k){
-    var x = heads(k);
-    if(!x.athLow) return;
-    var t3l = x.low*rate*3, t3h = x.high*rate*3, t4l = x.low*rate*4, t4h = x.high*rate*4;
-    out += '<tr class="' + (k === bk ? 'nft-live' : '') + '">';
-    out += '<td class="nft-strong">' + esc(x.label.slice(0,42)) + (k === bk ? ' <span class="nft-pill nft-ok">active</span>' : '') + '</td>';
-    out += '<td class="nft-r">' + nf(x.athLow) + '–' + nf(x.athHigh) + '</td>';
-    out += '<td class="nft-r">' + nf(x.low) + '–' + nf(x.high) + '</td>';
-    out += '<td class="nft-r">' + money(t3l) + '–' + money(t3h) + '</td>';
-    out += '<td class="nft-r nft-strong">' + money(t4l) + '–' + money(t4h) + '</td>';
-    out += '<td class="nft-r">' + money(t4l-t3l) + '–' + money(t4h-t3h) + '</td>';
-    out += '</tr>';
+  /* Day x meal grid. Counts come from naig2027/headcount (the single source)
+     and from per-cell overrides in naig2027/food/grid/cells. Staff and
+     volunteers are ONE group ("Team") per Rizwan, 16 Oct 2026. Rebuilt 17 Oct 2026. */
+  var host = document.getElementById("nftBody"); if(!host) return;
+  var H = window._headcount || {};
+  var ATH = Number(H.athletes)||0;
+  var TEAM = (Number(H.volunteers)||0) + (Number(H.staff)||0);
+  var g = gF.grid || {};
+  var cells = g.cells || {};
+  var dayDefs = g.days || {}, mealDefs = g.meals || {};
+  var dayKeys = Object.keys(dayDefs).sort(function(a,b){ return (dayDefs[a].order||0)-(dayDefs[b].order||0); });
+  var mealKeys = Object.keys(mealDefs).sort(function(a,b){ return (mealDefs[a].order||0)-(mealDefs[b].order||0); });
+  if(!dayKeys.length || !mealKeys.length){ host.innerHTML = '<div class="nft-card">No day or meal grid on record.</div>'; return; }
+  function cellOf(d,m){ return cells[d+"_"+m] || {}; }
+  function cnt(c, which){
+    if(c.on === false) return 0;
+    var ov = (which==="ath") ? c.athleteCount : c.teamCount;
+    if(ov !== undefined && ov !== null && ov !== "") return Number(ov)||0;
+    if(which==="ath") return (c.athletes === false) ? 0 : ATH;
+    var legacy = (c.staff === false && c.volunteers === false);
+    return legacy ? 0 : TEAM;
+  }
+  var grand = {people:0, cost:0};
+  var perDay = {}, perMeal = {};
+  dayKeys.forEach(function(d){ perDay[d]={people:0,cost:0}; });
+  mealKeys.forEach(function(m){ perMeal[m]={people:0,cost:0}; });
+  dayKeys.forEach(function(d){ mealKeys.forEach(function(m){
+    var c=cellOf(d,m), price=Number((mealDefs[m]||{}).price)||0;
+    var a=cnt(c,"ath"), t=cnt(c,"team"), p=a+t;
+    perDay[d].people+=p; perDay[d].cost+=p*price;
+    perMeal[m].people+=p; perMeal[m].cost+=p*price;
+    grand.people+=p; grand.cost+=p*price;
+  }); });
+  var h = "";
+  h += '<div class="nft-card"><div class="nft-h">Meals by day</div>';
+  h += '<div class="nft-sub">Every meal slot across the four days. Athletes and Team are counted separately &mdash; Team is volunteers and staff together. Change a number in any cell to override just that meal.</div>';
+  h += '<div class="nft-sub" style="margin-top:6px">Full strength today: <strong>'+nf(ATH)+'</strong> athletes &middot; <strong>'+nf(TEAM)+'</strong> team &middot; <strong>'+nf(ATH+TEAM)+'</strong> total. From naig2027/headcount.</div>';
+  h += '<table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:12.5px">';
+  h += '<thead><tr><th style="text-align:left;padding:6px 8px;color:#94a3b8">Meal</th>';
+  dayKeys.forEach(function(d){ h += '<th style="text-align:center;padding:6px 8px;color:#f8fafc">'+esc((dayDefs[d]||{}).label||d)+'<div style="font-weight:400;font-size:10.5px;color:#64748b">'+esc((dayDefs[d]||{}).note||"")+'</div></th>'; });
+  h += '<th style="text-align:right;padding:6px 8px;color:#94a3b8">Meal total</th></tr></thead><tbody>';
+  mealKeys.forEach(function(m){
+    var price=Number((mealDefs[m]||{}).price)||0;
+    h += '<tr><td style="padding:8px;color:#f8fafc;font-weight:600">'+esc((mealDefs[m]||{}).label||m)+'<div style="font-weight:400;font-size:10.5px;color:#64748b">'+money(price)+' per head</div></td>';
+    dayKeys.forEach(function(d){
+      var c=cellOf(d,m), a=cnt(c,"ath"), t=cnt(c,"team"), p=a+t;
+      var off=(c.on===false);
+      h += '<td style="padding:6px 8px;text-align:center;border-left:1px solid rgba(148,163,184,.14)'+(off?";opacity:.45":"")+'">';
+      h += '<div style="display:flex;gap:4px;justify-content:center">';
+      h += '<input data-fd="'+d+'" data-fm="'+m+'" data-fk="athleteCount" value="'+a+'" style="width:54px;text-align:right;background:#0b1424;border:1px solid rgba(148,163,184,.25);color:#e2e8f0;border-radius:4px;padding:3px 5px;font-size:12px">';
+      h += '<input data-fd="'+d+'" data-fm="'+m+'" data-fk="teamCount" value="'+t+'" style="width:54px;text-align:right;background:#0b1424;border:1px solid rgba(148,163,184,.25);color:#94a3b8;border-radius:4px;padding:3px 5px;font-size:12px">';
+      h += '</div>';
+      h += '<div style="font-size:10.5px;color:#64748b;margin-top:3px">'+nf(p)+' &middot; '+money(p*price)+'</div></td>';
+    });
+    h += '<td style="padding:8px;text-align:right;color:#f8fafc;font-weight:600">'+nf(perMeal[m].people)+'<div style="font-weight:400;font-size:10.5px;color:#64748b">'+money(perMeal[m].cost)+'</div></td></tr>';
   });
-  out += '</tbody></table>';
-  out += '<div class="nft-foot">The 3-day column assumes nobody eats on Thursday. Cricket plays Thursday, so 3 days only works if cricket feeds itself — which nobody has agreed.</div>';
-  out += '</div>';
-
-  /* meal build */
-  var order = ['breakfast','lunch','dinner','snacks'];
-  var bl = 0, bh = 0, any = false;
-  order.forEach(function(k){ if(mb[k]){ bl += Number(mb[k].low)||0; bh += Number(mb[k].high)||0; any = true; } });
-  if(any){
-    out += '<div class="nft-card">';
-    out += '<div class="nft-h">What the $' + rate + ' is made of</div>';
-    out += '<div class="nft-sub">Per person per day.</div>';
-    out += '<table><thead><tr><th>Meal</th><th class="nft-r">Per person</th><th class="nft-r">Per day, all people</th><th class="nft-r">Across ' + days + ' days</th></tr></thead><tbody>';
-    order.forEach(function(k){
-      var x = mb[k];
-      if(!x) return;
-      var lo = Number(x.low)||0, hi = Number(x.high)||0;
-      out += '<tr><td class="nft-strong">' + esc(String(x.label||k)) + '</td>';
-      out += '<td class="nft-r">$' + lo + '–$' + hi + '</td>';
-      out += '<td class="nft-r">' + money(h.low*lo) + '–' + money(h.high*hi) + '</td>';
-      out += '<td class="nft-r">' + money(h.low*lo*days) + '–' + money(h.high*hi*days) + '</td></tr>';
+  h += '<tr style="border-top:2px solid rgba(148,163,184,.3)"><td style="padding:8px;color:#94a3b8">Day total</td>';
+  dayKeys.forEach(function(d){ h += '<td style="padding:8px;text-align:center;color:#f8fafc;font-weight:700">'+nf(perDay[d].people)+'<div style="font-weight:400;font-size:10.5px;color:#64748b">'+money(perDay[d].cost)+'</div></td>'; });
+  h += '<td style="padding:8px;text-align:right;color:#f8fafc;font-weight:800">'+nf(grand.people)+'<div style="font-weight:400;font-size:11px;color:#94a3b8">'+money(grand.cost)+'</div></td></tr>';
+  h += '</tbody></table>';
+  h += '<div class="nft-sub" style="margin-top:10px">Left box is athletes, right box is team. A blank or zero means that group is not being fed at that meal.</div>';
+  h += '</div>';
+  host.innerHTML = h;
+  Array.prototype.forEach.call(host.querySelectorAll("input[data-fd]"), function(inp){
+    inp.addEventListener("change", function(){
+      var d=inp.getAttribute("data-fd"), m=inp.getAttribute("data-fm"), k=inp.getAttribute("data-fk");
+      var val=parseInt(inp.value,10); if(isNaN(val)||val<0) val=0;
+      try{
+        window._dbSet(_dbRef("naig2027/food/grid/cells/"+d+"_"+m+"/"+k), val);
+        window._dbSet(_dbRef("naig2027/food/grid/updatedAt"), Date.now());
+        if(!gF.grid) gF.grid={}; if(!gF.grid.cells) gF.grid.cells={};
+        if(!gF.grid.cells[d+"_"+m]) gF.grid.cells[d+"_"+m]={day:d,meal:m,on:true};
+        gF.grid.cells[d+"_"+m][k]=val;
+        render();
+      }catch(e){}
     });
-    out += '</tbody><tfoot><tr><td class="nft-strong">BUILD TOTAL</td><td class="nft-r nft-strong">$' + bl + '–$' + bh + '</td><td class="nft-r"></td><td class="nft-r nft-strong">' + money(h.low*bl*days) + '–' + money(h.high*bh*days) + '</td></tr></tfoot></table>';
-    if(bh <= rate){
-      out += '<div class="nft-gap" style="margin-top:12px;"><div class="nft-gt">No headroom in the rate</div><div class="nft-od">' + esc(String(mb.note || '')) + '</div></div>';
-    }
-    out += '</div>';
-  }
-
-  /* menu */
-  out += '<div class="nft-card">';
-  out += '<div class="nft-h">Menu</div>';
-  out += '<div class="nft-gap"><div class="nft-gt">No menu exists</div>';
-  out += '<div class="nft-od">There is no menu on record anywhere in the hub — not a draft, not a shortlist, not a cuisine decision. The $' + rate + ' rate is a per-head allowance with nothing behind it. Owner: ' + esc(String(a.confirmedBy||'not assigned')) + '. The task <strong>Food menu and logistics plan finalized</strong> is not due until 28 Feb 2027, which is 25 days before the Games.</div></div>';
-  out += '<div class="nft-foot">Until a menu exists, the $' + rate + ' cannot be validated and no caterer can quote against it.</div>';
-  out += '</div>';
-
-  /* open items */
-  var oi = gF.openItems || {};
-  var ks = Object.keys(oi);
-  if(ks.length){
-    out += '<div class="nft-card">';
-    out += '<div class="nft-h">Open questions — ' + ks.length + ' unanswered</div>';
-    out += '<div class="nft-sub">Each of these moves the number. None has an owner or a date.</div>';
-    ks.forEach(function(k){
-      out += '<div class="nft-open"><div class="nft-ok2">' + esc(k.replace(/([A-Z])/g, ' $1')) + '</div><div class="nft-od">' + esc(String(oi[k])) + '</div></div>';
-    });
-    out += '</div>';
-  }
-
-  /* what would change the number */
-  out += '<div class="nft-card">';
-  out += '<div class="nft-h">What actually moves this number</div>';
-  out += '<table><thead><tr><th>Lever</th><th class="nft-r">Swing</th><th>Status</th></tr></thead><tbody>';
-  var r14 = heads('rst14'), dm = heads('driveMaster');
-  out += '<tr><td class="nft-strong">Athlete basis</td><td class="nft-r">' + money(Math.abs(r14.high*rate*4 - dm.high*rate*4)) + '</td><td><span class="nft-pill nft-ok">settled — RST-14</span></td></tr>';
-  out += '<tr><td class="nft-strong">3 days vs 4 days</td><td class="nft-r">' + money(h.low*rate) + '–' + money(h.high*rate) + '</td><td><span class="nft-pill nft-bad">open</span></td></tr>';
-  out += '<tr><td class="nft-strong">Hotel breakfast included</td><td class="nft-r">' + money(h.low*(Number((mb.breakfast||{}).low)||0)*days) + '–' + money(h.high*(Number((mb.breakfast||{}).high)||0)*days) + '</td><td><span class="nft-pill nft-bad">open</span></td></tr>';
-  out += '<tr><td class="nft-strong">Volunteers fed all days vs on shift</td><td class="nft-r">up to ' + money(h.vol*rate*days) + '</td><td><span class="nft-pill nft-bad">open</span></td></tr>';
-  out += '</tbody></table>';
-  out += '<div class="nft-foot">If the hotel block includes breakfast and volunteers only eat on shift, food drops by roughly ' + money(h.low*((Number((mb.breakfast||{}).low)||0))*days + h.vol*rate*days*0.5) + '. Nobody has asked either question.</div>';
-  out += '</div>';
-
-  host.innerHTML = out;
+  });
 }
 
 function buildTab(){
@@ -19834,12 +19809,16 @@ function buildTab(){
 }
 
 function load(){
+  /* Live: food grid AND headcount. The old version did a one-shot get on
+     naig2027/food only, so the tab never saw a headcount change. 17 Oct 2026. */
   return Promise.resolve()
-    .then(function(){ return import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js'); })
-    .then(function(mod){ return mod.get(_dbRef('naig2027/food')); })
-    .then(function(s){ gF = s.val() || {}; render(); })
+    .then(function(){ return import("https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js"); })
+    .then(function(mod){
+      mod.onValue(_dbRef("naig2027/food"), function(s){ gF = s.val() || {}; render(); }, function(){});
+      mod.onValue(_dbRef("naig2027/headcount"), function(s){ window._headcount = s.val() || {}; render(); }, function(){});
+    })
     .catch(function(e){
-      var host = document.getElementById('nftBody');
+      var host = document.getElementById("nftBody");
       if(host) host.innerHTML = '<div class="nft-card">Could not load food data: ' + esc(e && e.message ? e.message : String(e)) + '</div>';
     });
 }
