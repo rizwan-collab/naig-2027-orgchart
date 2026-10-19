@@ -14349,140 +14349,7 @@ window.initDocDefaults = initDocDefaults;
 /* ══════════════════════════════════════════════════════════
    BUDGET TAB
 ══════════════════════════════════════════════════════════ */
-window.renderBudget = function() {
-  const parse = s => moneyNum(s);
-  const fmt   = n => n ? '$' + n.toLocaleString('en-US',{maximumFractionDigits:0}) : '—';
-
-  // Aggregate venues
-  let venueC=0, venueI=0, venueP=0, venueCount=0;
-  const venueRows = [];
-  Object.values(window._venuesData||{}).forEach(v => {
-    if (v && v.archived) return;
-    var _amt=(v && v.rentalFeeAmount!=null)?Number(v.rentalFeeAmount):0;
-    var _elig=!!(v && v.budgetEligible);
-    const c=(_elig&&_amt)?_amt:0, i=parse(v.invoiced), p=parse(v.paid);
-    venueC+=c; venueI+=i; venueP+=p;
-    if (c||i||p) { venueCount++; venueRows.push({name:v.name||"TBD",c,i,p}); }
-  });
-
-  // Aggregate vendors by category
-  const vendorCats = {};
-  Object.values(window._vendorsData||{}).forEach(v => {
-    const cat = v.category||'Other';
-    if (!vendorCats[cat]) vendorCats[cat]={c:0,i:0,p:0,n:0};
-    vendorCats[cat].c+=parse(v.cost); vendorCats[cat].i+=parse(v.invoiced); vendorCats[cat].p+=parse(v.paid); vendorCats[cat].n++;
-  });
-
-  // Grand totals
-  let grandC=venueC, grandI=venueI, grandP=venueP;
-  Object.values(vendorCats).forEach(d=>{ grandC+=d.c; grandI+=d.i; grandP+=d.p; });
-  var _planRows=[], _planTotal=0;
-  (function(){ var BC=window._budgetCats||{};
-    Object.keys(BC).sort(function(x,y){return (BC[x].order||99)-(BC[y].order||99);}).forEach(function(k){
-      var c=BC[k]; if(!c||k==="venues") return;
-      if(String(c.mode||"")==="excluded") return;
-      var amt=Number(c.amount||0); if(!amt) return;
-      _planTotal+=amt;
-      var tag=c.placeholder?'<span style="background:#fff3cd;color:#856404;border:1px solid #ffe08a;border-radius:3px;padding:1px 5px;font-size:10px;margin-left:6px">PLACEHOLDER</span>':(String(c.mode||"")==="auto"?'<span style="background:#e7f3ff;color:#1a3a5c;border:1px solid #b8daff;border-radius:3px;padding:1px 5px;font-size:10px;margin-left:6px">AUTO</span>':"");
-      _planRows.push("<tr><td><strong>"+esc(c.label||k)+"</strong>"+tag+"</td>"+'<td style="font-size:11px;color:#888">Budget Plan</td><td style="font-size:11px">&mdash;</td><td style="font-weight:600;color:#1a3a5c">'+fmt(amt)+"</td>"+'<td style="font-size:11px;color:#aaa">&mdash;</td><td style="font-size:11px;color:#aaa">&mdash;</td><td style="font-size:11px;color:#aaa">&mdash;</td></tr>');
-    }); })();
-  grandC += _planTotal;
-  const grandOut = Math.max(0, grandC - grandP);
-
-  // KPI strip
-  const kpi = document.getElementById('budgetKPIs');
-  if (kpi) kpi.innerHTML =
-    `<div class="sum-chip" style="font-size:.92rem"><strong>${fmt(grandC)}</strong><span>Total Committed</span></div>` +
-    `<div class="sum-chip" style="font-size:.92rem;color:#856404"><strong>${fmt(grandI)}</strong><span>Invoiced</span></div>` +
-    `<div class="sum-chip" style="font-size:.92rem;color:#155724"><strong>${fmt(grandP)}</strong><span>Paid</span></div>` +
-    `<div class="sum-chip" style="font-size:.92rem;color:#721c24"><strong>${fmt(grandOut)}</strong><span>Outstanding</span></div>`;
-
-  // Venue snapshot card
-  const vSnap = document.getElementById('budgetVenueBody');
-  if (vSnap) {
-    if (!venueRows.length) {
-      vSnap.innerHTML = '<div style="color:#aaa;font-size:.8rem">No venue financial data yet — enter contract values in each venue\'s Financials tab.</div>';
-    } else {
-      vSnap.innerHTML = venueRows.map(r =>
-        `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f4f8">
-          <span style="font-weight:600;color:#1a3a5c;font-size:.8rem">${esc(r.name)}</span>
-          <span style="color:#666;font-size:.79rem">${r.c?fmt(r.c):'—'}</span>
-        </div>`
-      ).join('') +
-      `<div style="display:flex;justify-content:space-between;margin-top:8px;padding-top:6px;border-top:2px solid #e2eaf3">
-        <strong style="font-size:.82rem">Total</strong>
-        <strong style="color:#1a3a5c;font-size:.82rem">${fmt(venueC)||'—'}</strong>
-      </div>`;
-    }
-  }
-
-  // Vendor snapshot card
-  const vdSnap = document.getElementById('budgetVendorBody');
-  if (vdSnap) {
-    const catEntries = Object.entries(vendorCats).sort(([a],[b])=>a.localeCompare(b));
-    if (!catEntries.length) {
-      vdSnap.innerHTML = '<div style="color:#aaa;font-size:.8rem">No vendor financial data yet — enter contract values in each vendor record.</div>';
-    } else {
-      let vdTotal=0;
-      vdSnap.innerHTML = catEntries.map(([cat,d]) => {
-        vdTotal+=d.c;
-        return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f4f8">
-          <span style="font-weight:600;color:#1a3a5c;font-size:.8rem">${esc(cat)}</span>
-          <span style="color:#666;font-size:.79rem">${d.c?fmt(d.c):'—'}</span>
-        </div>`;
-      }).join('') +
-      `<div style="display:flex;justify-content:space-between;margin-top:8px;padding-top:6px;border-top:2px solid #e2eaf3">
-        <strong style="font-size:.82rem">Total</strong>
-        <strong style="color:#1a3a5c;font-size:.82rem">${fmt(vdTotal)||'—'}</strong>
-      </div>`;
-    }
-  }
-
-  // Category breakdown table
-  const tbody = document.getElementById('budgetTbody');
-  if (!tbody) return;
-  const rows = [];
-  rows.push.apply(rows,_planRows);
-
-  if (venueC||venueI||venueP) {
-    const out = Math.max(0,venueC-venueP);
-    rows.push(`<tr>
-      <td><strong>Venues</strong></td>
-      <td style="font-size:11px;color:#888">Venue Records</td>
-      <td style="font-size:11px">${venueCount}</td>
-      <td style="font-weight:600;color:#1a3a5c">${fmt(venueC)}</td>
-      <td style="font-size:11px">${fmt(venueI)}</td>
-      <td style="color:#155724;font-size:11px">${fmt(venueP)}</td>
-      <td style="${out?'color:#721c24':'color:#aaa'};font-size:11px">${out?fmt(out):'—'}</td>
-    </tr>`);
-  }
-
-  Object.entries(vendorCats).sort(([a],[b])=>a.localeCompare(b)).forEach(([cat,d]) => {
-    const out = Math.max(0,d.c-d.p);
-    rows.push(`<tr>
-      <td><strong>${esc(cat)}</strong></td>
-      <td style="font-size:11px;color:#888">Vendor Records</td>
-      <td style="font-size:11px">${d.n}</td>
-      <td style="font-weight:600;color:#1a3a5c">${fmt(d.c)}</td>
-      <td style="font-size:11px">${fmt(d.i)}</td>
-      <td style="color:#155724;font-size:11px">${fmt(d.p)}</td>
-      <td style="${out?'color:#721c24':'color:#aaa'};font-size:11px">${out?fmt(out):'—'}</td>
-    </tr>`);
-  });
-
-  if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="hub-empty">No financial data yet — enter contract values in venue and vendor records.</td></tr>`;
-  } else {
-    rows.push(`<tr style="background:#f0f5fb;font-weight:700;border-top:2px solid #2d6a9f">
-      <td>TOTAL</td><td></td><td></td>
-      <td style="color:#1a3a5c">${fmt(grandC)}</td>
-      <td>${fmt(grandI)}</td>
-      <td style="color:#155724">${fmt(grandP)}</td>
-      <td style="${grandOut?'color:#721c24':'color:#aaa'}">${grandOut?fmt(grandOut):'—'}</td>
-    </tr>`);
-    tbody.innerHTML = rows.join('');
-  }
-};
+window.renderBudget = function() { /* Retired 19 Oct 2026: its containers (budgetKPIs, budgetVenueBody, budgetVendorBody, budgetTbody) no longer exist. The Budget tab is drawn by naigBudget2. Kept as a no-op because tab switches still call it. */ };
 
 function exportBudgetCSV() {
   const parse = s => moneyNum(s);
@@ -19628,28 +19495,6 @@ var gF = {};
 var days = 4;
 
 function esc(s){ if(s===null||s===undefined) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function nf(n){ return Math.round(n).toLocaleString('en-US'); }
-function money(n){ return '$' + Math.round(n).toLocaleString('en-US'); }
-
-function basisKey(){
-  var a = gF.assumptions || {};
-  return String(a.activeBasis || 'rst14');
-}
-function heads(key){
-  var a = gF.assumptions || {};
-  var sc = (gF.headcountScenarios || {})[key] || {};
-  var vol = Number(a.volunteers) || 0;
-  var staff = Number(a.staff) || 0;
-  return {
-    athLow: Number(sc.athletesLow) || 0,
-    athHigh: Number(sc.athletesHigh) || 0,
-    label: String(sc.label || key),
-    low: (Number(sc.athletesLow)||0) + vol + staff,
-    high: (Number(sc.athletesHigh)||0) + vol + staff,
-    vol: vol, staff: staff
-  };
-}
-
 function styles(){
   if(document.getElementById('nftStyle')) return;
   var css = [
@@ -19688,87 +19533,8 @@ function styles(){
   document.head.appendChild(st);
 }
 
-function render(){
-  /* Day x meal grid. Counts come from naig2027/headcount (the single source)
-     and from per-cell overrides in naig2027/food/grid/cells. Staff and
-     volunteers are ONE group ("Team") per Rizwan, 16 Oct 2026. Rebuilt 17 Oct 2026. */
-  var host = document.getElementById("nftBody"); if(!host) return;
-  var H = window._headcount || {};
-  var ATH = Number(H.athletes)||0;
-  var TEAM = (Number(H.volunteers)||0) + (Number(H.staff)||0);
-  var g = gF.grid || {};
-  var cells = g.cells || {};
-  var dayDefs = g.days || {}, mealDefs = g.meals || {};
-  var dayKeys = Object.keys(dayDefs).sort(function(a,b){ return (dayDefs[a].order||0)-(dayDefs[b].order||0); });
-  var mealKeys = Object.keys(mealDefs).sort(function(a,b){ return (mealDefs[a].order||0)-(mealDefs[b].order||0); });
-  if(!dayKeys.length || !mealKeys.length){ host.innerHTML = '<div class="nft-card">No day or meal grid on record.</div>'; return; }
-  function cellOf(d,m){ return cells[d+"_"+m] || {}; }
-  function cnt(c, which){
-    if(c.on === false) return 0;
-    var ov = (which==="ath") ? c.athleteCount : c.teamCount;
-    if(ov !== undefined && ov !== null && ov !== "") return Number(ov)||0;
-    if(which==="ath") return (c.athletes === false) ? 0 : ATH;
-    var legacy = (c.staff === false && c.volunteers === false);
-    return legacy ? 0 : TEAM;
-  }
-  var grand = {people:0, cost:0};
-  var perDay = {}, perMeal = {};
-  dayKeys.forEach(function(d){ perDay[d]={people:0,cost:0}; });
-  mealKeys.forEach(function(m){ perMeal[m]={people:0,cost:0}; });
-  dayKeys.forEach(function(d){ mealKeys.forEach(function(m){
-    var c=cellOf(d,m), price=Number((mealDefs[m]||{}).price)||0;
-    var a=cnt(c,"ath"), t=cnt(c,"team"), p=a+t;
-    perDay[d].people+=p; perDay[d].cost+=p*price;
-    perMeal[m].people+=p; perMeal[m].cost+=p*price;
-    grand.people+=p; grand.cost+=p*price;
-  }); });
-  var h = "";
-  h += '<div class="nft-card"><div class="nft-h">Meals by day</div>';
-  h += '<div class="nft-sub">Every meal slot across the four days. Athletes and Team are counted separately &mdash; Team is volunteers and staff together. Change a number in any cell to override just that meal.</div>';
-  h += '<div class="nft-sub" style="margin-top:6px">Full strength today: <strong>'+nf(ATH)+'</strong> athletes &middot; <strong>'+nf(TEAM)+'</strong> team &middot; <strong>'+nf(ATH+TEAM)+'</strong> total. From naig2027/headcount.</div>';
-  h += '<table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:12.5px">';
-  h += '<thead><tr><th style="text-align:left;padding:6px 8px;color:#94a3b8">Meal</th>';
-  dayKeys.forEach(function(d){ h += '<th style="text-align:center;padding:6px 8px;color:#f8fafc">'+esc((dayDefs[d]||{}).label||d)+'<div style="font-weight:400;font-size:10.5px;color:#64748b">'+esc((dayDefs[d]||{}).note||"")+'</div></th>'; });
-  h += '<th style="text-align:right;padding:6px 8px;color:#94a3b8">Meal total</th></tr></thead><tbody>';
-  mealKeys.forEach(function(m){
-    var price=Number((mealDefs[m]||{}).price)||0;
-    h += '<tr><td style="padding:8px;color:#f8fafc;font-weight:600">'+esc((mealDefs[m]||{}).label||m)+'<div style="font-weight:400;font-size:10.5px;color:#64748b">'+money(price)+' per head</div></td>';
-    dayKeys.forEach(function(d){
-      var c=cellOf(d,m), a=cnt(c,"ath"), t=cnt(c,"team"), p=a+t;
-      var off=(c.on===false);
-      h += '<td style="padding:6px 8px;text-align:center;border-left:1px solid rgba(148,163,184,.14)'+(off?";opacity:.45":"")+'">';
-      h += '<div style="display:flex;gap:4px;justify-content:center">';
-      h += '<input data-fd="'+d+'" data-fm="'+m+'" data-fk="athleteCount" value="'+a+'" style="width:54px;text-align:right;background:#0b1424;border:1px solid rgba(148,163,184,.25);color:#e2e8f0;border-radius:4px;padding:3px 5px;font-size:12px">';
-      h += '<input data-fd="'+d+'" data-fm="'+m+'" data-fk="teamCount" value="'+t+'" style="width:54px;text-align:right;background:#0b1424;border:1px solid rgba(148,163,184,.25);color:#94a3b8;border-radius:4px;padding:3px 5px;font-size:12px">';
-      h += '</div>';
-      h += '<div style="font-size:10.5px;color:#64748b;margin-top:3px">'+nf(p)+' &middot; '+money(p*price)+'</div></td>';
-    });
-    h += '<td style="padding:8px;text-align:right;color:#f8fafc;font-weight:600">'+nf(perMeal[m].people)+'<div style="font-weight:400;font-size:10.5px;color:#64748b">'+money(perMeal[m].cost)+'</div></td></tr>';
-  });
-  h += '<tr style="border-top:2px solid rgba(148,163,184,.3)"><td style="padding:8px;color:#94a3b8">Day total</td>';
-  dayKeys.forEach(function(d){ h += '<td style="padding:8px;text-align:center;color:#f8fafc;font-weight:700">'+nf(perDay[d].people)+'<div style="font-weight:400;font-size:10.5px;color:#64748b">'+money(perDay[d].cost)+'</div></td>'; });
-  h += '<td style="padding:8px;text-align:right;color:#f8fafc;font-weight:800">'+nf(grand.people)+'<div style="font-weight:400;font-size:11px;color:#94a3b8">'+money(grand.cost)+'</div></td></tr>';
-  h += '</tbody></table>';
-  h += '<div class="nft-sub" style="margin-top:10px">Left box is athletes, right box is team. A blank or zero means that group is not being fed at that meal.</div>';
-  h += '</div>';
-  host.innerHTML = h;
-  Array.prototype.forEach.call(host.querySelectorAll("input[data-fd]"), function(inp){
-    inp.addEventListener("change", function(){
-      var d=inp.getAttribute("data-fd"), m=inp.getAttribute("data-fm"), k=inp.getAttribute("data-fk");
-      var val=parseInt(inp.value,10); if(isNaN(val)||val<0) val=0;
-      try{
-        window._dbSet(_dbRef("naig2027/food/grid/cells/"+d+"_"+m+"/"+k), val);
-        window._dbSet(_dbRef("naig2027/food/grid/updatedAt"), Date.now());
-        if(!gF.grid) gF.grid={}; if(!gF.grid.cells) gF.grid.cells={};
-        if(!gF.grid.cells[d+"_"+m]) gF.grid.cells[d+"_"+m]={day:d,meal:m,on:true};
-        gF.grid.cells[d+"_"+m][k]=val;
-        render();
-      }catch(e){}
-    });
-  });
-}
-
-function buildTab(){
+function render(){ /* Retired 19 Oct 2026: the Food tab body is drawn by the food grid block (naigFoodGrid). */ }
+  function buildTab(){
   if(document.getElementById('sectionFood')) return true;
   var budget = document.getElementById('sectionBudget');
   var nav = document.querySelector('.tab-nav');
@@ -19813,22 +19579,10 @@ function buildTab(){
   return true;
 }
 
-function load(){
-  /* Live: food grid AND headcount. The old version did a one-shot get on
-     naig2027/food only, so the tab never saw a headcount change. 17 Oct 2026. */
-  return Promise.resolve()
-    .then(function(){ return import("https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js"); })
-    .then(function(mod){
-      mod.onValue(_dbRef("naig2027/food"), function(s){ gF = s.val() || {}; render(); }, function(){});
-      mod.onValue(_dbRef("naig2027/headcount"), function(s){ window._headcount = s.val() || {}; render(); }, function(){});
-    })
-    .catch(function(e){
-      var host = document.getElementById("nftBody");
-      if(host) host.innerHTML = '<div class="nft-card">Could not load food data: ' + esc(e && e.message ? e.message : String(e)) + '</div>';
-    });
-}
-
-var tries = 0;
+function load(){ /* 19 Oct 2026: only keeps window._headcount fresh; the old Food renderer is gone. */
+    return import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js').then(function(mod){ mod.onValue(_dbRef('naig2027/headcount'), function(s){ window._headcount = s.val() || {}; }, function(){}); }).catch(function(){});
+  }
+  var tries = 0;
 var iv = setInterval(function(){
   try {
     tries++;
