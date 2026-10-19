@@ -603,5 +603,25 @@ onAuthStateChanged(auth, u=>{
 
 rows=seedRows(); fillFilters(); render();
 </script>
+<script>
+/* Follow the hub's region filter when this page is embedded in the hub's Sports tab (19 Oct 2026).
+   The hub keeps its choice in localStorage naigRegionFilter (same origin), so read it on load and on change. */
+(function(){
+  if (window.parent === window) return;
+  var KEY = 'naigRegionFilter';
+  function apply(){
+    try {
+      var v = localStorage.getItem(KEY) || 'ALL';
+      var s = document.getElementById('fRegion');
+      if (!s) return false;
+      if (![].some.call(s.options, function(o){ return o.value === v; })) return false;
+      if (s.value !== v) { s.value = v; s.dispatchEvent(new Event('change')); }
+      return true;
+    } catch(e) { return false; }
+  }
+  var n = 0, iv = setInterval(function(){ n++; if ((apply() && n > 8) || n > 60) clearInterval(iv); }, 500);
+  window.addEventListener('storage', function(e){ if (e.key === KEY) apply(); });
+})();
+</script>
 </body>
 </html>
