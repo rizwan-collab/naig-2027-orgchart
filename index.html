@@ -2146,15 +2146,15 @@ html.onboard-mode #onboardScreen { display: flex !important; }
  <!-- Overview Summary Cards -->
  <div style="margin-bottom:16px">
  <div class="t-alert t-alert-info"> <div><strong>Hub-and-Spoke System</strong> — All shuttles originate from JK Hub at 2500 Dickerson Pkwy, Carrollton TX. No point-to-point service between venues.</div></div>
- <div class="t-alert t-alert-warn"> <div><strong>Event Dates:</strong> Sep 4 (arrival/check-in) · Sep 5–7 (competition) · Sep 8 (departures) — Labor Day Weekend 2027</div></div>
+ <div class="t-alert t-alert-warn"> <div><strong>Event Dates:</strong> Wed 24 Mar (cricket check-in) · Thu 25 – Sun 28 Mar 2027 (cricket plays Thu–Sun, every other sport Fri–Sun) · Mon 29 Mar cricket rain day</div></div>
 
  <div class="t-cards">
  <div class="t-card navy"><div class="t-card-icon"></div><div class="t-card-label">HQ Hub</div><div class="t-card-value">Carrollton, TX</div><div class="t-card-sub">2500 Dickerson Pkwy · All routes start here</div></div>
  <div class="t-card"><div class="t-card-icon"></div><div class="t-card-label">Total Venue Sites</div><div class="t-card-value">6 Primary</div><div class="t-card-sub">RYSE · Northlake · Gateway · Texomo · Picklr · McKinney Courts</div></div>
  <div class="t-card green"><div class="t-card-icon"></div><div class="t-card-label">Airports Served</div><div class="t-card-value">DFW + DAL</div><div class="t-card-sub">DFW ~45 min · DAL ~35 min from hub</div></div>
- <div class="t-card amber"><div class="t-card-icon"></div><div class="t-card-label">Athletes</div><div class="t-card-value">2,200+</div><div class="t-card-sub">+450–600 spectators · +750–1,000 volunteers</div></div>
- <div class="t-card"><div class="t-card-icon"></div><div class="t-card-label">Arrivals</div><div class="t-card-value">Sep 4–5, 2027</div><div class="t-card-sub">Airport runs DFW + DAL</div></div>
- <div class="t-card"><div class="t-card-icon"></div><div class="t-card-label">Departures</div><div class="t-card-value">Sep 8, 2027</div><div class="t-card-sub">DFW 05:30–15:30 · DAL 06:00–13:30</div></div>
+ <div class="t-card amber"><div class="t-card-icon"></div><div class="t-card-label">Athletes</div><div class="t-card-value" data-naig="athletes">N/A</div><div class="t-card-sub" data-naig="teamline">from the slot sheet</div></div>
+ <div class="t-card"><div class="t-card-icon"></div><div class="t-card-label">Arrivals</div><div class="t-card-value">N/A</div><div class="t-card-sub">Cricket check-in Wed 24 Mar · airport windows not set</div></div>
+ <div class="t-card"><div class="t-card-icon"></div><div class="t-card-label">Departures</div><div class="t-card-value">N/A</div><div class="t-card-sub">Departure windows not set</div></div>
  </div>
 
  <div class="t-route-map" style="padding:20px">
@@ -5701,11 +5701,11 @@ const NAIG_FACTS = {
 
   host:        'Dallas–Fort Worth Metroplex, Texas',
   hostCities: ['Arlington', 'Carrollton', 'Duncanville', 'Farmers Branch', 'Fort Worth', 'Lewisville', 'Little Elm', 'Mansfield', 'McKinney', 'Northlake', 'Southlake', 'Cricket — Calera, OK'],
-  venueCount: '21 venues tracked · none contracted',
+  get venueCount(){ var v = window.NAIG && NAIG.venues ? NAIG.venues() : null; return v && v.live ? (v.live + ' venues tracked · ' + v.confirmed + ' confirmed') : 'venues being confirmed'; },
 
   regions:     '14 regions (7 US · 7 Canada)',
-  athletes: '2,939–3,699 athletes on-site',
-  spectators: '1,323–1,665 family · 4,262–5,364 total attendance',
+  get athletes(){ var f = window.NAIG && NAIG.formula && NAIG.formula(); var H = window._headcount || {}; var a = f ? f.athletes : Number(H.athletes); return (a ? a.toLocaleString('en-US') : 'N/A') + ' athletes on-site'; },
+  get spectators(){ var f = window.NAIG && NAIG.formula && NAIG.formula(); var H = window._headcount || {}; var v = f ? f.volunteers : Number(H.volunteers), s = f ? f.staff : Number(H.staff), o = f ? f.onSite : Number(H.totalFed); return o ? ('plus ' + v.toLocaleString('en-US') + ' volunteers and ' + s.toLocaleString('en-US') + ' staff, ' + o.toLocaleString('en-US') + ' on site in total (family not counted)') : 'headcount loading'; },
   sportsLine:  '14 sports · 100 event categories',
 
   teamSports: ['Basketball', 'Cricket (Hardball)', 'Cricket (Tapeball)', 'Dance',
@@ -8296,7 +8296,10 @@ function renderDashboard() {
 
   // ── Budget snapshot (mirrors renderBudget aggregation) ──
   let venueC=0, venueP=0;
-  venues.forEach(v => { venueC += parse(v.rentalFee); venueP += parse(v.paid); });
+  // 19 Oct 2026: venue spend from NAIG.venues() - same rule as the Venues and Budget tabs.
+  const _nv = (window.NAIG && window.NAIG.venues) ? window.NAIG.venues() : null;
+  if (_nv) { venueC = _nv.committed; venueP = _nv.paid; }
+  else venues.forEach(v => { venueC += parse(v.rentalFee); venueP += parse(v.paid); });
   let vendorC=0, vendorP=0;
   Object.values(window._vendorsData || {}).forEach(v => { vendorC += parse(v.cost); vendorP += parse(v.paid); });
   const grandC = venueC + vendorC, grandP = venueP + vendorP;
@@ -8305,7 +8308,7 @@ function renderDashboard() {
   // ── KPI row ──
   const kpiRow = document.getElementById('dashKpiRow');
   if (kpiRow) kpiRow.innerHTML = `
-    <div class="sum-chip"><strong>${venues.length}</strong><span>Venues (${confirmedVenues} contracted)</span></div>
+    <div class="sum-chip"><strong>${_nv ? _nv.live : venues.length}</strong><span>Venues (${_nv ? _nv.confirmed : confirmedVenues} confirmed)</span></div>
     <div class="sum-chip"><strong>${openTasks.length}</strong><span>Open Tasks</span></div>
     <div class="sum-chip" style="${overdue.length ? 'color:#BF1B2A' : ''}"><strong>${overdue.length}</strong><span>Overdue</span></div>
     <div class="sum-chip"><strong>${fmt(grandC)}</strong><span>Total Committed</span></div>
@@ -22259,7 +22262,17 @@ var iv = setInterval(function(){
       .then(function(){ last = sig; busy = false; console.log('[naigFormula] published ' + sig); })
       .catch(function(e){ last = sig; busy = false; console.warn('[naigFormula] publish failed', e && e.message); });
   }
-  setInterval(function(){ try { tick(); } catch(e) { console.warn('[naigFormula]', e); } }, 3000);
+  var lastPaint = '';
+  function paint(){
+    var f = formula(); if (!f) return;
+    function nf(n){ return Number(n).toLocaleString('en-US'); }
+    var map = { athletes: nf(f.athletes), onsite: nf(f.onSite), teamline: '+' + nf(f.volunteers) + ' volunteers · +' + nf(f.staff) + ' staff · ' + nf(f.onSite) + ' on site' };
+    var els = document.querySelectorAll('[data-naig]');
+    for (var i = 0; i < els.length; i++) { var k = els[i].getAttribute('data-naig'); if (map[k] != null && els[i].textContent !== map[k]) els[i].textContent = map[k]; }
+    var sig = f.athletes + '|' + f.onSite;
+    if (sig !== lastPaint) { lastPaint = sig; if (window._onboardToken && typeof renderOnboardView === 'function' && document.getElementById('onboardContent')) { try { renderOnboardView(); } catch(e) {} } }
+  }
+  setInterval(function(){ try { tick(); } catch(e) { console.warn('[naigFormula]', e); } try { paint(); } catch(e) { console.warn('[naigFormula] paint', e); } }, 3000);
 })();
 </script>
 </body>
