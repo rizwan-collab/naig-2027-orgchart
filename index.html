@@ -10342,15 +10342,17 @@ window.renderVenues = function() {
 
 
   const strip = document.getElementById('venueSummary');
-  if (strip) strip.innerHTML =
-    `<div class="sum-chip"><strong>${all.length}</strong><span>Total</span></div>` +
-    `<div class="sum-chip" style="color:#155724"><strong>${confirmed.length}</strong><span>Confirmed</span></div>` +
-    (pendingDeposit.length ? `<div class="sum-chip" style="color:#084298"><strong>${pendingDeposit.length}</strong><span>Pending Deposit</span></div>` : '') +
-    `<div class="sum-chip" style="color:#856404"><strong>${inWorks.length}</strong><span>In Works</span></div>` +
-    (closed.length ? `<div class="sum-chip" style="color:#6c757d"><strong>${closed.length}</strong><span>Closed</span></div>` : '') +
-    (totalCommitted ? `<div class="sum-chip" style="border-left:1px solid #d0dae4;margin-left:4px;padding-left:12px;color:#1a3a5c"><strong>${fmtN(totalCommitted)}</strong><span>Committed</span></div>` : '') +
-    (totalInvoiced  ? `<div class="sum-chip" style="color:#856404"><strong>${fmtN(totalInvoiced)}</strong><span>Invoiced</span></div>` : '') +
-    (totalPaid      ? `<div class="sum-chip" style="color:#155724"><strong>${fmtN(totalPaid)}</strong><span>Paid</span></div>` : '');
+  if (strip) {
+    // 19 Oct 2026: two tiles, one source (NAIG.venues) - same numbers as the Dashboard and Budget tabs.
+    const _vv = (window.NAIG && window.NAIG.venues) ? window.NAIG.venues() : null;
+    const _m = n => '$' + Math.round(n || 0).toLocaleString('en-US');
+    const _box = 'flex:1 1 280px;display:block;text-align:left;padding:12px 16px;border:1px solid #d0dae4;border-radius:10px;background:#fff;';
+    const _lab = 'display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;font-weight:700';
+    const _big = 'display:block;font-size:22px;color:#1a3a5c;margin:3px 0';
+    if (_vv) strip.innerHTML =
+      `<div class="sum-chip" style="${_box}"><span style="${_lab}">Sites</span><strong style="${_big}">${_vv.live} live</strong><span>${_vv.confirmed} confirmed · ${_vv.inWorks} in works · ${_vv.closed} closed or archived</span></div>` +
+      `<div class="sum-chip" style="${_box}"><span style="${_lab}">Spend</span><strong style="${_big}">${_m(_vv.committed)} committed</strong><span>${_m(_vv.invoiced)} invoiced · ${_m(_vv.paid)} paid · ${_m(Math.max(0, _vv.committed - _vv.paid))} outstanding</span></div>`;
+  }
 
   updateBadge('venues', all.length);
 
@@ -20197,7 +20199,8 @@ function onRecord(key){
     if(gg.drivesBudget && Number(gg.computedTotal) > 0){
       var onN = 0, totN = 0;
       Object.keys(gg.cells||{}).forEach(function(ck){ totN++; if(gg.cells[ck].on) onN++; });
-      return 'from the day-by-meal grid on the Food tab · ' + onN + ' of ' + totN + ' meal slots on · ' + nf(gg.computedServings||0) + ' servings';
+      var gb = gg.computedGoodieBags || null; var mt = Number(gg.computedMealsTotal) || Number(gg.computedTotal) || 0;
+      return 'Food tab: meals $' + nf(mt) + (gb && Number(gb.cost) > 0 ? ' + goodie bags $' + nf(gb.cost) + ' (' + nf(gb.count) + ' bags)' : '') + ' · ' + onN + ' of ' + totN + ' meal slots on · ' + nf(gg.computedServings||0) + ' servings';
     }
     return nf(h.ath) + ' athletes + ' + nf(h.vol) + ' volunteers + ' + nf(h.staff) + ' staff · $' + h.rate + '/day flat-rate cross-check';
   }
@@ -21545,8 +21548,7 @@ var iv = setInterval(function(){
     { id: 'list',      label: 'Venues',    ids: ['venuesTierWrap', 'venueSearch'] },
     { id: 'directory', label: 'Directory', ids: ['naigVenueMatrix'] },
     { id: 'matrix',    label: 'Matrix',    ids: ['naigMatrixGrid'] },
-    { id: 'coverage',  label: 'Coverage',  ids: ['naigCoverage'] },
-    { id: 'specs',     label: 'Specs',     ids: ['venuesSpecsWrap'] }
+    { id: 'coverage',  label: 'Coverage',  ids: ['naigCoverage'] }
   ];
   function styles() {
     if (byId('naigVTidyCss')) return;
@@ -22089,14 +22091,14 @@ var iv = setInterval(function(){
       el.style.cssText="background:#f6f9fc;border:1px solid #d6e2ee;border-radius:8px;padding:14px 16px;margin:0 0 16px";
       host.insertBefore(el,host.firstChild);}
     return el;}
-  function fld(id,lab,val){return '<label style="font-size:11px;color:#667">'+lab+'<br><input id="'+id+'" type="number" value="'+Number(val||0)+'" style="width:108px;padding:5px;border:1px solid #c7d4e2;border-radius:4px;font-size:13px"></label>';}
+  function fld(id,lab,val){return '<label style="font-size:11px;color:#667">'+lab+'<br><input id="'+id+'" type="number" readonly disabled title="Calculated from the slot sheet - change slots on the slots page" value="'+Number(val||0)+'" style="width:108px;padding:5px;border:1px solid #c7d4e2;border-radius:4px;font-size:13px"></label>';}
   function renderHC(){
     var el=mount(); if(!el) return; var H=window._headcount||{};
     var tot=Number(H.athletes||0)+Number(H.volunteers||0)+Number(H.staff||0);
-    el.innerHTML='<div style="font-weight:700;font-size:13px;color:#1a3a5c;margin-bottom:8px">Headcount &mdash; single source for Food, Venues and Sports</div>'
+    el.innerHTML='<div style="font-weight:700;font-size:13px;color:#1a3a5c;margin-bottom:8px">Headcount &mdash; calculated from the slot sheet (read-only)</div>'
       +'<div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end">'
       +fld("hcAth","Athletes",H.athletes)+fld("hcVol","Volunteers",H.volunteers)+fld("hcStf","Staff",H.staff)
-      +'<button id="hcSave" style="padding:6px 14px;border:0;border-radius:4px;background:#2d6a9f;color:#fff;font-size:12px;cursor:pointer">Save</button>'
+      +'<button id="hcSave" hidden style="padding:6px 14px;border:0;border-radius:4px;background:#2d6a9f;color:#fff;font-size:12px;cursor:pointer">Save</button>'
       +'<span id="hcMsg" style="font-size:11px;color:#667"></span></div>'
       +'<div style="font-size:11px;color:#8a97a5;margin-top:8px">Fed per meal slot: <strong>'+tot.toLocaleString()+'</strong> &middot; '+esc2(H.source||"")+'</div>';
     var b=document.getElementById("hcSave");
