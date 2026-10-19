@@ -22426,5 +22426,51 @@ var iv = setInterval(function(){
   }, 500);
 })();
 </script>
+<script>
+/* Tasks tab tidy (19 Oct 2026): one way to look at people.
+   Name chips set the Assignees filter (click again to clear). The By Person view is renamed Grouped
+   (category / due date / priority) and its By person grouping is hidden. Duplicate assignee names are merged. */
+(function(){
+  if (window.__naigTaskTidy) return; window.__naigTaskTidy = true;
+  var st = document.createElement('style');
+  st.textContent = '#tpanel-taskgrouped [data-gb="person"]{display:none !important}'
+    + '#taskWorkloadStrip [data-naig-chip]{cursor:pointer}'
+    + '#taskWorkloadStrip [data-naig-chip].naig-on{outline:2px solid #3730a3;outline-offset:1px}';
+  document.head.appendChild(st);
+  function tick(){
+    var tv = document.getElementById('tvw-grouped');
+    if (tv && tv.textContent.trim() === 'By Person') tv.textContent = 'Grouped';
+    var fo = document.getElementById('filterOwner');
+    if (fo) {
+      var seen = {};
+      [].slice.call(fo.options).forEach(function(o){
+        var k = o.text.trim().toLowerCase();
+        if (o.index > 0 && seen[k]) { if (fo.value === o.value) fo.value = seen[k].value; o.remove(); }
+        else seen[k] = o;
+      });
+    }
+    var strip = document.getElementById('taskWorkloadStrip');
+    if (!strip || !fo) return;
+    [].slice.call(strip.children).forEach(function(c){
+      var have = c.getAttribute('data-naig-chip');
+      if (have) { c.classList.toggle('naig-on', !!fo.value && fo.options[fo.selectedIndex] && fo.options[fo.selectedIndex].text.trim() === have); return; }
+      var nm = (c.firstChild && c.firstChild.nodeType === 3 ? c.firstChild.textContent : c.textContent).trim();
+      if (!nm) return;
+      c.setAttribute('data-naig-chip', nm);
+      c.title = 'Show only ' + nm + '’s tasks (click again to show all)';
+      c.addEventListener('click', function(){
+        var f = document.getElementById('filterOwner'); if (!f) return;
+        var opt = [].slice.call(f.options).filter(function(o){ return o.text.trim() === nm; })[0];
+        var v = (opt && f.value === opt.value) ? '' : (opt ? opt.value : '');
+        f.value = v;
+        if (typeof window.setTaskAssigneeLens === 'function') window.setTaskAssigneeLens(v);
+        else f.dispatchEvent(new Event('change'));
+        tick();
+      });
+    });
+  }
+  setInterval(tick, 1000);
+})();
+</script>
 </body>
 </html>
