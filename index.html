@@ -19531,8 +19531,8 @@ function apply(food){
   }
 
   setCell(cells[0], rg(lo,hi), String(sc.label || basis).slice(0, 48));
-  setCell(cells[1], rg(lo*attF,hi*attF), 'incl. family at 30% × 1.5');
-  setCell(cells[2], rg(lo*mealF,hi*mealF), nf(mealF*100) + '% of athletes · veg ' + rg(lo*vegF,hi*vegF));
+  setCell(cells[1], rg(lo+vol+staff,hi+vol+staff), nf(lo) + ' athletes + ' + nf(vol) + ' volunteers + ' + nf(staff) + ' staff');
+  setCell(cells[2], rg(lo+vol+staff,hi+vol+staff), 'everyone on site, per meal · veg ' + rg((lo+vol+staff)*vegF,(hi+vol+staff)*vegF));
   var __fg = food.grid || {};
 var __gt = Number(__fg.computedTotal) || 0;
 if (__fg.drivesBudget && __gt > 0) {
@@ -20547,7 +20547,7 @@ function esc(s){ if(s===null||s===undefined) return ''; return String(s).replace
 
 var VOL_PER_ATHLETES = 3, ATHLETES_PER_STAFF = 100;
 // Team rule set by Rizwan 19 Oct 2026: 1 volunteer per 3 athletes, 1 staff (refs, security) per 100 athletes. Rounded up.
-function team(a){ a = Number(a) || 0; return { volunteers: Math.ceil(a / VOL_PER_ATHLETES), staff: Math.ceil(a / ATHLETES_PER_STAFF) }; }
+function team(a){ a = Number(a) || 0; var f = (window.NAIG && NAIG.formula) ? NAIG.formula() : null; var pv = f ? f.rules.athletesPerVolunteer : VOL_PER_ATHLETES; var ps = f ? f.rules.athletesPerStaff : ATHLETES_PER_STAFF; return { volunteers: Math.ceil(a / pv), staff: Math.ceil(a / ps) }; }
 function heads(){
   // Single source: naig2027/headcount athletes (unique people).
   var H = window._headcount || {};
@@ -21733,6 +21733,8 @@ var iv = setInterval(function(){
 (function NAIG_SCOPE_HEADER() {
   if (window.__naigScopeHeader) return;
   window.__naigScopeHeader = true;
+  // 19 Oct 2026: repaint as the slot-sheet formula updates.
+  setTimeout(function(){ setInterval(function(){ try { paint(); } catch(e) {} }, 4000); }, 0);
   var M = null;
   function nf(n) { return Math.round(Number(n) || 0).toLocaleString(); }
   function rows() {
@@ -21742,8 +21744,8 @@ var iv = setInterval(function(){
   function figures() {
     var r = rows(), sp = {};
     r.forEach(function (x) { sp[x.sport || x.label] = 1; });
-    return { sports: Object.keys(sp).length, cats: r.length,
-             raw: Number(M.rawRegistrations) || 0, ath: Number(M.athletes) || 0 };
+    return { sports: Object.keys(sp).length, cats: (window.NAIG && NAIG.formula && NAIG.formula()) ? NAIG.formula().events : r.length,
+             raw: Number(M.rawRegistrations) || 0, ath: (window.NAIG && NAIG.formula && NAIG.formula()) ? NAIG.formula().athletes : (Number(M.athletes) || 0) };
   }
   function paint() {
     if (!M) return;
@@ -22179,6 +22181,85 @@ var iv = setInterval(function(){
             volunteers:num(H.volunteers), staff:num(H.staff), totalFed:num(H.totalFed)};
   };
   window.NAIG=F;
+})();
+</script>
+<script>
+/* ════ HEADCOUNT FORMULA - ONE SOURCE: THE SLOT SHEET. Added 19 Oct 2026. ════
+   registrations = sum of slots x max per slot   (naig2027/sportsPlan rows, via the Sports mirror)
+   athletes      = round(registrations x (1 - overlapPct/100))      overlapPct = 20
+   volunteers    = ceil(athletes / athletesPerVolunteer)             3
+   staff         = ceil(athletes / athletesPerStaff)                 100  (refs, security)
+   onSite        = athletes + volunteers + staff
+   The three rules live at naig2027/headcount (overlapPct, athletesPerVolunteer, athletesPerStaff).
+   This block republishes the results to naig2027/headcount, food/assumptions and
+   food/headcountScenarios/slots so every older panel follows the slots.
+   Never type a headcount anywhere else in the hub. */
+(function(){
+  if (window.__naigFormula) return; window.__naigFormula = true;
+  function num(x){ var n = Number(x); return isFinite(n) ? n : 0; }
+  function rules(){
+    var H = window._headcount || {};
+    return {
+      overlapPct: (H.overlapPct === undefined || H.overlapPct === null || H.overlapPct === '') ? 20 : num(H.overlapPct),
+      athletesPerVolunteer: num(H.athletesPerVolunteer) || 3,
+      athletesPerStaff: num(H.athletesPerStaff) || 100
+    };
+  }
+  function formula(){
+    var sp = window._sportsPlan;
+    if (!sp || !num(sp.people)) return null;
+    var r = rules();
+    var reg = num(sp.people);
+    var a = Math.round(reg * (1 - r.overlapPct / 100));
+    var v = Math.ceil(a / r.athletesPerVolunteer);
+    var s = Math.ceil(a / r.athletesPerStaff);
+    return { events: num(sp.rows), slots: num(sp.slots), registrations: reg, athletes: a,
+             volunteers: v, staff: s, onSite: a + v + s, totalFed: a + v + s, rules: r };
+  }
+  var F = window.NAIG || (window.NAIG = {});
+  var legacy = F.headcount;
+  F.formula = formula;
+  F.headcount = function(){ var f = formula(); return f ? f : (legacy ? legacy() : null); };
+
+  var MOD = null, last = '', busy = false;
+  function mod(){ return MOD ? Promise.resolve(MOD) : import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js').then(function(m){ MOD = m; return m; }); }
+  function tick(){
+    var f = formula();
+    if (!f || busy || typeof _dbRef !== 'function' || !window._gUser) return;
+    var sig = [f.registrations, f.athletes, f.volunteers, f.staff, f.slots, f.events, f.rules.overlapPct, f.rules.athletesPerVolunteer, f.rules.athletesPerStaff].join('|');
+    if (sig === last) return;
+    var H = window._headcount || {};
+    if (H.formulaSig === sig) { last = sig; return; }
+    busy = true;
+    var now = new Date().toISOString();
+    var label = f.registrations.toLocaleString('en-US') + ' slot registrations - ' + f.rules.overlapPct + '% overlap';
+    var up = {
+      'headcount/athletes': f.athletes,
+      'headcount/athleteRegistrations': f.registrations,
+      'headcount/volunteers': f.volunteers,
+      'headcount/staff': f.staff,
+      'headcount/totalFed': f.onSite,
+      'headcount/slots': f.slots,
+      'headcount/events': f.events,
+      'headcount/overlapPct': f.rules.overlapPct,
+      'headcount/athletesPerVolunteer': f.rules.athletesPerVolunteer,
+      'headcount/athletesPerStaff': f.rules.athletesPerStaff,
+      'headcount/activeScenario': 'slots',
+      'headcount/formula': 'athletes = round(slots x max per slot x (1 - overlap)); volunteers = ceil(athletes / 3); staff = ceil(athletes / 100)',
+      'headcount/formulaSig': sig,
+      'headcount/derivedFrom': 'naig2027/sportsPlan',
+      'headcount/derivedAt': now,
+      'food/headcountScenarios/slots': { label: label, athletesLow: f.athletes, athletesHigh: f.athletes, registrations: f.registrations, basis: 'Live formula from the slot sheet (naig2027/sportsPlan). Rewritten by the hub whenever a slot changes.', updatedAt: now },
+      'food/assumptions/activeBasis': 'slots',
+      'food/assumptions/activeBasisNote': 'The slot sheet is the single source for athlete count (Rizwan, 19 Oct 2026). Volunteers and staff follow 1 per 3 and 1 per 100 athletes.',
+      'food/assumptions/volunteers': f.volunteers,
+      'food/assumptions/staff': f.staff
+    };
+    mod().then(function(m){ return m.update(_dbRef('naig2027'), up); })
+      .then(function(){ last = sig; busy = false; console.log('[naigFormula] published ' + sig); })
+      .catch(function(e){ last = sig; busy = false; console.warn('[naigFormula] publish failed', e && e.message); });
+  }
+  setInterval(function(){ try { tick(); } catch(e) { console.warn('[naigFormula]', e); } }, 3000);
 })();
 </script>
 </body>
