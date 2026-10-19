@@ -22346,5 +22346,63 @@ var iv = setInterval(function(){
   document.addEventListener('click', function(e){ if (e.target.closest && e.target.closest('#naigVTidyBar')) setTimeout(tick, 50); });
 })();
 </script>
+<script>
+/* NAIG tab deep links + Copy link (19 Oct 2026).
+   ?tab=<name> (or #tab=<name>) opens that tab once access has loaded; switchTab still enforces access.
+   The Copy link button copies a link to the tab that is open. Sports copies the public slots form. */
+(function(){
+  if (window.__naigTabLink) return; window.__naigTabLink = true;
+  var BASE = location.origin + location.pathname.replace(/index\.html$/, '');
+  function wanted(){
+    try {
+      var p = new URLSearchParams(location.search).get('tab');
+      if (p) return p.toLowerCase();
+      var h = (location.hash || '').replace(/^#/, '');
+      if (h.indexOf('tab=') === 0) return decodeURIComponent(h.slice(4)).toLowerCase();
+    } catch(e) {}
+    return null;
+  }
+  function current(){
+    var a = document.querySelector('.tab-nav .tab-btn.active, .tab-nav button.active');
+    return a && a.id && a.id.indexOf('tab') === 0 ? a.id.slice(3) : 'dashboard';
+  }
+  function linkFor(t){
+    if (t === 'sports') return BASE + 'sportsplan.html';
+    return BASE + (t && t !== 'dashboard' ? '?tab=' + encodeURIComponent(t) : '');
+  }
+  function copy(text, done){
+    function fallback(){
+      var ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch(e) {} ta.remove(); done();
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
+  }
+  var want = wanted(), opened = !want, tries = 0;
+  var iv = setInterval(function(){
+    tries++;
+    if (!opened && typeof window.switchTab === 'function' && window._axPerms && document.getElementById('tab' + want)) {
+      opened = true;
+      try { window.switchTab(want); } catch(e) {}
+    }
+    var bar = document.getElementById('naigRegionBar');
+    if (bar && !document.getElementById('naigCopyLink')) {
+      var b = document.createElement('button');
+      b.id = 'naigCopyLink'; b.type = 'button'; b.textContent = '🔗 Copy link';
+      b.title = 'Copy a link to the tab that is open';
+      b.style.cssText = 'margin-left:auto;padding:4px 10px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#1e293b;font-size:12px;cursor:pointer;white-space:nowrap';
+      b.addEventListener('click', function(){
+        var t = current(), url = linkFor(t);
+        copy(url, function(){
+          b.textContent = t === 'sports' ? '✓ Form link copied' : '✓ Link copied';
+          setTimeout(function(){ b.textContent = '🔗 Copy link'; }, 1800);
+        });
+      });
+      if (getComputedStyle(bar).display.indexOf('flex') < 0) { b.style.marginLeft = '8px'; b.style.float = 'right'; }
+      bar.appendChild(b);
+    }
+    if (tries > 60) { opened = true; }
+  }, 500);
+})();
+</script>
 </body>
 </html>
