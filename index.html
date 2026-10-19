@@ -15187,7 +15187,7 @@ function axSignInError(code) {
 
 /* ── Approval queue in the Access panel ─────────────────────────────────── */
 function axPendingCount() {
-  return Object.values(window._axRequests || {}).filter(r => r && r.status === 'pending').length;
+  return Object.values(window._axRequests || {}).filter(r => r && r.status === 'pending' && !(typeof axFindByEmail === 'function' && axFindByEmail(r.email))).length;
 }
 function axUpdatePendingBadge() {
   const b = document.getElementById('axManageBtn');
@@ -15203,7 +15203,7 @@ function axRenderRequests() {
   const wrap = document.getElementById('axRequests');
   if (!wrap) return;
   const reqs = Object.entries(window._axRequests || {})
-    .filter(([k, r]) => r && r.status === 'pending')
+    .filter(([k, r]) => r && r.status === 'pending' && !(typeof axFindByEmail === 'function' && axFindByEmail(r.email))) /* 19 Oct 2026: hide requests already matched to a Directory person (email or second email, any case) */
     .sort((a, b) => (a[1].requestedAt || 0) - (b[1].requestedAt || 0));
   if (!reqs.length) { wrap.innerHTML = ''; return; }
 
@@ -19915,6 +19915,8 @@ var iv = setInterval(function(){
     var host = document.getElementById('naigTeams');
     if (!host) return;
     css();
+    // 19 Oct 2026: read-only, filled from the slot sheet (Rizwan). The hand-typed teamModel table no longer renders.
+    if (window.NAIG && NAIG.scopeFromSlots) { NAIG.scopeFromSlots(host); return; }
     var list = rows(), t = totals(list), gs = groups(list);
     var h = [];
     h.push('<h3>Athlete count - scope of athletes</h3>');
@@ -20540,7 +20542,7 @@ if (window.__naigFoodGridBooted) { return; }
 window.__naigFoodGridBooted = true;
 // Re-render when the single-source headcount changes.
 var __fgHc = '';
-setInterval(function(){ var H = window._headcount || {}; var s = String(H.athletes || ''); if (s !== __fgHc) { __fgHc = s; if (G && document.getElementById('fgBody')) { try { render(); } catch(e) { console.warn('[foodGrid] rerender', e); } } } }, 3000);
+setInterval(function(){ var H = window._headcount || {}; var hh = (window.NAIG && NAIG.hotels) ? NAIG.hotels() : null; var s = String(H.athletes || '') + '|' + (hh ? hh.guests : ''); if (s !== __fgHc) { __fgHc = s; if (G && document.getElementById('fgBody')) { try { render(); } catch(e) { console.warn('[foodGrid] rerender', e); } try { var _t = totals(); if (FB && window._gUser && Math.round(_t.all) !== Math.round(Number(G.computedTotal) || 0)) { G.computedTotal = _t.all; queueSave(); } } catch(e) {} } } }, 3000);
 
 var FB = null;
 var G = null;
@@ -22325,6 +22327,28 @@ var iv = setInterval(function(){
     var v = Math.ceil(a / r.athletesPerVolunteer), s = Math.ceil(a / r.athletesPerStaff);
     return { events: all.events, slots: Math.round(sl), registrations: Math.round(reg), athletes: a, volunteers: v, staff: s, onSite: a + v + s, totalFed: a + v + s, rules: r, scope: f, scopeLabel: label(f) };
   };
+  var lastScope = '';
+  F.scopeFromSlots = function(host){
+    if (!ROWS || !host) return;
+    var all = F.formulaAll ? F.formulaAll() : null, ov = all ? all.rules.overlapPct : 20;
+    var codes = codesFor(filter), rs = (SR && SR.rows) || {}, bySport = {}, order = [];
+    Object.keys(ROWS).forEach(function(i){
+      var row = ROWS[i]; if (!row) return;
+      var live = num(row.slots), cap = num(row.cap), sl = live;
+      if (filter !== 'ALL' && SR) { var s = rs[i]; sl = 0; if (s && num(s.slotsAtLoad)) { var sum = 0; codes.forEach(function(k){ sum += num((s.byRegion || {})[k]); }); sl = live * sum / num(s.slotsAtLoad); } }
+      var sp = String(row.sport || 'Other').replace(/^Track - .*/, 'Track');
+      if (!bySport[sp]) { bySport[sp] = { events: 0, slots: 0, reg: 0, venues: {} }; order.push(sp); }
+      var b = bySport[sp]; if (sl > 0) b.events++; b.slots += sl; b.reg += sl * cap; if (row.venue && sl > 0) b.venues[row.venue] = 1;
+    });
+    var tot = { events: 0, slots: 0, reg: 0 }, s2 = F.slice(filter);
+    var h = '<h3>Athlete count - from the slot sheet</h3><p class="tm-sub">Read-only. Slots x max per slot, per sport' + (filter !== 'ALL' ? ' - <b>' + esc(label(filter)) + '</b>' : '') + '. Change slots on the <a href="sportsplan.html" target="_blank" rel="noopener">slots page</a> and every tab updates.</p>';
+    h += '<table><thead><tr><th>Sport</th><th>Events</th><th>Slots</th><th>Registrations</th><th>Venue</th></tr></thead><tbody>';
+    order.forEach(function(sp){ var b = bySport[sp]; if (b.slots <= 0) return; tot.events += b.events; tot.slots += b.slots; tot.reg += b.reg;
+      h += '<tr><td>' + esc(sp) + '</td><td>' + b.events + '</td><td>' + nf(b.slots) + '</td><td>' + nf(b.reg) + '</td><td>' + esc(Object.keys(b.venues).join(', ') || 'TBD') + '</td></tr>'; });
+    h += '</tbody><tfoot><tr><th>Total</th><th>' + tot.events + '</th><th>' + nf(tot.slots) + '</th><th>' + nf(tot.reg) + '</th><th></th></tr></tfoot></table>';
+    if (s2) h += '<p class="tm-sub"><b>' + nf(s2.registrations) + '</b> registrations less ' + ov + '% overlap = <b>' + nf(s2.athletes) + '</b> unique athletes on site · ' + nf(s2.volunteers) + ' volunteers · ' + nf(s2.staff) + ' staff · ' + nf(s2.onSite) + ' on site.</p>';
+    if (h === lastScope && host.innerHTML) return; lastScope = h; host.innerHTML = h;
+  };
   F.hotels = function(){
     var all = F.formulaAll ? F.formulaAll() : null, rr = byRegion(); if (!all || !rr) return null;
     var R = regs(), localReg = 0; Object.keys(R).forEach(function(k){ if (R[k].local && rr[k]) localReg += rr[k].reg; });
@@ -22367,6 +22391,7 @@ var iv = setInterval(function(){
     h1 += '<span style="color:#64748b">From the slot sheet. Food and Budget always use all regions.</span>';
     b.innerHTML = h1;
     var sel = document.getElementById('naigRegionSel'); if (sel) sel.value = filter;
+    var sh = document.getElementById('naigTeams'); if (sh) { try { F.scopeFromSlots(sh); } catch(e) { console.warn('[naigRegions] scope', e); } }
   }
   function boot(){
     if (typeof _dbRef !== 'function') return false;
