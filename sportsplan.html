@@ -93,6 +93,9 @@ td.del button:hover{color:var(--bad)}
 .p-lo{color:var(--warn);border-color:var(--warn)}
 footer{margin-top:34px;padding-top:15px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px}
 @media (max-width:620px){ .wrap{padding:18px 12px 70px} .status{margin-left:0;flex-basis:100%} }
+tr.grp td{background:var(--head);color:var(--accent);font-weight:600;cursor:pointer;padding:9px 10px;border-top:1px solid var(--line);user-select:none}
+tr.grp:hover td{background:var(--soft)}
+.spbtn{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:3px 9px;margin-left:6px;cursor:pointer;font-size:12px}
 </style>
 </head>
 <body>
@@ -393,13 +396,31 @@ function visible(r){
   return true;
 }
 
+/* Sport groups (19 Oct 2026): rows fold under one header per sport. Collapsed by default;
+   the choice is remembered on this device. Picking a sport in the filter opens it. */
+var SPCOLLAPSE=(function(){ try{ var a=JSON.parse(localStorage.getItem("naigSpCollapse")||"null"); if(Array.isArray(a)) return new Set(a); }catch(e){} return null; })();
+function spSave(){ try{ localStorage.setItem("naigSpCollapse", JSON.stringify([...SPCOLLAPSE])); }catch(e){} }
 function render(){
   const tb=$("rows"); tb.textContent="";
   let shown=0;
-  rows.forEach(r=>{
-    if(!visible(r)) return;
+  if(!SPCOLLAPSE) SPCOLLAPSE=new Set(rows.map(r=>(r.sport||"Other").split(" - ")[0]));
+  const vis=rows.filter(visible);
+  const order=[]; vis.forEach(r=>{ const s=(r.sport||"Other").split(" - ")[0]; if(order.indexOf(s)<0) order.push(s); });
+  const tbl=tb.closest("table"); const ncol=(tbl && tbl.querySelectorAll("thead th").length) || 8;
+  const forceOpen=!!$("fSport").value;
+  order.forEach(sp=>{
+    const grp=vis.filter(r=>(r.sport||"Other").split(" - ")[0]===sp);
+    const open=forceOpen || !SPCOLLAPSE.has(sp);
+    const gs=Math.round(grp.reduce((a,r)=>a+rslots(r),0)), gp=Math.round(grp.reduce((a,r)=>a+rpeople(r),0));
+    const h=document.createElement("tr"); h.className="grp"+(open?" open":"");
+    const hd=document.createElement("td"); hd.colSpan=ncol;
+    hd.textContent=(open?"\u25BE  ":"\u25B8  ")+sp+"   \u00B7   "+grp.length+" event"+(grp.length===1?"":"s")+"   \u00B7   "+gs.toLocaleString()+" slots   \u00B7   "+gp.toLocaleString()+" athletes";
+    h.appendChild(hd);
+    h.addEventListener("click",()=>{ if(SPCOLLAPSE.has(sp)) SPCOLLAPSE.delete(sp); else SPCOLLAPSE.add(sp); spSave(); render(); });
+    tb.appendChild(h);
+    grp.forEach(r=>{
     shown++;
-    const tr=document.createElement("tr");
+    const tr=document.createElement("tr"); if(!open) tr.style.display="none";
     const add=(node,cls)=>{ const td=document.createElement("td"); if(cls) td.className=cls;
       td.appendChild(node); tr.appendChild(td); };
     /* Sport, Event, Age, Division, Max per slot and Venue are the official event
@@ -417,6 +438,11 @@ function render(){
     add(txt(r.notes,"", function(v){ r.notes=v; touch(true); }));
     tb.appendChild(tr);
   });
+  });
+  if(!$("spAll")){ const w=document.createElement("span"); w.id="spAll";
+    [["Expand all",()=>{ SPCOLLAPSE.clear(); }],["Collapse all",()=>{ rows.forEach(r=>SPCOLLAPSE.add((r.sport||"Other").split(" - ")[0]).split(" - ")[0]); }]].forEach(([l,f])=>{
+      const b=document.createElement("button"); b.type="button"; b.className="spbtn"; b.textContent=l; b.onclick=()=>{ f(); spSave(); render(); }; w.appendChild(b); });
+    $("shown").insertAdjacentElement("afterend", w); }
   $("shown").textContent = shown===rows.length
     ? ("Showing all "+rows.length+" events. Filter above to work through one venue at a time.")
     : ("Showing "+shown+" of "+rows.length+" events.");
