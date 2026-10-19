@@ -502,8 +502,8 @@ function totals(){
   });
 
   const byS={};
-  rows.forEach(r=>{ if(!r.sport) return; (byS[r.sport]=byS[r.sport]||{n:0,sl:0,v:new Set(),d:0});
-    byS[r.sport].n+=people(r); byS[r.sport].sl+=num(r.slots); byS[r.sport].d+=1;
+  /* 19 Oct 2026: By sport follows the region view, same as By venue. */ RR.forEach(r=>{ if(!r.sport) return; (byS[r.sport]=byS[r.sport]||{n:0,sl:0,v:new Set(),d:0});
+    byS[r.sport].n+=Math.round(rpeople(r)); byS[r.sport].sl+=Math.round(rslots(r)); byS[r.sport].d+=1;
     if(r.venue) byS[r.sport].v.add(r.venue); });
   const swrap=$("bySport"); swrap.textContent="";
   const skeys=Object.keys(byS).sort();
