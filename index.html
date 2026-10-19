@@ -20570,12 +20570,18 @@ function bags(){
   var Bg = (G && G.goodieBags) || {};
   var pct = (Bg.pct === undefined || Bg.pct === null || Bg.pct === '') ? 75 : (Number(Bg.pct) || 0);
   var price = (Bg.price === undefined || Bg.price === null || Bg.price === '') ? 3 : (Number(Bg.price) || 0);
-  var count = Math.ceil(heads().athletes * pct / 100);
-  return { pct: pct, price: price, count: count, cost: count * price };
+  var hh = (window.NAIG && NAIG.hotels) ? NAIG.hotels() : null;
+  // 19 Oct 2026: bags go to hotel guests (travelling athletes + travelling team). 75% stays only as a fallback.
+  var count = hh ? hh.guests : Math.ceil(heads().athletes * pct / 100);
+  return { pct: pct, price: price, count: count, cost: count * price, hotel: hh };
 }
 function bagTile(b){
-  return '<div class="fg-kpi"><div class="fg-kl">Goodie bags</div><div class="fg-kv">' + money(b.cost) + '</div><div class="fg-ks">' + nf(b.count) + ' bags · <input class="fg-price" style="width:40px" type="text" inputmode="decimal" data-fgbag="pct" value="' + b.pct + '">% of athletes × $<input class="fg-price" style="width:40px" type="text" inputmode="decimal" data-fgbag="price" value="' + b.price + '"><br>hotel guests · placeholder until rooms are booked</div></div>';
+  var sub = b.hotel
+    ? nf(b.count) + ' bags = hotel guests (' + nf(b.hotel.travellingAthletes) + ' travelling athletes + ' + nf(b.hotel.travellingVolunteers + b.hotel.travellingStaff) + ' travelling team) × $<input class="fg-price" style="width:40px" type="text" inputmode="decimal" data-fgbag="price" value="' + b.price + '">'
+    : nf(b.count) + ' bags · <input class="fg-price" style="width:40px" type="text" inputmode="decimal" data-fgbag="pct" value="' + b.pct + '">% of athletes × $<input class="fg-price" style="width:40px" type="text" inputmode="decimal" data-fgbag="price" value="' + b.price + '"><br>placeholder until the region split loads';
+  return '<div class="fg-kpi"><div class="fg-kl">Goodie bags</div><div class="fg-kv">' + money(b.cost) + '</div><div class="fg-ks">' + sub + '</div></div>';
 }
+
 
 
 function mealList(){
@@ -22273,6 +22279,115 @@ var iv = setInterval(function(){
     if (sig !== lastPaint) { lastPaint = sig; if (window._onboardToken && typeof renderOnboardView === 'function' && document.getElementById('onboardContent')) { try { renderOnboardView(); } catch(e) {} } }
   }
   setInterval(function(){ try { tick(); } catch(e) { console.warn('[naigFormula]', e); } try { paint(); } catch(e) { console.warn('[naigFormula] paint', e); } }, 3000);
+})();
+</script>
+<script>
+/* ════ REGION SPLIT + HUB FILTER. Added 19 Oct 2026. ════
+   Source: naig2027/slotRegions (loaded from slot-estimates-all-regions-2026-10-14.pdf).
+   Each event's region share = region slots / event slots at load, applied to the LIVE slot count
+   in naig2027/sportsPlan/rows, so a slot edit on the form keeps the split.
+   Hotels: guests = athletes outside Central + teamTravelPct (30) of volunteers and staff;
+   rooms = ceil(travelling athletes / peoplePerRoom) + ceil(travelling team / peoplePerRoom), peoplePerRoom = 2.
+   The filter changes the headcount VIEW only. Food, Budget and the Dashboard budget tile always use all regions. */
+(function(){
+  if (window.__naigRegions) return; window.__naigRegions = true;
+  var SR = null, ROWS = null, MOD = null, KEY = 'naigRegionFilter';
+  function num(x){ var n = Number(x); return isFinite(n) ? n : 0; }
+  function nf(n){ return Math.round(Number(n) || 0).toLocaleString('en-US'); }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  var filter = 'ALL'; try { filter = localStorage.getItem(KEY) || 'ALL'; } catch(e) {}
+  var F = window.NAIG || (window.NAIG = {});
+  function regs(){ return (SR && SR.regions) || {}; }
+  function codesFor(f){ var R = regs(); return Object.keys(R).filter(function(k){
+    if (f === 'ALL') return true; if (f === 'CA') return R[k].country === 'Canada'; if (f === 'US') return R[k].country === 'USA'; return k === f; }); }
+  function label(f){ var R = regs(); if (f === 'ALL') return 'All regions'; if (f === 'CA') return 'Canada'; if (f === 'US') return 'USA'; return R[f] ? R[f].name + ' (' + R[f].country + ')' : f; }
+  function byRegion(){
+    if (!SR || !SR.rows || !ROWS) return null;
+    var out = {}; Object.keys(regs()).forEach(function(k){ out[k] = { slots: 0, reg: 0 }; });
+    Object.keys(SR.rows).forEach(function(i){
+      var s = SR.rows[i], r = ROWS[i]; if (!r || !s) return;
+      var live = num(r.slots), cap = num(r.cap), base = num(s.slotsAtLoad), br = s.byRegion || {};
+      if (!base) return;
+      Object.keys(br).forEach(function(k){ var sl = live * num(br[k]) / base; if (!out[k]) out[k] = { slots: 0, reg: 0 }; out[k].slots += sl; out[k].reg += sl * cap; });
+    });
+    return out;
+  }
+  F.regionTable = byRegion;
+  F.regions = function(){ return regs(); };
+  F.slice = function(f){
+    var all = F.formulaAll ? F.formulaAll() : null; if (!all) return null;
+    f = f || 'ALL'; var rr = byRegion();
+    if (f === 'ALL' || !rr) { var o = {}; for (var k in all) o[k] = all[k]; o.scope = 'ALL'; o.scopeLabel = 'All regions'; return o; }
+    var reg = 0, sl = 0; codesFor(f).forEach(function(k){ if (rr[k]) { reg += rr[k].reg; sl += rr[k].slots; } });
+    var r = all.rules, a = Math.round(reg * (1 - r.overlapPct / 100));
+    var v = Math.ceil(a / r.athletesPerVolunteer), s = Math.ceil(a / r.athletesPerStaff);
+    return { events: all.events, slots: Math.round(sl), registrations: Math.round(reg), athletes: a, volunteers: v, staff: s, onSite: a + v + s, totalFed: a + v + s, rules: r, scope: f, scopeLabel: label(f) };
+  };
+  F.hotels = function(){
+    var all = F.formulaAll ? F.formulaAll() : null, rr = byRegion(); if (!all || !rr) return null;
+    var R = regs(), localReg = 0; Object.keys(R).forEach(function(k){ if (R[k].local && rr[k]) localReg += rr[k].reg; });
+    var H = window._headcount || {};
+    var tp = (H.teamTravelPct === undefined || H.teamTravelPct === null || H.teamTravelPct === '') ? 30 : num(H.teamTravelPct);
+    var ppr = num(H.peoplePerRoom) || 2;
+    var localA = Math.round(localReg * (1 - all.rules.overlapPct / 100)), travA = all.athletes - localA;
+    var tv = Math.ceil(all.volunteers * tp / 100), ts = Math.ceil(all.staff * tp / 100);
+    var blocked = 0, hd = window._hotelsData || {}; Object.keys(hd).forEach(function(k){ var n = parseInt(String((hd[k] || {}).blockSize || ''), 10); if (n > 0) blocked += n; });
+    return { localAthletes: localA, travellingAthletes: travA, travellingVolunteers: tv, travellingStaff: ts, guests: travA + tv + ts,
+             athleteRooms: Math.ceil(travA / ppr), teamRooms: Math.ceil((tv + ts) / ppr), rooms: Math.ceil(travA / ppr) + Math.ceil((tv + ts) / ppr),
+             blocked: blocked, peoplePerRoom: ppr, teamTravelPct: tp };
+  };
+  function install(){
+    if (F.formulaAll || !F.formula) return !!F.formulaAll;
+    F.formulaAll = F.formula;
+    F.formula = function(){ return F.slice(filter) || F.formulaAll(); };
+    return true;
+  }
+  function bar(){
+    var nav = document.querySelector('#mainHub > .tab-nav'); if (!nav) return null;
+    var b = document.getElementById('naigRegionBar');
+    if (!b) { b = document.createElement('div'); b.id = 'naigRegionBar'; b.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:8px 16px;background:#0f172a;color:#e2e8f0;font-size:12px;border-bottom:1px solid #1e293b'; nav.parentNode.insertBefore(b, nav.nextSibling);
+      b.addEventListener('change', function(ev){ if (ev.target && ev.target.id === 'naigRegionSel') { filter = ev.target.value; try { localStorage.setItem(KEY, filter); } catch(e) {} paint(true); } }); }
+    return b;
+  }
+  var lastSig = '';
+  function paint(force){
+    install();
+    var b = bar(); if (!b || !F.formulaAll) return;
+    var s = F.slice(filter), h = F.hotels(); if (!s) return;
+    var sig = filter + '|' + JSON.stringify(s) + '|' + JSON.stringify(h) + '|' + Object.keys(regs()).length;
+    if (!force && sig === lastSig) return; lastSig = sig;
+    var R = regs(), opts = '<option value="ALL">All regions</option><option value="US">USA</option><option value="CA">Canada</option>';
+    ['Canada','USA'].forEach(function(c){ opts += '<optgroup label="' + c + '">'; Object.keys(R).filter(function(k){ return R[k].country === c; }).sort(function(x,y){ return num(R[x].order) - num(R[y].order); }).forEach(function(k){ opts += '<option value="' + esc(k) + '">' + esc(R[k].name) + (R[k].local ? ' (local)' : '') + '</option>'; }); opts += '</optgroup>'; });
+    var h1 = '<label style="font-weight:700;color:#93c5fd">Headcount view</label><select id="naigRegionSel" style="background:#1e293b;color:#f8fafc;border:1px solid #334155;border-radius:6px;padding:3px 6px;font-size:12px">' + opts + '</select>';
+    h1 += '<span><b>' + nf(s.athletes) + '</b> athletes</span><span>' + nf(s.registrations) + ' registrations</span><span>' + nf(s.slots) + ' slots</span><span>' + nf(s.volunteers) + ' volunteers</span><span>' + nf(s.staff) + ' staff</span><span><b>' + nf(s.onSite) + '</b> on site</span>';
+    if (h && filter === 'ALL') h1 += '<span style="color:#fbbf24">Hotels: ' + nf(h.guests) + ' guests · ' + nf(h.rooms) + ' rooms needed · ' + nf(h.blocked) + ' blocked</span>';
+    if (!Object.keys(R).length) h1 += '<span style="color:#94a3b8">region split loading</span>';
+    h1 += '<span style="color:#64748b">From the slot sheet. Food and Budget always use all regions.</span>';
+    b.innerHTML = h1;
+    var sel = document.getElementById('naigRegionSel'); if (sel) sel.value = filter;
+  }
+  function boot(){
+    if (typeof _dbRef !== 'function') return false;
+    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js').then(function(m){
+      MOD = m;
+      m.onValue(_dbRef('naig2027/slotRegions'), function(x){ SR = x.val() || null; paint(true); });
+      m.onValue(_dbRef('naig2027/sportsPlan/rows'), function(x){ var v = x.val(); ROWS = v ? (Array.isArray(v) ? v : v) : null; paint(true); });
+    }).catch(function(e){ console.warn('[naigRegions] load', e && e.message); });
+    return true;
+  }
+  var tries = 0, iv = setInterval(function(){ tries++; if (boot() || tries > 60) clearInterval(iv); }, 1000);
+  var lastPub = '';
+  setInterval(function(){
+    try { paint(false); } catch(e) { console.warn('[naigRegions] paint', e); }
+    try {
+      var h = F.hotels(); if (!h || !MOD || !window._gUser) return;
+      var sig = JSON.stringify(h); if (sig === lastPub) return;
+      var H = window._headcount || {}; if (H.hotels && JSON.stringify(H.hotels) === sig) { lastPub = sig; return; }
+      lastPub = sig;
+      MOD.update(_dbRef('naig2027/headcount'), { hotels: h, teamTravelPct: h.teamTravelPct, peoplePerRoom: h.peoplePerRoom })
+        .catch(function(e){ lastPub = ''; console.warn('[naigRegions] publish', e && e.message); });
+    } catch(e) { console.warn('[naigRegions]', e); }
+  }, 3000);
 })();
 </script>
 </body>
