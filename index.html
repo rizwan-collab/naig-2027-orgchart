@@ -22472,5 +22472,22 @@ var iv = setInterval(function(){
   setInterval(tick, 1000);
 })();
 </script>
+<script>
+/* One headcount display (19 Oct 2026): the region bar under the tabs is the only headcount strip.
+   Hidden duplicates: Dashboard "Headcount and food" tile, Scope's static tile strip (it flickered between two
+   values because two scripts wrote it) and Scope's "Scope at a glance" stats and sport cards. */
+(function(){
+  if (window.__naigOneHead) return; window.__naigOneHead = true;
+  var st = document.createElement('style');
+  st.textContent = '#naigHeadFood,#naigScopeCards,.naig-dup-hide{display:none !important}';
+  document.head.appendChild(st);
+  setInterval(function(){
+    var s = document.getElementById('sectionScope'); if (!s) return;
+    [].forEach.call(s.children, function(c){
+      if (!c.id && !c.classList.contains('naig-dup-hide') && /Athletes On-Site/.test(c.textContent) && /Total/.test(c.textContent) && c.textContent.length < 600) c.classList.add('naig-dup-hide');
+    });
+  }, 1500);
+})();
+</script>
 </body>
 </html>
