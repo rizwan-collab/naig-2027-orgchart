@@ -20532,6 +20532,9 @@ var iv2 = setInterval(function(){
 'use strict';
 if (window.__naigFoodGridBooted) { return; }
 window.__naigFoodGridBooted = true;
+// Re-render when the single-source headcount changes.
+var __fgHc = '';
+setInterval(function(){ var H = window._headcount || {}; var s = String(H.athletes || ''); if (s !== __fgHc) { __fgHc = s; if (G && document.getElementById('fgBody')) { try { render(); } catch(e) { console.warn('[foodGrid] rerender', e); } } } }, 3000);
 
 var FB = null;
 var G = null;
@@ -20542,15 +20545,35 @@ function nf(n){ return Math.round(n).toLocaleString('en-US'); }
 function money(n){ return '$' + Math.round(n).toLocaleString('en-US'); }
 function esc(s){ if(s===null||s===undefined) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+var VOL_PER_ATHLETES = 3, ATHLETES_PER_STAFF = 100;
+// Team rule set by Rizwan 19 Oct 2026: 1 volunteer per 3 athletes, 1 staff (refs, security) per 100 athletes. Rounded up.
+function team(a){ a = Number(a) || 0; return { volunteers: Math.ceil(a / VOL_PER_ATHLETES), staff: Math.ceil(a / ATHLETES_PER_STAFF) }; }
 function heads(){
-  var basis = String(A.activeBasis || 'teamModel');
-  var sc = (window.__naigFoodScenarios || {})[basis] || {};
-  return {
-    athletes: Number(sc.athletesLow) || 0,
-    volunteers: Number(A.volunteers) || 0,
-    staff: Number(A.staff) || 0
-  };
+  // Single source: naig2027/headcount athletes (unique people).
+  var H = window._headcount || {};
+  var a = Number(H.athletes) || 0;
+  if (!a) {
+    var basis = String(A.activeBasis || 'teamModel');
+    var sc = (window.__naigFoodScenarios || {})[basis] || {};
+    a = Number(sc.athletesLow) || 0;
+  }
+  var t = team(a);
+  return { athletes: a, volunteers: t.volunteers, staff: t.staff };
 }
+function hasAC(c){ return !!c && c.athleteCount !== undefined && c.athleteCount !== null && c.athleteCount !== ''; }
+function cellAthletes(c){ return hasAC(c) ? (Number(c.athleteCount) || 0) : heads().athletes; }
+function bags(){
+  // Goodie bags for hotel guests. Hotel count is not known yet, so 75% of athletes at $3 (Rizwan, 19 Oct 2026).
+  var Bg = (G && G.goodieBags) || {};
+  var pct = (Bg.pct === undefined || Bg.pct === null || Bg.pct === '') ? 75 : (Number(Bg.pct) || 0);
+  var price = (Bg.price === undefined || Bg.price === null || Bg.price === '') ? 3 : (Number(Bg.price) || 0);
+  var count = Math.ceil(heads().athletes * pct / 100);
+  return { pct: pct, price: price, count: count, cost: count * price };
+}
+function bagTile(b){
+  return '<div class="fg-kpi"><div class="fg-kl">Goodie bags</div><div class="fg-kv">' + money(b.cost) + '</div><div class="fg-ks">' + nf(b.count) + ' bags · <input class="fg-price" style="width:40px" type="text" inputmode="decimal" data-fgbag="pct" value="' + b.pct + '">% of athletes × $<input class="fg-price" style="width:40px" type="text" inputmode="decimal" data-fgbag="price" value="' + b.price + '"><br>hotel guests · placeholder until rooms are booked</div></div>';
+}
+
 
 function mealList(){
   var m = G.meals || {};
@@ -20571,13 +20594,15 @@ function cell(dk, mk){
   return G.cells[id];
 }
 function covered(c){
-  var h = heads();
+  var a = cellAthletes(c);
+  var t = team(a);
   var n = 0;
-  if(c.athletes) n += h.athletes;
-  if(c.volunteers) n += h.volunteers;
-  if(c.staff) n += h.staff;
+  if(c.athletes) n += a;
+  if(c.volunteers) n += t.volunteers;
+  if(c.staff) n += t.staff;
   return n;
 }
+
 function cellCost(dk, mk, price){
   var c = cell(dk, mk);
   if(!c.on) return 0;
@@ -20598,7 +20623,8 @@ function totals(){
       if(c.on){ onCount++; servings += covered(c); }
     });
   });
-  return { grand:grand, byDay:byDay, byMeal:byMeal, servings:servings, onCount:onCount, slots: ds.length * ms.length };
+  var bg = bags();
+  return { grand:grand, all: grand + bg.cost, bags: bg, byDay:byDay, byMeal:byMeal, servings:servings, onCount:onCount, slots: ds.length * ms.length };
 }
 
 function flash(msg, color){
@@ -20618,12 +20644,18 @@ function persist(){
   Object.keys(G.cells || {}).forEach(function(k){
     var c = G.cells[k];
     cells[k] = { day:c.day, meal:c.meal, on:!!c.on, athletes:!!c.athletes, volunteers:!!c.volunteers, staff:!!c.staff };
+    if (hasAC(c)) cells[k].athleteCount = Number(c.athleteCount) || 0;
+    if (c.note) cells[k].note = c.note;
   });
   flash('saving…', '#94a3b8');
   FB.update(_dbRef('naig2027/food/grid'), {
     meals: meals,
     cells: cells,
-    computedTotal: t.grand,
+    computedTotal: t.all,
+    computedMealsTotal: t.grand,
+    goodieBags: { pct: t.bags.pct, price: t.bags.price },
+    computedGoodieBags: { count: t.bags.count, cost: t.bags.cost },
+    teamRule: '1 volunteer per 3 athletes, 1 staff per 100 athletes, rounded up (19 Oct 2026)',
     computedServings: t.servings,
     drivesBudget: true,
     updatedAt: new Date().toISOString(),
@@ -20695,10 +20727,11 @@ function render(){
 
   var s = '';
   s += '<div class="fg-kpis">';
-  s += '<div class="fg-kpi fg-big"><div class="fg-kl">Food cost</div><div class="fg-kv">' + money(t.grand) + '</div><div class="fg-ks">' + t.onCount + ' of ' + t.slots + ' meal slots switched on</div></div>';
+  s += '<div class="fg-kpi fg-big"><div class="fg-kl">Food cost</div><div class="fg-kv">' + money(t.all) + '</div><div class="fg-ks">meals ' + money(t.grand) + ' + goodie bags ' + money(t.bags.cost) + ' · ' + t.onCount + ' of ' + t.slots + ' slots on</div></div>';
   s += '<div class="fg-kpi"><div class="fg-kl">Servings</div><div class="fg-kv">' + nf(t.servings) + '</div><div class="fg-ks">total plates across the Games</div></div>';
   s += '<div class="fg-kpi"><div class="fg-kl">Per person per day</div><div class="fg-kv">$' + perDay.toFixed(2).replace(/\.00$/,'') + '</div><div class="fg-ks">all four meals · $60 planning rate leaves $' + (60 - perDay).toFixed(2).replace(/\.00$/,'') + ' headroom</div></div>';
-  s += '<div class="fg-kpi"><div class="fg-kl">Who eats</div><div class="fg-kv" style="font-size:15px">' + nf(h.athletes + h.volunteers + h.staff) + '</div><div class="fg-ks">' + nf(h.athletes) + ' athletes · ' + nf(h.volunteers) + ' volunteers · ' + nf(h.staff) + ' staff</div></div>';
+  s += '<div class="fg-kpi"><div class="fg-kl">Who eats</div><div class="fg-kv" style="font-size:15px">' + nf(h.athletes + h.volunteers + h.staff) + '</div><div class="fg-ks">' + nf(h.athletes) + ' athletes · ' + nf(h.volunteers) + ' volunteers · ' + nf(h.staff) + ' staff · per full day</div></div>';
+  s += bagTile(t.bags);
   s += '</div>';
 
   s += '<div class="fg-scroll"><table><thead><tr><th>Meal</th>';
@@ -20717,7 +20750,7 @@ function render(){
       s += '<button type="button" class="fg-chip' + (c.athletes ? ' on' : '') + '" data-fgwho="' + d.key + '|' + m.key + '|athletes" title="Athletes">ATH</button>';
       s += '<button type="button" class="fg-chip' + (c.volunteers ? ' on' : '') + '" data-fgwho="' + d.key + '|' + m.key + '|volunteers" title="Volunteers">VOL</button>';
       s += '<button type="button" class="fg-chip' + (c.staff ? ' on' : '') + '" data-fgwho="' + d.key + '|' + m.key + '|staff" title="Staff and officials">STF</button>';
-      s += '</div></div></td>';
+      s += '</div><div style="margin-top:5px;display:flex;align-items:center;gap:4px"><input class="fg-price" style="width:54px" type="text" inputmode="numeric" data-fgac="' + d.key + '|' + m.key + '" value="' + (hasAC(c) ? c.athleteCount : '') + '" placeholder="' + h.athletes + '" title="Athletes at this meal. Leave blank for all athletes."><span style="font-size:10px;color:#94a3b8">ath · ' + (c.on ? nf(covered(c)) : '0') + ' fed</span></div></div></td>';
     });
     s += '<td class="fg-rowtot" style="text-align:right">' + money(t.byMeal[m.key]) + '</td></tr>';
   });
@@ -20758,7 +20791,30 @@ function wire(panel){
       G.meals[k].price = v;
       var tt = totals();
       var kv = panel.querySelector('.fg-big .fg-kv');
-      if(kv) kv.textContent = money(tt.grand);
+      if(kv) kv.textContent = money(tt.all);
+      queueSave();
+    }
+  });
+  panel.addEventListener('change', function(ev){
+    var t = ev.target;
+    if(!t || !t.getAttribute) return;
+    var k = t.getAttribute('data-fgac');
+    if(k){
+      var p = k.split('|');
+      var c = cell(p[0], p[1]);
+      var raw = String(t.value || '').replace(/[^0-9]/g, '');
+      if(raw === '') delete c.athleteCount; else c.athleteCount = parseInt(raw, 10);
+      render();
+      queueSave();
+      return;
+    }
+    var bk = t.getAttribute('data-fgbag');
+    if(bk){
+      var v = parseFloat(String(t.value || '').replace(/[^0-9.]/g, ''));
+      if(isNaN(v) || v < 0) v = 0;
+      if(!G.goodieBags) G.goodieBags = {};
+      G.goodieBags[bk] = v;
+      render();
       queueSave();
     }
   });
