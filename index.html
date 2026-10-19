@@ -22393,19 +22393,34 @@ var iv = setInterval(function(){
     var sel = document.getElementById('naigRegionSel'); if (sel) sel.value = filter;
     var sh = document.getElementById('naigTeams'); if (sh) { try { F.scopeFromSlots(sh); } catch(e) { console.warn('[naigRegions] scope', e); } }
   }
+  // 19 Oct 2026: the formula must not wait on the Sports mirror. If it has not filled
+  // window._sportsPlan yet, derive the same totals straight from the rows.
+  function derivePlan(){
+    if (!ROWS) return; var sp = window._sportsPlan; if (sp && num(sp.people) > 0) return;
+    var n = 0, sl = 0, pp = 0, bv = {};
+    Object.keys(ROWS).forEach(function(i){ var r = ROWS[i]; if (!r) return; n++; var s = num(r.slots), c = num(r.cap); sl += s; pp += s * c; var v = r.venue || 'TBD'; bv[v] = bv[v] || { name: v, slots: 0, people: 0 }; bv[v].slots += s; bv[v].people += s * c; });
+    window._sportsPlan = { rows: n, slots: sl, people: pp, byVenue: bv, derivedBy: 'naigRegions' };
+  }
+  // Scope overview tiles marked data-naig-ath are painted by an older block from teamModel. Keep them on the formula.
+  function fixTiles(){
+    var s = F.slice ? F.slice(filter) : null; if (!s) return;
+    var els = document.querySelectorAll('#sectionScope [data-naig-ath]');
+    for (var i = 0; i < els.length; i++) { var el = els[i], lab = el.nextElementSibling ? el.nextElementSibling.textContent.trim().toLowerCase() : '';
+      var want = /attendance/.test(lab) ? nf(s.onSite) : nf(s.athletes); if (el.textContent !== want) el.textContent = want; }
+  }
   function boot(){
     if (typeof _dbRef !== 'function') return false;
     import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js').then(function(m){
       MOD = m;
       m.onValue(_dbRef('naig2027/slotRegions'), function(x){ SR = x.val() || null; paint(true); });
-      m.onValue(_dbRef('naig2027/sportsPlan/rows'), function(x){ var v = x.val(); ROWS = v ? (Array.isArray(v) ? v : v) : null; paint(true); });
+      m.onValue(_dbRef('naig2027/sportsPlan/rows'), function(x){ var v = x.val(); ROWS = v ? (Array.isArray(v) ? v : v) : null; derivePlan(); paint(true); });
     }).catch(function(e){ console.warn('[naigRegions] load', e && e.message); });
     return true;
   }
   var tries = 0, iv = setInterval(function(){ tries++; if (boot() || tries > 60) clearInterval(iv); }, 1000);
   var lastPub = '';
   setInterval(function(){
-    try { paint(false); } catch(e) { console.warn('[naigRegions] paint', e); }
+    try { derivePlan(); paint(false); fixTiles(); } catch(e) { console.warn('[naigRegions] paint', e); }
     try {
       var h = F.hotels(); if (!h || !MOD || !window._gUser) return;
       var sig = JSON.stringify(h); if (sig === lastPub) return;
