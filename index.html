@@ -22432,5 +22432,24 @@ var iv = setInterval(function(){
   }, 3000);
 })();
 </script>
+<script>
+/* SPORTS TAB = THE FORM. 19 Oct 2026, Rizwan: the read-only mirror had no purpose, so the tab now shows
+   sportsplan.html itself. The mirror code still runs, hidden, because other tabs read window._sportsPlan from it.
+   sportsplan.html only signs in anonymously when nobody is signed in, so the hub Google session is kept. */
+(function(){
+  if (window.__naigSportsForm) return; window.__naigSportsForm = true;
+  function mount(){
+    var sec = document.getElementById('sectionSports'); if (!sec) return false;
+    if (document.getElementById('naigSportsFrame')) return true;
+    var st = document.createElement('style'); st.textContent = '#sectionSports > *:not(.naig-sf){display:none !important}'; document.head.appendChild(st);
+    var bar = document.createElement('div'); bar.className = 'naig-sf'; bar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 8px';
+    bar.innerHTML = '<div><div class="hub-title">Sports Allocation</div><div class="hub-subtitle">The live slots form. Edits here save straight to the slot sheet and every tab updates.</div></div><a class="btn" href="sportsplan.html" target="_blank" rel="noopener">Open in a new tab</a>';
+    var f = document.createElement('iframe'); f.id = 'naigSportsFrame'; f.className = 'naig-sf'; f.src = 'sportsplan.html'; f.title = 'Sports allocation form';
+    f.style.cssText = 'display:block;width:100%;height:calc(100vh - 170px);min-height:640px;border:1px solid #d0dae4;border-radius:10px;background:#fff';
+    sec.appendChild(bar); sec.appendChild(f); return true;
+  }
+  var n = 0, iv = setInterval(function(){ n++; if (mount() || n > 60) clearInterval(iv); }, 500);
+})();
+</script>
 </body>
 </html>
