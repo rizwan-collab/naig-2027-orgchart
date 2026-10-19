@@ -22451,5 +22451,146 @@ var iv = setInterval(function(){
   var n = 0, iv = setInterval(function(){ n++; if (mount() || n > 60) clearInterval(iv); }, 500);
 })();
 </script>
+<script>
+/* NAIG venue views merged (2026-10-19): Directory + Matrix + Coverage -> one Directory table.
+   Athletes and slots come from the slot sheet (window._sportsPlan.byVenue); venue facts from _venuesData. */
+(function(){
+  if (window.__naigVenueOne) return; window.__naigVenueOne = true;
+  var st = document.createElement('style');
+  st.textContent = '#naigVTidyBar [data-vt="matrix"],#naigVTidyBar [data-vt="coverage"]{display:none !important}'
+    + '#naigVenueMatrix,#naigMatrixGrid,#naigCoverage{display:none !important}'
+    + '#naigVenueOne{margin:8px 0 16px}#naigVenueOne .vo-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 8px;font-size:13px}'
+    + '#naigVenueOne .vo-wrap{overflow-x:auto}#naigVenueOne table{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff}'
+    + '#naigVenueOne th,#naigVenueOne td{border-bottom:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}'
+    + '#naigVenueOne th{background:#f3f4f6;position:sticky;top:0;cursor:pointer;white-space:nowrap}'
+    + '#naigVenueOne td.n,#naigVenueOne th.n{text-align:right;white-space:nowrap}'
+    + '#naigVenueOne .vo-pill{display:inline-block;padding:1px 7px;border-radius:9px;background:#eef2ff;font-size:11px;white-space:nowrap}'
+    + '#naigVenueOne .vo-ok{background:#dcfce7}#naigVenueOne .vo-out{background:#f3f4f6;color:#6b7280}'
+    + '#naigVenueOne tr.vo-a td:first-child{border-left:3px solid #16a34a}#naigVenueOne .vo-sum{font-size:13px;margin:0 0 8px}'
+    + '#naigVenueOne .vo-muted{color:#6b7280}';
+  document.head.appendChild(st);
+  var CLOSED = /declined|not available|not selected/i;
+  var state = { status: 'live', assigned: false, sort: 'ath', dir: -1 };
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function n(x){ var v = parseFloat(String(x == null ? '' : x).replace(/[^0-9.\-]/g, '')); return isFinite(v) ? v : 0; }
+  function fmt(x){ return Math.round(x).toLocaleString('en-US'); }
+  function norm(s){ return String(s || '').toLowerCase().replace(/\(.*?\)/g, '').replace(/[^a-z0-9]+/g, ' ').trim(); }
+  function planFor(name, byV){
+    var a = norm(name), best = null;
+    Object.keys(byV || {}).forEach(function(k){
+      var b = norm(byV[k].name || k);
+      if (b && (a === b || a.indexOf(b) === 0 || b.indexOf(a) === 0)) best = byV[k];
+    });
+    return best;
+  }
+  function sportsText(v){
+    var s = v.sports;
+    if (Array.isArray(s)) return s.join(' · ');
+    if (s && typeof s === 'object') return Object.keys(s).join(' · ');
+    return s || '';
+  }
+  function rows(){
+    var V = window._venuesData || {}, p = window._sportsPlan || {}, byV = p.byVenue || {};
+    var out = [];
+    Object.keys(V).forEach(function(k){
+      var v = V[k] || {};
+      var status = String(v.status || 'Identified');
+      var live = !v.archived && !CLOSED.test(status);
+      var pl = planFor(v.name, byV);
+      out.push({
+        id: k, name: v.name || k, status: status, live: live, city: v.location || '',
+        assigned: pl ? Object.keys(pl.sports || {}).join(' · ') : '',
+        candidate: sportsText(v),
+        slots: pl ? n(pl.slots) : null, ath: pl ? n(pl.people) : null,
+        cap: v.capacity || '',
+        fee: (v.rentalFeeAmount != null && v.rentalFeeAmount !== '') ? n(v.rentalFeeAmount) : null,
+        est: !!v.rentalFeeIsEstimate, paid: n(v.paid)
+      });
+    });
+    return out;
+  }
+  function host(){
+    var el = document.getElementById('naigVenueOne');
+    if (el) return el;
+    var anchor = document.getElementById('naigVenueMatrix');
+    if (!anchor) return null;
+    el = document.createElement('div'); el.id = 'naigVenueOne'; el.className = 'naig-cwrap';
+    anchor.parentNode.insertBefore(el, anchor.nextSibling);
+    el.addEventListener('change', function(e){
+      if (e.target.id === 'voStatus') state.status = e.target.value;
+      if (e.target.id === 'voAssigned') state.assigned = e.target.checked;
+      render();
+    });
+    el.addEventListener('click', function(e){
+      var th = e.target.closest('th[data-s]');
+      if (th){ var s = th.getAttribute('data-s'); state.dir = (state.sort === s) ? -state.dir : (s === 'name' || s === 'status' ? 1 : -1); state.sort = s; render(); return; }
+      if (e.target.id === 'voCsv') csv();
+    });
+    return el;
+  }
+  function filtered(){
+    var r = rows();
+    if (state.status === 'live') r = r.filter(function(x){ return x.live; });
+    else if (state.status !== 'all') r = r.filter(function(x){ return x.status === state.status; });
+    if (state.assigned) r = r.filter(function(x){ return x.ath != null; });
+    var k = state.sort, d = state.dir;
+    r.sort(function(a, b){
+      var A = a[k], B = b[k];
+      if (k === 'ath' || k === 'slots' || k === 'fee'){ A = A == null ? -1 : A; B = B == null ? -1 : B; return (A - B) * d; }
+      return String(A).localeCompare(String(B)) * d;
+    });
+    return r;
+  }
+  var lastSig = '';
+  function render(force){
+    var el = host(); if (!el) return;
+    var all = rows(), r = filtered(), p = window._sportsPlan || {};
+    var sig = JSON.stringify([state, r.length, p.people, p.slots, all.map(function(x){ return x.name + x.status + x.ath + x.fee; }).join('|')]);
+    if (!force && sig === lastSig) return; lastSig = sig;
+    var statuses = {}; all.forEach(function(x){ statuses[x.status] = 1; });
+    var placed = 0, assignedN = 0; all.forEach(function(x){ if (x.ath != null){ placed += x.ath; assignedN++; } });
+    var total = n(p.people);
+    var opt = '<option value="live"' + (state.status === 'live' ? ' selected' : '') + '>Live only</option><option value="all"' + (state.status === 'all' ? ' selected' : '') + '>All sites</option>'
+      + Object.keys(statuses).sort().map(function(s){ return '<option' + (state.status === s ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('');
+    function th(key, label, num){ var arrow = state.sort === key ? (state.dir > 0 ? ' ▲' : ' ▼') : ''; return '<th data-s="' + key + '"' + (num ? ' class="n"' : '') + '>' + label + arrow + '</th>'; }
+    var body = r.map(function(x){
+      var pill = '<span class="vo-pill' + (/^confirmed$/i.test(x.status) ? ' vo-ok' : (x.live ? '' : ' vo-out')) + '">' + esc(x.status) + '</span>';
+      var sp = x.assigned ? '<b>' + esc(x.assigned) + '</b>' : (x.candidate ? '<span class="vo-muted">Candidate: ' + esc(x.candidate) + '</span>' : '<span class="vo-muted">N/A</span>');
+      return '<tr class="' + (x.ath != null ? 'vo-a' : '') + '"><td><b>' + esc(x.name) + '</b></td><td>' + pill + '</td><td>' + esc(x.city) + '</td><td>' + sp + '</td>'
+        + '<td class="n">' + (x.slots == null ? '—' : fmt(x.slots)) + '</td><td class="n">' + (x.ath == null ? '—' : fmt(x.ath)) + '</td>'
+        + '<td>' + (x.cap ? esc(x.cap) : '<span class="vo-muted">N/A</span>') + '</td>'
+        + '<td class="n">' + (x.fee == null ? 'N/A' : '$' + fmt(x.fee) + (x.est ? ' est' : '')) + '</td><td class="n">' + (x.paid ? '$' + fmt(x.paid) : '—') + '</td></tr>';
+    }).join('');
+    el.innerHTML = '<div class="vo-sum"><b>Venue Directory</b> — one table for every site. Sports, slots and athletes come from the slot sheet. '
+      + '<b>' + assignedN + '</b> sites carry events · <b>' + fmt(placed) + '</b> of <b>' + fmt(total) + '</b> registrations placed'
+      + (total - placed > 0 ? ' · <b style="color:#b91c1c">' + fmt(total - placed) + ' not yet placed</b>' : '') + '</div>'
+      + '<div class="vo-bar"><label>Show <select id="voStatus">' + opt + '</select></label>'
+      + '<label><input type="checkbox" id="voAssigned"' + (state.assigned ? ' checked' : '') + '> Only sites carrying events</label>'
+      + '<span class="vo-muted">' + r.length + ' of ' + all.length + ' sites</span><button type="button" class="vt-btn" id="voCsv">↓ CSV</button></div>'
+      + '<div class="vo-wrap"><table><thead><tr>' + th('name', 'Venue') + th('status', 'Status') + th('city', 'City') + '<th>Sports</th>'
+      + th('slots', 'Slots', 1) + th('ath', 'Athletes at max', 1) + '<th>Capacity</th>' + th('fee', 'Rental fee', 1) + '<th class="n">Paid</th></tr></thead><tbody>'
+      + (body || '<tr><td colspan="9" class="vo-muted">No sites match.</td></tr>') + '</tbody></table></div>';
+  }
+  function csv(){
+    var r = filtered();
+    var lines = [['Venue','Status','City','Sports assigned','Candidate sports','Slots','Athletes at max','Capacity','Rental fee','Paid']].concat(r.map(function(x){
+      return [x.name, x.status, x.city, x.assigned, x.candidate, x.slots == null ? '' : x.slots, x.ath == null ? '' : x.ath, x.cap, x.fee == null ? 'N/A' : x.fee, x.paid || ''];
+    })).map(function(a){ return a.map(function(c){ return '"' + String(c).replace(/"/g, '""') + '"'; }).join(','); }).join('\n');
+    var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([lines], {type: 'text/csv'})); a.download = 'naig-venue-directory.csv'; a.click();
+  }
+  function tick(){
+    var bar = document.getElementById('naigVTidyBar'); if (!bar) return;
+    var cur = bar.querySelector('[aria-pressed="true"]');
+    var v = cur ? cur.getAttribute('data-vt') : 'list';
+    if (v === 'matrix' || v === 'coverage'){ var d = bar.querySelector('[data-vt="directory"]'); if (d){ d.click(); return; } }
+    var el = host(); if (!el) return;
+    var on = v === 'directory';
+    el.style.display = on ? '' : 'none';
+    if (on) render();
+  }
+  setInterval(tick, 1000);
+  document.addEventListener('click', function(e){ if (e.target.closest && e.target.closest('#naigVTidyBar')) setTimeout(tick, 50); });
+})();
+</script>
 </body>
 </html>
