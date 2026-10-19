@@ -22380,9 +22380,14 @@ var iv = setInterval(function(){
   var want = wanted(), opened = !want, tries = 0;
   var iv = setInterval(function(){
     tries++;
-    if (!opened && typeof window.switchTab === 'function' && window._axPerms && document.getElementById('tab' + want)) {
-      opened = true;
-      try { window.switchTab(want); } catch(e) {}
+    /* Click the tab's own button (Food and M2M are not switchTab tabs, and Org's button is taborg). Wait ~1.5s for the hub's own
+       start-up tab choice, then click until the tab is active, giving up after ~6s. Access rules still apply on click. */
+    if (!opened && window._axPerms && document.getElementById('tab' + want)) {
+      if (!window.__naigTabT0) window.__naigTabT0 = tries;
+      if (tries - window.__naigTabT0 >= 3) {
+        if (current() === want) opened = true;
+        else { try { document.getElementById('tab' + want).click(); } catch(e) {} if (tries - window.__naigTabT0 > 12) opened = true; }
+      }
     }
     var bar = document.getElementById('naigRegionBar');
     if (bar && !document.getElementById('naigCopyLink')) {
