@@ -22081,6 +22081,21 @@ var iv = setInterval(function(){
     var v = Math.ceil(a / r.athletesPerVolunteer), s = Math.ceil(a / r.athletesPerStaff);
     return { events: all.events, slots: Math.round(sl), registrations: Math.round(reg), athletes: a, volunteers: v, staff: s, onSite: a + v + s, totalFed: a + v + s, rules: r, scope: f, scopeLabel: label(f) };
   };
+  /* 19 Oct 2026: per-venue slots and registrations from the slot sheet, following the region filter.
+     Same arithmetic as scopeFromSlots, so the Venue Directory and Scope always agree. */
+  F.byVenue = function(){
+    var out = {}; if (!ROWS) return out;
+    var codes = codesFor(filter), rs = (SR && SR.rows) || {};
+    Object.keys(ROWS).forEach(function(i){
+      var row = ROWS[i]; if (!row) return;
+      var live = num(row.slots), cap = num(row.cap), sl = live;
+      if (filter !== 'ALL' && SR) { var s = rs[i]; sl = 0; if (s && num(s.slotsAtLoad)) { var sum = 0; codes.forEach(function(k){ sum += num((s.byRegion || {})[k]); }); sl = live * sum / num(s.slotsAtLoad); } }
+      var v = row.venue || 'TBD';
+      if (!out[v]) out[v] = { name: v, slots: 0, people: 0, sports: {} };
+      out[v].slots += sl; out[v].people += sl * cap; if (sl > 0 && row.sport) out[v].sports[row.sport] = 1;
+    });
+    return out;
+  };
   var lastScope = '';
   F.scopeFromSlots = function(host){
     if (!ROWS || !host) return;
@@ -22244,7 +22259,7 @@ var iv = setInterval(function(){
     return s || '';
   }
   function rows(){
-    var V = window._venuesData || {}, p = window._sportsPlan || {}, byV = p.byVenue || {};
+    var V = window._venuesData || {}, p = window._sportsPlan || {}, byV = (window.NAIG && NAIG.byVenue) ? NAIG.byVenue() : (p.byVenue || {});
     var out = [];
     Object.keys(V).forEach(function(k){
       var v = V[k] || {};
@@ -22303,7 +22318,9 @@ var iv = setInterval(function(){
     if (!force && sig === lastSig) return; lastSig = sig;
     var statuses = {}; all.forEach(function(x){ statuses[x.status] = 1; });
     var placed = 0, assignedN = 0; all.forEach(function(x){ if (x.ath != null){ placed += x.ath; assignedN++; } });
-    var total = n(p.people);
+    var bv = (window.NAIG && NAIG.byVenue) ? NAIG.byVenue() : null, total = 0;
+    if (bv) Object.keys(bv).forEach(function(k){ total += bv[k].people; }); else total = n(p.people);
+    var fm = (window.NAIG && NAIG.formula) ? NAIG.formula() : null, scopeTxt = (fm && fm.scope && fm.scope !== 'ALL') ? '<b>Region: ' + esc(fm.scopeLabel || fm.scope) + '.</b> ' : '';
     var opt = '<option value="live"' + (state.status === 'live' ? ' selected' : '') + '>Live only</option><option value="all"' + (state.status === 'all' ? ' selected' : '') + '>All sites</option>'
       + Object.keys(statuses).sort().map(function(s){ return '<option' + (state.status === s ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('');
     function th(key, label, num){ var arrow = state.sort === key ? (state.dir > 0 ? ' ▲' : ' ▼') : ''; return '<th data-s="' + key + '"' + (num ? ' class="n"' : '') + '>' + label + arrow + '</th>'; }
@@ -22315,7 +22332,7 @@ var iv = setInterval(function(){
         + '<td>' + (x.cap ? esc(x.cap) : '<span class="vo-muted">N/A</span>') + '</td>'
         + '<td class="n">' + (x.fee == null ? 'N/A' : '$' + fmt(x.fee) + (x.est ? ' est' : '')) + '</td><td class="n">' + (x.paid ? '$' + fmt(x.paid) : '—') + '</td></tr>';
     }).join('');
-    el.innerHTML = '<div class="vo-sum"><b>Venue Directory</b> — one table for every site. Sports, slots and athletes come from the slot sheet. '
+    el.innerHTML = '<div class="vo-sum"><b>Venue Directory</b> — one table for every site. Sports, slots and athletes come from the slot sheet. ' + scopeTxt
       + '<b>' + assignedN + '</b> sites carry events · <b>' + fmt(placed) + '</b> of <b>' + fmt(total) + '</b> registrations placed'
       + (total - placed > 0 ? ' · <b style="color:#b91c1c">' + fmt(total - placed) + ' not yet placed</b>' : '') + '</div>'
       + '<div class="vo-bar"><label>Show <select id="voStatus">' + opt + '</select></label>'
