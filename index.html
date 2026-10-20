@@ -21816,7 +21816,7 @@ var iv = setInterval(function(){
     var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), n, list = [];
     while ((n = w.nextNode())) if (n.nodeValue.indexOf('[[ath:') >= 0) list.push(n);
     list.forEach(function(t){
-      t.nodeValue = t.nodeValue.replace(TOK, function(m, v, sp){ var c = count(v, sp); return c == null ? 'N/A' : c.toLocaleString('en-US'); });
+      t.nodeValue = t.nodeValue.replace(TOK, function(m, v, sp){ var c = count(v, sp); return c == null ? m : c.toLocaleString('en-US'); });
     });
   }
   function foodPinTop(){
@@ -21841,6 +21841,61 @@ var iv = setInterval(function(){
     foodThursday();
   }
   setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigLive]', e); } }, 1000);
+})();
+</script>
+<script>
+/* Budget PIN box, take 2 (20 Oct 2026). The Budget tab rebuilds itself every few seconds, which wiped the PIN box
+   (and anything typed into it). The box now sits just above the Budget section instead of inside it, and the
+   locked section is hidden outright. Admins get the change-PIN box in the same place once unlocked. */
+(function(){
+  if (window.__naigPinOut) return; window.__naigPinOut = true;
+  var SALT = 'naig2027-budget-v1:', KEY = 'naigBudgetUnlocked', HASH = 'd695cad55cbc649d02b9b0ec3104fc89c39f178a04d438b8873b22d0eb71514f';
+  function db(){ return import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js'); }
+  (async function(){ try { if (typeof window._dbRef !== 'function') return; var d = await db(); var v = (await d.get(window._dbRef('naig2027/access/budgetPinHash'))).val(); if (v && /^[0-9a-f]{64}$/.test(v)) HASH = v; } catch(e){} })();
+  function unlocked(){ try { return sessionStorage.getItem(KEY) === '1'; } catch(e){ return false; } }
+  async function sha(p){ var b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(SALT + p)); return [].map.call(new Uint8Array(b), function(x){ return x.toString(16).padStart(2, '0'); }).join(''); }
+  var st = document.createElement('style');
+  st.textContent = '#sectionBudget.naig-locked{display:none !important}#naigPinChange,#naigPinBox{display:none !important}'
+    + '#naigPinOut{max-width:380px;margin:40px auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px;background:#fff;text-align:center}'
+    + '#naigPinOut h3{margin:0 0 6px;color:#1e3a8a}#naigPinOut p{margin:0 0 14px;color:#64748b;font-size:13px}'
+    + '#naigPinOut input{width:160px;padding:8px 10px;font-size:18px;letter-spacing:.3em;text-align:center;border:1px solid #cbd5e1;border-radius:8px}'
+    + '#naigPinOut button{margin-left:6px;padding:8px 14px;border:0;border-radius:8px;background:#1e3a8a;color:#fff;font-weight:600;cursor:pointer}'
+    + '#naigPinOut .er{color:#b91c1c;font-size:12px;min-height:16px;margin-top:8px}'
+    + '#naigPinOut.chg{max-width:none;margin:0 0 10px;padding:8px 12px;text-align:left;font-size:12px;color:#64748b}'
+    + '#naigPinOut.chg input{width:110px;font-size:14px;padding:4px 6px;letter-spacing:.2em}#naigPinOut.chg button{padding:4px 10px;background:#fff;color:#1e3a8a;border:1px solid #cbd5e1}';
+  document.head.appendChild(st);
+  var mode = '';
+  function build(box, m){
+    mode = m; box.className = m === 'change' ? 'chg' : '';
+    if (m === 'unlock') {
+      box.innerHTML = '<h3>Budget is locked</h3><p>Enter the budget PIN to see money figures.</p><form><input type="password" inputmode="numeric" autocomplete="off" maxlength="12"><button type="submit">Unlock</button></form><div class="er"></div>';
+      box.querySelector('form').addEventListener('submit', async function(ev){
+        ev.preventDefault(); var inp = box.querySelector('input'), er = box.querySelector('.er');
+        if ((await sha(inp.value.trim())) === HASH) { try { sessionStorage.setItem(KEY, '1'); } catch(e){} inp.value = ''; tick(); }
+        else { er.textContent = 'Wrong PIN.'; inp.value = ''; inp.focus(); }
+      });
+    } else {
+      box.innerHTML = 'Budget PIN: <input type="password" inputmode="numeric" placeholder="new PIN" maxlength="12"><button type="button">Change</button> <span class="er"></span>';
+      box.querySelector('button').addEventListener('click', async function(){
+        var v = box.querySelector('input').value.trim(), msg = box.querySelector('.er');
+        if (!/^\d{4,12}$/.test(v)) { msg.textContent = 'Use 4–12 digits.'; return; }
+        try { var h = await sha(v), d = await db(); await d.set(window._dbRef('naig2027/access/budgetPinHash'), h); HASH = h; box.querySelector('input').value = ''; msg.style.color = '#166534'; msg.textContent = 'PIN changed.'; }
+        catch(e){ msg.textContent = 'Could not save.'; }
+      });
+    }
+  }
+  function tick(){
+    var sec = document.getElementById('sectionBudget'); if (!sec || !sec.parentNode) return;
+    var box = document.getElementById('naigPinOut');
+    if (!box) { box = document.createElement('div'); box.id = 'naigPinOut'; }
+    if (box.nextElementSibling !== sec) sec.parentNode.insertBefore(box, sec);
+    var active = sec.classList.contains('active'), open = unlocked(), admin = (window._axPerms || {}).tier === 'admin';
+    var want = !active ? '' : (!open ? 'unlock' : (admin ? 'change' : ''));
+    box.style.display = want ? '' : 'none';
+    if (want && want !== mode) build(box, want);
+    if (!want) mode = '';
+  }
+  setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigPinOut]', e); } }, 600);
 })();
 </script>
 </body>
