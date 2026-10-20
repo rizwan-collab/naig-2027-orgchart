@@ -16322,7 +16322,7 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
     var HZ=(window.NAIG&&NAIG.hotels)?NAIG.hotels():null, pk=(M&&M.peakNight)||{min:0,max:0}, lo=HZ?HZ.rooms:(pk.min||0), hi=HZ?HZ.rooms:(pk.max||0);
     var gLo=Math.max(0,lo-blocked), gHi=Math.max(0,hi-blocked);
     var pLo=lo?Math.round(100*blocked/lo):0, pHi=hi?Math.round(100*blocked/hi):0;
-    var more=gLo?(Math.round(gLo/150)+"\u2013"+Math.round(gHi/150)):"0";
+    var mLo=Math.ceil(gLo/150), mHi=Math.ceil(gHi/150); var more=gLo?(mLo===mHi?String(mLo):mLo+"\u2013"+mHi):"0";
     var tone=pLo>=90?"#16a34a":(pLo>=50?"#a16207":"#b91c1c");
     var W="padding:14px 16px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;margin:14px 0";
     var HD="font-weight:700;color:#1e3a8a;font-size:12px;letter-spacing:.05em;text-transform:uppercase;margin-bottom:10px";
@@ -21534,6 +21534,45 @@ var iv = setInterval(function(){
     });
   }
   setInterval(function(){ try { wrapTables(); } catch(e){ console.warn('[naigMobile]', e); } }, 1500);
+})();
+</script>
+<script>
+/* Polish (20 Oct 2026).
+   Money: any summary chip / stat tile that only shows a masked amount ($•••) is hidden outright,
+   and the Food menu price and goodie-bag price boxes hide until the Budget PIN is entered.
+   Phone: collapse buttons sit on the card edge instead of over the title; M2M rows read as cards;
+   maps redraw after a tab switch. */
+(function(){
+  if (window.__naigPolish) return; window.__naigPolish = true;
+  var st = document.createElement('style');
+  st.textContent = [
+    '.naig-money-tile{display:none !important}',
+    '@media (max-width:700px){',
+    '  .naig-cbtn{top:-11px !important;right:8px !important;width:24px !important;height:22px !important;min-width:0 !important;padding:0 !important;font-size:13px !important;line-height:20px !important;z-index:5;box-shadow:0 1px 3px rgba(0,0,0,.25)}',
+    '  #sectionM2M table thead,#sectionM2M table tr:has(> th){display:none}',
+    '  #sectionM2M table,#sectionM2M table tbody{display:block;width:100%}',
+    '  #sectionM2M table tr{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;padding:10px 4px;border-bottom:1px solid #e2e8f0}',
+    '  #sectionM2M table td{display:block;padding:0 !important;border:0 !important;min-width:0;width:auto !important}',
+    '  #sectionM2M table td:nth-child(1){font-weight:700;white-space:nowrap}',
+    '  #sectionM2M table td:nth-child(n+3){grid-column:1 / -1}',
+    '}'
+  ].join('\n');
+  document.head.appendChild(st);
+  function unlocked(){ try { return sessionStorage.getItem('naigBudgetUnlocked') === '1'; } catch(e){ return false; } }
+  function tick(){
+    var bud = document.getElementById('sectionBudget');
+    [].forEach.call(document.querySelectorAll('.summary-strip > *, .sum-chip, .fg-kpi'), function(e){
+      if (bud && bud.contains(e)) return;
+      if (e.textContent.indexOf('$•••') >= 0) e.classList.add('naig-money-tile');
+    });
+    var open = unlocked();
+    [].forEach.call(document.querySelectorAll('[data-fgprice],[data-fgbag]'), function(i){ i.classList.toggle('naig-money-tile', !open); });
+  }
+  document.addEventListener('click', function(ev){
+    var b = ev.target && ev.target.closest && ev.target.closest('.tab-nav button,[id^=tnav-],.naig-subtabs button');
+    if (b) setTimeout(function(){ try { window.dispatchEvent(new Event('resize')); } catch(e){} }, 350);
+  }, true);
+  setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigPolish]', e); } }, 1300);
 })();
 </script>
 </body>
