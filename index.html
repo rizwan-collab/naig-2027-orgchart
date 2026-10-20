@@ -21575,5 +21575,80 @@ var iv = setInterval(function(){
   setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigPolish]', e); } }, 1300);
 })();
 </script>
+<script>
+/* Org Chart on phones (20 Oct 2026). Below 700px the wide drawn chart is swapped for a top-down list:
+   each manager is a row you tap to open or close their team, and tapping a name opens the same
+   edit form as the chart. Same data as the chart (window._orgData), so nothing to keep in sync.
+   Desktop keeps the drawn chart. */
+(function(){
+  if (window.__naigOrgMobile) return; window.__naigOrgMobile = true;
+  var st = document.createElement('style');
+  st.textContent = [
+    '#naigOrgList{display:none;padding:10px 12px 40px}',
+    '@media (max-width:700px){',
+    '  body.naig-org-on #canvas, body.naig-org-on .naig-org-zoom{display:none !important}',
+    '  body.naig-org-on #naigOrgList{display:block}',
+    '}',
+    '#naigOrgList .ol-h{font-size:12px;color:#64748b;margin:0 0 10px}',
+    '#naigOrgList .ol-n{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:9px 10px;margin:6px 0}',
+    '#naigOrgList .ol-t{flex:0 0 22px;height:22px;border:0;background:#eef2ff;color:#1e3a8a;border-radius:6px;font-size:13px;line-height:22px;padding:0;cursor:pointer}',
+    '#naigOrgList .ol-sp{flex:0 0 22px}',
+    '#naigOrgList .ol-b{flex:1;min-width:0;cursor:pointer}',
+    '#naigOrgList .ol-nm{font-weight:700;color:#0f172a;font-size:14px}',
+    '#naigOrgList .ol-rl{font-size:12px;color:#475569;margin-top:1px}',
+    '#naigOrgList .ol-st{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 6px;border-radius:999px;background:#f1f5f9;color:#475569;white-space:nowrap}',
+    '#naigOrgList .ol-st.confirmed{background:#dcfce7;color:#166534}',
+    '#naigOrgList .ol-st.pending,#naigOrgList .ol-st.open{background:#fef3c7;color:#92400e}',
+    '#naigOrgList .ol-k{margin-left:14px;padding-left:10px;border-left:2px solid #e2e8f0}',
+    '#naigOrgList .ol-c{font-size:11px;color:#64748b;white-space:nowrap}'
+  ].join('\n');
+  document.head.appendChild(st);
+
+  var OPEN = {}, sig = '';
+  try { OPEN = JSON.parse(localStorage.getItem('naigOrgListOpen') || '{}') || {}; } catch(e){}
+  function save(){ try { localStorage.setItem('naigOrgListOpen', JSON.stringify(OPEN)); } catch(e){} }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function count(n){ return (n.children || []).reduce(function(a, c){ return a + 1 + count(c); }, 0); }
+  function node(n, depth){
+    var kids = (n.children || []).filter(Boolean), id = n.pid || n.id, key = String(n.id);
+    var open = OPEN[key] !== undefined ? OPEN[key] : depth < 1;
+    var stt = String(n.status || '').toLowerCase();
+    var h = '<div class="ol-n">'
+      + (kids.length ? '<button type="button" class="ol-t" data-k="' + esc(key) + '">' + (open ? '−' : '+') + '</button>' : '<span class="ol-sp"></span>')
+      + '<div class="ol-b" data-p="' + esc(id) + '"><div class="ol-nm">' + esc(n.name || 'TBD') + '</div><div class="ol-rl">' + esc(n.role || '') + '</div></div>'
+      + (kids.length ? '<span class="ol-c">' + count(n) + '</span>' : '')
+      + (stt ? '<span class="ol-st ' + esc(stt) + '">' + esc(stt) + '</span>' : '')
+      + '</div>';
+    if (kids.length && open) h += '<div class="ol-k">' + kids.map(function(c){ return node(c, depth + 1); }).join('') + '</div>';
+    return h;
+  }
+  function render(force){
+    var cv = document.getElementById('canvas'); if (!cv) return;
+    var box = document.getElementById('naigOrgList');
+    if (!box) {
+      box = document.createElement('div'); box.id = 'naigOrgList';
+      cv.parentNode.insertBefore(box, cv);
+      box.addEventListener('click', function(ev){
+        var t = ev.target.closest('.ol-t');
+        if (t) { var k = t.getAttribute('data-k'); var cur = t.textContent === '−'; OPEN[k] = !cur; save(); render(true); return; }
+        var b = ev.target.closest('.ol-b');
+        if (b && typeof window.openProspect === 'function') window.openProspect(b.getAttribute('data-p'));
+      });
+    }
+    var od = window._orgData;
+    var s = od ? JSON.stringify(od) : 'none';
+    if (!force && s === sig) return; sig = s;
+    box.innerHTML = od ? '<div class="ol-h">Tap + to open a team, tap a name to edit.</div>' + node(od, 0) : '<div class="ol-h">No org chart yet.</div>';
+  }
+  function tick(){
+    var tb = document.getElementById('taborg');
+    document.body.classList.toggle('naig-org-on', !!(tb && tb.classList.contains('active')));
+    var z = document.getElementById('zoomPct');
+    if (z) { var g = z.closest('div,span'); while (g && g.parentElement && !g.querySelector('button')) g = g.parentElement; if (g && !g.classList.contains('naig-org-zoom') && g.id !== 'mainHub') g.classList.add('naig-org-zoom'); }
+    if (window.innerWidth <= 700) render(false);
+  }
+  setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigOrgMobile]', e); } }, 1200);
+})();
+</script>
 </body>
 </html>
