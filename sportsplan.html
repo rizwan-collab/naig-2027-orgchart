@@ -97,7 +97,7 @@ tr.grp td{background:var(--head);color:var(--accent);font-weight:600;cursor:poin
 tr.grp:hover td{background:var(--soft)}
 .spbtn{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:3px 9px;margin-left:6px;cursor:pointer;font-size:12px}
 td.moved{color:#b45309;font-weight:600}
-#fScen{font-weight:600}
+#fScen{display:none}
 /* Inside the hub (Program tab) the page drops its intro text and boxes: the hub already explains them. */
 html.emb body{background:#fff}
 html.emb .wrap{padding:8px 4px 40px}
@@ -186,13 +186,14 @@ html.emb h1{font-size:18px}
   </table>
 </div>
 
+<h2>Indoor scenarios</h2>
+<p class="lead">Tap a scenario. By venue, By sport and the events list below switch to it straight away. View only, nothing is saved.</p>
+<div class="tblwrap" id="byScen"></div>
+
 <h2>By venue</h2>
 <p class="lead">Athletes at max, worked out from the slots entered below. Nothing is compared against a separate planning figure are worth a conversation.</p>
 <div class="tblwrap" id="byVenue"></div>
 
-<h2>Indoor scenarios</h2>
-<p class="lead">Farmers Branch vs Northlake athletes if sports move between the two StarCenters. Pick one in the Scenario box above to see every number on this page that way. View only.</p>
-<div class="tblwrap" id="byScen"></div>
 
 <h2>By sport</h2>
 <div class="tblwrap" id="bySport"></div>
@@ -536,8 +537,8 @@ function totals(){
     L.forEach(([k,nm,desc])=>{ let fb=0,nl=0; const sfb=new Set(), snl=new Set();
       RR.forEach(r=>{ const v=rvenueK(r,k), g=(r.sport||"").split(" (")[0]; if(/Farmers Branch/.test(v)){ fb+=rpeople(r); sfb.add(g); } else if(/Northlake/.test(v)){ nl+=rpeople(r); snl.add(g); } });
       const mix=s=>[...s].some(x=>TEAM[x])&&[...s].some(x=>!TEAM[x]);
-      const d=document.createElement("div"); d.className="vrow"; if(k===scenVal()) d.style.background="var(--soft)";
-      const a=document.createElement("div"); a.className="nm"; a.textContent=nm+(k===scenVal()?"  \u2190 showing":"");
+      const d=document.createElement("div"); d.className="vrow"; d.style.cursor="pointer"; d.title="Show the whole sheet as "+nm; if(k===scenVal()){ d.style.background="var(--soft)"; d.style.boxShadow="inset 4px 0 0 var(--accent)"; } d.addEventListener("click",()=>{ const s=$("fScen"); if(!s) return; s.value=k; s.dispatchEvent(new Event("change")); });
+      const a=document.createElement("div"); a.className="nm"; a.textContent=(k===scenVal()?"\u25CF ":"\u25CB ")+nm+(k===scenVal()?"  (showing)":"");
       const b=document.createElement("div"); b.className="sp"; b.textContent=desc+"  \u00b7  Farmers Branch "+ath(fb).toLocaleString()+" ("+[...sfb].sort().join(", ")+")  \u00b7  Northlake "+ath(nl).toLocaleString()+" ("+[...snl].sort().join(", ")+")";
       const c=document.createElement("div"); c.className="ct"; c.textContent=Math.abs(ath(nl)-ath(fb)).toLocaleString(); c.title="Difference between the two sites";
       const e=document.createElement("div"); e.className="rf"; e.textContent="gap \u00b7 mixed both: "+(mix(sfb)&&mix(snl)?"Yes":"No");

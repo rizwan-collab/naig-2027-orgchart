@@ -22232,11 +22232,11 @@ var iv = setInterval(function(){
   if (window.__naigDocsDrive) return; window.__naigDocsDrive = true;
   var DEF_FOLDER = '1Twb2E87ED4bDF9-JX_0cx1bUhVOGNZF8', FOLDER = DEF_FOLDER, FNAME = 'NAIG Logistics Master';
   /* 20 Oct 2026 (v2): Rizwan - area folders did not make sense. Documents = the real team Drive folder, open by default, above the original list with its links. */
-  var VIEW = 'list', AREA = null, SORT = 'recent', EMBED = true;
+  var VIEW = 'list', AREA = null, SORT = 'recent', EMBED = false; /* opens by itself once an admin saves the team folder link */
   try { SORT = localStorage.getItem('naigDocsSort') || 'recent'; } catch(e){}
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   function save(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
-  (async function(){ try { if (typeof window._dbRef !== 'function') return; var d = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js'); var v = (await d.get(window._dbRef('naig2027/settings/docsDriveFolder'))).val(); if (v && v.id) { FOLDER = v.id; FNAME = v.name || FNAME; sig = ''; } } catch(e){} })();
+  (async function(){ try { if (typeof window._dbRef !== 'function') return; var d = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js'); var v = (await d.get(window._dbRef('naig2027/settings/docsDriveFolder'))).val(); if (v && v.id) { FOLDER = v.id; FNAME = v.name || FNAME; EMBED = true; sig = ''; } } catch(e){} })();
   var st = document.createElement('style');
   st.textContent = '#naigDD{margin:0 0 14px}'
     + '#naigDD .dd-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 10px}'
@@ -22277,10 +22277,10 @@ var iv = setInterval(function(){
   var sig = '';
   function host(){
     var sec = document.getElementById('sectionDocs'), tb = document.getElementById('docsTbody'); if (!sec || !tb) return null;
-    var table = tb.closest('table'), wrap = table && (table.closest('.naig-tscroll') || table.parentElement);
+    var table = tb.closest('table'), wrap = table && (table.closest('.naig-tscroll') || table);
     var box = document.getElementById('naigDD');
-    if (!box) { box = document.createElement('div'); box.id = 'naigDD'; wrap.parentNode.insertBefore(box, wrap);
-      box.addEventListener('click', onClick); }
+    if (!box) { box = document.createElement('div'); box.id = 'naigDD'; box.addEventListener('click', onClick); }
+    if (box.parentNode !== wrap.parentNode || box.nextSibling !== wrap) wrap.parentNode.insertBefore(box, wrap); /* stays inside the Documents section */
     return { sec: sec, wrap: wrap, box: box };
   }
   function onClick(ev){
