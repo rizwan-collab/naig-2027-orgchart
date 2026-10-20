@@ -22065,5 +22065,79 @@ var iv = setInterval(function(){
   var st = document.createElement('style'); st.textContent = '#taskMatrixOwner,label[for="taskMatrixOwner"]{display:none !important}'; document.head.appendChild(st);
 })();
 </script>
+<script>
+/* 20 Oct 2026.
+   Scope: the Status column and the Host cities line come from the Venues tab + slot sheet instead of September text.
+     Status = the venue status of wherever the slot sheet places the sport (all confirmed -> "Venue confirmed",
+     otherwise the least-advanced venue, e.g. "Venue: In Works"). Host cities = cities of venues carrying events.
+   Sports Allocation: the indoor scenarios panel gets a picker (Current · B1 · B2 · Compare all); the choice is
+   remembered on this device. View only, nothing moves in the slot sheet. */
+(function(){
+  if (window.__naigScopeStat) return; window.__naigScopeStat = true;
+  function key(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+  var RANK = ['confirmed', 'reserved', 'contract review', 'in works', 'in conversation', 'identified', 'backup'];
+  function venueRec(name){
+    var V = window._venuesData || {}, k = key(name), hit = null;
+    Object.keys(V).forEach(function(id){ var v = V[id] || {}; var vk = key(v.name); if (!hit && vk && (vk.indexOf(k) >= 0 || k.indexOf(vk) >= 0)) hit = v; });
+    return hit;
+  }
+  function scope(){
+    if (!window.NAIG || !NAIG.bySport) return;
+    var sec = document.getElementById('sectionScope'); if (!sec || sec.offsetParent === null) return;
+    var bs = NAIG.bySport('ALL'); if (!bs) return;
+    var t = [].filter.call(sec.querySelectorAll('table'), function(x){ return /Session Dates/.test(x.rows[0] ? x.rows[0].textContent : ''); })[0];
+    if (t) {
+      var head = [].map.call(t.rows[0].cells, function(c){ return c.textContent.trim(); }), iS = head.indexOf('Status');
+      if (iS >= 0) [].slice.call(t.rows, 1).forEach(function(r){
+        var nm = (r.cells[0] && r.cells[0].innerText || '').trim(); if (!nm || !r.cells[iS]) return;
+        var k1 = key(nm), k2 = key(nm.replace(/\s*\(.*\)\s*/g, '')), names = Object.keys(bs);
+        var hit = names.filter(function(n){ return key(n) === k1; });
+        if (!hit.length) hit = names.filter(function(n){ return key(n.replace(/\s*\(.*\)\s*/g, '')) === k2; });
+        if (!hit.length) return;
+        var sts = [];
+        hit.forEach(function(n){ Object.keys(bs[n].venues).forEach(function(v){ var rec = venueRec(v); sts.push(String((rec && rec.status) || 'TBD')); }); });
+        if (!sts.length) return;
+        var worst = sts.slice().sort(function(a, b){ var ia = RANK.indexOf(a.toLowerCase()), ib = RANK.indexOf(b.toLowerCase()); return (ib < 0 ? 99 : ib) - (ia < 0 ? 99 : ia); })[0];
+        var ok = sts.every(function(s){ return /^confirmed$/i.test(s); });
+        var html = ok ? '<span style="color:#15803d;font-weight:700">Venue confirmed</span>' : '<span style="color:#b45309;font-weight:700">Venue: ' + worst + '</span>';
+        if (r.cells[iS].getAttribute('data-naig-st') === html) return;
+        r.cells[iS].setAttribute('data-naig-st', html); r.cells[iS].innerHTML = html;
+      });
+    }
+    var ov = document.getElementById('scopeOverview');
+    if (ov) {
+      var cities = {};
+      Object.keys(bs).forEach(function(n){ Object.keys(bs[n].venues).forEach(function(v){ var rec = venueRec(v); var parts = String((rec && (rec.location || rec.address)) || '').split(','); var c = (parts.length >= 3 ? parts[parts.length - 2] : parts[0]).trim(); if (c) cities[c] = 1; }); });
+      var line = 'Host cities: ' + Object.keys(cities).sort().join(' · ');
+      var w = document.createTreeWalker(ov, NodeFilter.SHOW_TEXT), n;
+      while ((n = w.nextNode())) { if (/^\s*Host cities:/.test(n.nodeValue) && n.nodeValue.trim() !== line) n.nodeValue = line; }
+    }
+  }
+  var MEM = null, PK = 'naigScenPick', OPTS = [['cur', 'Current'], ['b1', 'B1 · Volleyball to FB'], ['b2', 'B2 · Throwball to FB'], ['all', 'Compare all']];
+  var st = document.createElement('style');
+  st.textContent = '#naigScenPick{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}'
+    + '#naigScenPick button{border:1px solid #cbd5e1;background:#fff;color:#1e293b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer}'
+    + '#naigScenPick button.on{background:#1E3A8A;border-color:#1E3A8A;color:#fff}'
+    + '#naigScen[data-pick="cur"] .sc-card:not(.cur),#naigScen[data-pick="b1"] .sc-card:not(.b1),#naigScen[data-pick="b2"] .sc-card:not(.b2){display:none}'
+    + '#naigScen[data-pick]:not([data-pick="all"]) .sc-grid{grid-template-columns:1fr !important}';
+  document.head.appendChild(st);
+  function pick(){
+    var box = document.getElementById('naigScen'); if (!box) return;
+    var cur = MEM; if (!cur) { try { cur = localStorage.getItem(PK); } catch(e){} } cur = cur || 'cur';
+    if (box.getAttribute('data-pick') !== cur) box.setAttribute('data-pick', cur);
+    var grid = box.querySelector('.sc-grid'); if (!grid) return;
+    var bar = document.getElementById('naigScenPick');
+    if (!bar || bar.nextElementSibling !== grid) {
+      if (bar) bar.remove();
+      bar = document.createElement('div'); bar.id = 'naigScenPick';
+      bar.addEventListener('click', function(ev){ var b = ev.target.closest('button'); if (!b) return; MEM = b.getAttribute('data-k'); try { localStorage.setItem(PK, MEM); } catch(e){} pick(); });
+      grid.parentNode.insertBefore(bar, grid);
+    }
+    var html = OPTS.map(function(o){ return '<button type="button" data-k="' + o[0] + '"' + (o[0] === cur ? ' class="on"' : '') + '>' + o[1] + '</button>'; }).join('');
+    if (bar.innerHTML !== html) bar.innerHTML = html;
+  }
+  setInterval(function(){ try { scope(); } catch(e){ console.warn('[naigScopeStat]', e); } try { pick(); } catch(e){ console.warn('[naigScenPick]', e); } }, 1000);
+})();
+</script>
 </body>
 </html>
