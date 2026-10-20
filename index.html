@@ -21068,7 +21068,7 @@ var iv = setInterval(function(){
     var st = document.createElement('style'); st.textContent = '#sectionSports > *:not(.naig-sf){display:none !important}'; document.head.appendChild(st);
     var bar = document.createElement('div'); bar.className = 'naig-sf'; bar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 8px';
     bar.innerHTML = '<div><div class="hub-title">Sports Allocation</div><div class="hub-subtitle">The live slots form. Edits here save straight to the slot sheet and every tab updates.</div></div><a class="btn" href="sportsplan.html" target="_blank" rel="noopener">Open in a new tab</a>';
-    var f = document.createElement('iframe'); f.id = 'naigSportsFrame'; f.className = 'naig-sf'; f.src = 'sportsplan.html'; f.title = 'Sports allocation form';
+    var f = document.createElement('iframe'); f.id = 'naigSportsFrame'; f.className = 'naig-sf'; f.src = 'sportsplan.html?v=' + Date.now(); /* 20 Oct 2026: never show a stale browser-cached copy of the form */ f.title = 'Sports allocation form';
     f.style.cssText = 'display:block;width:100%;height:calc(100vh - 170px);min-height:640px;border:1px solid #d0dae4;border-radius:10px;background:#fff';
     sec.appendChild(bar); sec.appendChild(f); return true;
   }
