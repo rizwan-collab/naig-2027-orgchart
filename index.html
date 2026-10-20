@@ -20904,13 +20904,13 @@ var iv = setInterval(function(){
     return out;
   };
   /* 20 Oct 2026: per venue AND sport, same arithmetic as byVenue (region-aware). Used by the indoor scenarios panel. */
-  F.bySportVenue = function(){
+  F.bySportVenue = function(fx){
     var out = {}; if (!ROWS) return null;
-    var codes = codesFor(filter), rs = (SR && SR.rows) || {};
+    var flt = fx || filter, codes = codesFor(flt), rs = (SR && SR.rows) || {};
     Object.keys(ROWS).forEach(function(i){
       var row = ROWS[i]; if (!row) return;
       var live = num(row.slots), cap = num(row.cap), sl = live;
-      if (filter !== 'ALL' && SR) { var s = rs[i]; sl = 0; if (s && num(s.slotsAtLoad)) { var sum = 0; codes.forEach(function(k){ sum += num((s.byRegion || {})[k]); }); sl = live * sum / num(s.slotsAtLoad); } }
+      if (flt !== 'ALL' && SR) { var s = rs[i]; sl = 0; if (s && num(s.slotsAtLoad)) { var sum = 0; codes.forEach(function(k){ sum += num((s.byRegion || {})[k]); }); sl = live * sum / num(s.slotsAtLoad); } }
       var v = row.venue || 'TBD', sp = String(row.sport || 'Other').split(' - ')[0].replace(/\s*\(.*$/, '').trim();
       var o = (out[v] = out[v] || {}), x = (o[sp] = o[sp] || { slots: 0, people: 0, events: 0 });
       x.slots += sl; x.people += sl * cap; x.events += 1;
@@ -21788,6 +21788,59 @@ var iv = setInterval(function(){
     sec.insertBefore(bar, sec.firstChild);
   }
   setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigFoodPin]', e); } }, 800);
+})();
+</script>
+<script>
+/* Live counts (20 Oct 2026). Single source: athlete numbers written into M2M and Transport text are tokens,
+   [[ath:Venue]] or [[ath:Venue|Sport, Sport]], filled at display time from the slot sheet
+   (NAIG.bySportVenue('ALL') less the overlap rule). Ops plans use all regions.
+   Food: Thursday cells with an athlete override follow the live cricket count (Thursday is cricket only),
+   applied through the grid's own input so totals and Budget update the normal way.
+   Also keeps the Food PIN bar at the top of the Food tab. */
+(function(){
+  if (window.__naigLive) return; window.__naigLive = true;
+  var TOK = /\[\[ath:([^|\]]+)(?:\|([^\]]+))?\]\]/g;
+  function key(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+  function count(venue, sports){
+    if (!window.NAIG || !NAIG.bySportVenue || !window.naigAth) return null;
+    var sv = NAIG.bySportVenue('ALL'); if (!sv) return null;
+    var want = key(String(venue).split(',')[0]), vks = [];
+    Object.keys(sv).forEach(function(k){ var kk = key(k); if (venue === '*' || (!vks.length && kk && (kk.indexOf(want) >= 0 || want.indexOf(kk) >= 0))) vks.push(k); });
+    if (!vks.length) return null;
+    var list = sports ? sports.split(',').map(function(s){ return key(s); }).filter(Boolean) : null, sum = 0;
+    vks.forEach(function(vk){ Object.keys(sv[vk]).forEach(function(sp){ if (!list || list.indexOf(key(sp)) >= 0) sum += sv[vk][sp].people; }); });
+    return naigAth(sum);
+  }
+  function fill(root){
+    if (!root) return;
+    var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), n, list = [];
+    while ((n = w.nextNode())) if (n.nodeValue.indexOf('[[ath:') >= 0) list.push(n);
+    list.forEach(function(t){
+      t.nodeValue = t.nodeValue.replace(TOK, function(m, v, sp){ var c = count(v, sp); return c == null ? 'N/A' : c.toLocaleString('en-US'); });
+    });
+  }
+  function foodPinTop(){
+    var b = document.getElementById('naigFoodPin');
+    if (b && b.parentElement && b.parentElement.firstElementChild !== b) b.parentElement.insertBefore(b, b.parentElement.firstElementChild);
+  }
+  var lastSync = '';
+  function foodThursday(){
+    if (!window._gUser) return;
+    var c = count('*', 'Cricket'); if (!c) return;
+    var inputs = document.querySelectorAll('[data-fgac^="thu|"]');
+    [].forEach.call(inputs, function(i){
+      if (i.value === '' || Number(i.value) === c) return;
+      var sig = i.getAttribute('data-fgac') + ':' + c; if (sig === lastSync) return; lastSync = sig;
+      i.value = String(c); i.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  }
+  function tick(){
+    fill(document.getElementById('sectionM2M'));
+    fill(document.getElementById('sectionTransport'));
+    foodPinTop();
+    foodThursday();
+  }
+  setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigLive]', e); } }, 1000);
 })();
 </script>
 </body>
