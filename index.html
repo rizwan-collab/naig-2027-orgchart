@@ -22178,5 +22178,169 @@ var iv = setInterval(function(){
   setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigScopeCols]', e); } }, 1500);
 })();
 </script>
+<script>
+/* Program tab (20 Oct 2026): Sports Allocation, Scope and M2M sit under one tab button, "Program", with pill sub-tabs.
+   The three pages are unchanged, access rules still apply (each pill clicks the original tab button), and deep links
+   ?tab=sports / ?tab=scope / ?tab=m2m keep working. */
+(function(){
+  if (window.__naigProgram) return; window.__naigProgram = true;
+  var M = [['sports', 'sectionSports', 'Sports Allocation'], ['scope', 'sectionScope', 'Scope'], ['m2m', 'sectionM2M', 'Minute by minute']];
+  var st = document.createElement('style');
+  st.textContent = '#tabscope,#tabm2m{display:none !important}'
+    + '.naig-prog{display:flex;gap:6px;margin:0 0 12px 0;flex-wrap:wrap}'
+    + '.naig-prog button{border:1px solid #cbd5e1;background:#fff;color:#1e293b;border-radius:999px;padding:5px 14px;font-size:13px;font-weight:600;cursor:pointer}'
+    + '.naig-prog button.on{background:#1E3A8A;border-color:#1E3A8A;color:#fff}';
+  document.head.appendChild(st);
+  function btn(id){ return document.getElementById('tab' + id); }
+  function go(m){ var b = btn(m); if (b) b.click(); else if (typeof window.switchTab === 'function') window.switchTab(m); setTimeout(mark, 80); }
+  function mark(){
+    var host = btn('sports'); if (!host) return;
+    var cur = null;
+    M.forEach(function(x){ var s = document.getElementById(x[1]); if (s && s.offsetParent !== null) cur = x[0]; });
+    if (!cur) return;
+    host.classList.add('active');
+    ['scope', 'm2m'].forEach(function(id){ var b = btn(id); if (b) b.classList.remove('active'); });
+    M.forEach(function(x){ var bar = document.getElementById('naigProg_' + x[0]); if (!bar) return;
+      [].forEach.call(bar.querySelectorAll('button'), function(b){ b.classList.toggle('on', b.getAttribute('data-m') === cur); }); });
+  }
+  function tick(){
+    var host = btn('sports');
+    if (host) { var tn = [].filter.call(host.childNodes, function(n){ return n.nodeType === 3 && /Sports Allocation/.test(n.nodeValue); })[0]; if (tn) tn.nodeValue = tn.nodeValue.replace('Sports Allocation', 'Program'); }
+    M.forEach(function(x){
+      var sec = document.getElementById(x[1]);
+      var have = document.getElementById('naigProg_' + x[0]);
+      if (have && have.style.getPropertyValue('display') !== 'flex') have.style.setProperty('display', 'flex', 'important');
+      if (!sec || have) return;
+      var bar = document.createElement('div'); bar.className = 'naig-prog'; bar.id = 'naigProg_' + x[0];
+      M.forEach(function(y){ var b = document.createElement('button'); b.type = 'button'; b.textContent = y[2]; b.setAttribute('data-m', y[0]); b.addEventListener('click', function(){ go(y[0]); }); bar.appendChild(b); });
+      sec.insertBefore(bar, sec.firstChild);
+    });
+    mark();
+  }
+  setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigProgram]', e); } }, 1000);
+})();
+</script>
+<script>
+/* Documents like Drive (20 Oct 2026).
+   - Folders view (default): one folder per Area, click in for file tiles (type icon from the link, status, owner,
+     last updated), sort by Recent or Name, search box shared with the list. Click a tile = open the file;
+     "Details" = the existing document form. Same data as the list (naig2027/docs) - nothing is copied.
+   - List view: the original table, unchanged.
+   - Team Drive panel: Open the team folder in Drive or show it here (Google's embedded folder view; each person sees it
+     only if the folder is shared with them). Folder id at naig2027/settings/docsDriveFolder, admins can change it. */
+(function(){
+  if (window.__naigDocsDrive) return; window.__naigDocsDrive = true;
+  var DEF_FOLDER = '1Twb2E87ED4bDF9-JX_0cx1bUhVOGNZF8', FOLDER = DEF_FOLDER, FNAME = 'NAIG Logistics Master';
+  var VIEW = 'folders', AREA = null, SORT = 'recent', EMBED = false;
+  try { VIEW = localStorage.getItem('naigDocsView') || 'folders'; SORT = localStorage.getItem('naigDocsSort') || 'recent'; } catch(e){}
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function save(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
+  (async function(){ try { if (typeof window._dbRef !== 'function') return; var d = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js'); var v = (await d.get(window._dbRef('naig2027/settings/docsDriveFolder'))).val(); if (v && v.id) { FOLDER = v.id; FNAME = v.name || FNAME; sig = ''; } } catch(e){} })();
+  var st = document.createElement('style');
+  st.textContent = '#naigDD{margin:0 0 14px}'
+    + '#naigDD .dd-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 10px}'
+    + '#naigDD .dd-pill{border:1px solid #cbd5e1;background:#fff;color:#1e293b;border-radius:999px;padding:5px 14px;font-size:13px;font-weight:600;cursor:pointer}'
+    + '#naigDD .dd-pill.on{background:#1E3A8A;border-color:#1E3A8A;color:#fff}'
+    + '#naigDD .dd-drive{display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;margin:0 0 12px;font-size:13px}'
+    + '#naigDD .dd-drive a,#naigDD .dd-btn{border:1px solid #cbd5e1;background:#fff;color:#1e3a8a;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:600;text-decoration:none;cursor:pointer}'
+    + '#naigDD .dd-crumb{font-size:13px;color:#64748b;margin:0 0 10px}#naigDD .dd-crumb a{color:#1e3a8a;cursor:pointer;font-weight:600}'
+    + '#naigDD .dd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}'
+    + '#naigDD .dd-fold,#naigDD .dd-file{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px;cursor:pointer;min-width:0}'
+    + '#naigDD .dd-fold:hover,#naigDD .dd-file:hover{border-color:#1e3a8a;box-shadow:0 2px 8px rgba(30,58,138,.12)}'
+    + '#naigDD .dd-fi{display:inline-block;width:30px;height:24px;border-radius:5px;background:#f2c94c;position:relative;margin-bottom:8px}'
+    + '#naigDD .dd-fi:before{content:"";position:absolute;left:0;top:-5px;width:13px;height:7px;border-radius:3px 3px 0 0;background:#f2c94c}'
+    + '#naigDD .dd-nm{font-weight:700;font-size:13px;color:#0f172a;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}'
+    + '#naigDD .dd-sub{font-size:11px;color:#64748b;margin-top:3px}'
+    + '#naigDD .dd-ic{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.04em;color:#fff;border-radius:4px;padding:3px 6px;margin-bottom:8px}'
+    + '#naigDD .dd-row{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:8px}'
+    + '#naigDD .dd-st{font-size:10px;font-weight:700;border-radius:999px;padding:2px 7px;background:#f1f5f9;color:#475569;white-space:nowrap}'
+    + '#naigDD .dd-st.ok{background:#dcfce7;color:#166534}#naigDD .dd-st.wip{background:#fef3c7;color:#92400e}'
+    + '#naigDD .dd-det{border:0;background:none;color:#1e3a8a;font-size:11px;font-weight:700;cursor:pointer;padding:0}'
+    + '#naigDD iframe{width:100%;height:460px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;margin:0 0 12px}'
+    + '.naig-dd-hide{display:none !important}';
+  document.head.appendChild(st);
+  function kind(link){
+    var l = String(link || '');
+    if (!l) return ['NO FILE', '#94a3b8'];
+    if (/docs\.google\.com\/document/.test(l)) return ['DOC', '#2563eb'];
+    if (/docs\.google\.com\/spreadsheets/.test(l)) return ['SHEET', '#16a34a'];
+    if (/docs\.google\.com\/presentation/.test(l)) return ['SLIDES', '#d97706'];
+    if (/drive\.google\.com\/drive\/folders|\/folders\//.test(l)) return ['FOLDER', '#64748b'];
+    if (/\.pdf(\b|$)/i.test(l)) return ['PDF', '#dc2626'];
+    if (/drive\.google\.com/.test(l)) return ['FILE', '#0f766e'];
+    return ['LINK', '#7c3aed'];
+  }
+  function stc(s){ return /executed|signed|final|complete/i.test(s || '') ? 'ok' : (/pending|review|draft|progress|negotiat/i.test(s || '') ? 'wip' : ''); }
+  function when(d){ var t = d.updated || d.createdAt; if (!t) return ''; var x = new Date(typeof t === 'number' ? t : String(t)); return isNaN(x) ? '' : x.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
+  function stamp(d){ var t = d.updated || d.createdAt; var x = new Date(typeof t === 'number' ? t : String(t || 0)); return isNaN(x) ? 0 : x.getTime(); }
+  var sig = '';
+  function host(){
+    var sec = document.getElementById('sectionDocs'), tb = document.getElementById('docsTbody'); if (!sec || !tb) return null;
+    var table = tb.closest('table'), wrap = table && (table.closest('.naig-tscroll') || table.parentElement);
+    var box = document.getElementById('naigDD');
+    if (!box) { box = document.createElement('div'); box.id = 'naigDD'; wrap.parentNode.insertBefore(box, wrap);
+      box.addEventListener('click', onClick); }
+    return { sec: sec, wrap: wrap, box: box };
+  }
+  function onClick(ev){
+    var t = ev.target.closest('[data-a]'); if (!t) return;
+    var a = t.getAttribute('data-a'), v = t.getAttribute('data-v');
+    if (a === 'view') { VIEW = v; save('naigDocsView', v); }
+    else if (a === 'sort') { SORT = v; save('naigDocsSort', v); }
+    else if (a === 'area') { AREA = v; }
+    else if (a === 'root') { AREA = null; }
+    else if (a === 'embed') { EMBED = !EMBED; }
+    else if (a === 'details') { ev.stopPropagation(); if (window.openDocModal) window.openDocModal(v); return; }
+    else if (a === 'file') { var d = (window._docsData || {})[v]; if (d && d.link) window.open(d.link, '_blank', 'noopener'); else if (window.openDocModal) window.openDocModal(v); return; }
+    else if (a === 'setfolder') {
+      var inp = document.getElementById('naigDDFolder'); var m = String(inp && inp.value || '').match(/[-\w]{20,}/); if (!m) return;
+      FOLDER = m[0]; (async function(){ try { var d = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js'); await d.set(window._dbRef('naig2027/settings/docsDriveFolder'), { id: FOLDER, name: FNAME, updatedAt: new Date().toISOString() }); } catch(e){} })();
+    }
+    sig = ''; tick();
+  }
+  function tick(){
+    var h = host(); if (!h) return;
+    var D = window._docsData || {}, q = (document.getElementById('docSearch') || {}).value || '';
+    var s = JSON.stringify(D).length + '|' + Object.keys(D).length + '|' + VIEW + '|' + AREA + '|' + SORT + '|' + EMBED + '|' + q + '|' + FOLDER;
+    h.wrap.classList.toggle('naig-dd-hide', VIEW === 'folders');
+    if (s === sig) return; sig = s;
+    var admin = (window._axPerms || {}).tier === 'admin';
+    var html = '<div class="dd-bar"><button type="button" class="dd-pill' + (VIEW === 'folders' ? ' on' : '') + '" data-a="view" data-v="folders">Folders</button>'
+      + '<button type="button" class="dd-pill' + (VIEW === 'list' ? ' on' : '') + '" data-a="view" data-v="list">List</button></div>'
+      + '<div class="dd-drive"><b>Team Drive:</b> ' + esc(FNAME)
+      + ' <a href="https://drive.google.com/drive/folders/' + esc(FOLDER) + '" target="_blank" rel="noopener">Open in Drive</a>'
+      + ' <span class="dd-btn" data-a="embed">' + (EMBED ? 'Hide' : 'Show here') + '</span>'
+      + (admin ? ' <span style="margin-left:auto;font-size:11px;color:#64748b">Folder link:</span><input id="naigDDFolder" placeholder="paste a Drive folder link" style="font-size:12px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px;min-width:180px"><span class="dd-btn" data-a="setfolder">Save</span>' : '')
+      + '</div>'
+      + (EMBED ? '<iframe src="https://drive.google.com/embeddedfolderview?id=' + esc(FOLDER) + '#grid" title="Team Drive folder"></iframe><div style="font-size:11px;color:#64748b;margin:-6px 0 12px">Shows only if the folder is shared with your Google account.</div>' : '');
+    if (VIEW === 'folders') {
+      var items = Object.keys(D).map(function(k){ return [k, D[k] || {}]; });
+      if (q) { var ql = q.toLowerCase(); items = items.filter(function(x){ return [x[1].name, x[1].owner, x[1].notes, x[1].type].join(' ').toLowerCase().indexOf(ql) >= 0; }); }
+      if (!AREA && !q) {
+        var by = {}; items.forEach(function(x){ var a = x[1].area || 'Unfiled'; (by[a] = by[a] || []).push(x); });
+        html += '<div class="dd-crumb">All folders · ' + items.length + ' documents</div><div class="dd-grid">'
+          + Object.keys(by).sort(function(a, b){ return a === 'Unfiled' ? 1 : b === 'Unfiled' ? -1 : a.localeCompare(b); }).map(function(a){
+              var n = by[a].length, f = by[a].filter(function(x){ return x[1].link; }).length;
+              return '<div class="dd-fold" data-a="area" data-v="' + esc(a) + '"><span class="dd-fi"></span><div class="dd-nm">' + esc(a) + '</div><div class="dd-sub">' + n + ' document' + (n === 1 ? '' : 's') + ' · ' + f + ' with a file</div></div>';
+            }).join('') + '</div>';
+      } else {
+        var list = q ? items : items.filter(function(x){ return (x[1].area || 'Unfiled') === AREA; });
+        list.sort(SORT === 'name' ? function(a, b){ return String(a[1].name || '').localeCompare(String(b[1].name || '')); } : function(a, b){ return stamp(b[1]) - stamp(a[1]); });
+        html += '<div class="dd-crumb"><a data-a="root">All folders</a> / ' + (q ? 'Search: “' + esc(q) + '”' : esc(AREA)) + ' · ' + list.length
+          + ' &nbsp; Sort: <a data-a="sort" data-v="recent"' + (SORT === 'recent' ? ' style="text-decoration:underline"' : '') + '>Recent</a> · <a data-a="sort" data-v="name"' + (SORT === 'name' ? ' style="text-decoration:underline"' : '') + '>Name</a></div>'
+          + '<div class="dd-grid">' + (list.map(function(x){
+              var d = x[1], kd = kind(d.link);
+              return '<div class="dd-file" data-a="file" data-v="' + esc(x[0]) + '" title="' + (d.link ? 'Open file' : 'No file linked yet - opens details') + '"><span class="dd-ic" style="background:' + kd[1] + '">' + kd[0] + '</span>'
+                + '<div class="dd-nm">' + esc(d.name || 'Untitled') + '</div><div class="dd-sub">' + esc(d.type || '') + (d.owner ? ' · ' + esc(d.owner) : '') + (when(d) ? ' · ' + when(d) : '') + '</div>'
+                + '<div class="dd-row"><span class="dd-st ' + stc(d.status) + '">' + esc(d.status || 'No status') + '</span><button type="button" class="dd-det" data-a="details" data-v="' + esc(x[0]) + '">Details</button></div></div>';
+            }).join('') || '<div class="dd-sub">Nothing here yet.</div>') + '</div>';
+      }
+    }
+    h.box.innerHTML = html;
+  }
+  document.addEventListener('input', function(ev){ if (ev.target && ev.target.id === 'docSearch') { sig = ''; tick(); } });
+  setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigDocsDrive]', e); } }, 1200);
+})();
+</script>
 </body>
 </html>
