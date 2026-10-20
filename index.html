@@ -20532,6 +20532,8 @@ var iv = setInterval(function(){
   }
   function card(k,v){return '<div class="summary-card"><div class="summary-label">'+k+
     '</div><div class="summary-value">'+v+"</div></div>";}
+  /* 20 Oct 2026: Sports Allocation summary and venue table follow the region filter (NAIG.formula / NAIG.byVenue). */
+  var __rgSig=""; setInterval(function(){ var f=(window.NAIG&&NAIG.formula)?NAIG.formula():null; var s=f?f.scope:""; if(s!==__rgSig){ __rgSig=s; try{ render(); }catch(e){} } },1500);
   function render(){
     var p=window._sportsPlan;
     var sum=document.getElementById("sportsSummary");
@@ -20542,18 +20544,20 @@ var iv = setInterval(function(){
     if(!p){sum.innerHTML='<div style="padding:10px;color:#64748b">Nothing entered yet.</div>';
       bv.innerHTML=""; if(qs) qs.innerHTML=""; return;}
     if(badge) badge.textContent=p.done+"/"+p.rows;
+    var __fm=(window.NAIG&&NAIG.formula)?NAIG.formula():null, __bv=(window.NAIG&&NAIG.byVenue)?NAIG.byVenue():null;
     sum.innerHTML=card("Events with slots",p.done+" / "+p.rows)+
-      card("Total slots",p.slots.toLocaleString())+
-      card("Athletes",(window.naigAth?naigAth(p.people):p.people).toLocaleString())+
+      card("Total slots",(__fm?Math.round(__fm.slots):p.slots).toLocaleString())+
+      card("Athletes",(__fm?__fm.athletes:(window.naigAth?naigAth(p.people):p.people)).toLocaleString())+
       card("Venues used",String(Object.keys(p.byVenue).filter(function(k){return k!=="TBD";}).length));
     var h='<table class="hub-table"><thead><tr><th>Venue</th><th>Sports</th>'+
       '<th style="text-align:right">Slots</th><th style="text-align:right">Athletes</th>'+
       '</tr></thead><tbody>';
-    Object.keys(p.byVenue).sort().forEach(function(k){
-      var r=p.byVenue[k];
+    var __src=(__bv&&Object.keys(__bv).length)?__bv:p.byVenue;
+    Object.keys(__src).sort().forEach(function(k){
+      var r=__src[k]; if(!r||!(r.slots>0)) return;
       h+="<tr><td><b>"+esc2(k)+'</b></td><td style="color:#64748b;font-size:.8rem">'+
         esc2(Object.keys(r.sports).sort().join(" \u00b7 "))+"</td>"+
-        '<td style="text-align:right">'+r.slots+"</td>"+
+        '<td style="text-align:right">'+Math.round(r.slots)+"</td>"+
         '<td style="text-align:right;font-weight:600">'+(window.naigAth?naigAth(r.people):r.people).toLocaleString()+"</td>"+
         '</tr>'; });
     h+="</tbody></table>";
