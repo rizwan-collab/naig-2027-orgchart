@@ -21982,5 +21982,20 @@ var iv = setInterval(function(){
   setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigTaskStat]', e); } }, 1000);
 })();
 </script>
+<script>
+/* Access window on phones (20 Oct 2026): full-screen panel, the Person column stays pinned while the tab columns swipe sideways. */
+(function(){
+  if (window.__naigAxMobile) return; window.__naigAxMobile = true;
+  var s = document.createElement('style');
+  s.textContent = '@media (max-width:700px){'
+    + '#axManage{padding:0 !important}'
+    + '#axManage > div{width:100% !important;max-width:100% !important;margin:0 !important;border-radius:0 !important;min-height:100%;box-sizing:border-box;padding:14px 12px !important}'
+    + '#axManageBody{-webkit-overflow-scrolling:touch}'
+    + '#axManageBody table th:first-child,#axManageBody table td:first-child{position:sticky;left:0;background:#fff;z-index:2;box-shadow:2px 0 0 #e5e7eb;min-width:120px;max-width:140px}'
+    + '#axManageBody table th:first-child{background:#f1f5f9}'
+    + '}';
+  document.head.appendChild(s);
+})();
+</script>
 </body>
 </html>
