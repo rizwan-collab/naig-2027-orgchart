@@ -19301,7 +19301,11 @@ function render(){
   s += '<div class="fg-kpis">';
   s += '<div class="fg-kpi fg-big"><div class="fg-kl">Food cost</div><div class="fg-kv">' + money(t.all) + '</div><div class="fg-ks">meals ' + money(t.grand) + ' + goodie bags ' + money(t.bags.cost) + ' · ' + t.onCount + ' of ' + t.slots + ' slots on</div></div>';
   s += '<div class="fg-kpi"><div class="fg-kl">Servings</div><div class="fg-kv">' + nf(t.servings) + '</div><div class="fg-ks">total plates across the Games</div></div>';
-  s += '<div class="fg-kpi"><div class="fg-kl">Per person per day</div><div class="fg-kv">$' + perDay.toFixed(2).replace(/\.00$/,'') + '</div><div class="fg-ks">all four meals · $60 planning rate leaves $' + (60 - perDay).toFixed(2).replace(/\.00$/,'') + ' headroom</div></div>';
+  /* 20 Oct 2026: per person = meal cost / people fed, across the whole Games (Thu partial, Sun no dinner).
+     The old tile added the four meal prices and compared them to a hard-coded $60 rate. */
+  var ppl = h.athletes + h.volunteers + h.staff;
+  var perGames = ppl ? t.grand / ppl : 0, perPD = (ppl && ds.length) ? t.grand / (ppl * ds.length) : 0;
+  s += '<div class="fg-kpi"><div class="fg-kl">Per person · whole Games</div><div class="fg-kv">$' + perGames.toFixed(2) + '</div><div class="fg-ks">meals ÷ ' + nf(ppl) + ' people · full day (all four meals) $' + perDay.toFixed(2).replace(/\.00$/,'') + ' · average $' + perPD.toFixed(2) + ' per person per day</div></div>';
   s += '<div class="fg-kpi"><div class="fg-kl">Who eats</div><div class="fg-kv" style="font-size:15px">' + nf(h.athletes + h.volunteers + h.staff) + '</div><div class="fg-ks">' + nf(h.athletes) + ' athletes · ' + nf(h.volunteers) + ' volunteers · ' + nf(h.staff) + ' staff · per full day</div></div>';
   s += bagTile(t.bags);
   s += '</div>';
