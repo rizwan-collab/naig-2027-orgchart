@@ -1,7 +1,7 @@
 // Cache version — BUMP THIS ON EVERY DEPLOY that changes cached assets.
 // The activate handler deletes every cache whose name !== CACHE_NAME, so
 // bumping the version is what forces stale entries out of existing installs.
-const CACHE_NAME = 'naig2027-v86';
+const CACHE_NAME = 'naig2027-v87';
 const APP_SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
@@ -59,8 +59,9 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.endsWith('/sportsplan.html')) return;
 
   if (isAppCode(event.request, url)) {
+    // 20 Oct 2026: bypass the browser HTTP cache too (Pages sends max-age=600), so a reload always gets the latest deploy.
     event.respondWith(
-      fetch(event.request)
+      fetch(event.request.url, { cache: 'no-cache', credentials: 'same-origin' })
         .then((response) => {
           if (response && response.status === 200) {
             const clone = response.clone();
