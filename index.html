@@ -20903,6 +20903,20 @@ var iv = setInterval(function(){
     });
     return out;
   };
+  /* 20 Oct 2026: per venue AND sport, same arithmetic as byVenue (region-aware). Used by the indoor scenarios panel. */
+  F.bySportVenue = function(){
+    var out = {}; if (!ROWS) return null;
+    var codes = codesFor(filter), rs = (SR && SR.rows) || {};
+    Object.keys(ROWS).forEach(function(i){
+      var row = ROWS[i]; if (!row) return;
+      var live = num(row.slots), cap = num(row.cap), sl = live;
+      if (filter !== 'ALL' && SR) { var s = rs[i]; sl = 0; if (s && num(s.slotsAtLoad)) { var sum = 0; codes.forEach(function(k){ sum += num((s.byRegion || {})[k]); }); sl = live * sum / num(s.slotsAtLoad); } }
+      var v = row.venue || 'TBD', sp = String(row.sport || 'Other').split(' - ')[0].replace(/\s*\(.*$/, '').trim();
+      var o = (out[v] = out[v] || {}), x = (o[sp] = o[sp] || { slots: 0, people: 0, events: 0 });
+      x.slots += sl; x.people += sl * cap; x.events += 1;
+    });
+    return out;
+  };
   var lastScope = '';
   F.scopeFromSlots = function(host){
     if (!ROWS || !host) return;
@@ -21648,6 +21662,86 @@ var iv = setInterval(function(){
     if (window.innerWidth <= 700) render(false);
   }
   setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigOrgMobile]', e); } }, 1200);
+})();
+</script>
+<script>
+/* Indoor scenarios panel (20 Oct 2026), Sports Allocation tab.
+   Current vs B1 (Volleyball to Farmers Branch, Table Tennis to Northlake) vs B2 (Throwball to Farmers Branch,
+   Table Tennis to Northlake). Numbers come live from the slot sheet via NAIG.bySportVenue(), so they follow
+   slot edits and the region filter. View only: nothing is moved in the slot sheet. */
+(function(){
+  if (window.__naigScen) return; window.__naigScen = true;
+  var FB = /Farmers Branch/i, NL = /Northlake/i;
+  var SCEN = [
+    { key: 'cur', name: 'Current', note: 'As in the slot sheet today', moves: [] },
+    { key: 'b1', name: 'B1 · Volleyball to Farmers Branch', note: 'Table Tennis moves to Northlake', moves: [['Volleyball', 'FB'], ['Table Tennis', 'NL']] },
+    { key: 'b2', name: 'B2 · Throwball to Farmers Branch', note: 'Table Tennis moves to Northlake', moves: [['Throwball', 'FB'], ['Table Tennis', 'NL']] }
+  ];
+  var TEAM = { 'Volleyball': 1, 'Basketball': 1, 'Throwball': 1 };
+  var st = document.createElement('style');
+  st.textContent = '#naigScen{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin:0 0 14px}'
+    + '#naigScen h3{margin:0 0 2px;font-size:15px;color:#1e3a8a}#naigScen .sc-sub{font-size:12px;color:#64748b;margin-bottom:12px}'
+    + '#naigScen .sc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px}'
+    + '#naigScen .sc-card{border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px}'
+    + '#naigScen .sc-card.cur{background:#f8fafc}'
+    + '#naigScen .sc-nm{font-weight:700;font-size:13px;color:#0f172a}#naigScen .sc-nt{font-size:11px;color:#64748b;margin-bottom:8px}'
+    + '#naigScen .sc-row{margin:6px 0}#naigScen .sc-lb{display:flex;justify-content:space-between;font-size:12px;color:#334155}'
+    + '#naigScen .sc-lb b{color:#0f172a}#naigScen .sc-bar{height:8px;background:#eef2f7;border-radius:6px;overflow:hidden;margin:3px 0 2px}'
+    + '#naigScen .sc-bar i{display:block;height:100%;border-radius:6px}#naigScen .sc-sp{font-size:11px;color:#64748b}'
+    + '#naigScen .sc-sp .t{color:#1e3a8a;font-weight:600}#naigScen .sc-gap{font-size:12px;margin-top:8px;padding-top:6px;border-top:1px dashed #e2e8f0;color:#334155}'
+    + '#naigScen .sc-foot{font-size:11px;color:#64748b;margin-top:10px;line-height:1.5}';
+  document.head.appendChild(st);
+  function nf(n){ return Math.round(n || 0).toLocaleString('en-US'); }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function base(){
+    var sv = (window.NAIG && NAIG.bySportVenue) ? NAIG.bySportVenue() : null; if (!sv) return null;
+    var sports = {};
+    Object.keys(sv).forEach(function(v){
+      var site = FB.test(v) ? 'FB' : (NL.test(v) ? 'NL' : null); if (!site) return;
+      Object.keys(sv[v]).forEach(function(sp){ var x = sv[v][sp]; sports[sp] = { site: site, slots: x.slots, people: x.people, events: x.events }; });
+    });
+    return sports;
+  }
+  function apply(sports, moves){
+    var out = { FB: { people: 0, slots: 0, list: [] }, NL: { people: 0, slots: 0, list: [] } };
+    Object.keys(sports).forEach(function(sp){
+      var s = sports[sp], site = s.site;
+      moves.forEach(function(m){ if (m[0] === sp) site = m[1]; });
+      out[site].people += s.people; out[site].slots += s.slots; out[site].list.push(sp);
+    });
+    return out;
+  }
+  var sig = '';
+  function render(){
+    var sec = document.getElementById('sectionSports'); if (!sec) return;
+    var box = document.getElementById('naigScen');
+    if (!box) { box = document.createElement('div'); box.id = 'naigScen'; var tb = sec.querySelector('.hub-toolbar'); sec.insertBefore(box, tb ? tb.nextSibling : sec.firstChild); }
+    var sports = base(); var fm = (window.NAIG && NAIG.formula) ? NAIG.formula() : {};
+    var s = JSON.stringify(sports) + (fm.scope || ''); if (s === sig) return; sig = s;
+    if (!sports) { box.innerHTML = '<h3>Indoor scenarios</h3><div class="sc-sub">Waiting for the slot sheet…</div>'; return; }
+    var res = SCEN.map(function(sc){ return { sc: sc, r: apply(sports, sc.moves) }; });
+    var max = 1; res.forEach(function(x){ max = Math.max(max, x.r.FB.people, x.r.NL.people); });
+    function site(lbl, d, col){
+      var lst = d.list.map(function(sp){ return TEAM[sp] ? '<span class="t">' + esc(sp) + '</span>' : esc(sp); }).join(', ');
+      return '<div class="sc-row"><div class="sc-lb"><span>' + lbl + '</span><b>' + nf(d.people) + '</b></div>'
+        + '<div class="sc-bar"><i style="width:' + (d.people / max * 100).toFixed(1) + '%;background:' + col + '"></i></div>'
+        + '<div class="sc-sp">' + (lst || 'none') + ' · ' + nf(d.slots) + ' slots</div></div>';
+    }
+    var h = '<h3>Indoor scenarios — Farmers Branch vs Northlake</h3>'
+      + '<div class="sc-sub">' + ((fm.scope && fm.scope !== 'ALL') ? '<b>Region: ' + esc(fm.scopeLabel || fm.scope) + '.</b> ' : '')
+      + 'Athlete registrations per site (slots × roster size, live from the slot sheet). <span style="color:#1e3a8a;font-weight:600">Team sports</span> in blue.</div><div class="sc-grid">';
+    res.forEach(function(x){
+      var gap = Math.abs(x.r.NL.people - x.r.FB.people);
+      var mix = (x.r.FB.list.some(function(sp){ return TEAM[sp]; }) && x.r.FB.list.some(function(sp){ return !TEAM[sp]; }))
+             && (x.r.NL.list.some(function(sp){ return TEAM[sp]; }) && x.r.NL.list.some(function(sp){ return !TEAM[sp]; }));
+      h += '<div class="sc-card ' + x.sc.key + '"><div class="sc-nm">' + esc(x.sc.name) + '</div><div class="sc-nt">' + esc(x.sc.note) + '</div>'
+        + site('StarCenter Farmers Branch', x.r.FB, '#3b82f6') + site('StarCenter Northlake', x.r.NL, '#1e3a8a')
+        + '<div class="sc-gap">Difference between sites: <b>' + nf(gap) + '</b> · Team + individual at both sites: <b>' + (mix ? 'Yes' : 'No') + '</b></div></div>';
+    });
+    h += '</div><div class="sc-foot">View only — nothing moves in the slot sheet until a scenario is picked. Court, net and table counts per site: N/A, confirm with StarCenter (Farmers Branch would need volleyball or throwball courts; Northlake would need table-tennis space).</div>';
+    box.innerHTML = h;
+  }
+  setInterval(function(){ try { render(); } catch(e){ console.warn('[naigScen]', e); } }, 2000);
 })();
 </script>
 </body>
