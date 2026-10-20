@@ -96,6 +96,8 @@ footer{margin-top:34px;padding-top:15px;border-top:1px solid var(--line);color:v
 tr.grp td{background:var(--head);color:var(--accent);font-weight:600;cursor:pointer;padding:9px 10px;border-top:1px solid var(--line);user-select:none}
 tr.grp:hover td{background:var(--soft)}
 .spbtn{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:3px 9px;margin-left:6px;cursor:pointer;font-size:12px}
+td.moved{color:#b45309;font-weight:600}
+#fScen{font-weight:600}
 </style>
 </head>
 <body>
@@ -146,6 +148,7 @@ tr.grp:hover td{background:var(--soft)}
   <select id="fSport"><option value="">All sports</option></select>
   <select id="fAge"><option value="">All ages</option></select>
   <select id="fRegion" title="Region view - slots can only be edited in All regions"><option value="ALL">All regions</option></select>
+  <select id="fScen" title="Indoor scenario view - read-only, nothing is saved"><option value="cur">Scenario: Current</option><option value="b1">B1 · Volleyball to Farmers Branch, Table Tennis to Northlake</option><option value="b2">B2 · Throwball to Farmers Branch, Table Tennis to Northlake</option></select>
   <button type="button" id="seed" class="ghost">Reset to the official 100</button>
   <span class="status" id="status">Connecting…</span>
 </div>
@@ -384,6 +387,12 @@ function rslots(r){ if (!regionOn()) return num(r.slots); var i = rows.indexOf(r
 function rpeople(r){ return rslots(r) * num(r.cap); }
 /* 20 Oct 2026: athletes = slot entries less the overlap rule (naig2027/headcount/overlapPct, 20%), same as the hub. */
 var OV = 20; function ath(x){ return Math.round(x * (1 - OV / 100)); }
+/* 20 Oct 2026: indoor scenario view. Shows the sheet as if sports moved between the two StarCenters.
+   View only: venues and totals change on screen, the saved sheet does not. Shares its choice with the hub picker (naigScenPick). */
+var SCN = { b1: [["Volleyball","StarCenter Farmers Branch"],["Table Tennis","StarCenter Northlake"]], b2: [["Throwball","StarCenter Farmers Branch"],["Table Tennis","StarCenter Northlake"]] };
+function scenVal(){ var s = $("fScen"); return (s && s.value) || "cur"; }
+function scenOn(){ return !!SCN[scenVal()]; }
+function rvenue(r){ var v = r.venue || "TBD", m = SCN[scenVal()]; if (!m || !/Farmers Branch|Northlake/.test(v)) return v; for (var i = 0; i < m.length; i++) { if (String(r.sport || "").indexOf(m[i][0]) === 0) return m[i][1]; } return v; }
 function fillRegions(){ var s = $("fRegion"); if (!s || !SR || !SR.regions) return; var cur = s.value || "ALL", R = SR.regions;
   var h = '<option value="ALL">All regions</option><option value="US">USA</option><option value="CA">Canada</option>';
   ["Canada","USA"].forEach(function(c){ h += '<optgroup label="' + c + '">'; Object.keys(R).filter(function(k){ return R[k].country === c; }).sort(function(a,b){ return num(R[a].order) - num(R[b].order); }).forEach(function(k){ h += '<option value="' + k + '">' + String(R[k].name).replace(/&/g,'&amp;') + (R[k].local ? ' (local)' : '') + '</option>'; }); h += '</optgroup>'; });
@@ -391,7 +400,7 @@ function fillRegions(){ var s = $("fRegion"); if (!s || !SR || !SR.regions) retu
 
 function visible(r){
   const v=$("fVenue").value, s=$("fSport").value, a=$("fAge").value;
-  if(v && (r.venue||"TBD")!==v) return false;
+  if(v && rvenue(r)!==v) return false;
   if(s && r.sport!==s) return false;
   if(a && r.age!==a) return false;
   if(regionOn() && rslots(r) <= 0) return false;
@@ -433,10 +442,11 @@ function render(){
     add(ro(r.event),"ro");
     add(ro(r.age),"ro");
     add(ro(r.division),"ro");
-    if (regionOn()) add(ro(String(Math.round(rslots(r)))), "num locked");
+    if (regionOn() || scenOn()) add(ro(String(Math.round(rslots(r)))), "num locked");
     else add(txt(r.slots,"0", function(v){ r.slots=v; touch(true); }, true), "num");
     add(ro(r.cap),"num locked");
-    add(ro(r.venue),"ro");
+    var _mv = rvenue(r) !== (r.venue || "TBD");
+    add(ro(rvenue(r) + (_mv ? "  (now " + r.venue + ")" : "")), "ro" + (_mv ? " moved" : ""));
     add(txt(r.notes,"", function(v){ r.notes=v; touch(true); }));
     tb.appendChild(tr);
   });
@@ -449,6 +459,7 @@ function render(){
     ? ("Showing all "+rows.length+" events. Filter above to work through one venue at a time.")
     : ("Showing "+shown+" of "+rows.length+" events.");
   if (regionOn()) $("shown").textContent += " Region view: slots shown are this region's share and are read-only. Switch to All regions to edit.";
+  if (scenOn()) $("shown").textContent += " Scenario view (" + scenVal().toUpperCase() + "): venues and totals show the sheet as if the sports moved. Read-only, nothing is saved. Switch to Current to edit.";
   totals();
 }
 
@@ -478,7 +489,7 @@ function totals(){
   $("kTbd").textContent    = ath(tbd).toLocaleString();
 
   const byV={};
-  RR.forEach(r=>{ const v=r.venue||"TBD"; (byV[v]=byV[v]||{n:0,sl:0,s:new Set()});
+  RR.forEach(r=>{ const v=rvenue(r); (byV[v]=byV[v]||{n:0,sl:0,s:new Set()});
     byV[v].n+=Math.round(rpeople(r)); byV[v].sl+=Math.round(rslots(r)); if(r.sport) byV[v].s.add(r.sport); });
   const vwrap=$("byVenue"); vwrap.textContent="";
   const order = VENUES.filter(v=>byV[v]).concat(Object.keys(byV).filter(v=>VENUES.indexOf(v)===-1));
@@ -506,7 +517,7 @@ function totals(){
   const byS={};
   /* 19 Oct 2026: By sport follows the region view, same as By venue. */ RR.forEach(r=>{ if(!r.sport) return; (byS[r.sport]=byS[r.sport]||{n:0,sl:0,v:new Set(),d:0});
     byS[r.sport].n+=Math.round(rpeople(r)); byS[r.sport].sl+=Math.round(rslots(r)); byS[r.sport].d+=1;
-    if(r.venue) byS[r.sport].v.add(r.venue); });
+    if(r.venue) byS[r.sport].v.add(rvenue(r)); });
   const swrap=$("bySport"); swrap.textContent="";
   const skeys=Object.keys(byS).sort();
   if(!skeys.length){ const d=document.createElement("div"); d.className="vrow";
@@ -550,6 +561,9 @@ $("seed").addEventListener("click", ()=>{
   rows = seedRows(); fillFilters(); render(); touch();
 });
 ["fVenue","fSport","fAge","fRegion"].forEach(id=>$(id).addEventListener("change", render));
+(function(){ var s = $("fScen"); if (!s) return; function load(){ var v = "cur"; try { v = localStorage.getItem("naigScenPick") || "cur"; } catch(e){} if (!SCN[v]) v = "cur"; if (s.value !== v) { s.value = v; try { render(); } catch(e){} } }
+  load(); s.addEventListener("change", function(){ try { localStorage.setItem("naigScenPick", s.value); } catch(e){} render(); });
+  window.addEventListener("storage", function(e){ if (e.key === "naigScenPick") load(); }); })();
 $("who").addEventListener("input", ()=>touch(true));
 $("questions").addEventListener("input", ()=>touch(true));
 

@@ -20945,8 +20945,9 @@ var iv = setInterval(function(){
       var live = num(row.slots), cap = num(row.cap), sl = live;
       if (flt !== 'ALL' && SR) { var s = rs[i]; sl = 0; if (s && num(s.slotsAtLoad)) { var sum = 0; codes.forEach(function(k){ sum += num((s.byRegion || {})[k]); }); sl = live * sum / num(s.slotsAtLoad); } }
       var sp = String(row.sport || 'Other').replace(/^Track - .*/, 'Track');
-      var x = (out[sp] = out[sp] || { slots: 0, people: 0, venues: {} });
+      var x = (out[sp] = out[sp] || { slots: 0, people: 0, venues: {}, events: 0, divisions: {}, ages: {}, caps: {} });
       x.slots += sl; x.people += sl * cap; if (row.venue && sl > 0) x.venues[row.venue] = 1;
+      x.events++; if (row.division) x.divisions[row.division] = 1; if (row.age) x.ages[row.age] = 1; if (cap) x.caps[cap] = 1;
     });
     return out;
   };
@@ -22137,6 +22138,44 @@ var iv = setInterval(function(){
     if (bar.innerHTML !== html) bar.innerHTML = html;
   }
   setInterval(function(){ try { scope(); } catch(e){ console.warn('[naigScopeStat]', e); } try { pick(); } catch(e){ console.warn('[naigScenPick]', e); } }, 1000);
+})();
+</script>
+<script>
+/* Scope table columns (20 Oct 2026). Notes column removed from view (the typed September notes were out of date).
+   The two empty columns are filled from the slot sheet instead:
+   Gender Divisions = the divisions and age groups the official event list has for the sport;
+   Teams / Divs = slots (teams or entries) · events · max roster per slot. Follows the region filter. */
+(function(){
+  if (window.__naigScopeCols) return; window.__naigScopeCols = true;
+  function key(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+  function tick(){
+    if (!window.NAIG || !NAIG.bySport) return;
+    var sec = document.getElementById('sectionScope'); if (!sec || sec.offsetParent === null) return;
+    var bs = NAIG.bySport(); if (!bs) return;
+    var t = [].filter.call(sec.querySelectorAll('table'), function(x){ return /Session Dates/.test(x.rows[0] ? x.rows[0].textContent : ''); })[0];
+    if (!t) return;
+    var head = [].map.call(t.rows[0].cells, function(c){ return c.textContent.trim(); });
+    var iN = head.indexOf('Notes'), iG = head.indexOf('Gender Divisions'), iT = head.indexOf('Teams / Divs');
+    [].forEach.call(t.rows, function(r){ if (iN >= 0 && r.cells[iN] && r.cells[iN].style.display !== 'none') r.cells[iN].style.display = 'none'; });
+    var names = Object.keys(bs);
+    [].slice.call(t.rows, 1).forEach(function(r){
+      var nm = (r.cells[0] && r.cells[0].innerText || '').trim(); if (!nm) return;
+      var k1 = key(nm), k2 = key(nm.replace(/\s*\(.*\)\s*/g, ''));
+      var hit = names.filter(function(n){ return key(n) === k1; });
+      if (!hit.length) hit = names.filter(function(n){ return key(n.replace(/\s*\(.*\)\s*/g, '')) === k2; });
+      if (!hit.length) return;
+      var div = {}, age = {}, slots = 0, events = 0, cap = {};
+      hit.forEach(function(n){ var x = bs[n]; slots += x.slots; events += x.events || 0;
+        Object.keys(x.divisions || {}).forEach(function(d){ div[d] = 1; }); Object.keys(x.ages || {}).forEach(function(a){ age[a] = 1; }); Object.keys(x.caps || {}).forEach(function(c){ cap[c] = 1; }); });
+      var caps = Object.keys(cap).map(Number).filter(Boolean).sort(function(a, b){ return a - b; });
+      var g = (Object.keys(div).sort().join(' · ') || '—') + (Object.keys(age).length ? '<div style="color:#64748b;font-size:11px">' + Object.keys(age).sort().join(' · ') + '</div>' : '');
+      var tm = Math.round(slots).toLocaleString('en-US') + ' slots · ' + events + ' event' + (events === 1 ? '' : 's') + (caps.length ? '<div style="color:#64748b;font-size:11px">max ' + (caps.length > 1 ? caps[0] + '–' + caps[caps.length - 1] : caps[0]) + ' per slot</div>' : '');
+      var sig = g + '|' + tm; if (r.getAttribute('data-naig-cols') === sig) return; r.setAttribute('data-naig-cols', sig);
+      if (iG >= 0 && r.cells[iG]) r.cells[iG].innerHTML = g;
+      if (iT >= 0 && r.cells[iT]) r.cells[iT].innerHTML = tm;
+    });
+  }
+  setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigScopeCols]', e); } }, 1500);
 })();
 </script>
 </body>
