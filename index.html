@@ -20936,6 +20936,20 @@ var iv = setInterval(function(){
   /* 20 Oct 2026: one athlete number everywhere. Slot registrations less the overlap rule (headcount/overlapPct,
      20%) = athletes, the same rule as the headcount bar, so per-venue and per-sport figures add up to the total. */
   window.naigAth = function(x){ var f = F.formulaAll ? F.formulaAll() : null, ov = (f && f.rules) ? num(f.rules.overlapPct) : 20; return Math.round(num(x) * (1 - ov / 100)); };
+  /* 20 Oct 2026: per sport (Track events merged), same arithmetic as byVenue, region-aware. Used by the Scope table. */
+  F.bySport = function(fx){
+    var out = {}; if (!ROWS) return null;
+    var flt = fx || filter, codes = codesFor(flt), rs = (SR && SR.rows) || {};
+    Object.keys(ROWS).forEach(function(i){
+      var row = ROWS[i]; if (!row) return;
+      var live = num(row.slots), cap = num(row.cap), sl = live;
+      if (flt !== 'ALL' && SR) { var s = rs[i]; sl = 0; if (s && num(s.slotsAtLoad)) { var sum = 0; codes.forEach(function(k){ sum += num((s.byRegion || {})[k]); }); sl = live * sum / num(s.slotsAtLoad); } }
+      var sp = String(row.sport || 'Other').replace(/^Track - .*/, 'Track');
+      var x = (out[sp] = out[sp] || { slots: 0, people: 0, venues: {} });
+      x.slots += sl; x.people += sl * cap; if (row.venue && sl > 0) x.venues[row.venue] = 1;
+    });
+    return out;
+  };
   var lastScope = '';
   F.scopeFromSlots = function(host){
     if (!ROWS || !host) return;
@@ -21995,6 +22009,60 @@ var iv = setInterval(function(){
     + '#axManageBody table th:first-child{background:#f1f5f9}'
     + '}';
   document.head.appendChild(s);
+})();
+</script>
+<script>
+/* Scope table from the slot sheet (20 Oct 2026). The Sports Scope table's Participants, Venue and Session dates were
+   typed in September (old venues like Irving Polo / Lake Park, no athlete counts). They now come from the slot sheet:
+   Participants = athletes (slot entries less the overlap rule, follows the region filter), Venue = where the slot
+   sheet places the sport (status from the Venues tab), Dates = Thu 25 – Sun 28 for cricket (Thursday is cricket only),
+   Fri 26 – Sun 28 for everything else. Sport, lead, status and notes stay as typed. */
+(function(){
+  if (window.__naigScopeLive) return; window.__naigScopeLive = true;
+  function key(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function venueStatus(name){
+    var V = window._venuesData || {}, k = key(name), st = '';
+    Object.keys(V).forEach(function(id){ var v = V[id] || {}; var vk = key(v.name); if (!st && vk && (vk.indexOf(k) >= 0 || k.indexOf(vk) >= 0)) st = v.status || ''; });
+    return st;
+  }
+  function tick(){
+    if (!window.NAIG || !NAIG.bySport || !window.naigAth) return;
+    var sec = document.getElementById('sectionScope'); if (!sec || sec.offsetParent === null) return;
+    var t = [].filter.call(sec.querySelectorAll('table'), function(x){ return /Participants/.test(x.rows[0] ? x.rows[0].textContent : ''); })[0];
+    if (!t) return;
+    var head = [].map.call(t.rows[0].cells, function(c){ return c.textContent.trim(); });
+    var iP = head.findIndex(function(h){ return /^Participants/.test(h); }), iV = head.indexOf('Venue'), iD = head.indexOf('Session Dates');
+    if (iP < 0) return;
+    if (!/live/.test(t.rows[0].cells[iP].textContent)) t.rows[0].cells[iP].innerHTML = 'Athletes <span style="font-weight:400;font-size:10px;opacity:.7">(live)</span>';
+    var bs = NAIG.bySport(), names = Object.keys(bs);
+    [].slice.call(t.rows, 1).forEach(function(r){
+      var nm = (r.cells[0] && r.cells[0].innerText || '').trim(); if (!nm) return;
+      var k1 = key(nm), k2 = key(nm.replace(/\s*\(.*\)\s*/g, '')), k3 = key((nm.match(/\(([^)]*)\)/) || [])[1]);
+      var hit = names.filter(function(n){ return key(n) === k1; });
+      if (!hit.length) hit = names.filter(function(n){ var kn = key(n.replace(/\s*\(.*\)\s*/g, '')); return kn === k2 || (k3 && kn === k3); });
+      if (!hit.length) return;
+      var people = 0, venues = {};
+      hit.forEach(function(n){ people += bs[n].people; Object.keys(bs[n].venues).forEach(function(v){ venues[v] = 1; }); });
+      var ath = naigAth(people).toLocaleString('en-US');
+      var vHtml = Object.keys(venues).map(function(v){ var s = venueStatus(v); return '<div style="margin-bottom:2px;font-weight:600">' + esc(v) + (s ? ' <span style="color:' + (/^confirmed$/i.test(s) ? '#15803d' : '#b45309') + ';font-size:10px">' + esc(s) + '</span>' : '') + '</div>'; }).join('') || 'TBD';
+      var dates = /cricket/i.test(nm) ? 'Thu 25 – Sun 28 Mar 2027' : 'Fri 26 – Sun 28 Mar 2027';
+      var sig = ath + '|' + vHtml + '|' + dates;
+      if (r.getAttribute('data-naig-live') === sig) return;
+      r.setAttribute('data-naig-live', sig);
+      if (r.cells[iP]) r.cells[iP].textContent = ath;
+      if (iV >= 0 && r.cells[iV]) r.cells[iV].innerHTML = vHtml;
+      if (iD >= 0 && r.cells[iD]) r.cells[iD].textContent = dates;
+    });
+  }
+  setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigScopeLive]', e); } }, 1500);
+})();
+</script>
+<script>
+/* Tasks (20 Oct 2026): one person picker. The top 'Filter metrics by name' dropdown duplicated the name chips and the
+   Assignees filter (all three set the same lens), so it is hidden; All Team / My Tasks / Needs Attention stay. */
+(function(){ if (window.__naigTidy3) return; window.__naigTidy3 = true;
+  var st = document.createElement('style'); st.textContent = '#taskMatrixOwner,label[for="taskMatrixOwner"]{display:none !important}'; document.head.appendChild(st);
 })();
 </script>
 </body>
