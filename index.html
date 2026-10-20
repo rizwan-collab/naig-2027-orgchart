@@ -8654,7 +8654,7 @@ function _taskMetricFocusEntries() {
     if (owner && !taskOwners(t).some(name => _taskNameKey(name) === _taskNameKey(owner))) return false;
     if (_taskAttentionOnly && !_taskNeedsAttention(t)) return false;
     if (q && !JSON.stringify(t).toLowerCase().includes(q)) return false;
-    if (status && (t.status || 'todo') !== status) return false;
+    if (status && (status === 'open' ? (t.status || 'todo') === 'done' : (t.status || 'todo') !== status)) return false;
     if (priority && (t.priority || 'Medium') !== priority) return false;
     if (workstream && _taskOwningStream(t) !== workstream) return false;
     if (vertical && !_taskCrossDeps(t).includes(vertical)) return false;
@@ -9433,6 +9433,10 @@ function saveTask() {
       return;
     }
     const newStatus = saved.status || 'todo';
+    if (window.__naigToast) {
+      if (newStatus !== requestedStatus) window.__naigToast('Saved. Status is ' + (_STATUS_LABEL[newStatus] || newStatus) + ', not ' + (_STATUS_LABEL[requestedStatus] || requestedStatus) + (newStatus === 'inprogress' && requestedStatus === 'done' ? ': a dependency on this task is still open. Close it first.' : ': it was changed by someone else while you were editing.'));
+      else window.__naigToast('Saved ✓');
+    }
     if (!editKey) {
       logActivity('task', `New task: "${title}"${newOwners.length ? ' — assigned to ' + newOwners.join(', ') : ''}`,
                   { action:'create', entityKey:key, entityName:title, newValue:newStatus });
@@ -9463,7 +9467,15 @@ function saveTask() {
       }
     }
     closeTaskModal();
-  }).catch(() => {}).finally(() => { if (saveBtn) saveBtn.disabled = false; });
+  }).catch(err => {
+    // 20 Oct 2026: a failed save used to vanish silently. Say why, keep the form open with the edits in it.
+    const msg = (err && (err.code || err.message)) || 'unknown error';
+    console.error('[saveTask]', err);
+    try { localStorage.setItem('naigLastSaveError', new Date().toISOString() + ' ' + msg); } catch(e) {}
+    try { window._dbRef && window._dbSet && window._dbSet(window._dbRef('naig2027/saveErrors/' + Date.now()), { what: 'task', key: key, title: title, msg: String(msg), who: (window._gUser && window._gUser.email) || 'not signed in', at: new Date().toISOString() }); } catch(e) {}
+    const hint = /permission|denied/i.test(msg) ? (window._gUser ? ' Your account may not have edit rights on this tab.' : ' You are not signed in: tap Identify yourself at the top, then Save again.') : ' Check your connection and press Save again.';
+    if (window.__naigToast) window.__naigToast('Not saved (' + msg + ').' + hint + ' Your edits are still in the form.', true); else alert('Not saved: ' + msg);
+  }).finally(() => { if (saveBtn) saveBtn.disabled = false; });
 }
 function quickComplete(key) {
   const t = window._tasksData[key];
@@ -21915,6 +21927,59 @@ var iv = setInterval(function(){
       if (s.style.getPropertyValue('display') !== 'block') s.style.setProperty('display', 'block', 'important');
     } catch(e){ console.warn('[naigScenShow]', e); }
   }, 1000);
+})();
+</script>
+<script>
+/* Tasks: status chips + save feedback (20 Oct 2026).
+   - One row of chips above the task views: Not done · To do · In progress · Blocked · Done · All, with counts.
+     A chip sets the existing Status filter (filterStatus), so the table, board, grouped view and matrices all follow.
+     "Not done" replaces the old Hide-completed toggle (which is hidden so the two cannot fight).
+   - window.__naigToast: the message strip saveTask now uses when a save fails or a status is changed for you. */
+(function(){
+  if (window.__naigTaskStat) return; window.__naigTaskStat = true;
+  var KEY = 'naigTaskStatusChip';
+  var CH = [['open','Not done'],['todo','To do'],['inprogress','In progress'],['blocked','Blocked'],['done','Done'],['','All']];
+  var st = document.createElement('style');
+  st.textContent = '#naigTStat{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 10px}'
+    + '#naigTStat button{border:1px solid #cbd5e1;background:#fff;color:#1e293b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer}'
+    + '#naigTStat button b{font-weight:700;color:#64748b;margin-left:4px}'
+    + '#naigTStat button.on{background:#1E3A8A;border-color:#1E3A8A;color:#fff}#naigTStat button.on b{color:#c7d2fe}'
+    + '#naigTDoneTgl{display:none !important}'
+    + '#naigToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);max-width:min(92vw,560px);z-index:100000;padding:12px 16px;border-radius:10px;font-size:13px;line-height:1.4;box-shadow:0 6px 24px rgba(0,0,0,.25);color:#fff;background:#1E3A8A}'
+    + '#naigToast.err{background:#b91c1c}';
+  document.head.appendChild(st);
+  try { localStorage.setItem('naigTasksHideDone', '0'); } catch(e){}
+  window.__naigToast = function(msg, isErr){
+    var t = document.getElementById('naigToast'); if (t) t.remove();
+    t = document.createElement('div'); t.id = 'naigToast'; if (isErr) t.className = 'err'; t.textContent = msg;
+    t.addEventListener('click', function(){ t.remove(); });
+    document.body.appendChild(t); setTimeout(function(){ if (t.parentNode) t.remove(); }, isErr ? 12000 : 6000);
+  };
+  function counts(){
+    var c = { open: 0, todo: 0, inprogress: 0, blocked: 0, done: 0, '': 0 }, T = window._tasksData || {};
+    Object.keys(T).forEach(function(k){ var t = T[k]; if (!t) return; var s = t.status || 'todo'; c[''] ++; if (c[s] !== undefined) c[s]++; if (s !== 'done') c.open++; });
+    return c;
+  }
+  var booted = false, sig = '';
+  function tick(){
+    var fs = document.getElementById('filterStatus'); if (!fs) return;
+    if (!fs.querySelector('option[value="open"]')) { var o = document.createElement('option'); o.value = 'open'; o.textContent = 'Not done'; fs.insertBefore(o, fs.options[1] || null); }
+    if (!booted) { booted = true; var saved = null; try { saved = localStorage.getItem(KEY); } catch(e){} fs.value = saved === null ? 'open' : saved; if (typeof window.renderTasks === 'function') try { window.renderTasks(); } catch(e){} }
+    var host = document.getElementById('naigTStat');
+    if (!host) {
+      host = document.createElement('div'); host.id = 'naigTStat';
+      var anchor = document.getElementById('naigTBar') || fs.closest('.hub-filters') || fs.parentElement;
+      anchor.parentNode.insertBefore(host, anchor.nextSibling);
+      host.addEventListener('click', function(ev){
+        var b = ev.target.closest('button'); if (!b) return;
+        var v = b.getAttribute('data-s'); fs.value = v; try { localStorage.setItem(KEY, v); } catch(e){}
+        sig = ''; if (typeof window.renderTasks === 'function') window.renderTasks(); tick();
+      });
+    }
+    var c = counts(), s = JSON.stringify(c) + '|' + fs.value; if (s === sig) return; sig = s;
+    host.innerHTML = CH.map(function(x){ return '<button type="button" data-s="' + x[0] + '"' + (fs.value === x[0] ? ' class="on"' : '') + '>' + x[1] + '<b>' + c[x[0]] + '</b></button>'; }).join('');
+  }
+  setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigTaskStat]', e); } }, 1000);
 })();
 </script>
 </body>
