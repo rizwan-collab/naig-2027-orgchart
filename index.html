@@ -20515,7 +20515,7 @@ var iv = setInterval(function(){
     if(!hit||!hit.people) return "";
         var tail="";
     return '<div class="vc-sports" style="background:#fff7ed;color:#9a3412">'+
-      hit.people.toLocaleString()+" athletes at max &middot; "+hit.slots+" slots"+tail+"</div>";
+      (window.naigAth?naigAth(hit.people):hit.people).toLocaleString()+" athletes &middot; "+hit.slots+" slots"+tail+"</div>";
   };
   function compute(v){
     var rows=(v&&Array.isArray(v.rows))?v.rows:[], byVenue={}, slots=0, people=0, done=0;
@@ -20544,17 +20544,17 @@ var iv = setInterval(function(){
     if(badge) badge.textContent=p.done+"/"+p.rows;
     sum.innerHTML=card("Events with slots",p.done+" / "+p.rows)+
       card("Total slots",p.slots.toLocaleString())+
-      card("Athletes at max",p.people.toLocaleString())+
+      card("Athletes",(window.naigAth?naigAth(p.people):p.people).toLocaleString())+
       card("Venues used",String(Object.keys(p.byVenue).filter(function(k){return k!=="TBD";}).length));
     var h='<table class="hub-table"><thead><tr><th>Venue</th><th>Sports</th>'+
-      '<th style="text-align:right">Slots</th><th style="text-align:right">Athletes at max</th>'+
+      '<th style="text-align:right">Slots</th><th style="text-align:right">Athletes</th>'+
       '</tr></thead><tbody>';
     Object.keys(p.byVenue).sort().forEach(function(k){
       var r=p.byVenue[k];
       h+="<tr><td><b>"+esc2(k)+'</b></td><td style="color:#64748b;font-size:.8rem">'+
         esc2(Object.keys(r.sports).sort().join(" \u00b7 "))+"</td>"+
         '<td style="text-align:right">'+r.slots+"</td>"+
-        '<td style="text-align:right;font-weight:600">'+r.people.toLocaleString()+"</td>"+
+        '<td style="text-align:right;font-weight:600">'+(window.naigAth?naigAth(r.people):r.people).toLocaleString()+"</td>"+
         '</tr>'; });
     h+="</tbody></table>";
     if(p.by) h+='<div style="margin-top:8px;color:#64748b;font-size:.78rem">Last edited by '+
@@ -20583,7 +20583,7 @@ var iv = setInterval(function(){
     var msg = "RENAMING A VENUE\n\n" + oldName + "\n  becomes\n" + newName + "\n\n";
     if(carrying && carrying.slots){
       msg += "The Sports team has " + carrying.slots + " slots (" +
-        carrying.people.toLocaleString() + " athletes at max) booked against this venue.\n\n";
+        (window.naigAth?naigAth(carrying.people):carrying.people).toLocaleString() + " athletes) booked against this venue.\n\n";
     }
     msg += "The Sports allocation form keeps its own venue list and will NOT follow this change.\n" +
       "Until the form is updated, this venue\u2019s athlete figure will disappear from its card\n" +
@@ -20917,6 +20917,9 @@ var iv = setInterval(function(){
     });
     return out;
   };
+  /* 20 Oct 2026: one athlete number everywhere. Slot registrations less the overlap rule (headcount/overlapPct,
+     20%) = athletes, the same rule as the headcount bar, so per-venue and per-sport figures add up to the total. */
+  window.naigAth = function(x){ var f = F.formulaAll ? F.formulaAll() : null, ov = (f && f.rules) ? num(f.rules.overlapPct) : 20; return Math.round(num(x) * (1 - ov / 100)); };
   var lastScope = '';
   F.scopeFromSlots = function(host){
     if (!ROWS || !host) return;
@@ -20932,11 +20935,11 @@ var iv = setInterval(function(){
     });
     var tot = { events: 0, slots: 0, reg: 0 }, s2 = F.slice(filter);
     var h = '<h3>Athlete count - from the slot sheet</h3><p class="tm-sub">Read-only. Slots x max per slot, per sport' + (filter !== 'ALL' ? ' - <b>' + esc(label(filter)) + '</b>' : '') + '. Change slots on the <a href="sportsplan.html" target="_blank" rel="noopener">slots page</a> and every tab updates.</p>';
-    h += '<table><thead><tr><th>Sport</th><th>Events</th><th>Slots</th><th>Registrations</th><th>Venue</th></tr></thead><tbody>';
+    h += '<table><thead><tr><th>Sport</th><th>Events</th><th>Slots</th><th>Athletes</th><th>Venue</th></tr></thead><tbody>';
     order.forEach(function(sp){ var b = bySport[sp]; if (b.slots <= 0) return; tot.events += b.events; tot.slots += b.slots; tot.reg += b.reg;
-      h += '<tr><td>' + esc(sp) + '</td><td>' + b.events + '</td><td>' + nf(b.slots) + '</td><td>' + nf(b.reg) + '</td><td>' + esc(Object.keys(b.venues).join(', ') || 'TBD') + '</td></tr>'; });
-    h += '</tbody><tfoot><tr><th>Total</th><th>' + tot.events + '</th><th>' + nf(tot.slots) + '</th><th>' + nf(tot.reg) + '</th><th></th></tr></tfoot></table>';
-    if (s2) h += '<p class="tm-sub"><b>' + nf(s2.registrations) + '</b> registrations less ' + ov + '% overlap = <b>' + nf(s2.athletes) + '</b> unique athletes on site · ' + nf(s2.volunteers) + ' volunteers · ' + nf(s2.staff) + ' staff · ' + nf(s2.onSite) + ' on site.</p>';
+      h += '<tr><td>' + esc(sp) + '</td><td>' + b.events + '</td><td>' + nf(b.slots) + '</td><td>' + nf(b.reg * (1 - ov / 100)) + '</td><td>' + esc(Object.keys(b.venues).join(', ') || 'TBD') + '</td></tr>'; });
+    h += '</tbody><tfoot><tr><th>Total</th><th>' + tot.events + '</th><th>' + nf(tot.slots) + '</th><th>' + nf(tot.reg * (1 - ov / 100)) + '</th><th></th></tr></tfoot></table>';
+    if (s2) h += '<p class="tm-sub"><b>' + nf(s2.athletes) + '</b> athletes on site (slot entries less ' + ov + '% for people in more than one sport) · ' + nf(s2.volunteers) + ' volunteers · ' + nf(s2.staff) + ' staff · ' + nf(s2.onSite) + ' on site.</p>';
     if (h === lastScope && host.innerHTML) return; lastScope = h; host.innerHTML = h;
   };
   F.hotels = function(){
@@ -20975,7 +20978,7 @@ var iv = setInterval(function(){
     var R = regs(), opts = '<option value="ALL">All regions</option><option value="US">USA</option><option value="CA">Canada</option>';
     ['Canada','USA'].forEach(function(c){ opts += '<optgroup label="' + c + '">'; Object.keys(R).filter(function(k){ return R[k].country === c; }).sort(function(x,y){ return num(R[x].order) - num(R[y].order); }).forEach(function(k){ opts += '<option value="' + esc(k) + '">' + esc(R[k].name) + (R[k].local ? ' (local)' : '') + '</option>'; }); opts += '</optgroup>'; });
     var h1 = '<label style="font-weight:700;color:#93c5fd">Headcount view</label><select id="naigRegionSel" style="background:#1e293b;color:#f8fafc;border:1px solid #334155;border-radius:6px;padding:3px 6px;font-size:12px">' + opts + '</select>';
-    h1 += '<span><b>' + nf(s.athletes) + '</b> athletes</span><span>' + nf(s.registrations) + ' registrations</span><span>' + nf(s.slots) + ' slots</span><span>' + nf(s.volunteers) + ' volunteers</span><span>' + nf(s.staff) + ' staff</span><span><b>' + nf(s.onSite) + '</b> on site</span>';
+    h1 += '<span><b>' + nf(s.athletes) + '</b> athletes</span><span>' + nf(s.slots) + ' slots</span><span>' + nf(s.volunteers) + ' volunteers</span><span>' + nf(s.staff) + ' staff</span><span><b>' + nf(s.onSite) + '</b> on site</span>';
     if (h && filter === 'ALL') h1 += '<span style="color:#fbbf24">Hotels: ' + nf(h.guests) + ' guests · ' + nf(h.rooms) + ' rooms needed · ' + nf(h.blocked) + ' blocked</span>';
     if (!Object.keys(R).length) h1 += '<span style="color:#94a3b8">region split loading</span>';
     h1 += '<span style="color:#64748b">From the slot sheet. Food and Budget always use all regions.</span>';
@@ -21091,7 +21094,7 @@ var iv = setInterval(function(){
         id: k, name: v.name || k, status: status, live: live, city: v.location || '',
         assigned: pl ? Object.keys(pl.sports || {}).join(' · ') : '',
         candidate: sportsText(v),
-        slots: pl ? n(pl.slots) : null, ath: pl ? n(pl.people) : null,
+        slots: pl ? n(pl.slots) : null, ath: pl ? (window.naigAth?naigAth(n(pl.people)):n(pl.people)) : null,
         cap: v.capacity || '',
         fee: (v.rentalFeeAmount != null && v.rentalFeeAmount !== '') ? n(v.rentalFeeAmount) : null,
         est: !!v.rentalFeeIsEstimate, paid: n(v.paid)
@@ -21141,6 +21144,7 @@ var iv = setInterval(function(){
     var placed = 0, assignedN = 0; all.forEach(function(x){ if (x.ath != null){ placed += x.ath; assignedN++; } });
     var bv = (window.NAIG && NAIG.byVenue) ? NAIG.byVenue() : null, total = 0;
     if (bv) Object.keys(bv).forEach(function(k){ total += bv[k].people; }); else total = n(p.people);
+    if (window.naigAth) total = naigAth(total);
     var fm = (window.NAIG && NAIG.formula) ? NAIG.formula() : null, scopeTxt = (fm && fm.scope && fm.scope !== 'ALL') ? '<b>Region: ' + esc(fm.scopeLabel || fm.scope) + '.</b> ' : '';
     var opt = '<option value="live"' + (state.status === 'live' ? ' selected' : '') + '>Live only</option><option value="all"' + (state.status === 'all' ? ' selected' : '') + '>All sites</option>'
       + Object.keys(statuses).sort().map(function(s){ return '<option' + (state.status === s ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('');
@@ -21154,18 +21158,18 @@ var iv = setInterval(function(){
         + '<td class="n">' + (x.fee == null ? 'N/A' : '$' + fmt(x.fee) + (x.est ? ' est' : '')) + '</td><td class="n">' + (x.paid ? '$' + fmt(x.paid) : '—') + '</td></tr>';
     }).join('');
     el.innerHTML = '<div class="vo-sum"><b>Venue Directory</b> — one table for every site. Sports, slots and athletes come from the slot sheet. ' + scopeTxt
-      + '<b>' + assignedN + '</b> sites carry events · <b>' + fmt(placed) + '</b> of <b>' + fmt(total) + '</b> registrations placed'
+      + '<b>' + assignedN + '</b> sites carry events · <b>' + fmt(placed) + '</b> of <b>' + fmt(total) + '</b> athletes placed'
       + (total - placed > 0 ? ' · <b style="color:#b91c1c">' + fmt(total - placed) + ' not yet placed</b>' : '') + '</div>'
       + '<div class="vo-bar"><label>Show <select id="voStatus">' + opt + '</select></label>'
       + '<label><input type="checkbox" id="voAssigned"' + (state.assigned ? ' checked' : '') + '> Only sites carrying events</label>'
       + '<span class="vo-muted">' + r.length + ' of ' + all.length + ' sites</span><button type="button" class="vt-btn" id="voCsv">↓ CSV</button></div>'
       + '<div class="vo-wrap"><table><thead><tr>' + th('name', 'Venue') + th('status', 'Status') + th('city', 'City') + '<th>Sports</th>'
-      + th('slots', 'Slots', 1) + th('ath', 'Athletes at max', 1) + '<th>Capacity</th>' + th('fee', 'Rental fee', 1) + '<th class="n">Paid</th></tr></thead><tbody>'
+      + th('slots', 'Slots', 1) + th('ath', 'Athletes', 1) + '<th>Capacity</th>' + th('fee', 'Rental fee', 1) + '<th class="n">Paid</th></tr></thead><tbody>'
       + (body || '<tr><td colspan="9" class="vo-muted">No sites match.</td></tr>') + '</tbody></table></div>';
   }
   function csv(){
     var r = filtered();
-    var lines = [['Venue','Status','City','Sports assigned','Candidate sports','Slots','Athletes at max','Capacity','Rental fee','Paid']].concat(r.map(function(x){
+    var lines = [['Venue','Status','City','Sports assigned','Candidate sports','Slots','Athletes','Capacity','Rental fee','Paid']].concat(r.map(function(x){
       return [x.name, x.status, x.city, x.assigned, x.candidate, x.slots == null ? '' : x.slots, x.ath == null ? '' : x.ath, x.cap, x.fee == null ? 'N/A' : x.fee, x.paid || ''];
     })).map(function(a){ return a.map(function(c){ return '"' + String(c).replace(/"/g, '""') + '"'; }).join(','); }).join('\n');
     var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([lines], {type: 'text/csv'})); a.download = 'naig-venue-directory.csv'; a.click();
@@ -21725,15 +21729,15 @@ var iv = setInterval(function(){
     var max = 1; res.forEach(function(x){ max = Math.max(max, x.r.FB.people, x.r.NL.people); });
     function site(lbl, d, col){
       var lst = d.list.map(function(sp){ return TEAM[sp] ? '<span class="t">' + esc(sp) + '</span>' : esc(sp); }).join(', ');
-      return '<div class="sc-row"><div class="sc-lb"><span>' + lbl + '</span><b>' + nf(d.people) + '</b></div>'
+      return '<div class="sc-row"><div class="sc-lb"><span>' + lbl + '</span><b>' + nf((window.naigAth?naigAth(d.people):d.people)) + '</b></div>'
         + '<div class="sc-bar"><i style="width:' + (d.people / max * 100).toFixed(1) + '%;background:' + col + '"></i></div>'
         + '<div class="sc-sp">' + (lst || 'none') + ' · ' + nf(d.slots) + ' slots</div></div>';
     }
     var h = '<h3>Indoor scenarios — Farmers Branch vs Northlake</h3>'
       + '<div class="sc-sub">' + ((fm.scope && fm.scope !== 'ALL') ? '<b>Region: ' + esc(fm.scopeLabel || fm.scope) + '.</b> ' : '')
-      + 'Athlete registrations per site (slots × roster size, live from the slot sheet). <span style="color:#1e3a8a;font-weight:600">Team sports</span> in blue.</div><div class="sc-grid">';
+      + 'Athletes per site, live from the slot sheet (slot entries less the overlap rule, same as the headcount bar). <span style="color:#1e3a8a;font-weight:600">Team sports</span> in blue.</div><div class="sc-grid">';
     res.forEach(function(x){
-      var gap = Math.abs(x.r.NL.people - x.r.FB.people);
+      var gap = Math.abs((window.naigAth?naigAth(x.r.NL.people):x.r.NL.people) - (window.naigAth?naigAth(x.r.FB.people):x.r.FB.people));
       var mix = (x.r.FB.list.some(function(sp){ return TEAM[sp]; }) && x.r.FB.list.some(function(sp){ return !TEAM[sp]; }))
              && (x.r.NL.list.some(function(sp){ return TEAM[sp]; }) && x.r.NL.list.some(function(sp){ return !TEAM[sp]; }));
       h += '<div class="sc-card ' + x.sc.key + '"><div class="sc-nm">' + esc(x.sc.name) + '</div><div class="sc-nt">' + esc(x.sc.note) + '</div>'

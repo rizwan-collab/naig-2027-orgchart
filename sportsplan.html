@@ -137,7 +137,7 @@ tr.grp:hover td{background:var(--soft)}
 <div class="note">
   <b>Slots are teams and entries, not people.</b> Athlete counts are slots &times; max per slot,
   using the <b>maximum</b> roster the rules allow — venues, food and buses have to hold the
-  biggest version of the draw, not the smallest.
+  biggest version of the draw, not the smallest. Athlete figures then take off the overlap (20%: people entered in more than one sport count once), the same rule as the hub.
 </div>
 
 <div class="bar">
@@ -152,7 +152,7 @@ tr.grp:hover td{background:var(--soft)}
 
 <div class="cards">
   <div class="kpi"><div class="k">Total slots</div><div class="v" id="kTotal">0</div></div>
-  <div class="kpi"><div class="k">Athletes at max</div><div class="v" id="kPeople">0</div></div>
+  <div class="kpi"><div class="k">Athletes</div><div class="v" id="kPeople">0</div></div>
   <div class="kpi"><div class="k">Events with slots</div><div class="v" id="kDone">0</div></div>
   <div class="kpi"><div class="k">Venues used</div><div class="v" id="kVenues">0</div></div>
   <div class="kpi"><div class="k">Unassigned athletes</div><div class="v" id="kTbd">0</div></div>
@@ -382,6 +382,8 @@ function regionOn(){ return regionVal() !== "ALL" && !!SR; }
 function regionCodes(){ var f = regionVal(), R = (SR && SR.regions) || {}; return Object.keys(R).filter(function(k){ if (f === "ALL") return true; if (f === "CA") return R[k].country === "Canada"; if (f === "US") return R[k].country === "USA"; return k === f; }); }
 function rslots(r){ if (!regionOn()) return num(r.slots); var i = rows.indexOf(r); var s = SR.rows && SR.rows[i]; if (!s || !num(s.slotsAtLoad)) return 0; var br = s.byRegion || {}, sum = 0; regionCodes().forEach(function(k){ sum += num(br[k]); }); return num(r.slots) * sum / num(s.slotsAtLoad); }
 function rpeople(r){ return rslots(r) * num(r.cap); }
+/* 20 Oct 2026: athletes = slot entries less the overlap rule (naig2027/headcount/overlapPct, 20%), same as the hub. */
+var OV = 20; function ath(x){ return Math.round(x * (1 - OV / 100)); }
 function fillRegions(){ var s = $("fRegion"); if (!s || !SR || !SR.regions) return; var cur = s.value || "ALL", R = SR.regions;
   var h = '<option value="ALL">All regions</option><option value="US">USA</option><option value="CA">Canada</option>';
   ["Canada","USA"].forEach(function(c){ h += '<optgroup label="' + c + '">'; Object.keys(R).filter(function(k){ return R[k].country === c; }).sort(function(a,b){ return num(R[a].order) - num(R[b].order); }).forEach(function(k){ h += '<option value="' + k + '">' + String(R[k].name).replace(/&/g,'&amp;') + (R[k].local ? ' (local)' : '') + '</option>'; }); h += '</optgroup>'; });
@@ -414,7 +416,7 @@ function render(){
     const gs=Math.round(grp.reduce((a,r)=>a+rslots(r),0)), gp=Math.round(grp.reduce((a,r)=>a+rpeople(r),0));
     const h=document.createElement("tr"); h.className="grp"+(open?" open":"");
     const hd=document.createElement("td"); hd.colSpan=ncol;
-    hd.textContent=(open?"\u25BE  ":"\u25B8  ")+sp+"   \u00B7   "+grp.length+" event"+(grp.length===1?"":"s")+"   \u00B7   "+gs.toLocaleString()+" slots   \u00B7   "+gp.toLocaleString()+" athletes";
+    hd.textContent=(open?"\u25BE  ":"\u25B8  ")+sp+"   \u00B7   "+grp.length+" event"+(grp.length===1?"":"s")+"   \u00B7   "+gs.toLocaleString()+" slots   \u00B7   "+ath(gp).toLocaleString()+" athletes";
     h.appendChild(hd);
     h.addEventListener("click",()=>{ if(SPCOLLAPSE.has(sp)) SPCOLLAPSE.delete(sp); else SPCOLLAPSE.add(sp); spSave(); render(); });
     tb.appendChild(h);
@@ -470,10 +472,10 @@ function totals(){
   const venues = new Set(rows.filter(r=>r.venue&&r.venue!=="TBD").map(r=>r.venue));
   const tbd = Math.round(RR.filter(r=>!r.venue||r.venue==="TBD").reduce((a,r)=>a+rpeople(r),0));
   $("kTotal").textContent  = total.toLocaleString();
-  $("kPeople").textContent = heads.toLocaleString();
+  $("kPeople").textContent = ath(heads).toLocaleString();
   $("kDone").textContent   = done + " / " + rows.length;
   $("kVenues").textContent = venues.size;
-  $("kTbd").textContent    = tbd.toLocaleString();
+  $("kTbd").textContent    = ath(tbd).toLocaleString();
 
   const byV={};
   RR.forEach(r=>{ const v=r.venue||"TBD"; (byV[v]=byV[v]||{n:0,sl:0,s:new Set()});
@@ -488,7 +490,7 @@ function totals(){
     const sp=document.createElement("div"); sp.className="sp";
     sp.textContent=([...byV[v].s].sort().join(" · ")||"—")
       + (byV[v].sl?"  —  "+byV[v].sl+" slot"+(byV[v].sl===1?"":"s"):"");
-    const ct=document.createElement("div"); ct.className="ct"; ct.textContent=byV[v].n.toLocaleString();
+    const ct=document.createElement("div"); ct.className="ct"; ct.textContent=ath(byV[v].n).toLocaleString();
     const rf=document.createElement("div"); rf.className="rf";
     if(byV[v].sl){
       const pill=document.createElement("span");
@@ -514,7 +516,7 @@ function totals(){
     const nm=document.createElement("div"); nm.className="nm"; nm.textContent=k;
     const sp=document.createElement("div"); sp.className="sp";
     sp.textContent=[...byS[k].v].sort().join(" · ")||"no venue set";
-    const ct=document.createElement("div"); ct.className="ct"; ct.textContent=byS[k].n.toLocaleString();
+    const ct=document.createElement("div"); ct.className="ct"; ct.textContent=ath(byS[k].n).toLocaleString();
     const rf=document.createElement("div"); rf.className="rf";
     rf.textContent=byS[k].sl+" slot"+(byS[k].sl===1?"":"s")+" · "+byS[k].d+" event"+(byS[k].d===1?"":"s");
     d.appendChild(nm); d.appendChild(sp); d.appendChild(ct); d.appendChild(rf);
@@ -562,6 +564,7 @@ onAuthStateChanged(auth, u=>{
   /* Live venue list + athlete figures from the hub public mirror
      (naig2027/public/venueRef). Merged over the built-in defaults so existing
      rows keep working if a name differs. Added 16 Oct 2026. */
+  onValue(ref(db, "naig2027/headcount/overlapPct"), function(s){ var v = Number(s.val()); if (s.val() !== null && isFinite(v)) { OV = v; try { render(); } catch(e){} } }, function(){});
   onValue(ref(db, "naig2027/public/slotRegions"), function(rsnap){ SR = rsnap.val() || null; fillRegions(); try { render(); } catch(e){} }, function(){});
   onValue(ref(db, "naig2027/public/venueRef/venues"), function(vsnap){
     var mv = vsnap.val();
