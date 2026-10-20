@@ -22231,8 +22231,9 @@ var iv = setInterval(function(){
 (function(){
   if (window.__naigDocsDrive) return; window.__naigDocsDrive = true;
   var DEF_FOLDER = '1Twb2E87ED4bDF9-JX_0cx1bUhVOGNZF8', FOLDER = DEF_FOLDER, FNAME = 'NAIG Logistics Master';
-  var VIEW = 'folders', AREA = null, SORT = 'recent', EMBED = false;
-  try { VIEW = localStorage.getItem('naigDocsView') || 'folders'; SORT = localStorage.getItem('naigDocsSort') || 'recent'; } catch(e){}
+  /* 20 Oct 2026 (v2): Rizwan - area folders did not make sense. Documents = the real team Drive folder, open by default, above the original list with its links. */
+  var VIEW = 'list', AREA = null, SORT = 'recent', EMBED = true;
+  try { SORT = localStorage.getItem('naigDocsSort') || 'recent'; } catch(e){}
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   function save(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
   (async function(){ try { if (typeof window._dbRef !== 'function') return; var d = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js'); var v = (await d.get(window._dbRef('naig2027/settings/docsDriveFolder'))).val(); if (v && v.id) { FOLDER = v.id; FNAME = v.name || FNAME; sig = ''; } } catch(e){} })();
@@ -22305,14 +22306,12 @@ var iv = setInterval(function(){
     h.wrap.classList.toggle('naig-dd-hide', VIEW === 'folders');
     if (s === sig) return; sig = s;
     var admin = (window._axPerms || {}).tier === 'admin';
-    var html = '<div class="dd-bar"><button type="button" class="dd-pill' + (VIEW === 'folders' ? ' on' : '') + '" data-a="view" data-v="folders">Folders</button>'
-      + '<button type="button" class="dd-pill' + (VIEW === 'list' ? ' on' : '') + '" data-a="view" data-v="list">List</button></div>'
-      + '<div class="dd-drive"><b>Team Drive:</b> ' + esc(FNAME)
+    var html = '<div class="dd-drive"><b>Team Drive:</b> ' + esc(FNAME)
       + ' <a href="https://drive.google.com/drive/folders/' + esc(FOLDER) + '" target="_blank" rel="noopener">Open in Drive</a>'
       + ' <span class="dd-btn" data-a="embed">' + (EMBED ? 'Hide' : 'Show here') + '</span>'
       + (admin ? ' <span style="margin-left:auto;font-size:11px;color:#64748b">Folder link:</span><input id="naigDDFolder" placeholder="paste a Drive folder link" style="font-size:12px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px;min-width:180px"><span class="dd-btn" data-a="setfolder">Save</span>' : '')
       + '</div>'
-      + (EMBED ? '<iframe src="https://drive.google.com/embeddedfolderview?id=' + esc(FOLDER) + '#grid" title="Team Drive folder"></iframe><div style="font-size:11px;color:#64748b;margin:-6px 0 12px">Shows only if the folder is shared with your Google account.</div>' : '');
+      + (EMBED ? '<iframe src="https://drive.google.com/embeddedfolderview?id=' + esc(FOLDER) + '#list" title="Team Drive folder"></iframe><div style="font-size:11px;color:#64748b;margin:-6px 0 12px">Shows only if the folder is shared with your Google account.</div>' : '');
     if (VIEW === 'folders') {
       var items = Object.keys(D).map(function(k){ return [k, D[k] || {}]; });
       if (q) { var ql = q.toLowerCase(); items = items.filter(function(x){ return [x[1].name, x[1].owner, x[1].notes, x[1].type].join(' ').toLowerCase().indexOf(ql) >= 0; }); }
