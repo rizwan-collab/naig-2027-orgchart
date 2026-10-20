@@ -539,9 +539,9 @@ function totals(){
       const mix=s=>[...s].some(x=>TEAM[x])&&[...s].some(x=>!TEAM[x]);
       const d=document.createElement("div"); d.className="vrow"; d.style.cursor="pointer"; d.title="Show the whole sheet as "+nm; if(k===scenVal()){ d.style.background="var(--soft)"; d.style.boxShadow="inset 4px 0 0 var(--accent)"; } d.addEventListener("click",()=>{ const s=$("fScen"); if(!s) return; s.value=k; s.dispatchEvent(new Event("change")); });
       const a=document.createElement("div"); a.className="nm"; a.textContent=(k===scenVal()?"\u25CF ":"\u25CB ")+nm+(k===scenVal()?"  (showing)":"");
-      const b=document.createElement("div"); b.className="sp"; b.textContent=desc+"  \u00b7  Farmers Branch "+ath(fb).toLocaleString()+" ("+[...sfb].sort().join(", ")+")  \u00b7  Northlake "+ath(nl).toLocaleString()+" ("+[...snl].sort().join(", ")+")";
-      const c=document.createElement("div"); c.className="ct"; c.textContent=Math.abs(ath(nl)-ath(fb)).toLocaleString(); c.title="Difference between the two sites";
-      const e=document.createElement("div"); e.className="rf"; e.textContent="gap \u00b7 mixed both: "+(mix(sfb)&&mix(snl)?"Yes":"No");
+      const b=document.createElement("div"); b.className="sp"; b.textContent=desc+"  \u00b7  Farmers Branch: "+[...sfb].sort().join(", ")+"  \u00b7  Northlake: "+[...snl].sort().join(", ");
+      const tot=(lab,n)=>{ const x=document.createElement("div"); x.className="ct"; x.style.width="120px"; const l=document.createElement("div"); l.style.cssText="font-size:10px;font-weight:600;color:var(--muted)"; l.textContent=lab; x.appendChild(l); x.appendChild(document.createTextNode(ath(n).toLocaleString()+" athletes")); return x; };
+      const c=tot("Farmers Branch",fb), e=tot("Northlake",nl);
       d.appendChild(a); d.appendChild(b); d.appendChild(c); d.appendChild(e); box.appendChild(d); });
   })();
   const swrap=$("bySport"); swrap.textContent="";
