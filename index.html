@@ -22391,5 +22391,52 @@ var iv = setInterval(function(){
   setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigScopeTidy]', e); } }, 1500);
 })();
 </script>
+<script>
+/* Scope trim (20 Oct 2026, Rizwan: "Trim all 3").
+   - Venue status shows once, in the Status column (the small tag inside the Venue cell is hidden).
+   - Subtitle keeps place, dates and regions; sports, events and athletes live in the summary cards.
+   - Sport Lead and Lead POC hide while every row is TBD or blank, and come back once anyone fills one in. */
+(function(){
+  if (window.__naigScopeTrim) return; window.__naigScopeTrim = true;
+  var st = document.createElement('style');
+  st.textContent = 'table.naig-scopetbl td:nth-child(7) div > span{display:none !important}'
+    + 'table.naig-scopetbl.nolead th:nth-child(8),table.naig-scopetbl.nolead td:nth-child(8),'
+    + 'table.naig-scopetbl.nolead th:nth-child(9),table.naig-scopetbl.nolead td:nth-child(9){display:none !important}';
+  document.head.appendChild(st);
+  function empty(s){ return /^(TBD|N\/A|—|-|)$/i.test(String(s || '').trim()); }
+  function tick(){
+    var sec = document.getElementById('sectionScope'); if (!sec) return;
+    var sub = document.getElementById('scopeSubtitle');
+    if (sub) { var t = sub.textContent, n = t.replace(/\s*·\s*\d+ sports/, '').replace(/\s*·\s*\d+ event categories/, '').replace(/\s*·\s*[\d,N\/A]+ athletes on[- ]site/, ''); if (n !== t) sub.textContent = n; }
+    [].forEach.call(sec.querySelectorAll('table'), function(tb){
+      var h = [].map.call(tb.querySelectorAll('thead th'), function(x){ return x.textContent.trim(); });
+      if (h[5] !== 'Session Dates' || h[7] !== 'Sport Lead' || h[8] !== 'Lead POC') return;
+      tb.classList.add('naig-scopetbl');
+      var any = [].some.call(tb.querySelectorAll('tbody tr'), function(r){ return (r.children[7] && !empty(r.children[7].textContent)) || (r.children[8] && !empty(r.children[8].textContent)); });
+      tb.classList.toggle('nolead', !any);
+    });
+  }
+  setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigScopeTrim]', e); } }, 1500);
+})();
+/* Program tab: one page at a time (20 Oct 2026). Going Minute by minute -> Scope left the M2M page rendered under Scope.
+   The pill (or the Program tab button, or ?tab=) picks the page; the other two Program pages are hidden. */
+(function(){
+  if (window.__naigProgOne) return; window.__naigProgOne = true;
+  var S = { sports: 'sectionSports', scope: 'sectionScope', m2m: 'sectionM2M' };
+  var st = document.createElement('style'); st.textContent = '.naig-proghide{display:none !important}'; document.head.appendChild(st);
+  var cur = (location.search.match(/[?&]tab=(sports|scope|m2m)\b/) || [])[1] || 'sports';
+  function apply(){
+    Object.keys(S).forEach(function(k){ var s = document.getElementById(S[k]); if (s) s.classList.toggle('naig-proghide', k !== cur); });
+    [].forEach.call(document.querySelectorAll('.naig-prog button'), function(b){ b.classList.toggle('on', b.getAttribute('data-m') === cur); });
+  }
+  document.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('.naig-prog button[data-m], #tabsports, #tabscope, #tabm2m');
+    if (!b) return;
+    cur = b.getAttribute('data-m') || b.id.replace('tab', '');
+    setTimeout(apply, 0); setTimeout(apply, 150);
+  }, true);
+  setInterval(function(){ try { apply(); } catch(e){ console.warn('[naigProgOne]', e); } }, 1000);
+})();
+</script>
 </body>
 </html>
