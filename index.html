@@ -21310,5 +21310,61 @@ var iv = setInterval(function(){
   }, 2000);
 })();
 </script>
+<script>
+/* Tab merge (20 Oct 2026): 16 tabs -> 14. Project Plan sits inside Tasks as "Milestones";
+   Weekly Brief sits inside Change Log, renamed "Updates". The pages themselves are unchanged and
+   access rules still apply (switchTab gate). Deep links ?tab=plan / ?tab=brief keep working. */
+(function(){
+  if (window.__naigTabMerge) return; window.__naigTabMerge = true;
+  var GROUPS = [
+    { host: 'tasks', members: [['tasks', 'sectionTasks', 'Tasks'], ['plan', 'sectionPlan', 'Milestones']] },
+    { host: 'changelog', members: [['changelog', 'sectionChangelog', 'Change Log'], ['brief', 'sectionBrief', 'Weekly Brief']] }
+  ];
+  var st = document.createElement('style');
+  st.textContent = '#tabplan,#tabbrief{display:none !important}'
+    + '.naig-subtabs{display:flex;gap:6px;margin:0 0 12px 0;flex-wrap:wrap}'
+    + '.naig-subtabs button{border:1px solid #cbd5e1;background:#fff;color:#1e293b;border-radius:999px;padding:5px 14px;font-size:13px;font-weight:600;cursor:pointer}'
+    + '.naig-subtabs button.on{background:#1E3A8A;border-color:#1E3A8A;color:#fff}';
+  document.head.appendChild(st);
+  function btn(id){ return document.getElementById('tab' + id); }
+  function go(g, m){
+    var b = btn(m);
+    if (b) b.click(); else if (typeof window.switchTab === 'function') window.switchTab(m);
+    setTimeout(function(){ mark(g, m); }, 60);
+  }
+  function mark(g, m){
+    var hb = btn(g.host); if (!hb) return;
+    [].forEach.call(document.querySelectorAll('.tab-nav button'), function(x){ if (x !== hb && (x.id === 'tabplan' || x.id === 'tabbrief')) x.classList.remove('active'); });
+    hb.classList.add('active');
+    g.members.forEach(function(mm){
+      var bar = document.getElementById('naigSub_' + mm[0]); if (!bar) return;
+      [].forEach.call(bar.querySelectorAll('button'), function(x){ x.classList.toggle('on', x.getAttribute('data-m') === m); });
+    });
+  }
+  function ensure(){
+    var cl = btn('changelog');
+    if (cl && /Change Log/.test(cl.textContent)) cl.textContent = cl.textContent.replace('Change Log', 'Updates');
+    GROUPS.forEach(function(g){
+      g.members.forEach(function(mm){
+        var sec = document.getElementById(mm[1]);
+        if (!sec || document.getElementById('naigSub_' + mm[0])) return;
+        var bar = document.createElement('div'); bar.className = 'naig-subtabs'; bar.id = 'naigSub_' + mm[0];
+        g.members.forEach(function(x){
+          var b = document.createElement('button'); b.type = 'button'; b.textContent = x[2]; b.setAttribute('data-m', x[0]);
+          if (x[0] === mm[0]) b.classList.add('on');
+          b.addEventListener('click', function(){ go(g, x[0]); });
+          bar.appendChild(b);
+        });
+        sec.insertBefore(bar, sec.firstChild);
+      });
+      g.members.forEach(function(mm){
+        var sec = document.getElementById(mm[1]);
+        if (sec && sec.offsetParent !== null && mm[0] !== g.host) mark(g, mm[0]);
+      });
+    });
+  }
+  setInterval(ensure, 1000);
+})();
+</script>
 </body>
 </html>
