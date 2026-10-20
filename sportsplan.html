@@ -7,11 +7,11 @@
 <meta name="description" content="Sports team working plan: slots per sport, gender and age group, and which venue each lands at.">
 <style>
 :root{
-  /* One palette, always dark. This page is read on phones in car parks and in
-     bright gyms; the light/dark switch made the rows hard to scan. */
-  --bg:#0f1621; --card:#18222f; --ink:#e9eef4; --muted:#93a3b5; --line:#273344;
-  --accent:#7fb8dd; --good:#63c08d; --warn:#d9a441; --bad:#e08585; --soft:#141d29;
-  --sel:#2c6da0; --selink:#fff; --head:#111a26;
+  /* One palette, always light (20 Oct 2026): matches the hub so the Program tab reads as one page.
+     High-contrast ink on white for phones in bright gyms. */
+  --bg:#f6f8fb; --card:#ffffff; --ink:#0f172a; --muted:#5b6b80; --line:#dfe5ee;
+  --accent:#1E3A8A; --good:#15803d; --warn:#b45309; --bad:#b91c1c; --soft:#eef2ff;
+  --sel:#1E3A8A; --selink:#fff; --head:#f1f5f9;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);
@@ -98,7 +98,13 @@ tr.grp:hover td{background:var(--soft)}
 .spbtn{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:3px 9px;margin-left:6px;cursor:pointer;font-size:12px}
 td.moved{color:#b45309;font-weight:600}
 #fScen{font-weight:600}
+/* Inside the hub (Program tab) the page drops its intro text and boxes: the hub already explains them. */
+html.emb body{background:#fff}
+html.emb .wrap{padding:8px 4px 40px}
+html.emb header.top .sub,html.emb header.top .meta,html.emb .note,html.emb .split{display:none}
+html.emb h1{font-size:18px}
 </style>
+<script>try{ if (window.self !== window.top) document.documentElement.classList.add('emb'); }catch(e){ document.documentElement.classList.add('emb'); }</script>
 </head>
 <body>
 <div class="wrap">
