@@ -22438,5 +22438,174 @@ var iv = setInterval(function(){
   setInterval(function(){ try { apply(); } catch(e){ console.warn('[naigProgOne]', e); } }, 1000);
 })();
 </script>
+<script>
+/* Scope by venue (20 Oct 2026, Rizwan picked "By venue blocks").
+   One block per venue: city, live venue status, athlete total, and each sport with a bar, its athletes and days.
+   Built from the Scope table rows (so it always matches the table) plus NAIG.byVenue for venue totals
+   (the same totals as Sports Allocation, overlap rule applied). "Table" switch shows the old table. */
+(function(){
+  if (window.__naigScopeVen) return; window.__naigScopeVen = true;
+  var st = document.createElement('style');
+  st.textContent = '#naigScopeVenBar{display:flex;gap:6px;margin:0 0 10px;align-items:center}'
+    + '#naigScopeVenBar button{border:1px solid #cbd5e1;background:#fff;color:#1e293b;border-radius:8px;padding:4px 12px;font-size:12.5px;font-weight:600;cursor:pointer}'
+    + '#naigScopeVenBar button.on{background:#0f172a;border-color:#0f172a;color:#fff}'
+    + '#naigScopeVen{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin:0 0 16px}'
+    + '#naigScopeVen .vb{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;border-top:4px solid var(--vc,#94a3b8)}'
+    + '#naigScopeVen .vh{display:flex;justify-content:space-between;gap:10px;padding:12px 14px 8px}'
+    + '#naigScopeVen .vn{font-weight:800;font-size:15px;color:#0f172a;line-height:1.25}'
+    + '#naigScopeVen .vc{font-size:11.5px;color:#64748b;margin-top:2px}'
+    + '#naigScopeVen .vs{display:inline-block;margin-top:6px;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--vbg,#f1f5f9);color:var(--vc,#475569)}'
+    + '#naigScopeVen .vt{text-align:right;white-space:nowrap}'
+    + '#naigScopeVen .vt b{display:block;font-size:24px;font-weight:800;color:#0f172a;line-height:1}'
+    + '#naigScopeVen .vt span{font-size:10.5px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:700}'
+    + '#naigScopeVen .sr{display:grid;grid-template-columns:minmax(110px,1.2fr) 1.6fr 44px 58px;gap:8px;align-items:center;padding:6px 14px;border-top:1px solid #f1f5f9;font-size:12.5px}'
+    + '#naigScopeVen .sn{font-weight:600;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+    + '#naigScopeVen .bar{height:8px;background:#f1f5f9;border-radius:99px;overflow:hidden}'
+    + '#naigScopeVen .bar i{display:block;height:100%;background:#1E3A8A;border-radius:99px}'
+    + '#naigScopeVen .sa{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;color:#0f172a}'
+    + '#naigScopeVen .sd{text-align:right;font-size:11px;color:#64748b;white-space:nowrap}'
+    + '#naigScopeVen .sd.thu{color:#b45309;font-weight:700}'
+    + '#sectionScope.naig-venview .naig-scopehide,#sectionScope.naig-venview #naigScopeFilterBar{display:none !important}';
+  document.head.appendChild(st);
+  var VIEW = 'venues'; try { VIEW = localStorage.getItem('naigScopeView') || 'venues'; } catch(e){}
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function key(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+  function venueRec(name){
+    var V = window._venuesData || {}, k = key(name), hit = null;
+    Object.keys(V).forEach(function(id){ var v = V[id] || {}; if (v.archived) return; var vk = key(v.name); if (!hit && vk && (vk.indexOf(k) >= 0 || k.indexOf(vk) >= 0)) hit = v; });
+    return hit || {};
+  }
+  function cityOf(v){ var p = String(v.location || v.address || '').split(','); return p.length >= 3 ? p[p.length - 2].trim() : (p[0] || '').trim(); }
+  function tone(s){
+    s = String(s || '').toLowerCase();
+    if (/confirm|signed|contract/.test(s)) return ['#15803d', '#dcfce7'];
+    if (/reserv|hold/.test(s)) return ['#b45309', '#fef3c7'];
+    if (/work|progress|negot|pending/.test(s)) return ['#c2410c', '#ffedd5'];
+    return ['#475569', '#f1f5f9'];
+  }
+  function days(d){
+    d = String(d || '');
+    var m = d.match(/(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\w*\s+\d+\s*[–-]\s*(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/);
+    return m ? m[1] + '–' + m[2] : (d.match(/(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/) || [''])[0];
+  }
+  function rows(tb){
+    return [].map.call(tb.querySelectorAll('tbody tr'), function(r){
+      var c = r.children; if (c.length < 10) return null;
+      var vd = c[6].querySelector('div'), vn = vd ? [].filter.call(vd.childNodes, function(n){ return n.nodeType === 3; }).map(function(n){ return n.nodeValue; }).join('').trim() : c[6].textContent.trim();
+      var a = parseInt(String(c[2].textContent).replace(/[^\d]/g, ''), 10);
+      return { sport: c[0].textContent.trim(), cat: c[1].textContent.trim(), ath: isNaN(a) ? null : a, venue: vn || 'TBD', dates: c[5].textContent.trim(), status: c[9].textContent.trim().replace(/^Venue:\s*/, '') };
+    }).filter(function(x){ return x && x.sport; });
+  }
+  var sig = '';
+  function tick(){
+    var sec = document.getElementById('sectionScope'); if (!sec) return;
+    var tb = [].filter.call(sec.querySelectorAll('table'), function(t){ var h = t.querySelectorAll('thead th'); return h[5] && h[5].textContent.trim() === 'Session Dates'; })[0];
+    if (!tb) return;
+    var tableWrap = tb.closest('.naig-cwrap') || tb.parentElement;
+    var q = document.getElementById('scopeQ'), filterWrap = q ? (q.closest('.naig-cwrap') || q.parentElement) : null;
+    tableWrap.classList.add('naig-scopehide'); if (filterWrap) filterWrap.classList.add('naig-scopehide');
+    var bar = document.getElementById('naigScopeVenBar'), box = document.getElementById('naigScopeVen');
+    var anchor = filterWrap || tableWrap;
+    if (!bar) {
+      bar = document.createElement('div'); bar.id = 'naigScopeVenBar';
+      bar.innerHTML = '<button type="button" data-v="venues">By venue</button><button type="button" data-v="table">Table</button>';
+      bar.addEventListener('click', function(e){ var b = e.target.closest('button'); if (!b) return; VIEW = b.getAttribute('data-v'); try { localStorage.setItem('naigScopeView', VIEW); } catch(x){} sig = ''; tick(); });
+      anchor.parentNode.insertBefore(bar, anchor);
+    }
+    if (!box) { box = document.createElement('div'); box.id = 'naigScopeVen'; bar.parentNode.insertBefore(box, bar.nextSibling); }
+    sec.classList.toggle('naig-venview', VIEW === 'venues');
+    box.style.display = VIEW === 'venues' ? '' : 'none';
+    [].forEach.call(bar.querySelectorAll('button'), function(b){ b.classList.toggle('on', b.getAttribute('data-v') === VIEW); });
+    if (VIEW !== 'venues') return;
+    var R = rows(tb), BV = (window.NAIG && NAIG.byVenue) ? (NAIG.byVenue() || {}) : {}, ath = window.naigAth || function(x){ return Math.round(x); };
+    var G = {};
+    R.forEach(function(r){ (G[r.venue] = G[r.venue] || { name: r.venue, list: [], status: r.status }).list.push(r); });
+    var max = Math.max.apply(null, R.map(function(r){ return r.ath || 0; }).concat([1]));
+    var out = Object.keys(G).map(function(n){
+      var g = G[n], bv = BV[n], sum = g.list.reduce(function(s, r){ return s + (r.ath || 0); }, 0);
+      g.total = bv && bv.people ? ath(bv.people) : sum; return g;
+    }).sort(function(a, b){ return b.total - a.total; });
+    var html = out.map(function(g){
+      var v = venueRec(g.name), t = tone(g.status), city = cityOf(v);
+      g.list.sort(function(a, b){ return (b.ath || 0) - (a.ath || 0); });
+      return '<div class="vb" style="--vc:' + t[0] + ';--vbg:' + t[1] + '">'
+        + '<div class="vh"><div><div class="vn">' + esc(g.name) + '</div>' + (city ? '<div class="vc">' + esc(city) + '</div>' : '')
+        + '<span class="vs">' + esc(g.status || 'N/A') + '</span></div>'
+        + '<div class="vt"><b>' + (g.total ? g.total.toLocaleString('en-US') : 'N/A') + '</b><span>athletes</span></div></div>'
+        + g.list.map(function(r){ var d = days(r.dates);
+            return '<div class="sr" title="' + esc(r.sport + ' · ' + r.cat + ' · ' + r.dates) + '"><div class="sn">' + esc(r.sport) + '</div>'
+              + '<div class="bar"><i style="width:' + Math.max(3, Math.round(100 * (r.ath || 0) / max)) + '%"></i></div>'
+              + '<div class="sa">' + (r.ath == null ? 'N/A' : r.ath.toLocaleString('en-US')) + '</div>'
+              + '<div class="sd' + (/^Thu/.test(d) ? ' thu' : '') + '">' + esc(d || 'N/A') + '</div></div>'; }).join('')
+        + '</div>';
+    }).join('');
+    if (html === sig) return; sig = html; box.innerHTML = html;
+  }
+  setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigScopeVen]', e); } }, 1500);
+})();
+/* 12-hour clock everywhere (20 Oct 2026, Rizwan: "don't do military time").
+   Display only: stored data keeps HH:MM. "07:00–07:30" -> "7:00–7:30 AM", "11:30–13:00" -> "11:30 AM–1:00 PM", "by 18:00" -> "by 6:00 PM".
+   Also runs inside the slots form iframe. Skips scripts, styles, inputs and anything editable. */
+(function(){
+  if (window.__naigTime12) return; window.__naigTime12 = true;
+  var T = '([01]?\\d|2[0-3]):([0-5]\\d)';
+  var NOAP = '(?!\\s*[AaPp]\\.?[Mm])(?![:\\d])';
+  var RX = new RegExp('\\b' + T + '\\s*([–-]|to)\\s*' + T + '\\b' + NOAP + '|\\b' + T + '\\b' + NOAP + '(?!\\s*(?:[–-]|to)\\s*\\d{1,2}:\\d\\d)', 'g');
+  function p(h, m){ h = +h; return { t: ((h % 12) || 12) + ':' + m, ap: h < 12 ? 'AM' : 'PM' }; }
+  function conv(s){
+    if (!/\d:\d\d/.test(s)) return s;
+    return s.replace(RX, function(all, h1, m1, sep, h2, m2, h, m, off, str){
+      if (/\d[:.]$/.test(str.slice(0, off))) return all;          /* part of a longer number like 1:23:45 */
+      if (h1 != null) { var a = p(h1, m1), b = p(h2, m2); sep = sep === 'to' ? ' to ' : '–';
+        return a.ap === b.ap ? a.t + sep + b.t + ' ' + b.ap : a.t + ' ' + a.ap + sep + b.t + ' ' + b.ap; }
+      var c = p(h, m); return c.t + ' ' + c.ap; });
+  }
+  function skip(el){
+    for (var e = el; e; e = e.parentElement) { var t = e.tagName; if (t === 'SCRIPT' || t === 'STYLE' || t === 'TEXTAREA' || t === 'INPUT' || t === 'SELECT' || t === 'CODE' || t === 'PRE' || e.isContentEditable) return true; }
+    return false;
+  }
+  function walk(root){
+    if (!root) return;
+    var w = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT), n, list = [];
+    while ((n = w.nextNode())) if (/\d:\d\d/.test(n.nodeValue)) list.push(n);
+    list.forEach(function(n){ if (skip(n.parentElement)) return; var v = conv(n.nodeValue); if (v !== n.nodeValue) n.nodeValue = v; });
+  }
+  /* Only touch what changed: walking the whole page on every update slowed the hub down. */
+  var pend = [], due = null;
+  function flush(){ due = null; var list = pend; pend = []; list.forEach(function(n){ try {
+      if (!n.isConnected) return;
+      if (n.nodeType === 3) { if (/\d:\d\d/.test(n.nodeValue) && !skip(n.parentElement)) { var v = conv(n.nodeValue); if (v !== n.nodeValue) n.nodeValue = v; } }
+      else if (n.nodeType === 1) walk(n);
+    } catch(e){} }); }
+  function add(n){ pend.push(n); if (!due) due = setTimeout(flush, 120); }
+  function watch(doc){
+    if (!doc || !doc.body || doc.__naigT12) return; doc.__naigT12 = true;
+    walk(doc.body);
+    new MutationObserver(function(recs){ recs.forEach(function(r){ if (r.type === 'characterData') add(r.target); else [].forEach.call(r.addedNodes, add); }); })
+      .observe(doc.body, { childList: true, subtree: true, characterData: true });
+  }
+  watch(document);
+  setInterval(function(){ [].forEach.call(document.querySelectorAll('iframe'), function(f){ var d = null; try { d = f.contentDocument; } catch(e){} if (d && d.readyState !== 'loading') watch(d); }); }, 2000);
+  window.__naigTime12Conv = conv;
+})();
+/* PIN every time (20 Oct 2026, Rizwan: "make sure the food portion and budget always ask for pin").
+   The unlock no longer lasts the browser session: it clears on page load and whenever you leave Budget or Food
+   (including switching between them), so every visit asks for the PIN again. */
+(function(){
+  if (window.__naigPinAlways) return; window.__naigPinAlways = true;
+  function clear(){ try { sessionStorage.removeItem('naigBudgetUnlocked'); } catch(e){} }
+  clear();
+  function where(){
+    /* the active tab button, not the section: a locked section is hidden on purpose */
+    var b = document.getElementById('sectionBudget'), pin = document.getElementById('naigPinOut'), f = document.getElementById('tabfood');
+    if ((b && b.offsetParent !== null) || (pin && pin.offsetParent !== null)) return 'budget';
+    if (f && f.classList.contains('active')) return 'food';
+    return '';
+  }
+  var last = where();
+  setInterval(function(){ var w = where(); if (w !== last) { clear(); last = w; } }, 400);
+  window.addEventListener('pagehide', clear);
+})();
+</script>
 </body>
 </html>
