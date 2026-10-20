@@ -22346,5 +22346,50 @@ var iv = setInterval(function(){
    Athletes column, so it is hidden - one place for the number. */
 (function(){ if (window.__naigScopeOne) return; window.__naigScopeOne = true; var s = document.createElement('style'); s.textContent = '#naigTeams{display:none !important}'; document.head.appendChild(s); })();
 </script>
+<script>
+/* Program tab tidy (20 Oct 2026, after Rizwan's review: "Scope doesn't make sense, folders and all this opening").
+   - Scope: the long September overview (793px of host cities, sport lists, eligibility text) is replaced by one live
+     summary strip; the subtitle's "N/A athletes" comes from the formula; the typed-status filter (Confirmed/Planning/TBD)
+     is hidden because the Status column now shows the live venue status.
+   - Sports Allocation, Scope and Minute by minute: no collapse buttons; every block stays open. */
+(function(){
+  if (window.__naigScopeTidy) return; window.__naigScopeTidy = true;
+  var st = document.createElement('style');
+  st.textContent = '#scopeOverview,#scopeFilterStatus{display:none !important}'
+    + '#sectionScope .naig-cbtn,#sectionSports .naig-cbtn,#sectionM2M .naig-cbtn{display:none !important}'
+    + '#naigScopeSum{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:0 0 14px}'
+    + '#naigScopeSum .k{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px}'
+    + '#naigScopeSum .l{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#64748b}'
+    + '#naigScopeSum .v{font-size:18px;font-weight:800;color:#0f172a;margin-top:2px}'
+    + '#naigScopeSum .s{font-size:11px;color:#64748b;margin-top:2px;line-height:1.4}';
+  document.head.appendChild(st);
+  function key(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+  function city(name){
+    var V = window._venuesData || {}, k = key(name), hit = null;
+    Object.keys(V).forEach(function(id){ var v = V[id] || {}; var vk = key(v.name); if (!hit && vk && (vk.indexOf(k) >= 0 || k.indexOf(vk) >= 0)) hit = v; });
+    var p = String((hit && (hit.location || hit.address)) || '').split(','); return (p.length >= 3 ? p[p.length - 2] : p[0]).trim();
+  }
+  var sig = '';
+  function tick(){
+    var sec = document.getElementById('sectionScope'); if (!sec || !window.NAIG || !NAIG.formula || !NAIG.bySport) return;
+    var f = NAIG.formula(), bs = NAIG.bySport(); if (!f || !bs) return;
+    var sub = document.getElementById('scopeSubtitle');
+    if (sub && /N\/A athletes/.test(sub.textContent)) sub.textContent = sub.textContent.replace(/N\/A athletes on-site/, f.athletes.toLocaleString('en-US') + ' athletes on site');
+    var team = { Basketball: 1, Volleyball: 1, Throwball: 1, Cricket: 1, Dance: 1, 'Flag Football': 1, Football: 1 }, nT = 0, nI = 0, venues = {}, cities = {};
+    Object.keys(bs).forEach(function(n){ if (!(bs[n].slots > 0)) return; var g = n.split(' (')[0]; if (team[g]) nT++; else nI++; Object.keys(bs[n].venues).forEach(function(v){ venues[v] = 1; var c = city(v); if (c) cities[c] = 1; }); });
+    var html = '<div class="k"><div class="l">Games</div><div class="v">Mar 25 – 28</div><div class="s">Thu: cricket only · Fri – Sun: all sports · load-in Wed 24</div></div>'
+      + '<div class="k"><div class="l">Sports</div><div class="v">' + (nT + nI) + '</div><div class="s">' + nT + ' team · ' + nI + ' individual · ' + f.events + ' events</div></div>'
+      + '<div class="k"><div class="l">Athletes</div><div class="v">' + f.athletes.toLocaleString('en-US') + '</div><div class="s">' + Math.round(f.slots).toLocaleString('en-US') + ' slots' + (f.scope && f.scope !== 'ALL' ? ' · ' + (f.scopeLabel || f.scope) : '') + '</div></div>'
+      + '<div class="k"><div class="l">Venues in use</div><div class="v">' + Object.keys(venues).length + '</div><div class="s">' + Object.keys(cities).sort().join(' · ') + '</div></div>'
+      + '<div class="k"><div class="l">Divisions</div><div class="v" style="font-size:14px">U18 · Open 18+ · 45+</div><div class="s">U18 = 15 to 17 · 45+ Legends pilot in Table Tennis, Badminton, Pickleball</div></div>';
+    if (html === sig && document.getElementById('naigScopeSum')) return; sig = html;
+    var box = document.getElementById('naigScopeSum');
+    if (!box) { box = document.createElement('div'); box.id = 'naigScopeSum'; var ov = document.getElementById('scopeOverview'); if (ov) ov.parentNode.insertBefore(box, ov); else return; }
+    box.innerHTML = html;
+  }
+  [3000, 8000].forEach(function(ms){ setTimeout(function(){ ['sectionScope', 'sectionSports', 'sectionM2M'].forEach(function(id){ var s = document.getElementById(id); if (!s) return; [].forEach.call(s.querySelectorAll('.naig-cwrap.closed'), function(c){ var b = c.querySelector(':scope > .naig-cbtn'); if (b) b.click(); }); }); }, ms); });
+  setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigScopeTidy]', e); } }, 1500);
+})();
+</script>
 </body>
 </html>
