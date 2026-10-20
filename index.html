@@ -21366,5 +21366,118 @@ var iv = setInterval(function(){
   setInterval(ensure, 1000);
 })();
 </script>
+<script>
+/* Money lock (20 Oct 2026). Money shows only on the Budget tab, and Budget opens with a PIN.
+   - Every other tab shows $ amounts as $•••; venue, vendor and hotel cost fields are hidden
+     until the PIN is entered on this browser session.
+   - The Budget tab button shows for admins, Core Team PMO and Logistics Deputies/Lead.
+     Anyone else can still open it from a ?tab=budget link, but only with the PIN.
+   - The PIN is stored as a salted SHA-256 hash at naig2027/access/budgetPinHash (never in plain text).
+   This is a screen lock, not database security: the raw numbers still live in Firebase. */
+(function(){
+  if (window.__naigMoney) return; window.__naigMoney = true;
+  var SALT = 'naig2027-budget-v1:', KEY = 'naigBudgetUnlocked';
+  var HASH = 'd695cad55cbc649d02b9b0ec3104fc89c39f178a04d438b8873b22d0eb71514f';
+  var RX = /\$\s?\d[\d,]*(?:\.\d+)?(?:\s?[kKmM]\b)?/g, MASK = '$•••';
+  var FIELDS = ['hotelRate','venueRentalFee','venueDeposit','venueInvoiced','venuePaid','vendorCost','vendorInvoiced','vendorPaid'];
+  var wantBudget = /[?&]tab=budget\b/.test(location.search);
+  function unlocked(){ try { return sessionStorage.getItem(KEY) === '1'; } catch(e){ return false; } }
+  function setUnlocked(){ try { sessionStorage.setItem(KEY, '1'); } catch(e){} }
+  async function sha(p){
+    var b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(SALT + p));
+    return [].map.call(new Uint8Array(b), function(x){ return x.toString(16).padStart(2, '0'); }).join('');
+  }
+  async function db(){ return import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js'); }
+  (async function(){ try { if (typeof window._dbRef !== 'function') return; var d = await db(); var v = (await d.get(window._dbRef('naig2027/access/budgetPinHash'))).val(); if (v && /^[0-9a-f]{64}$/.test(v)) HASH = v; } catch(e){} })();
+  function allowed(){
+    var p = window._axPerms || {}, u = window._axUser || {};
+    return p.tier === 'admin' || /Core Team PMO|Logistics Deputy|Logistics Lead/i.test(u.role || '');
+  }
+  function isAdmin(){ return (window._axPerms || {}).tier === 'admin'; }
+
+  var st = document.createElement('style');
+  st.textContent = '#sectionBudget.naig-locked > *:not(#naigPinBox){display:none !important}'
+    + '#naigPinBox{max-width:360px;margin:40px auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px;background:#fff;text-align:center;font-family:inherit}'
+    + '#naigPinBox h3{margin:0 0 6px;color:#1e3a8a}#naigPinBox p{margin:0 0 14px;color:#64748b;font-size:13px}'
+    + '#naigPinBox input{width:160px;padding:8px 10px;font-size:18px;letter-spacing:.3em;text-align:center;border:1px solid #cbd5e1;border-radius:8px}'
+    + '#naigPinBox button{margin-left:6px;padding:8px 14px;border:0;border-radius:8px;background:#1e3a8a;color:#fff;font-weight:600;cursor:pointer}'
+    + '#naigPinBox .err{color:#b91c1c;font-size:12px;min-height:16px;margin-top:8px}'
+    + '.naig-money-hide{display:none !important}'
+    + '#naigPinChange{margin:8px 0 14px;font-size:12px;color:#64748b}#naigPinChange input{width:110px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px}#naigPinChange button{padding:4px 10px;margin-left:4px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;cursor:pointer}';
+  document.head.appendChild(st);
+
+  function pinBox(sec){
+    var box = document.getElementById('naigPinBox');
+    if (box) return;
+    box = document.createElement('div'); box.id = 'naigPinBox';
+    box.innerHTML = '<h3>Budget is locked</h3><p>Enter the budget PIN to see money figures.</p>'
+      + '<form><input type="password" inputmode="numeric" autocomplete="off" maxlength="12"><button type="submit">Unlock</button></form><div class="err"></div>';
+    box.querySelector('form').addEventListener('submit', async function(ev){
+      ev.preventDefault();
+      var inp = box.querySelector('input'), err = box.querySelector('.err');
+      var h = await sha(inp.value.trim());
+      if (h === HASH) { setUnlocked(); inp.value = ''; err.textContent = ''; apply(); }
+      else { err.textContent = 'Wrong PIN.'; inp.value = ''; inp.focus(); }
+    });
+    sec.insertBefore(box, sec.firstChild);
+  }
+
+  function changeBox(sec){
+    if (!isAdmin() || document.getElementById('naigPinChange')) return;
+    var w = document.createElement('div'); w.id = 'naigPinChange';
+    w.innerHTML = 'Budget PIN: <input type="password" inputmode="numeric" placeholder="new PIN" maxlength="12"><button type="button">Change</button> <span></span>';
+    w.querySelector('button').addEventListener('click', async function(){
+      var v = w.querySelector('input').value.trim(), msg = w.querySelector('span');
+      if (!/^\d{4,12}$/.test(v)) { msg.textContent = 'Use 4–12 digits.'; return; }
+      try { var h = await sha(v); var d = await db(); await d.set(window._dbRef('naig2027/access/budgetPinHash'), h); HASH = h; w.querySelector('input').value = ''; msg.textContent = 'PIN changed.'; }
+      catch(e){ msg.textContent = 'Could not save.'; }
+    });
+    var box = document.getElementById('naigPinBox');
+    sec.insertBefore(w, box ? box.nextSibling : sec.firstChild);
+  }
+
+  function maskText(){
+    var bud = document.getElementById('sectionBudget');
+    var w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+      acceptNode: function(n){
+        var p = n.parentNode; if (!p) return NodeFilter.FILTER_REJECT;
+        var tg = p.nodeName; if (tg === 'SCRIPT' || tg === 'STYLE' || tg === 'TEXTAREA') return NodeFilter.FILTER_REJECT;
+        if (bud && bud.contains(n)) return NodeFilter.FILTER_REJECT;
+        return n.nodeValue.indexOf('$') >= 0 ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      }
+    });
+    var list = [], n; while ((n = w.nextNode())) list.push(n);
+    list.forEach(function(t){ RX.lastIndex = 0; if (RX.test(t.nodeValue)) { RX.lastIndex = 0; t.nodeValue = t.nodeValue.replace(RX, MASK); } });
+  }
+
+  function fieldRow(el){
+    var r = el.closest('.form-group,.field,label,.form-row,.row,div');
+    return r && r.querySelectorAll('input,select,textarea').length <= 1 ? r : el;
+  }
+
+  function apply(){
+    var sec = document.getElementById('sectionBudget');
+    var open = unlocked();
+    if (sec) {
+      pinBox(sec);
+      sec.classList.toggle('naig-locked', !open);
+      if (open) changeBox(sec);
+    }
+    var p = window._axPerms;
+    if (p && Array.isArray(p.tabs) && (wantBudget || open) && p.tabs.indexOf('budget') < 0) p.tabs.push('budget');
+    var tb = document.getElementById('tabbudget');
+    if (tb) tb.classList.toggle('naig-money-hide', !(allowed() || open || wantBudget));
+    ['dashBudget','naigBudget','naigBudget2'].forEach(function(id){
+      var e = document.getElementById(id); if (e && !(sec && sec.contains(e))) e.classList.add('naig-money-hide');
+    });
+    FIELDS.forEach(function(id){
+      var e = document.getElementById(id); if (!e) return;
+      fieldRow(e).classList.toggle('naig-money-hide', !open);
+    });
+    maskText();
+  }
+  setInterval(function(){ try { apply(); } catch(e){ console.warn('[naigMoney]', e); } }, 1200);
+})();
+</script>
 </body>
 </html>
