@@ -21939,7 +21939,7 @@ var iv = setInterval(function(){
       var s = document.getElementById('naigScen'), f = document.getElementById('naigSportsFrame');
       if (!s || !f || !f.parentNode) return;
       if (s.nextElementSibling !== f) f.parentNode.insertBefore(s, f);
-      if (s.style.getPropertyValue('display') !== 'block') s.style.setProperty('display', 'block', 'important');
+      if (s.style.getPropertyValue('display') !== 'none') s.style.setProperty('display', 'none', 'important'); /* 20 Oct 2026: scenarios now live inside the slots form, after By venue */
     } catch(e){ console.warn('[naigScenShow]', e); }
   }, 1000);
 })();
