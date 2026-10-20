@@ -22029,13 +22029,13 @@ var iv = setInterval(function(){
   function tick(){
     if (!window.NAIG || !NAIG.bySport || !window.naigAth) return;
     var sec = document.getElementById('sectionScope'); if (!sec || sec.offsetParent === null) return;
-    var t = [].filter.call(sec.querySelectorAll('table'), function(x){ return /Participants/.test(x.rows[0] ? x.rows[0].textContent : ''); })[0];
+    var t = [].filter.call(sec.querySelectorAll('table'), function(x){ return /Session Dates/.test(x.rows[0] ? x.rows[0].textContent : ''); })[0];
     if (!t) return;
+    var bs = NAIG.bySport(); if (!bs) return; var names = Object.keys(bs);
     var head = [].map.call(t.rows[0].cells, function(c){ return c.textContent.trim(); });
-    var iP = head.findIndex(function(h){ return /^Participants/.test(h); }), iV = head.indexOf('Venue'), iD = head.indexOf('Session Dates');
+    var iP = head.findIndex(function(h){ return /^(Participants|Athletes)/.test(h); }), iV = head.indexOf('Venue'), iD = head.indexOf('Session Dates');
     if (iP < 0) return;
     if (!/live/.test(t.rows[0].cells[iP].textContent)) t.rows[0].cells[iP].innerHTML = 'Athletes <span style="font-weight:400;font-size:10px;opacity:.7">(live)</span>';
-    var bs = NAIG.bySport(), names = Object.keys(bs);
     [].slice.call(t.rows, 1).forEach(function(r){
       var nm = (r.cells[0] && r.cells[0].innerText || '').trim(); if (!nm) return;
       var k1 = key(nm), k2 = key(nm.replace(/\s*\(.*\)\s*/g, '')), k3 = key((nm.match(/\(([^)]*)\)/) || [])[1]);
