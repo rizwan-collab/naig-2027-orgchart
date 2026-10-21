@@ -16706,7 +16706,7 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
             rowStatus: vRec.status, vType: vRec.type, sports: vRec.sports, cluster: vRec.cluster,
             indoorOutdoor: vRec.indoorOutdoor, fieldCount: vRec.fieldCount, capacity: vRec.capacity,
             primaryContact: vRec.primaryContact, lat: vRec.lat, lng: vRec.lng,
-            geoApprox: vRec.geoApprox, geoSource: vRec.geoSource
+            geoApprox: vRec.geoApprox, geoSource: vRec.geoSource, archived: !!vRec.archived
           });
         }
       }
@@ -16745,7 +16745,7 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
           var hLat = naigNum(hRec.lat);
           var hLng = naigNum(hRec.lng);
           if (hLat === null || hLng === null) continue;
-          out.push({ vName: hRec.name || hKeys[k], lat: hLat, lng: hLng });
+          out.push({ vName: hRec.name || hKeys[k], lat: hLat, lng: hLng, status: hRec.status || '', address: hRec.address || '', includes: hRec.includes || '', archived: !!hRec.archived });
         }
       }
     } catch(eBh){}
@@ -16839,6 +16839,11 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
         var hSnap = await mod.get(_dbRef('naig2027/hotels'));
         hotelsVal = (hSnap && typeof hSnap.exists === 'function' && hSnap.exists()) ? hSnap.val() : null;
       } catch(eH){ hotelsVal = null; }
+      /* 21 Oct 2026: Jamatkhanas on the Venue Overview map (naig2027/jamatkhanas, airports excluded - they are geoAnchors). */
+      var jkVal = null;
+      try { var jSnap = await mod.get(_dbRef('naig2027/jamatkhanas')); jkVal = (jSnap && jSnap.exists && jSnap.exists()) ? jSnap.val() : null; } catch(eJ){ jkVal = null; }
+      naigState.jks = Object.keys(jkVal || {}).map(function(k){ var r = jkVal[k] || {}; return { vName: r.name, address: r.address, lat: naigNum(r.lat), lng: naigNum(r.lng), approx: !!(r.geoApprox && /approx/i.test(r.geoApprox)), notes: r.notes }; })
+        .filter(function(r){ return r.lat !== null && r.lng !== null && /jamat|ismaili/i.test(String(r.vName || '')); });
       return { failed: false, venues: naigBuildVenueList(venuesVal), anchors: naigBuildAnchorList(anchorsVal), hotels: naigBuildHotelList(hotelsVal) };
     } catch(eOuter){ return { failed: true }; }
   }
@@ -16899,7 +16904,8 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
       if (checksEl) checksEl.innerHTML = '';
       if (!window.L){ naigShowMessage(host, 'Map library failed to load — map unavailable.'); return; }
 
-      var venues = naigState.venues || [];
+      /* 21 Oct 2026 (Rizwan): only sites in play. Declined, Not Available, Not Selected and archived sites are left off. */
+      var venues = (naigState.venues || []).filter(function(v){ return !v.archived && !/^(declined|not available|not selected)/i.test(String(v.rowStatus || '')); });
       var totalVenues = venues.length;
       var plotted = [];
       for (var i = 0; i < venues.length; i++){
@@ -16966,6 +16972,26 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
         boundsPts.push([v1._plat, v1._plng]);
       }
 
+      /* 21 Oct 2026: hotels in play and Jamatkhanas, each with its own checkbox */
+      var extraLayers = [];
+      (function(){
+        function sq(lat, lng, col, approx){ return L.circleMarker([lat, lng], { radius: 6, color: approx ? '#ffffff' : '#0b1220', weight: 2, dashArray: approx ? '3,3' : null, fillColor: col, fillOpacity: 0.95 }); }
+        var hl = L.layerGroup().addTo(map1), hn = 0;
+        (naigState.hotels || []).forEach(function(h){
+          if (h.archived || /declin|cancel|lost|not selected|dropped/i.test(h.status)) return;
+          var mk = sq(h.lat, h.lng, '#a855f7', false);
+          mk.bindPopup('<div class="naigPopup"><div class="naigPopupTitle">' + naigVal(h.vName) + '</div><div><strong>Hotel</strong> · ' + naigVal(h.status) + '</div>' + (h.includes ? '<div>' + naigEsc(h.includes) + '</div>' : '') + '<div>' + naigVal(h.address) + '</div></div>');
+          mk.addTo(hl); hn++; boundsPts.push([h.lat, h.lng]);
+        });
+        var jl = L.layerGroup().addTo(map1), jn = 0;
+        (naigState.jks || []).forEach(function(j){
+          var mk = sq(j.lat, j.lng, '#14b8a6', j.approx);
+          mk.bindPopup('<div class="naigPopup"><div class="naigPopupTitle">' + naigVal(j.vName) + '</div><div><strong>Jamatkhana</strong></div>' + (j.approx ? '<div class="naigPopupApprox">Approximate location</div>' : '') + '<div>' + naigVal(j.address) + '</div></div>');
+          mk.addTo(jl); jn++; boundsPts.push([j.lat, j.lng]);
+        });
+        extraLayers = [['Hotels (' + hn + ')', hl, '#a855f7'], ['Jamatkhanas (' + jn + ')', jl, '#14b8a6']];
+      })();
+      naigState.map1Bounds = boundsPts.slice();
       if (boundsPts.length > 0){
         try { map1.fitBounds(boundsPts, { padding: [20, 20] }); }
         catch(eFit){ try { map1.setView(boundsPts[0], 6); } catch(eSet){} }
@@ -16978,6 +17004,7 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
           var sKeyA = statusKeysA[k];
           legendParts.push('<div class="naigLegendRow"><span class="naigLegendSwatch" style="background:' + naigStatusColor(sKeyA) + '"></span>' + naigEsc(sKeyA) + ' (' + statusCounts[sKeyA] + ')</div>');
         }
+        extraLayers.forEach(function(x){ legendParts.push('<div class="naigLegendRow"><span class="naigLegendSwatch" style="background:' + x[2] + '"></span>' + naigEsc(x[0]) + '</div>'); });
         legendEl.innerHTML = legendParts.join('');
       }
 
@@ -16986,10 +17013,12 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
         for (var m = 0; m < statusKeysB.length; m++){
           naigAppendCheckbox(checksEl, statusKeysB[m], statusLayers[statusKeysB[m]], map1, ['Not Available','Declined','Not Selected'].indexOf(statusKeysB[m]) < 0);
         }
+        extraLayers.forEach(function(x){ naigAppendCheckbox(checksEl, x[0], x[1], map1, true); });
       }
 
       naigState.map1 = map1;
-      setTimeout(function(){ try { map1.invalidateSize(); } catch(eInv){} }, 60);
+      /* 21 Oct 2026: the map was drawn while hidden, so fitBounds zoomed onto one road. Re-fit once it is visible. */
+      (function refit(n){ setTimeout(function(){ try { var el = map1.getContainer(); if (el && el.offsetWidth > 0) { map1.invalidateSize(); if (naigState.map1Bounds && naigState.map1Bounds.length) map1.fitBounds(naigState.map1Bounds, { padding: [20, 20] }); } else if (n < 1200) refit(n + 1); } catch(eInv){} }, n ? 500 : 60); })(0);
     } catch(eOuter1){
       try { naigShowMessage(document.getElementById('naigMapsMap1Host'), 'Venue map failed to render.'); } catch(eMsg1){}
     }
