@@ -22607,5 +22607,39 @@ var iv = setInterval(function(){
   window.addEventListener('pagehide', clear);
 })();
 </script>
+<script>
+/* Venues tab: live Venue plan (20 Oct 2026, Rizwan: "add this file to the venue tab as well and keep it current").
+   Two pills: "Venue plan" (venues.html, live from the slot sheet, follows the scenario picked in the slots form)
+   and "Venue records" (the existing list). The frame sizes itself to its content, so there is one scroll bar. */
+(function(){
+  if (window.__naigVenuesPlan) return; window.__naigVenuesPlan = true;
+  var st = document.createElement('style');
+  st.textContent = '#naigVpBar{display:flex;gap:6px;margin:0 0 12px;flex-wrap:wrap}'
+    + '#naigVpBar button{border:1px solid #cbd5e1;background:#fff;color:#1e293b;border-radius:999px;padding:5px 14px;font-size:13px;font-weight:600;cursor:pointer}'
+    + '#naigVpBar button.on{background:#1E3A8A;border-color:#1E3A8A;color:#fff}'
+    + '#naigVpBar a{margin-left:auto;font-size:12px;align-self:center}'
+    + '#naigVpFrame{width:100%;border:0;display:block;min-height:600px;background:transparent}'
+    + '#sectionVenues.naig-vp > :not(#naigVpBar):not(#naigVpFrame){display:none !important}'
+    + '#sectionVenues:not(.naig-vp) #naigVpFrame{display:none !important}';
+  document.head.appendChild(st);
+  var VIEW = 'plan'; try { VIEW = localStorage.getItem('naigVenuesView') || 'plan'; } catch(e){}
+  function tick(){
+    var sec = document.getElementById('sectionVenues'); if (!sec) return;
+    var bar = document.getElementById('naigVpBar'), fr = document.getElementById('naigVpFrame');
+    if (!bar) {
+      bar = document.createElement('div'); bar.id = 'naigVpBar';
+      bar.innerHTML = '<button type="button" data-v="plan">Venue plan</button><button type="button" data-v="records">Venue records</button><a href="venues.html" target="_blank" rel="noopener">Open in a new tab</a>';
+      bar.addEventListener('click', function(e){ var b = e.target.closest('button'); if (!b) return; VIEW = b.getAttribute('data-v'); try { localStorage.setItem('naigVenuesView', VIEW); } catch(x){} tick(); });
+      sec.insertBefore(bar, sec.firstChild);
+    }
+    if (!fr) { fr = document.createElement('iframe'); fr.id = 'naigVpFrame'; fr.title = 'Venue plan'; fr.setAttribute('loading', 'lazy'); bar.parentNode.insertBefore(fr, bar.nextSibling); }
+    if (VIEW === 'plan' && sec.offsetParent !== null && !fr.getAttribute('src')) fr.src = 'venues.html?v=' + Date.now();
+    sec.classList.toggle('naig-vp', VIEW === 'plan');
+    [].forEach.call(bar.querySelectorAll('button'), function(b){ b.classList.toggle('on', b.getAttribute('data-v') === VIEW); });
+    try { var d = fr.contentDocument; if (d && d.body) { var h = Math.max(600, d.body.offsetHeight + 40); /* body, not html: html never shrinks below the frame */ if (Math.abs(h - fr.offsetHeight) > 4) fr.style.height = h + 'px'; } } catch(e){}
+  }
+  setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigVenuesPlan]', e); } }, 1000);
+})();
+</script>
 </body>
 </html>

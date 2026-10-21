@@ -155,6 +155,7 @@ html.emb h1{font-size:18px}
   <select id="fAge"><option value="">All ages</option></select>
   <select id="fRegion" title="Region view - slots can only be edited in All regions"><option value="ALL">All regions</option></select>
   <select id="fScen" title="Indoor scenario view - read-only, nothing is saved"><option value="cur">Scenario: Current</option><option value="b1">B1 · Volleyball to Farmers Branch, Table Tennis to Northlake</option><option value="b2">B2 · Throwball to Farmers Branch, Table Tennis to Northlake</option></select>
+  <select id="fScenO" style="display:none" title="Outdoor scenario view - read-only"><option value="cur">Outdoor: Current</option><option value="o1">O1</option><option value="o2">O2</option><option value="o3">O3</option></select>
   <button type="button" id="seed" class="ghost">Reset to the official 100</button>
   <span class="status" id="status">Connecting…</span>
 </div>
@@ -189,6 +190,10 @@ html.emb h1{font-size:18px}
 <h2>Indoor scenarios</h2>
 <p class="lead">Tap a scenario. By venue, By sport and the events list below switch to it straight away. View only, nothing is saved.</p>
 <div class="tblwrap" id="byScen"></div>
+
+<h2>Outdoor scenarios</h2>
+<p class="lead">Hardball cricket can't stay at Railroad Park because of the ball. Tap one to see where everything lands. Works with the indoor pick above. View only.</p>
+<div class="tblwrap" id="byScenO"></div>
 
 <h2>By venue</h2>
 <p class="lead">Athletes at max, worked out from the slots entered below. Nothing is compared against a separate planning figure are worth a conversation.</p>
@@ -231,7 +236,7 @@ const PATH = "naig2027/sportsPlan";
 /* Venues come from the logistics plan, not the public site. */
 const DEFAULT_VENUES = ["StarCenter Northlake","StarCenter Farmers Branch","Pickler Universe",
   "Courts of McKinney","Railroad Park","Lake Park","Frisco ISD Athletic Complex",
-  "Grand Prairie Cricket Stadium","Texomo Ground","TBD"];
+  "Grand Prairie Cricket Stadium","Texomo Ground","Mansfield (Skinner / Chandler)","TBD"];
 
 /* Athlete counts come from the slots entered below. There is no separate
    "planned for" figure any more - the slot sheet is the single source.
@@ -402,8 +407,16 @@ var OV = 20; function ath(x){ return Math.round(x * (1 - OV / 100)); }
    View only: venues and totals change on screen, the saved sheet does not. Shares its choice with the hub picker (naigScenPick). */
 var SCN = { b1: [["Volleyball","StarCenter Farmers Branch"],["Table Tennis","StarCenter Northlake"]], b2: [["Throwball","StarCenter Farmers Branch"],["Table Tennis","StarCenter Northlake"]] };
 function scenVal(){ var s = $("fScen"); return (s && s.value) || "cur"; }
-function scenOn(){ return !!SCN[scenVal()]; }
-function rvenue(r){ return rvenueK(r, scenVal()); }
+/* 20 Oct 2026: outdoor scenarios (Rizwan). Hardball moves off Railroad Park because of the ball.
+   O1 RR + OKC: Hardball to Texomo (Calera, OK). O2 RR + Mansfield: Hardball to Mansfield.
+   O3 Mansfield + RR cricket: Football (Soccer) and Flag Football to Mansfield; Railroad runs 2 cricket grounds (Hardball + Tapeball).
+   Shared with the hub and venues.html through localStorage naigScenOut. */
+var OSCN = { o1: [["Cricket (Hardball)","Texomo Ground"]], o2: [["Cricket (Hardball)","Mansfield (Skinner / Chandler)"]], o3: [["Football","Mansfield (Skinner / Chandler)"],["Flag Football","Mansfield (Skinner / Chandler)"]] };
+var OSCN_L = [["cur","Current","As in the sheet"],["o1","O1 \u00b7 RR + OKC","Hardball to Texomo, Calera OK. Railroad keeps Football, Flag Football, Tapeball"],["o2","O2 \u00b7 RR + Mansfield","Hardball to Mansfield. Railroad keeps Football, Flag Football, Tapeball"],["o3","O3 \u00b7 Mansfield + RR cricket","Football and Flag Football to Mansfield. Railroad runs 2 cricket grounds: Hardball + Tapeball"]];
+function scenOVal(){ var s = $("fScenO"); return (s && s.value) || "cur"; }
+function oVenue(r, v, k){ var m = OSCN[k]; if (!m || !/Railroad/.test(v)) return v; for (var i = 0; i < m.length; i++) { if (String(r.sport || "").indexOf(m[i][0]) === 0) return m[i][1]; } return v; }
+function scenOn(){ return !!SCN[scenVal()] || !!OSCN[scenOVal()]; }
+function rvenue(r){ return oVenue(r, rvenueK(r, scenVal()), scenOVal()); }
 function rvenueK(r, k){ var v = r.venue || "TBD", m = SCN[k]; if (!m || !/Farmers Branch|Northlake/.test(v)) return v; for (var i = 0; i < m.length; i++) { if (String(r.sport || "").indexOf(m[i][0]) === 0) return m[i][1]; } return v; }
 function fillRegions(){ var s = $("fRegion"); if (!s || !SR || !SR.regions) return; var cur = s.value || "ALL", R = SR.regions;
   var h = '<option value="ALL">All regions</option><option value="US">USA</option><option value="CA">Canada</option>';
@@ -471,7 +484,7 @@ function render(){
     ? ("Showing all "+rows.length+" events. Filter above to work through one venue at a time.")
     : ("Showing "+shown+" of "+rows.length+" events.");
   if (regionOn()) $("shown").textContent += " Region view: slots shown are this region's share and are read-only. Switch to All regions to edit.";
-  if (scenOn()) $("shown").textContent += " Scenario view (" + scenVal().toUpperCase() + "): venues and totals show the sheet as if the sports moved. Read-only, nothing is saved. Switch to Current to edit.";
+  if (scenOn()) $("shown").textContent += " Scenario view (" + [scenVal(), scenOVal()].filter(function(x){ return x !== "cur"; }).join(" + ").toUpperCase() + "): venues and totals show the sheet as if the sports moved. Read-only, nothing is saved. Switch to Current to edit.";
   totals();
 }
 
@@ -544,6 +557,17 @@ function totals(){
       const c=tot("Farmers Branch",fb), e=tot("Northlake",nl);
       d.appendChild(a); d.appendChild(b); d.appendChild(c); d.appendChild(e); box.appendChild(d); });
   })();
+  (function(){ const box=$("byScenO"); if(!box) return; box.textContent="";
+    OSCN_L.forEach(([k,nm,desc])=>{ const T={}, S={};
+      RR.forEach(r=>{ const v0=rvenueK(r,scenVal()); if(!/Railroad|Texomo|Mansfield/.test(v0) && !/Railroad/.test(v0)) return; const v=oVenue(r,v0,k); if(!/Railroad|Texomo|Mansfield/.test(v)) return; const nmv=/Railroad/.test(v)?"Railroad":/Texomo/.test(v)?"Texomo (OKC)":"Mansfield"; T[nmv]=(T[nmv]||0)+rpeople(r); (S[nmv]=S[nmv]||new Set()).add((r.sport||"").split(" - ")[0]); });
+      const on=k===scenOVal();
+      const d=document.createElement("div"); d.className="vrow"; d.style.cursor="pointer"; d.title="Show the whole sheet as "+nm; if(on){ d.style.background="var(--soft)"; d.style.boxShadow="inset 4px 0 0 var(--accent)"; } d.addEventListener("click",()=>{ const s=$("fScenO"); if(!s) return; s.value=k; s.dispatchEvent(new Event("change")); });
+      const a=document.createElement("div"); a.className="nm"; a.textContent=(on?"\u25CF ":"\u25CB ")+nm+(on?"  (showing)":"");
+      const b=document.createElement("div"); b.className="sp"; b.textContent=desc+"  \u00b7  "+Object.keys(S).map(x=>x+": "+[...S[x]].sort().join(", ")).join("  \u00b7  ");
+      d.appendChild(a); d.appendChild(b);
+      ["Railroad","Texomo (OKC)","Mansfield"].forEach(x=>{ if(!T[x]) return; const c=document.createElement("div"); c.className="ct"; c.style.width="110px"; const l=document.createElement("div"); l.style.cssText="font-size:10px;font-weight:600;color:var(--muted)"; l.textContent=x; c.appendChild(l); c.appendChild(document.createTextNode(ath(T[x]).toLocaleString()+" athletes")); d.appendChild(c); });
+      box.appendChild(d); });
+  })();
   const swrap=$("bySport"); swrap.textContent="";
   const skeys=Object.keys(byS).sort();
   if(!skeys.length){ const d=document.createElement("div"); d.className="vrow";
@@ -590,6 +614,9 @@ $("seed").addEventListener("click", ()=>{
 (function(){ var s = $("fScen"); if (!s) return; function load(){ var v = "cur"; try { v = localStorage.getItem("naigScenPick") || "cur"; } catch(e){} if (!SCN[v]) v = "cur"; if (s.value !== v) { s.value = v; try { render(); } catch(e){} } }
   load(); s.addEventListener("change", function(){ try { localStorage.setItem("naigScenPick", s.value); } catch(e){} render(); });
   window.addEventListener("storage", function(e){ if (e.key === "naigScenPick") load(); }); })();
+(function(){ var s = $("fScenO"); if (!s) return; function load(){ var v = "cur"; try { v = localStorage.getItem("naigScenOut") || "cur"; } catch(e){} if (!OSCN[v]) v = "cur"; if (s.value !== v) { s.value = v; try { render(); } catch(e){} } }
+  load(); s.addEventListener("change", function(){ try { localStorage.setItem("naigScenOut", s.value); } catch(e){} render(); });
+  window.addEventListener("storage", function(e){ if (e.key === "naigScenOut") load(); }); })();
 $("who").addEventListener("input", ()=>touch(true));
 $("questions").addEventListener("input", ()=>touch(true));
 

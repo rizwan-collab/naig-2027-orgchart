@@ -332,6 +332,7 @@ footer{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);color:v
     "Frisco ISD Athletic Complex":{amt:null, note:"No quote requested yet."},
     "Grand Prairie Cricket Stadium":{amt:16000, note:"$4,000/day \u00d7 4 days, Thursday to Sunday. Tentative."}
   };
+  window.__VPV = VENUES; /* read by the live venue plan below */
   var SCENARIO_TOTAL = {1:340415, 2:377915};
 
   /* PIN gate. This is a convenience screen, not security \u2014 the page is public. */
@@ -556,6 +557,146 @@ import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10
     onValue(ref(db,"naig2027/public/venueRef/venues"),function(s){ paint(s.val()); },function(){
       var b=document.getElementById("liveVenueBody"); if(b) b.textContent="Could not read the live venue list.";
     });
+  });
+})();
+</script>
+<script type="module">
+/* LIVE VENUE PLAN (20 Oct 2026, Rizwan: "keep it current and build it based on the scenario picked thru the slots portion").
+   Counts come from the slot sheet (naig2027/sportsPlan), athletes = slots x roster less the overlap rule
+   (naig2027/headcount/overlapPct), the same math as the slots form. Venues follow the scenario picked in the
+   slots form (localStorage naigScenPick indoor, naigScenOut outdoor). The scenario maps below must match sportsplan.html.
+   Status comes from the live venue list (naig2027/public/venueRef). Addresses and urgent care stay from this file.
+   The old static cards, Scenario 1/2 buttons and the Finance view are hidden: money lives in the hub's Budget tab only. */
+import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+(function(){
+  var emb = window.self !== window.top;
+  document.documentElement.setAttribute("data-theme", "light");
+  if (emb) document.documentElement.classList.add("emb");
+  var css = document.createElement("style");
+  css.textContent = ".bar,#pinbox,#fintotal,#note,#out,#liveVenueBox{display:none !important}"
+    + "h2.old,div.old{display:none !important}"
+    + "html.emb .wrap{padding-top:10px} html.emb header.top{display:none}"
+    + "#lvBar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}"
+    + "#lvBar select,#lvBar input{font:inherit;font-size:13.5px;padding:6px 9px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}"
+    + "#lvBar input{flex:1 1 180px}"
+    + "#lvScen{font-size:12.5px;color:var(--muted);margin:0 0 12px;padding:8px 12px;background:var(--soft);border-radius:8px}"
+    + "#lvScen b{color:var(--ink)}"
+    + "#lvTot{font-size:12.5px;color:var(--muted);margin-left:auto}"
+    + ".v .vstat .val{font-variant-numeric:tabular-nums}";
+  document.head.appendChild(css);
+  /* hide the static explainer sections that describe the old Scenario 1/2 and registration totals */
+  [].forEach.call(document.querySelectorAll("h2"), function(h){
+    if (/How the counts are built|The two scenarios/.test(h.textContent)) {
+      h.classList.add("old"); var n = h.nextElementSibling;
+      while (n && n.tagName !== "H2" && n.tagName !== "FOOTER") { n.classList.add("old"); n = n.nextElementSibling; }
+    }
+  });
+  var lb = document.getElementById("liveVenueBody"); if (lb && lb.parentElement) lb.parentElement.id = "liveVenueBox";
+  var sub = document.querySelector("header.top .meta span"); if (sub) sub.textContent = "Live from the slot sheet";
+
+  /* Scenario maps, same as sportsplan.html */
+  var SCN = { b1: [["Volleyball","StarCenter Farmers Branch"],["Table Tennis","StarCenter Northlake"]], b2: [["Throwball","StarCenter Farmers Branch"],["Table Tennis","StarCenter Northlake"]] };
+  var OSCN = { o1: [["Cricket (Hardball)","Texomo Ground"]], o2: [["Cricket (Hardball)","Mansfield (Skinner / Chandler)"]], o3: [["Football","Mansfield (Skinner / Chandler)"],["Flag Football","Mansfield (Skinner / Chandler)"]] };
+  var LBL = { cur: "Current", b1: "B1 · Volleyball to Farmers Branch, Table Tennis to Northlake", b2: "B2 · Throwball to Farmers Branch, Table Tennis to Northlake",
+    o1: "O1 · Hardball to Texomo (OKC)", o2: "O2 · Hardball to Mansfield", o3: "O3 · Football and Flag Football to Mansfield, Railroad runs cricket" };
+  function pick(k, map){ var v = "cur"; try { v = localStorage.getItem(k) || "cur"; } catch(e){} return map[v] ? v : "cur"; }
+  function venueOf(r, ik, ok){
+    var v = r.venue || "TBD", s = String(r.sport || ""), m = SCN[ik], i;
+    if (m && /Farmers Branch|Northlake/.test(v)) for (i = 0; i < m.length; i++) if (s.indexOf(m[i][0]) === 0) { v = m[i][1]; break; }
+    m = OSCN[ok];
+    if (m && /Railroad/.test(v)) for (i = 0; i < m.length; i++) if (s.indexOf(m[i][0]) === 0) { v = m[i][1]; break; }
+    return v;
+  }
+  function num(x){ x = Number(x); return isFinite(x) ? x : 0; }
+  function key(s){ return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
+  function fmt(n){ return Number(n).toLocaleString("en-US"); }
+  function el(t, c, x){ var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
+  var ROWS = [], OV = 20, LIVE = {}, STATIC = window.__VPV || {};
+  function ath(x){ return Math.round(x * (1 - OV / 100)); }
+  var ALIAS = { "Mansfield (Skinner / Chandler)": "mansfield", "Texomo Ground": "texomo" }; /* live records are "Skinner Sports Complex (Mansfield)", "Texomo Cricket Ground — Calera, OK" */
+  function liveRec(name){ var k = ALIAS[name] || key(name), hit = null; Object.keys(LIVE).forEach(function(id){ var r = LIVE[id] || {}, rk = key(r.name); if (!hit && rk && (rk.indexOf(k) >= 0 || k.indexOf(rk) >= 0)) hit = r; }); return hit; }
+  function staticRec(name){ if (STATIC[name]) return STATIC[name]; var k = key(name), hit = null; Object.keys(STATIC).forEach(function(n){ var nk = key(n); if (!hit && (nk.indexOf(k) >= 0 || k.indexOf(nk) >= 0)) hit = STATIC[n]; }); return hit || {}; }
+  function tagCls(s){ s = String(s || "").toLowerCase(); if (/confirm|signed|contract/.test(s)) return "ok"; if (/declin|not avail|not select/.test(s)) return "bad"; if (/tbd|^$/.test(s)) return "no"; return "warn"; }
+
+  /* UI */
+  var wrap = document.querySelector(".wrap"), anchor = document.getElementById("note");
+  var scenBox = el("div"); scenBox.id = "lvScen";
+  var bar = el("div"); bar.id = "lvBar";
+  var vsel = el("select"); vsel.setAttribute("aria-label", "Filter by venue");
+  var q = el("input"); q.type = "search"; q.placeholder = "Search sport or venue…";
+  var tot = el("span"); tot.id = "lvTot";
+  bar.appendChild(vsel); bar.appendChild(q); bar.appendChild(tot);
+  var out = el("div"); out.id = "lvOut";
+  wrap.insertBefore(scenBox, anchor); wrap.insertBefore(bar, anchor); wrap.insertBefore(out, anchor);
+  var VF = "", QF = "";
+  vsel.addEventListener("change", function(){ VF = vsel.value; render(); });
+  q.addEventListener("input", function(){ QF = q.value.trim().toLowerCase(); render(); });
+
+  function render(){
+    var ik = pick("naigScenPick", SCN), ok = pick("naigScenOut", OSCN);
+    scenBox.innerHTML = "";
+    scenBox.appendChild(document.createTextNode("Scenario from the slots form: "));
+    var b = el("b", "", [ik, ok].filter(function(x){ return x !== "cur"; }).map(function(x){ return LBL[x]; }).join(" + ") || "Current, as in the sheet"); scenBox.appendChild(b);
+    scenBox.appendChild(document.createTextNode(". Change it in Program → Sports Allocation."));
+    if (!ROWS.length) { out.textContent = "Loading the slot sheet…"; return; }
+    var G = {}, order = [];
+    ROWS.forEach(function(r){
+      var p = num(r.slots) * num(r.cap); if (!(p > 0)) return;
+      var v = venueOf(r, ik, ok), sp = String(r.sport || "Other").split(" - ")[0];
+      if (!G[v]) { G[v] = { name: v, people: 0, sports: {} }; order.push(v); }
+      G[v].people += p; G[v].sports[sp] = (G[v].sports[sp] || 0) + p;
+    });
+    order.sort(function(a, b){ return G[b].people - G[a].people; });
+    var prev = vsel.value; vsel.textContent = ""; vsel.appendChild(new Option("All venues", ""));
+    order.forEach(function(n){ vsel.appendChild(new Option(n, n)); });
+    vsel.value = order.indexOf(prev) >= 0 ? prev : ""; VF = vsel.value;
+    out.textContent = ""; var shown = 0, people = 0;
+    order.forEach(function(n){
+      var g = G[n], st = staticRec(n), lv = liveRec(n) || {};
+      if (VF && n !== VF) return;
+      var addr = lv.address || lv.location || st.addr || "Address not on record";
+      if (QF && (n + " " + Object.keys(g.sports).join(" ") + " " + addr).toLowerCase().indexOf(QF) < 0) return;
+      shown++; people += g.people;
+      var status = lv.status || st.stt || "TBD";
+      var box = el("div", "v"), h = el("div", "vh"), r1 = el("div", "r1");
+      r1.appendChild(el("span", "nm", n)); r1.appendChild(el("span", "tag t-" + tagCls(status), status)); h.appendChild(r1);
+      var ad = el("div", "ad");
+      if (/Address not/.test(addr)) ad.textContent = addr;
+      else { var a = el("a", "", addr); a.href = "https://maps.google.com/?q=" + encodeURIComponent(String(addr).split(" — ")[0]); a.target = "_blank"; a.rel = "noopener"; ad.appendChild(a); }
+      h.appendChild(ad);
+      if (st.poc) { var pc = el("div", "ad"); pc.appendChild(el("span", "pk", "Contact: ")); pc.appendChild(document.createTextNode(st.poc)); h.appendChild(pc); }
+      box.appendChild(h);
+      var sv = el("div", "vstat"), d1 = el("div"), d2 = el("div");
+      d1.appendChild(el("div", "k", "Athletes")); d1.appendChild(el("div", "val", fmt(ath(g.people))));
+      d2.appendChild(el("div", "k", "Sports here")); d2.appendChild(el("div", "val", String(Object.keys(g.sports).length)));
+      sv.appendChild(d1); sv.appendChild(d2); box.appendChild(sv);
+      var s1 = el("div", "sec"); s1.appendChild(el("h4", "", "Sports allocated"));
+      Object.keys(g.sports).sort(function(a, b){ return g.sports[b] - g.sports[a]; }).forEach(function(sp){
+        var row = el("div", "srow"); row.appendChild(el("span", "sp", sp)); row.appendChild(el("span", "num", fmt(ath(g.sports[sp])) + " athletes")); s1.appendChild(row);
+      });
+      box.appendChild(s1);
+      var uc = st.uc || [];
+      var s2 = el("div", "sec"); s2.appendChild(el("h4", "", "Nearest urgent care"));
+      if (!uc.length) s2.appendChild(el("div", "uc", "N/A — not researched for this site yet."));
+      uc.forEach(function(u){ var d = el("div", "uc"), nm = el("div", "n", u.n); if (u.er) nm.appendChild(el("span", "er", "24H ER")); d.appendChild(nm); d.appendChild(el("div", "d", u.d)); s2.appendChild(d); });
+      box.appendChild(s2);
+      out.appendChild(box);
+    });
+    tot.textContent = shown + " venue" + (shown === 1 ? "" : "s") + " · " + fmt(ath(people)) + " athletes";
+    if (!shown) out.appendChild(el("div", "empty", "Nothing matches that filter."));
+  }
+  window.addEventListener("storage", function(e){ if (e.key === "naigScenPick" || e.key === "naigScenOut") render(); });
+  setInterval(function(){ var s = pick("naigScenPick", SCN) + pick("naigScenOut", OSCN); if (s !== render.__s) { render.__s = s; render(); } }, 1500);
+  var cfg = { apiKey: "AIzaSyC16ftKuUYRkwexYYUuk0i5fYsxxVzI_eU", authDomain: "naig-2027.firebaseapp.com", databaseURL: "https://naig-2027-default-rtdb.firebaseio.com", projectId: "naig-2027", storageBucket: "naig-2027.appspot.com", messagingSenderId: "97335869563", appId: "1:97335869563:web:1a15a49205c103333e22de" };
+  var app = getApps().length ? getApps()[0] : initializeApp(cfg), auth = getAuth(app), db = getDatabase(app);
+  render();
+  onAuthStateChanged(auth, function(u){
+    if (!u) { signInAnonymously(auth).catch(function(){ out.textContent = "Could not reach the hub."; }); return; }
+    onValue(ref(db, "naig2027/headcount/overlapPct"), function(s){ var v = Number(s.val()); if (s.val() !== null && isFinite(v)) { OV = v; render(); } }, function(){});
+    onValue(ref(db, "naig2027/public/venueRef/venues"), function(s){ LIVE = s.val() || {}; render(); }, function(){});
+    onValue(ref(db, "naig2027/sportsPlan"), function(s){ var v = s.val(); ROWS = (v && Array.isArray(v.rows)) ? v.rows : []; render(); }, function(){ out.textContent = "Could not read the slot sheet."; });
   });
 })();
 </script>
