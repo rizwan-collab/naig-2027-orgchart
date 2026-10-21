@@ -9276,7 +9276,7 @@ function _enforceTaskDependencyStatus() {
   if (deps.length && deps.every(dep => dep.status === 'done')) {
     statusInput.value = 'done';
   } else if (deps.length) {
-    if (statusInput.value === 'done') statusInput.value = 'inprogress';
+    /* 21 Oct 2026 (Rizwan): Done always closes; dependencies are notes only. */
   }
 }
 window._enforceTaskDependencyStatus = _enforceTaskDependencyStatus;
@@ -9414,7 +9414,7 @@ function saveTask() {
     if (editKey && requestedStatus === originalStatus && current && current.status !== originalStatus) status = current.status || 'todo';
     const allDependencies = workstreamDependencies.concat(verticalDependencies);
     if (allDependencies.length && allDependencies.every(dep => dep.status === 'done')) status = 'done';
-    else if (allDependencies.length && status === 'done') status = 'inprogress';
+    /* 21 Oct 2026 (Rizwan): Done always closes; open dependencies no longer push it back to In Progress. */
     mergedTask.status = status;
     mergedTask.updated = formData.updated;
     if (persistDependencies) {
@@ -9480,6 +9480,16 @@ function saveTask() {
 function quickComplete(key) {
   const t = window._tasksData[key];
   if (!t) return;
+  /* 21 Oct 2026 (Rizwan): Done always closes. Dependencies stay on the task as notes only and never block. */
+  if (!window._dbRef || !window._dbTransaction) { alert('Firebase not ready yet. Try again in a moment.'); return; }
+  window._dbTransaction(window._dbRef('naig2027/tasks/' + key), function(current){ return current ? Object.assign({}, current, { status: 'done', updated: new Date().toISOString() }) : current; })
+    .then(function(result){
+      if (!result.committed || !result.snapshot.val()) { alert('Could not close this task. Refresh and try again.'); return; }
+      try { logActivity('task', 'Task "' + (t.title || '') + '" moved to Done', { action: 'status_change', entityKey: key, entityName: t.title || '', oldValue: t.status, newValue: 'done' }); } catch(e) {}
+      try { window.__naigToast && window.__naigToast('Closed \u2713'); } catch(e) {}
+    })
+    .catch(function(err){ console.error('[quickComplete]', err); alert('Could not close this task: ' + ((err && (err.code || err.message)) || 'unknown error')); });
+  return;
   const verticalDeps = _taskStoredVerticalDeps(t);
   const workstreamDeps = _taskStoredWorkstreamDeps(t);
   const inferredWorkstreamDeps = _inferTaskInternalDeps(t, _taskOwningStream(t)).filter(team => team !== _taskOwningStream(t));
