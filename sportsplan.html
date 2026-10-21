@@ -413,7 +413,7 @@ function scenVal(){ var s = $("fScen"); return (s && s.value) || "cur"; }
    Football (Soccer) and Flag Football to Mansfield. (O3 removed 21 Oct.)
    Shared with the hub and venues.html through localStorage naigScenOut. */
 var OSCN = { o1: [["Cricket (Hardball)","Texomo Ground"]], o2: [["Cricket (Hardball)","Grand Prairie Cricket Stadium"],["Football","Skinner Sports Complex (Mansfield)"],["Flag Football","Skinner Sports Complex (Mansfield)"]] };
-var OSCN_L = [["cur","Current","As in the sheet"],["o1","O1 \u00b7 RR + OKC","Hardball to Texomo, Calera OK. Railroad keeps Football, Flag Football, Tapeball"],["o2","O2 \u00b7 RR + Stadium + Mansfield","Railroad keeps Tapeball. Hardball to Grand Prairie Cricket Stadium. Football and Flag Football to Mansfield"]];
+var OSCN_L = [["cur","Current","As in the sheet"],["o1","O1 \u00b7 RR + OKC","Hardball to Texomo, Calera OK. Railroad keeps Football, Flag Football, Tapeball"],["o2","O2 \u00b7 RR + Stadium + Mansfield","Cricket (Hardball + Tapeball) on 4 pitches: Railroad 3, GP Stadium 1. Football and Flag Football to Skinner (Mansfield)"]];
 function scenOVal(){ var s = $("fScenO"); return (s && s.value) || "cur"; }
 function oVenue(r, v, k){ var m = OSCN[k]; if (!m || !/Railroad/.test(v)) return v; for (var i = 0; i < m.length; i++) { if (String(r.sport || "").indexOf(m[i][0]) === 0) return m[i][1]; } return v; }
 function scenOn(){ return !!SCN[scenVal()] || !!OSCN[scenOVal()]; }
@@ -515,8 +515,11 @@ function totals(){
   $("kTbd").textContent    = ath(tbd).toLocaleString();
 
   const byV={};
-  RR.forEach(r=>{ const v=rvenue(r); (byV[v]=byV[v]||{n:0,sl:0,s:new Set()});
-    byV[v].n+=Math.round(rpeople(r)); byV[v].sl+=Math.round(rslots(r)); if(r.sport) byV[v].s.add(r.sport); });
+  /* O2: cricket (Hardball + Tapeball) plays across 4 pitches, Railroad 3 and GP Stadium 1, so athletes split 3:1 (Rizwan, 21 Oct). */
+  RR.forEach(r=>{ const parts=(scenOVal()==="o2" && /Railroad/.test(r.venue||"") && /^Cricket/.test(r.sport||"")) ? [["Railroad Park",3/4],["Grand Prairie Cricket Stadium",1/4]] : [[rvenue(r),1]];
+    parts.forEach(([v,f])=>{ (byV[v]=byV[v]||{n:0,sl:0,s:new Set()});
+    byV[v].n+=rpeople(r)*f; byV[v].sl+=rslots(r)*f; if(r.sport) byV[v].s.add(r.sport); }); });
+  Object.keys(byV).forEach(v=>{ byV[v].n=Math.round(byV[v].n); byV[v].sl=Math.round(byV[v].sl); });
   const vwrap=$("byVenue"); vwrap.textContent="";
   const order = VENUES.filter(v=>byV[v]).concat(Object.keys(byV).filter(v=>VENUES.indexOf(v)===-1));
   if(!order.length){ const d=document.createElement("div"); d.className="vrow";

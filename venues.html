@@ -583,6 +583,16 @@ import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10
     + "#lvBar input{flex:1 1 180px}"
     + "#lvScen{font-size:12.5px;color:var(--muted);margin:0 0 12px;padding:8px 12px;background:var(--soft);border-radius:8px}"
     + "#lvScen b{color:var(--ink)}"
+    + "#lvPick{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin:0 0 14px}"
+    + "#lvPick .grp{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}"
+    + "#lvPick .gh{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:10px 14px 6px}"
+    + "#lvPick .opt{display:flex;gap:10px;align-items:flex-start;padding:9px 14px;border-top:1px solid var(--line);cursor:pointer}"
+    + "#lvPick .opt:hover{background:var(--soft)}"
+    + "#lvPick .opt.on{background:var(--soft);box-shadow:inset 4px 0 0 var(--accent)}"
+    + "#lvPick .nm{font-weight:700;font-size:13.5px;min-width:0;flex:1}"
+    + "#lvPick .ds{font-size:12px;color:var(--muted);font-weight:400;margin-top:2px}"
+    + "#lvPick .ct{font-size:11px;color:var(--muted);text-align:right;white-space:nowrap}"
+    + "#lvPick .ct b{display:block;font-size:14px;color:var(--ink)}"
     + "#lvTot{font-size:12.5px;color:var(--muted);margin-left:auto}"
     + ".v .vstat .val{font-variant-numeric:tabular-nums}";
   document.head.appendChild(css);
@@ -600,7 +610,7 @@ import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10
   var SCN = { b1: [["Volleyball","StarCenter Farmers Branch"],["Table Tennis","StarCenter Northlake"]], b2: [["Throwball","StarCenter Farmers Branch"],["Table Tennis","StarCenter Northlake"]] };
   var OSCN = { o1: [["Cricket (Hardball)","Texomo Ground"]], o2: [["Cricket (Hardball)","Grand Prairie Cricket Stadium"],["Football","Skinner Sports Complex (Mansfield)"],["Flag Football","Skinner Sports Complex (Mansfield)"]] };
   var LBL = { cur: "Current", b1: "B1 · Volleyball to Farmers Branch, Table Tennis to Northlake", b2: "B2 · Throwball to Farmers Branch, Table Tennis to Northlake",
-    o1: "O1 · Hardball to Texomo (OKC)", o2: "O2 · Railroad Tapeball, Hardball to Grand Prairie Stadium, Football and Flag Football to Mansfield" };
+    o1: "O1 · Hardball to Texomo (OKC)", o2: "O2 · Cricket on Railroad (3 pitches) + GP Stadium (1), Football and Flag Football to Skinner (Mansfield)" };
   function pick(k, map){ var v = "cur"; try { v = localStorage.getItem(k) || "cur"; } catch(e){} return map[v] ? v : "cur"; }
   function venueOf(r, ik, ok){
     var v = r.venue || "TBD", s = String(r.sport || ""), m = SCN[ik], i;
@@ -623,30 +633,61 @@ import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10
   /* UI */
   var wrap = document.querySelector(".wrap"), anchor = document.getElementById("note");
   var scenBox = el("div"); scenBox.id = "lvScen";
+  var pickBox = el("div"); pickBox.id = "lvPick";
   var bar = el("div"); bar.id = "lvBar";
   var vsel = el("select"); vsel.setAttribute("aria-label", "Filter by venue");
   var q = el("input"); q.type = "search"; q.placeholder = "Search sport or venue…";
   var tot = el("span"); tot.id = "lvTot";
   bar.appendChild(vsel); bar.appendChild(q); bar.appendChild(tot);
   var out = el("div"); out.id = "lvOut";
-  wrap.insertBefore(scenBox, anchor); wrap.insertBefore(bar, anchor); wrap.insertBefore(out, anchor);
+  wrap.insertBefore(pickBox, anchor); wrap.insertBefore(scenBox, anchor); wrap.insertBefore(bar, anchor); wrap.insertBefore(out, anchor);
   var VF = "", QF = "";
   vsel.addEventListener("change", function(){ VF = vsel.value; render(); });
   q.addEventListener("input", function(){ QF = q.value.trim().toLowerCase(); render(); });
 
+  /* 21 Oct 2026 (Rizwan): the scenario toggle on the Venue plan, same as Sports Allocation. Tap one: every card below
+     switches, and the slots form follows (shared choice: naigScenPick / naigScenOut). View only, nothing is saved. */
+  var IND = [["cur","Current","As in the sheet"],["b1","B1","Volleyball to Farmers Branch, Table Tennis to Northlake"],["b2","B2","Throwball to Farmers Branch, Table Tennis to Northlake"]];
+  var OUT = [["cur","Current","As in the sheet"],["o1","O1 \u00b7 RR + OKC","Hardball to Texomo. Railroad keeps Football, Flag Football, Tapeball"],["o2","O2 \u00b7 RR + Stadium + Mansfield","Cricket (Hardball + Tapeball) on 4 pitches: Railroad 3, GP Stadium 1. Football and Flag Football to Skinner (Mansfield)"]];
+  function drawPick(ik, ok){
+    function totals(ik2, ok2, fn){ var T = {}; ROWS.forEach(function(r){ var p = num(r.slots) * num(r.cap); if (!(p > 0)) return; var b = fn(venueOf(r, ik2, ok2), r); if (b) T[b] = (T[b] || 0) + p; }); return T; }
+    function grp(title, list, cur, key, fn, cols){
+      var g = el("div", "grp"); g.appendChild(el("div", "gh", title));
+      list.forEach(function(x){
+        var o = el("div", "opt" + (x[0] === cur ? " on" : "")); o.setAttribute("role", "button");
+        var n = el("div", "nm", (x[0] === cur ? "\u25CF " : "\u25CB ") + x[1]); n.appendChild(el("div", "ds", x[2])); o.appendChild(n);
+        var T = key === "naigScenPick" ? totals(x[0], ok, fn) : totals(ik, x[0], function(v, r){ return fn(v, r, x[0]); });
+        cols.forEach(function(c){ if (!T[c]) return; var ct = el("div", "ct", c); ct.appendChild(el("b", "", fmt(ath(T[c])))); o.appendChild(ct); });
+        o.addEventListener("click", function(){ try { localStorage.setItem(key, x[0]); } catch(e){} render.__s = ""; render(); });
+        g.appendChild(o);
+      });
+      return g;
+    }
+    pickBox.textContent = "";
+    pickBox.appendChild(grp("Indoor \u00b7 StarCenters", IND, ik, "naigScenPick", function(v){ return /Farmers Branch/.test(v) ? "Farmers Branch" : /Northlake/.test(v) ? "Northlake" : ""; }, ["Farmers Branch", "Northlake"]));
+    pickBox.appendChild(grp("Outdoor \u00b7 Railroad Park", OUT, ok, "naigScenOut", function(v, r, k){
+      if (!/Railroad/.test(String(r.venue || ""))) return "";
+      if (k === "o2" && /Railroad|Grand Prairie/.test(v)) return "Railroad + GP Stadium";
+      return /Railroad/.test(v) ? "Railroad" : /Texomo/.test(v) ? "Texomo (OKC)" : /Mansfield/.test(v) ? "Skinner (Mansfield)" : "";
+    }, ["Railroad", "Railroad + GP Stadium", "Texomo (OKC)", "Skinner (Mansfield)"]));
+  }
   function render(){
     var ik = pick("naigScenPick", SCN), ok = pick("naigScenOut", OSCN);
     scenBox.innerHTML = "";
     scenBox.appendChild(document.createTextNode("Scenario from the slots form: "));
     var b = el("b", "", [ik, ok].filter(function(x){ return x !== "cur"; }).map(function(x){ return LBL[x]; }).join(" + ") || "Current, as in the sheet"); scenBox.appendChild(b);
-    scenBox.appendChild(document.createTextNode(". Change it in Program → Sports Allocation."));
+    scenBox.appendChild(document.createTextNode(". Also set in Program \u2192 Sports Allocation; the two stay in step."));
     if (!ROWS.length) { out.textContent = "Loading the slot sheet…"; return; }
+    drawPick(ik, ok);
     var G = {}, order = [];
     ROWS.forEach(function(r){
       var p = num(r.slots) * num(r.cap); if (!(p > 0)) return;
-      var v = venueOf(r, ik, ok), sp = String(r.sport || "Other").split(" - ")[0];
-      if (!G[v]) { G[v] = { name: v, people: 0, sports: {} }; order.push(v); }
-      G[v].people += p; G[v].sports[sp] = (G[v].sports[sp] || 0) + p;
+      var sp = String(r.sport || "Other").split(" - ")[0];
+      /* O2: cricket (Hardball + Tapeball) plays across 4 pitches, Railroad 3 and GP Stadium 1, so athletes split 3:1 (Rizwan, 21 Oct). */
+      var parts = (ok === "o2" && /Railroad/.test(String(r.venue || "")) && /^Cricket/.test(String(r.sport || ""))) ? [["Railroad Park", 3 / 4], ["Grand Prairie Cricket Stadium", 1 / 4]] : [[venueOf(r, ik, ok), 1]];
+      parts.forEach(function(pt){ var v = pt[0], q = p * pt[1];
+        if (!G[v]) { G[v] = { name: v, people: 0, sports: {} }; order.push(v); }
+        G[v].people += q; G[v].sports[sp] = (G[v].sports[sp] || 0) + q; });
     });
     order.sort(function(a, b){ return G[b].people - G[a].people; });
     var prev = vsel.value; vsel.textContent = ""; vsel.appendChild(new Option("All venues", ""));
