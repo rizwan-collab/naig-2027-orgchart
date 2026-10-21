@@ -525,6 +525,7 @@ function totals(){
   $("kVenues").textContent = venues.size;
   $("kTbd").textContent    = ath(tbd).toLocaleString();
 
+  const AP=apportion(); /* venue and sport lists live in totals(), not render() */
   const byV={};
   /* O2: cricket (Hardball + Tapeball) plays across 4 pitches, Railroad 3 and GP Stadium 1, so athletes split 3:1 (Rizwan, 21 Oct). */
   const CRK_GP=RR.some(x=>/^Cricket/.test(x.sport||"")&&/Grand Prairie/.test(rvenue(x)));
