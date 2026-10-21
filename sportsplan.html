@@ -397,6 +397,21 @@ function rslots(r){ if (!regionOn()) return num(r.slots); var i = rows.indexOf(r
 function rpeople(r){ return rslots(r) * num(r.cap); }
 /* 20 Oct 2026: athletes = slot entries less the overlap rule (naig2027/headcount/overlapPct, 20%), same as the hub. */
 var OV = 20; function ath(x){ return Math.round(x * (1 - OV / 100)); }
+/* 21 Oct 2026: rounding each venue or sport on its own made the pieces add to 2,709 instead of 2,710. apportion() rounds
+   every (venue, event) piece together (largest remainder), so venues, sports and the total always add up exactly.
+   Cricket at Railroad + GP Stadium shares 4 pitches (Railroad 3, GP 1). */
+function apportion(){
+  const RRx = regionOn() ? rows.filter(r=>rslots(r)>0) : rows;
+  const gp = RRx.some(x=>/^Cricket/.test(x.sport||"") && /Grand Prairie/.test(rvenue(x)));
+  const P=[]; let tot=0;
+  RRx.forEach(r=>{ const p=rpeople(r); if(!(p>0)) return; tot+=p; const v0=rvenue(r);
+    const parts=(gp && /^Cricket/.test(r.sport||"") && /Railroad|Grand Prairie/.test(v0)) ? [["Railroad Park",3/4],["Grand Prairie Cricket Stadium",1/4]] : [[v0,1]];
+    parts.forEach(([v,f])=>P.push({v:v, s:r.sport||"Other", x:p*f*(1-OV/100)})); });
+  const target=ath(tot); let fl=0; P.forEach(p=>{ p.i=Math.floor(p.x+1e-9); p.r=p.x-p.i; fl+=p.i; });
+  P.slice().sort((a,b)=>b.r-a.r).slice(0,Math.max(0,target-fl)).forEach(p=>{ p.i++; });
+  const V={}, S={}, G={}; P.forEach(p=>{ V[p.v]=(V[p.v]||0)+p.i; S[p.s]=(S[p.s]||0)+p.i; const g=(p.s||"").split(" - ")[0]; G[g]=(G[g]||0)+p.i; });
+  return { V:V, S:S, G:G, total:target };
+}
 /* 20 Oct 2026: indoor scenario view. Shows the sheet as if sports moved between the two StarCenters.
    View only: venues and totals change on screen, the saved sheet does not. Shares its choice with the hub picker (naigScenPick). */
 /* 21 Oct 2026: B1 + O2 are now the slot sheet itself. Scenarios are absolute: each one says where these sports play. */
@@ -436,6 +451,7 @@ function render(){
   const tb=$("rows"); tb.textContent="";
   let shown=0;
   if(!SPCOLLAPSE) SPCOLLAPSE=new Set(rows.map(r=>(r.sport||"Other").split(" - ")[0]));
+  const AP=apportion(); const allVis=rows.every(visible);
   const vis=rows.filter(visible);
   const order=[]; vis.forEach(r=>{ const s=(r.sport||"Other").split(" - ")[0]; if(order.indexOf(s)<0) order.push(s); });
   const tbl=tb.closest("table"); const ncol=(tbl && tbl.querySelectorAll("thead th").length) || 8;
@@ -446,7 +462,7 @@ function render(){
     const gs=Math.round(grp.reduce((a,r)=>a+rslots(r),0)), gp=Math.round(grp.reduce((a,r)=>a+rpeople(r),0));
     const h=document.createElement("tr"); h.className="grp"+(open?" open":"");
     const hd=document.createElement("td"); hd.colSpan=ncol;
-    hd.textContent=(open?"\u25BE  ":"\u25B8  ")+sp+"   \u00B7   "+grp.length+" event"+(grp.length===1?"":"s")+"   \u00B7   "+gs.toLocaleString()+" slots   \u00B7   "+ath(gp).toLocaleString()+" athletes";
+    hd.textContent=(open?"\u25BE  ":"\u25B8  ")+sp+"   \u00B7   "+grp.length+" event"+(grp.length===1?"":"s")+"   \u00B7   "+gs.toLocaleString()+" slots   \u00B7   "+((allVis && AP.G[sp]!=null) ? AP.G[sp] : ath(gp)).toLocaleString()+" athletes";
     h.appendChild(hd);
     h.addEventListener("click",()=>{ if(SPCOLLAPSE.has(sp)) SPCOLLAPSE.delete(sp); else SPCOLLAPSE.add(sp); spSave(); render(); });
     tb.appendChild(h);
@@ -526,7 +542,7 @@ function totals(){
     const sp=document.createElement("div"); sp.className="sp";
     sp.textContent=([...byV[v].s].sort().join(" · ")||"—")
       + (byV[v].sl?"  —  "+byV[v].sl+" slot"+(byV[v].sl===1?"":"s"):"");
-    const ct=document.createElement("div"); ct.className="ct"; ct.textContent=ath(byV[v].n).toLocaleString();
+    const ct=document.createElement("div"); ct.className="ct"; ct.textContent=(AP.V[v]!=null ? AP.V[v] : ath(byV[v].n)).toLocaleString();
     const rf=document.createElement("div"); rf.className="rf";
     if(byV[v].sl){
       const pill=document.createElement("span");
@@ -577,7 +593,7 @@ function totals(){
     const nm=document.createElement("div"); nm.className="nm"; nm.textContent=k;
     const sp=document.createElement("div"); sp.className="sp";
     sp.textContent=[...byS[k].v].sort().join(" · ")||"no venue set";
-    const ct=document.createElement("div"); ct.className="ct"; ct.textContent=ath(byS[k].n).toLocaleString();
+    const ct=document.createElement("div"); ct.className="ct"; ct.textContent=(AP.S[k]!=null ? AP.S[k] : ath(byS[k].n)).toLocaleString();
     const rf=document.createElement("div"); rf.className="rf";
     rf.textContent=byS[k].sl+" slot"+(byS[k].sl===1?"":"s")+" · "+byS[k].d+" event"+(byS[k].d===1?"":"s");
     d.appendChild(nm); d.appendChild(sp); d.appendChild(ct); d.appendChild(rf);

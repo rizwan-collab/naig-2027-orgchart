@@ -20557,7 +20557,7 @@ var iv = setInterval(function(){
     if(!hit||!hit.people) return "";
         var tail="";
     return '<div class="vc-sports" style="background:#fff7ed;color:#9a3412">'+
-      (window.naigAth?naigAth(hit.people):hit.people).toLocaleString()+" athletes &middot; "+hit.slots+" slots"+tail+"</div>";
+      ((window.naigAthVenue&&hit.name&&naigAthVenue(hit.name)!=null)?naigAthVenue(hit.name):(window.naigAth?naigAth(hit.people):hit.people)).toLocaleString()+" athletes &middot; "+hit.slots+" slots"+tail+"</div>";
   };
   function compute(v){
     var rows=(v&&Array.isArray(v.rows))?v.rows:[], byVenue={}, slots=0, people=0, done=0;
@@ -20600,7 +20600,7 @@ var iv = setInterval(function(){
       h+="<tr><td><b>"+esc2(k)+'</b></td><td style="color:#64748b;font-size:.8rem">'+
         esc2(Object.keys(r.sports).sort().join(" \u00b7 "))+"</td>"+
         '<td style="text-align:right">'+Math.round(r.slots)+"</td>"+
-        '<td style="text-align:right;font-weight:600">'+(window.naigAth?naigAth(r.people):r.people).toLocaleString()+"</td>"+
+        '<td style="text-align:right;font-weight:600">'+((window.naigAthVenue&&naigAthVenue(k)!=null)?naigAthVenue(k):(window.naigAth?naigAth(r.people):r.people)).toLocaleString()+"</td>"+
         '</tr>'; });
     h+="</tbody></table>";
     if(p.by) h+='<div style="margin-top:8px;color:#64748b;font-size:.78rem">Last edited by '+
@@ -21161,7 +21161,7 @@ var iv = setInterval(function(){
         id: k, name: v.name || k, status: status, live: live, city: v.location || '',
         assigned: pl ? Object.keys(pl.sports || {}).join(' · ') : '',
         candidate: sportsText(v),
-        slots: pl ? n(pl.slots) : null, ath: pl ? (window.naigAth?naigAth(n(pl.people)):n(pl.people)) : null,
+        slots: pl ? n(pl.slots) : null, ath: pl ? ((window.naigAthVenue && naigAthVenue(pl.name) != null) ? naigAthVenue(pl.name) : (window.naigAth?naigAth(n(pl.people)):n(pl.people))) : null,
         cap: v.capacity || '',
         fee: (v.rentalFeeAmount != null && v.rentalFeeAmount !== '') ? n(v.rentalFeeAmount) : null,
         est: !!v.rentalFeeIsEstimate, paid: n(v.paid)
@@ -22081,7 +22081,8 @@ var iv = setInterval(function(){
       if (!hit.length) return;
       var people = 0, venues = {};
       hit.forEach(function(n){ people += bs[n].people; Object.keys(bs[n].venues).forEach(function(v){ venues[v] = 1; }); });
-      var ath = naigAth(people).toLocaleString('en-US');
+      var athN = 0, okA = !!window.naigAthSport; hit.forEach(function(n){ var a = okA ? naigAthSport(n) : null; if (a == null) okA = false; else athN += a; });
+      var ath = (okA ? athN : naigAth(people)).toLocaleString('en-US');
       var vHtml = Object.keys(venues).map(function(v){ var s = venueStatus(v); return '<div style="margin-bottom:2px;font-weight:600">' + esc(v) + (s ? ' <span style="color:' + (/^confirmed$/i.test(s) ? '#15803d' : '#b45309') + ';font-size:10px">' + esc(s) + '</span>' : '') + '</div>'; }).join('') || 'TBD';
       var dates = /cricket/i.test(nm) ? 'Thu 25 – Sun 28 Mar 2027' : 'Fri 26 – Sun 28 Mar 2027';
       var sig = ath + '|' + vHtml + '|' + dates;
@@ -22559,7 +22560,7 @@ var iv = setInterval(function(){
     var max = Math.max.apply(null, R.map(function(r){ return r.ath || 0; }).concat([1]));
     var out = Object.keys(G).map(function(n){
       var g = G[n], bv = BV[n], sum = g.list.reduce(function(s, r){ return s + (r.ath || 0); }, 0);
-      g.total = bv && bv.people ? ath(bv.people) : sum;
+      g.total = (window.naigAthVenue && naigAthVenue(n) != null) ? naigAthVenue(n) : (bv && bv.people ? ath(bv.people) : sum);
       /* 21 Oct 2026: cricket is shared across Railroad (3 pitches) and GP Stadium (1). Show it as one line with this site's share so the lines add up to the total. */
       if (/^(Railroad Park|Grand Prairie Cricket Stadium)$/.test(n) && g.list.some(function(r){ return /^Cricket/.test(r.sport); }) && BV['Railroad Park'] && BV['Grand Prairie Cricket Stadium']) {
         var cr = g.list.filter(function(r){ return /^Cricket/.test(r.sport); }), rest = g.list.filter(function(r){ return !/^Cricket/.test(r.sport); });
@@ -22876,6 +22877,40 @@ var iv = setInterval(function(){
       }
     } catch(e){ console.warn('[naigAutoArch]', e); }
   }, 4000);
+})();
+</script>
+<script>
+/* 21 Oct 2026: exact athlete split. Rounding each venue or sport on its own made breakdowns add to 2,709 instead of 2,710
+   ("1 not yet placed"). These round every (venue, sport) piece together (largest remainder) so venues, sports and the
+   total always agree. Cricket at Railroad + GP Stadium shares 4 pitches (Railroad 3, GP 1). Follows the region filter. */
+(function(){
+  if (window.__naigApportion) return; window.__naigApportion = true;
+  var cache = { sig: '' };
+  function build(){
+    if (!window.NAIG || !NAIG.bySport || !window.naigAth) return null;
+    var bs = NAIG.bySport(); if (!bs) return null;
+    var sig = Object.keys(bs).map(function(k){ return k + ':' + bs[k].people + ':' + Object.keys(bs[k].venues).join('/'); }).join('|');
+    if (sig === cache.sig) return cache;
+    var sv = NAIG.bySportVenue ? NAIG.bySportVenue() : null, f = NAIG.formulaAll ? NAIG.formulaAll() : null;
+    var ov = (f && f.rules && isFinite(+f.rules.overlapPct)) ? +f.rules.overlapPct : 20, P = [], tot = 0;
+    var gp = Object.keys(bs).some(function(n){ return /^Cricket/.test(n) && Object.keys(bs[n].venues).some(function(v){ return /Grand Prairie/.test(v); }); });
+    Object.keys(bs).forEach(function(n){
+      var p = +bs[n].people || 0; if (!(p > 0)) return; tot += p; var vs = Object.keys(bs[n].venues), parts;
+      if (/^Cricket/.test(n) && gp && vs.length && vs.every(function(v){ return /^(Railroad Park|Grand Prairie Cricket Stadium)$/.test(v); })) parts = [['Railroad Park', 3 / 4], ['Grand Prairie Cricket Stadium', 1 / 4]];
+      else if (vs.length <= 1) parts = [[vs[0] || 'TBD', 1]];
+      else { var st = n.split(' - ')[0].replace(/\s*\(.*$/, '').trim(), w = vs.map(function(v){ return (sv && sv[v] && sv[v][st]) ? sv[v][st].people : 0; }), W = w.reduce(function(a, b){ return a + b; }, 0);
+        parts = vs.map(function(v, i){ return [v, W ? w[i] / W : 1 / vs.length]; }); }
+      parts.forEach(function(pt){ P.push({ v: pt[0], s: n, x: p * pt[1] * (1 - ov / 100) }); });
+    });
+    var target = naigAth(tot), fl = 0;
+    P.forEach(function(p){ p.i = Math.floor(p.x + 1e-9); p.r = p.x - p.i; fl += p.i; });
+    P.slice().sort(function(a, b){ return b.r - a.r; }).slice(0, Math.max(0, target - fl)).forEach(function(p){ p.i++; });
+    var S = {}, V = {}; P.forEach(function(p){ S[p.s] = (S[p.s] || 0) + p.i; V[p.v] = (V[p.v] || 0) + p.i; });
+    cache = { sig: sig, sport: S, venue: V, total: target }; return cache;
+  }
+  window.naigAthSport = function(n){ var c = build(); return (c && c.sport[n] != null) ? c.sport[n] : null; };
+  window.naigAthVenue = function(n){ var c = build(); return (c && c.venue[n] != null) ? c.venue[n] : null; };
+  window.naigAthCheck = function(){ var c = build(); if (!c) return null; var a = 0, b = 0; Object.keys(c.sport).forEach(function(k){ a += c.sport[k]; }); Object.keys(c.venue).forEach(function(k){ b += c.venue[k]; }); return { total: c.total, sports: a, venues: b }; };
 })();
 </script>
 </body>

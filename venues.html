@@ -690,6 +690,11 @@ import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10
         G[v].people += q; G[v].sports[sp] = (G[v].sports[sp] || 0) + q; });
     });
     order.sort(function(a, b){ return G[b].people - G[a].people; });
+    /* 21 Oct 2026: round all (venue, sport) pieces together so cards, lines and the total add up exactly */
+    var PCS = []; order.forEach(function(n){ Object.keys(G[n].sports).forEach(function(sp){ PCS.push({ v: n, s: sp, x: G[n].sports[sp] * (1 - OV / 100) }); }); });
+    var tgt = ath(order.reduce(function(a, n){ return a + G[n].people; }, 0)), fl = 0; PCS.forEach(function(p){ p.i = Math.floor(p.x + 1e-9); p.r = p.x - p.i; fl += p.i; });
+    PCS.slice().sort(function(a, b){ return b.r - a.r; }).slice(0, Math.max(0, tgt - fl)).forEach(function(p){ p.i++; });
+    var AI = {}, shownAth = 0; PCS.forEach(function(p){ AI[p.v + "||" + p.s] = p.i; G[p.v].ai = (G[p.v].ai || 0) + p.i; });
     var prev = vsel.value; vsel.textContent = ""; vsel.appendChild(new Option("All venues", ""));
     order.forEach(function(n){ vsel.appendChild(new Option(n, n)); });
     vsel.value = order.indexOf(prev) >= 0 ? prev : ""; VF = vsel.value;
@@ -699,7 +704,7 @@ import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10
       if (VF && n !== VF) return;
       var addr = lv.address || lv.location || st.addr || "Address not on record";
       if (QF && (n + " " + Object.keys(g.sports).join(" ") + " " + addr).toLowerCase().indexOf(QF) < 0) return;
-      shown++; people += g.people;
+      shown++; people += g.people; shownAth += g.ai || 0;
       var status = lv.status || st.stt || "TBD";
       var box = el("div", "v"), h = el("div", "vh"), r1 = el("div", "r1");
       r1.appendChild(el("span", "nm", n)); r1.appendChild(el("span", "tag t-" + tagCls(status), status)); h.appendChild(r1);
@@ -710,12 +715,12 @@ import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10
       if (st.poc) { var pc = el("div", "ad"); pc.appendChild(el("span", "pk", "Contact: ")); pc.appendChild(document.createTextNode(st.poc)); h.appendChild(pc); }
       box.appendChild(h);
       var sv = el("div", "vstat"), d1 = el("div"), d2 = el("div");
-      d1.appendChild(el("div", "k", "Athletes")); d1.appendChild(el("div", "val", fmt(ath(g.people))));
+      d1.appendChild(el("div", "k", "Athletes")); d1.appendChild(el("div", "val", fmt(g.ai || 0)));
       d2.appendChild(el("div", "k", "Sports here")); d2.appendChild(el("div", "val", String(Object.keys(g.sports).length)));
       sv.appendChild(d1); sv.appendChild(d2); box.appendChild(sv);
       var s1 = el("div", "sec"); s1.appendChild(el("h4", "", "Sports allocated"));
       Object.keys(g.sports).sort(function(a, b){ return g.sports[b] - g.sports[a]; }).forEach(function(sp){
-        var row = el("div", "srow"); row.appendChild(el("span", "sp", sp)); row.appendChild(el("span", "num", fmt(ath(g.sports[sp])) + " athletes")); s1.appendChild(row);
+        var row = el("div", "srow"); row.appendChild(el("span", "sp", sp)); row.appendChild(el("span", "num", fmt(AI[n + "||" + sp] || 0) + " athletes")); s1.appendChild(row);
       });
       box.appendChild(s1);
       var uc = st.uc || [];
@@ -725,7 +730,7 @@ import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10
       box.appendChild(s2);
       out.appendChild(box);
     });
-    tot.textContent = shown + " venue" + (shown === 1 ? "" : "s") + " · " + fmt(ath(people)) + " athletes";
+    tot.textContent = shown + " venue" + (shown === 1 ? "" : "s") + " · " + fmt(shownAth) + " athletes";
     if (!shown) out.appendChild(el("div", "empty", "Nothing matches that filter."));
   }
   window.addEventListener("storage", function(e){ if (e.key === "naigScenPick" || e.key === "naigScenOut") render(); });
