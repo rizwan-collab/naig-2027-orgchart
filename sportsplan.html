@@ -400,6 +400,8 @@ var OV = 20; function ath(x){ return Math.round(x * (1 - OV / 100)); }
 /* 21 Oct 2026: rounding each venue or sport on its own made the pieces add to 2,709 instead of 2,710. apportion() rounds
    every (venue, event) piece together (largest remainder), so venues, sports and the total always add up exactly.
    Cricket at Railroad + GP Stadium shares 4 pitches (Railroad 3, GP 1). */
+/* Inside the hub, venue numbers come straight from the hub (one source). Standalone or with a region picked here, use our own. */
+function hubV(v){ try { if (regionOn()) return null; const H=window.parent; if (!H || H===window || !H.naigAthVenue || !H.NAIG) return null; const f=H.NAIG.formula && H.NAIG.formula(); if (f && f.scope && f.scope!=="ALL") return null; const x=H.naigAthVenue(v); return x==null ? null : x; } catch(e){ return null; } }
 function apportion(){
   const RRx = regionOn() ? rows.filter(r=>rslots(r)>0) : rows;
   const gp = RRx.some(x=>/^Cricket/.test(x.sport||"") && /Grand Prairie/.test(rvenue(x)));
@@ -548,7 +550,7 @@ function totals(){
     const sp=document.createElement("div"); sp.className="sp";
     sp.textContent=([...byV[v].s].sort().join(" · ")||"—")
       + (byV[v].sl?"  —  "+byV[v].sl+" slot"+(byV[v].sl===1?"":"s"):"");
-    const ct=document.createElement("div"); ct.className="ct"; ct.textContent=(AP.V[v]!=null ? AP.V[v] : ath(byV[v].n)).toLocaleString();
+    const ct=document.createElement("div"); ct.className="ct"; ct.textContent=(hubV(v)!=null ? hubV(v) : AP.V[v]!=null ? AP.V[v] : ath(byV[v].n)).toLocaleString();
     const rf=document.createElement("div"); rf.className="rf";
     if(byV[v].sl){
       const pill=document.createElement("span");
