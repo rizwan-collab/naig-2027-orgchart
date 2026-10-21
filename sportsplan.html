@@ -236,7 +236,7 @@ const PATH = "naig2027/sportsPlan";
 /* Venues come from the logistics plan, not the public site. */
 const DEFAULT_VENUES = ["StarCenter Northlake","StarCenter Farmers Branch","Pickler Universe",
   "Courts of McKinney","Railroad Park","Lake Park","Frisco ISD Athletic Complex",
-  "Grand Prairie Cricket Stadium","Texomo Ground","Mansfield (Skinner / Chandler)","TBD"];
+  "Grand Prairie Cricket Stadium","Texomo Ground","Skinner Sports Complex (Mansfield)","TBD"];
 
 /* Athlete counts come from the slots entered below. There is no separate
    "planned for" figure any more - the slot sheet is the single source.
@@ -412,7 +412,7 @@ function scenVal(){ var s = $("fScen"); return (s && s.value) || "cur"; }
    O2 RR + Stadium + Mansfield (21 Oct, Rizwan): Railroad keeps Tapeball; Hardball to Grand Prairie Cricket Stadium;
    Football (Soccer) and Flag Football to Mansfield. (O3 removed 21 Oct.)
    Shared with the hub and venues.html through localStorage naigScenOut. */
-var OSCN = { o1: [["Cricket (Hardball)","Texomo Ground"]], o2: [["Cricket (Hardball)","Grand Prairie Cricket Stadium"],["Football","Mansfield (Skinner / Chandler)"],["Flag Football","Mansfield (Skinner / Chandler)"]] };
+var OSCN = { o1: [["Cricket (Hardball)","Texomo Ground"]], o2: [["Cricket (Hardball)","Grand Prairie Cricket Stadium"],["Football","Skinner Sports Complex (Mansfield)"],["Flag Football","Skinner Sports Complex (Mansfield)"]] };
 var OSCN_L = [["cur","Current","As in the sheet"],["o1","O1 \u00b7 RR + OKC","Hardball to Texomo, Calera OK. Railroad keeps Football, Flag Football, Tapeball"],["o2","O2 \u00b7 RR + Stadium + Mansfield","Railroad keeps Tapeball. Hardball to Grand Prairie Cricket Stadium. Football and Flag Football to Mansfield"]];
 function scenOVal(){ var s = $("fScenO"); return (s && s.value) || "cur"; }
 function oVenue(r, v, k){ var m = OSCN[k]; if (!m || !/Railroad/.test(v)) return v; for (var i = 0; i < m.length; i++) { if (String(r.sport || "").indexOf(m[i][0]) === 0) return m[i][1]; } return v; }

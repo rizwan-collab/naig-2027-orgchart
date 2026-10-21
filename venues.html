@@ -598,7 +598,7 @@ import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10
 
   /* Scenario maps, same as sportsplan.html */
   var SCN = { b1: [["Volleyball","StarCenter Farmers Branch"],["Table Tennis","StarCenter Northlake"]], b2: [["Throwball","StarCenter Farmers Branch"],["Table Tennis","StarCenter Northlake"]] };
-  var OSCN = { o1: [["Cricket (Hardball)","Texomo Ground"]], o2: [["Cricket (Hardball)","Grand Prairie Cricket Stadium"],["Football","Mansfield (Skinner / Chandler)"],["Flag Football","Mansfield (Skinner / Chandler)"]] };
+  var OSCN = { o1: [["Cricket (Hardball)","Texomo Ground"]], o2: [["Cricket (Hardball)","Grand Prairie Cricket Stadium"],["Football","Skinner Sports Complex (Mansfield)"],["Flag Football","Skinner Sports Complex (Mansfield)"]] };
   var LBL = { cur: "Current", b1: "B1 · Volleyball to Farmers Branch, Table Tennis to Northlake", b2: "B2 · Throwball to Farmers Branch, Table Tennis to Northlake",
     o1: "O1 · Hardball to Texomo (OKC)", o2: "O2 · Railroad Tapeball, Hardball to Grand Prairie Stadium, Football and Flag Football to Mansfield" };
   function pick(k, map){ var v = "cur"; try { v = localStorage.getItem(k) || "cur"; } catch(e){} return map[v] ? v : "cur"; }
@@ -615,7 +615,7 @@ import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10
   function el(t, c, x){ var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
   var ROWS = [], OV = 20, LIVE = {}, STATIC = window.__VPV || {};
   function ath(x){ return Math.round(x * (1 - OV / 100)); }
-  var ALIAS = { "Mansfield (Skinner / Chandler)": "mansfield", "Texomo Ground": "texomo" }; /* live records are "Skinner Sports Complex (Mansfield)", "Texomo Cricket Ground — Calera, OK" */
+  var ALIAS = { "Skinner Sports Complex (Mansfield)": "skinner", "Texomo Ground": "texomo" }; /* live records are "Skinner Sports Complex (Mansfield)", "Texomo Cricket Ground — Calera, OK" */
   function liveRec(name){ var k = ALIAS[name] || key(name), hit = null; Object.keys(LIVE).forEach(function(id){ var r = LIVE[id] || {}, rk = key(r.name); if (!hit && rk && (rk.indexOf(k) >= 0 || k.indexOf(rk) >= 0)) hit = r; }); return hit; }
   function staticRec(name){ if (STATIC[name]) return STATIC[name]; var k = key(name), hit = null; Object.keys(STATIC).forEach(function(n){ var nk = key(n); if (!hit && (nk.indexOf(k) >= 0 || k.indexOf(nk) >= 0)) hit = STATIC[n]; }); return hit || {}; }
   function tagCls(s){ s = String(s || "").toLowerCase(); if (/confirm|signed|contract/.test(s)) return "ok"; if (/declin|not avail|not select/.test(s)) return "bad"; if (/tbd|^$/.test(s)) return "no"; return "warn"; }
