@@ -583,6 +583,7 @@ import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10
     + "#lvBar input{flex:1 1 180px}"
     + "#lvScen{font-size:12.5px;color:var(--muted);margin:0 0 12px;padding:8px 12px;background:var(--soft);border-radius:8px}"
     + "#lvScen b{color:var(--ink)}"
+    + "#lvScen,#lvPick{display:none !important}"
     + "#lvPick{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin:0 0 14px}"
     + "#lvPick .grp{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}"
     + "#lvPick .gh{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:10px 14px 6px}"
@@ -607,8 +608,8 @@ import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10
   var sub = document.querySelector("header.top .meta span"); if (sub) sub.textContent = "Live from the slot sheet";
 
   /* Scenario maps, same as sportsplan.html */
-  var SCN = { a0: [["Volleyball","StarCenter Northlake"],["Table Tennis","StarCenter Farmers Branch"]], b2: [["Volleyball","StarCenter Northlake"],["Throwball","StarCenter Farmers Branch"],["Table Tennis","StarCenter Northlake"]] }; /* 21 Oct 2026: B1 + O2 are the sheet now; scenarios are absolute */
-  var OSCN = { o0: [["Cricket (Hardball)","Railroad Park"],["Football","Railroad Park"],["Flag Football","Railroad Park"]], o1: [["Cricket (Hardball)","Texomo Ground"],["Football","Railroad Park"],["Flag Football","Railroad Park"]] };
+  var SCN = {}; /* scenarios retired 21 Oct 2026: B1 + O2 are the sheet */
+  var OSCN = {};
   var LBL = { cur: "Current", a0: "Indoor: Original (Table Tennis at Farmers Branch, Volleyball at Northlake)", b2: "Indoor: B2 (Throwball to Farmers Branch)",
     o0: "Outdoor: Original (everything at Railroad)", o1: "Outdoor: O1 (Hardball to Texomo)" };
   function pick(k, map){ var v = "cur"; try { v = localStorage.getItem(k) || "cur"; } catch(e){} return map[v] ? v : "cur"; }
@@ -678,7 +679,6 @@ import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10
     var b = el("b", "", [ik, ok].filter(function(x){ return x !== "cur"; }).map(function(x){ return LBL[x]; }).join(" + ") || "Current, as in the sheet"); scenBox.appendChild(b);
     scenBox.appendChild(document.createTextNode(". Also set in Program \u2192 Sports Allocation; the two stay in step."));
     if (!ROWS.length) { out.textContent = "Loading the slot sheet…"; return; }
-    drawPick(ik, ok);
     var G = {}, order = [], gpCricket = ROWS.some(function(r){ return /^Cricket/.test(String(r.sport || "")) && /Grand Prairie/.test(venueOf(r, ik, ok)); }); /* cricket at GP: Railroad 3 pitches + GP 1, split 3:1 */
     ROWS.forEach(function(r){
       var p = num(r.slots) * num(r.cap); if (!(p > 0)) return;

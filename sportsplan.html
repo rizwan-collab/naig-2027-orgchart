@@ -187,13 +187,7 @@ html.emb h1{font-size:18px}
   </table>
 </div>
 
-<h2>Indoor scenarios</h2>
-<p class="lead">Tap a scenario. By venue, By sport and the events list below switch to it straight away. View only, nothing is saved.</p>
-<div class="tblwrap" id="byScen"></div>
-
-<h2>Outdoor scenarios</h2>
-<p class="lead">Hardball cricket can't stay at Railroad Park because of the ball. Tap one to see where everything lands. Works with the indoor pick above. View only.</p>
-<div class="tblwrap" id="byScenO"></div>
+<!-- Indoor/outdoor scenarios removed 21 Oct 2026: B1 + O2 are the sheet. -->
 
 <h2>By venue</h2>
 <p class="lead">Athletes at max, worked out from the slots entered below. Nothing is compared against a separate planning figure are worth a conversation.</p>
@@ -406,14 +400,14 @@ var OV = 20; function ath(x){ return Math.round(x * (1 - OV / 100)); }
 /* 20 Oct 2026: indoor scenario view. Shows the sheet as if sports moved between the two StarCenters.
    View only: venues and totals change on screen, the saved sheet does not. Shares its choice with the hub picker (naigScenPick). */
 /* 21 Oct 2026: B1 + O2 are now the slot sheet itself. Scenarios are absolute: each one says where these sports play. */
-var SCN = { a0: [["Volleyball","StarCenter Northlake"],["Table Tennis","StarCenter Farmers Branch"]], b2: [["Volleyball","StarCenter Northlake"],["Throwball","StarCenter Farmers Branch"],["Table Tennis","StarCenter Northlake"]] };
+var SCN = {}; /* scenarios retired 21 Oct 2026 (Rizwan): B1 + O2 are the sheet */
 function scenVal(){ var s = $("fScen"); return (s && s.value) || "cur"; }
 /* 20 Oct 2026: outdoor scenarios (Rizwan). Hardball moves off Railroad Park because of the ball.
    O1 RR + OKC: Hardball to Texomo (Calera, OK); Railroad keeps Football, Flag Football, Tapeball.
    O2 RR + Stadium + Mansfield (21 Oct, Rizwan): Railroad keeps Tapeball; Hardball to Grand Prairie Cricket Stadium;
    Football (Soccer) and Flag Football to Mansfield. (O3 removed 21 Oct.)
    Shared with the hub and venues.html through localStorage naigScenOut. */
-var OSCN = { o0: [["Cricket (Hardball)","Railroad Park"],["Football","Railroad Park"],["Flag Football","Railroad Park"]], o1: [["Cricket (Hardball)","Texomo Ground"],["Football","Railroad Park"],["Flag Football","Railroad Park"]] };
+var OSCN = {};
 var OSCN_L = [["cur","O2 (current)","Cricket on Railroad (3 pitches) + GP Stadium (1). Football and Flag Football at Skinner (Mansfield)"],["o0","Original","Everything at Railroad Park"],["o1","O1 \u00b7 RR + OKC","Hardball to Texomo. Railroad has Football, Flag Football, Tapeball"]];
 function scenOVal(){ var s = $("fScenO"); return (s && s.value) || "cur"; }
 function oVenue(r, v, k){ var m = OSCN[k]; if (!m || !/Railroad|Grand Prairie|Skinner/.test(v)) return v; for (var i = 0; i < m.length; i++) { if (String(r.sport || "").indexOf(m[i][0]) === 0) return m[i][1]; } return v; }

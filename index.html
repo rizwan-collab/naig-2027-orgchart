@@ -22559,7 +22559,14 @@ var iv = setInterval(function(){
     var max = Math.max.apply(null, R.map(function(r){ return r.ath || 0; }).concat([1]));
     var out = Object.keys(G).map(function(n){
       var g = G[n], bv = BV[n], sum = g.list.reduce(function(s, r){ return s + (r.ath || 0); }, 0);
-      g.total = bv && bv.people ? ath(bv.people) : sum; return g;
+      g.total = bv && bv.people ? ath(bv.people) : sum;
+      /* 21 Oct 2026: cricket is shared across Railroad (3 pitches) and GP Stadium (1). Show it as one line with this site's share so the lines add up to the total. */
+      if (/^(Railroad Park|Grand Prairie Cricket Stadium)$/.test(n) && g.list.some(function(r){ return /^Cricket/.test(r.sport); }) && BV['Railroad Park'] && BV['Grand Prairie Cricket Stadium']) {
+        var cr = g.list.filter(function(r){ return /^Cricket/.test(r.sport); }), rest = g.list.filter(function(r){ return !/^Cricket/.test(r.sport); });
+        var share = g.total - rest.reduce(function(s, r){ return s + (r.ath || 0); }, 0);
+        g.list = rest.concat([{ sport: 'Cricket (Hardball + Tapeball) · ' + (/Railroad/.test(n) ? '3' : '1') + ' of 4 pitches', cat: 'Team', ath: share, venue: n, dates: cr[0].dates, status: cr[0].status }]);
+      }
+      return g;
     }).sort(function(a, b){ return b.total - a.total; });
     var html = out.map(function(g){
       var v = venueRec(g.name), t = tone(g.status), city = cityOf(v);
