@@ -607,16 +607,16 @@ import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10
   var sub = document.querySelector("header.top .meta span"); if (sub) sub.textContent = "Live from the slot sheet";
 
   /* Scenario maps, same as sportsplan.html */
-  var SCN = { b1: [["Volleyball","StarCenter Farmers Branch"],["Table Tennis","StarCenter Northlake"]], b2: [["Throwball","StarCenter Farmers Branch"],["Table Tennis","StarCenter Northlake"]] };
-  var OSCN = { o1: [["Cricket (Hardball)","Texomo Ground"]], o2: [["Cricket (Hardball)","Grand Prairie Cricket Stadium"],["Football","Skinner Sports Complex (Mansfield)"],["Flag Football","Skinner Sports Complex (Mansfield)"]] };
-  var LBL = { cur: "Current", b1: "B1 · Volleyball to Farmers Branch, Table Tennis to Northlake", b2: "B2 · Throwball to Farmers Branch, Table Tennis to Northlake",
-    o1: "O1 · Hardball to Texomo (OKC)", o2: "O2 · Cricket on Railroad (3 pitches) + GP Stadium (1), Football and Flag Football to Skinner (Mansfield)" };
+  var SCN = { a0: [["Volleyball","StarCenter Northlake"],["Table Tennis","StarCenter Farmers Branch"]], b2: [["Volleyball","StarCenter Northlake"],["Throwball","StarCenter Farmers Branch"],["Table Tennis","StarCenter Northlake"]] }; /* 21 Oct 2026: B1 + O2 are the sheet now; scenarios are absolute */
+  var OSCN = { o0: [["Cricket (Hardball)","Railroad Park"],["Football","Railroad Park"],["Flag Football","Railroad Park"]], o1: [["Cricket (Hardball)","Texomo Ground"],["Football","Railroad Park"],["Flag Football","Railroad Park"]] };
+  var LBL = { cur: "Current", a0: "Indoor: Original (Table Tennis at Farmers Branch, Volleyball at Northlake)", b2: "Indoor: B2 (Throwball to Farmers Branch)",
+    o0: "Outdoor: Original (everything at Railroad)", o1: "Outdoor: O1 (Hardball to Texomo)" };
   function pick(k, map){ var v = "cur"; try { v = localStorage.getItem(k) || "cur"; } catch(e){} return map[v] ? v : "cur"; }
   function venueOf(r, ik, ok){
     var v = r.venue || "TBD", s = String(r.sport || ""), m = SCN[ik], i;
     if (m && /Farmers Branch|Northlake/.test(v)) for (i = 0; i < m.length; i++) if (s.indexOf(m[i][0]) === 0) { v = m[i][1]; break; }
     m = OSCN[ok];
-    if (m && /Railroad/.test(v)) for (i = 0; i < m.length; i++) if (s.indexOf(m[i][0]) === 0) { v = m[i][1]; break; }
+    if (m && /Railroad|Grand Prairie|Skinner/.test(v)) for (i = 0; i < m.length; i++) if (s.indexOf(m[i][0]) === 0) { v = m[i][1]; break; }
     return v;
   }
   function num(x){ x = Number(x); return isFinite(x) ? x : 0; }
@@ -647,8 +647,8 @@ import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10
 
   /* 21 Oct 2026 (Rizwan): the scenario toggle on the Venue plan, same as Sports Allocation. Tap one: every card below
      switches, and the slots form follows (shared choice: naigScenPick / naigScenOut). View only, nothing is saved. */
-  var IND = [["cur","Current","As in the sheet"],["b1","B1","Volleyball to Farmers Branch, Table Tennis to Northlake"],["b2","B2","Throwball to Farmers Branch, Table Tennis to Northlake"]];
-  var OUT = [["cur","Current","As in the sheet"],["o1","O1 \u00b7 RR + OKC","Hardball to Texomo. Railroad keeps Football, Flag Football, Tapeball"],["o2","O2 \u00b7 RR + Stadium + Mansfield","Cricket (Hardball + Tapeball) on 4 pitches: Railroad 3, GP Stadium 1. Football and Flag Football to Skinner (Mansfield)"]];
+  var IND = [["cur","B1 (current)","Volleyball at Farmers Branch, Table Tennis at Northlake"],["a0","Original","Table Tennis at Farmers Branch, Volleyball at Northlake"],["b2","B2","Throwball to Farmers Branch, Table Tennis and Volleyball at Northlake"]];
+  var OUT = [["cur","O2 (current)","Cricket on Railroad (3 pitches) + GP Stadium (1). Football and Flag Football at Skinner (Mansfield)"],["o0","Original","Everything at Railroad Park"],["o1","O1 \u00b7 RR + OKC","Hardball to Texomo. Railroad has Football, Flag Football, Tapeball"]];
   function drawPick(ik, ok){
     function totals(ik2, ok2, fn){ var T = {}; ROWS.forEach(function(r){ var p = num(r.slots) * num(r.cap); if (!(p > 0)) return; var b = fn(venueOf(r, ik2, ok2), r); if (b) T[b] = (T[b] || 0) + p; }); return T; }
     function grp(title, list, cur, key, fn, cols){
@@ -666,8 +666,8 @@ import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10
     pickBox.textContent = "";
     pickBox.appendChild(grp("Indoor \u00b7 StarCenters", IND, ik, "naigScenPick", function(v){ return /Farmers Branch/.test(v) ? "Farmers Branch" : /Northlake/.test(v) ? "Northlake" : ""; }, ["Farmers Branch", "Northlake"]));
     pickBox.appendChild(grp("Outdoor \u00b7 Railroad Park", OUT, ok, "naigScenOut", function(v, r, k){
-      if (!/Railroad/.test(String(r.venue || ""))) return "";
-      if (k === "o2" && /Railroad|Grand Prairie/.test(v)) return "Railroad + GP Stadium";
+      if (!/Railroad|Grand Prairie|Skinner/.test(String(r.venue || ""))) return "";
+      if (k === "cur" && /Railroad|Grand Prairie/.test(v)) return "Railroad + GP Stadium";
       return /Railroad/.test(v) ? "Railroad" : /Texomo/.test(v) ? "Texomo (OKC)" : /Mansfield/.test(v) ? "Skinner (Mansfield)" : "";
     }, ["Railroad", "Railroad + GP Stadium", "Texomo (OKC)", "Skinner (Mansfield)"]));
   }
@@ -679,12 +679,12 @@ import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10
     scenBox.appendChild(document.createTextNode(". Also set in Program \u2192 Sports Allocation; the two stay in step."));
     if (!ROWS.length) { out.textContent = "Loading the slot sheet…"; return; }
     drawPick(ik, ok);
-    var G = {}, order = [];
+    var G = {}, order = [], gpCricket = ROWS.some(function(r){ return /^Cricket/.test(String(r.sport || "")) && /Grand Prairie/.test(venueOf(r, ik, ok)); }); /* cricket at GP: Railroad 3 pitches + GP 1, split 3:1 */
     ROWS.forEach(function(r){
       var p = num(r.slots) * num(r.cap); if (!(p > 0)) return;
       var sp = String(r.sport || "Other").split(" - ")[0];
       /* O2: cricket (Hardball + Tapeball) plays across 4 pitches, Railroad 3 and GP Stadium 1, so athletes split 3:1 (Rizwan, 21 Oct). */
-      var parts = (ok === "o2" && /Railroad/.test(String(r.venue || "")) && /^Cricket/.test(String(r.sport || ""))) ? [["Railroad Park", 3 / 4], ["Grand Prairie Cricket Stadium", 1 / 4]] : [[venueOf(r, ik, ok), 1]];
+      var parts = (gpCricket && /Railroad|Grand Prairie/.test(venueOf(r, ik, ok)) && /^Cricket/.test(String(r.sport || ""))) ? [["Railroad Park", 3 / 4], ["Grand Prairie Cricket Stadium", 1 / 4]] : [[venueOf(r, ik, ok), 1]];
       parts.forEach(function(pt){ var v = pt[0], q = p * pt[1];
         if (!G[v]) { G[v] = { name: v, people: 0, sports: {} }; order.push(v); }
         G[v].people += q; G[v].sports[sp] = (G[v].sports[sp] || 0) + q; });

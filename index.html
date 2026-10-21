@@ -20937,16 +20937,21 @@ var iv = setInterval(function(){
   /* 19 Oct 2026: per-venue slots and registrations from the slot sheet, following the region filter.
      Same arithmetic as scopeFromSlots, so the Venue Directory and Scope always agree. */
   F.byVenue = function(){
-    var out = {}; if (!ROWS) return out;
+    var out = {}, pool = { slots: 0, people: 0, gp: false, sports: {} }; if (!ROWS) return out;
     var codes = codesFor(filter), rs = (SR && SR.rows) || {};
     Object.keys(ROWS).forEach(function(i){
       var row = ROWS[i]; if (!row) return;
       var live = num(row.slots), cap = num(row.cap), sl = live;
       if (filter !== 'ALL' && SR) { var s = rs[i]; sl = 0; if (s && num(s.slotsAtLoad)) { var sum = 0; codes.forEach(function(k){ sum += num((s.byRegion || {})[k]); }); sl = live * sum / num(s.slotsAtLoad); } }
       var v = row.venue || 'TBD';
+      /* 21 Oct 2026: cricket at Railroad + GP Stadium plays on 4 pitches (Railroad 3, GP 1), so the crowd splits 3:1. */
+      if (/^Cricket/.test(String(row.sport || '')) && /^(Railroad Park|Grand Prairie Cricket Stadium)$/.test(v)) { pool.slots += sl; pool.people += sl * cap; if (/Grand Prairie/.test(v)) pool.gp = true; if (sl > 0) pool.sports[row.sport] = 1; return; }
       if (!out[v]) out[v] = { name: v, slots: 0, people: 0, sports: {} };
       out[v].slots += sl; out[v].people += sl * cap; if (sl > 0 && row.sport) out[v].sports[row.sport] = 1;
     });
+    if (pool.people > 0) [['Railroad Park', pool.gp ? 3 / 4 : 1], ['Grand Prairie Cricket Stadium', pool.gp ? 1 / 4 : 0]].forEach(function(x){
+      if (!x[1]) return; var v = x[0]; if (!out[v]) out[v] = { name: v, slots: 0, people: 0, sports: {} };
+      out[v].slots += pool.slots * x[1]; out[v].people += pool.people * x[1]; Object.keys(pool.sports).forEach(function(s){ out[v].sports[s] = 1; }); });
     return out;
   };
   /* 20 Oct 2026: per venue AND sport, same arithmetic as byVenue (region-aware). Used by the indoor scenarios panel. */

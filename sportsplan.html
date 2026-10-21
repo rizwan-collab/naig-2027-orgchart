@@ -154,8 +154,8 @@ html.emb h1{font-size:18px}
   <select id="fSport"><option value="">All sports</option></select>
   <select id="fAge"><option value="">All ages</option></select>
   <select id="fRegion" title="Region view - slots can only be edited in All regions"><option value="ALL">All regions</option></select>
-  <select id="fScen" title="Indoor scenario view - read-only, nothing is saved"><option value="cur">Scenario: Current</option><option value="b1">B1 · Volleyball to Farmers Branch, Table Tennis to Northlake</option><option value="b2">B2 · Throwball to Farmers Branch, Table Tennis to Northlake</option></select>
-  <select id="fScenO" style="display:none" title="Outdoor scenario view - read-only"><option value="cur">Outdoor: Current</option><option value="o1">O1</option><option value="o2">O2</option></select>
+  <select id="fScen" title="Indoor scenario view - read-only, nothing is saved"><option value="cur">Scenario: B1 (current)</option><option value="a0">Original</option><option value="b2">B2</option></select>
+  <select id="fScenO" style="display:none" title="Outdoor scenario view - read-only"><option value="cur">Outdoor: O2 (current)</option><option value="o0">Original</option><option value="o1">O1</option></select>
   <button type="button" id="seed" class="ghost">Reset to the official 100</button>
   <span class="status" id="status">Connecting…</span>
 </div>
@@ -405,17 +405,18 @@ function rpeople(r){ return rslots(r) * num(r.cap); }
 var OV = 20; function ath(x){ return Math.round(x * (1 - OV / 100)); }
 /* 20 Oct 2026: indoor scenario view. Shows the sheet as if sports moved between the two StarCenters.
    View only: venues and totals change on screen, the saved sheet does not. Shares its choice with the hub picker (naigScenPick). */
-var SCN = { b1: [["Volleyball","StarCenter Farmers Branch"],["Table Tennis","StarCenter Northlake"]], b2: [["Throwball","StarCenter Farmers Branch"],["Table Tennis","StarCenter Northlake"]] };
+/* 21 Oct 2026: B1 + O2 are now the slot sheet itself. Scenarios are absolute: each one says where these sports play. */
+var SCN = { a0: [["Volleyball","StarCenter Northlake"],["Table Tennis","StarCenter Farmers Branch"]], b2: [["Volleyball","StarCenter Northlake"],["Throwball","StarCenter Farmers Branch"],["Table Tennis","StarCenter Northlake"]] };
 function scenVal(){ var s = $("fScen"); return (s && s.value) || "cur"; }
 /* 20 Oct 2026: outdoor scenarios (Rizwan). Hardball moves off Railroad Park because of the ball.
    O1 RR + OKC: Hardball to Texomo (Calera, OK); Railroad keeps Football, Flag Football, Tapeball.
    O2 RR + Stadium + Mansfield (21 Oct, Rizwan): Railroad keeps Tapeball; Hardball to Grand Prairie Cricket Stadium;
    Football (Soccer) and Flag Football to Mansfield. (O3 removed 21 Oct.)
    Shared with the hub and venues.html through localStorage naigScenOut. */
-var OSCN = { o1: [["Cricket (Hardball)","Texomo Ground"]], o2: [["Cricket (Hardball)","Grand Prairie Cricket Stadium"],["Football","Skinner Sports Complex (Mansfield)"],["Flag Football","Skinner Sports Complex (Mansfield)"]] };
-var OSCN_L = [["cur","Current","As in the sheet"],["o1","O1 \u00b7 RR + OKC","Hardball to Texomo, Calera OK. Railroad keeps Football, Flag Football, Tapeball"],["o2","O2 \u00b7 RR + Stadium + Mansfield","Cricket (Hardball + Tapeball) on 4 pitches: Railroad 3, GP Stadium 1. Football and Flag Football to Skinner (Mansfield)"]];
+var OSCN = { o0: [["Cricket (Hardball)","Railroad Park"],["Football","Railroad Park"],["Flag Football","Railroad Park"]], o1: [["Cricket (Hardball)","Texomo Ground"],["Football","Railroad Park"],["Flag Football","Railroad Park"]] };
+var OSCN_L = [["cur","O2 (current)","Cricket on Railroad (3 pitches) + GP Stadium (1). Football and Flag Football at Skinner (Mansfield)"],["o0","Original","Everything at Railroad Park"],["o1","O1 \u00b7 RR + OKC","Hardball to Texomo. Railroad has Football, Flag Football, Tapeball"]];
 function scenOVal(){ var s = $("fScenO"); return (s && s.value) || "cur"; }
-function oVenue(r, v, k){ var m = OSCN[k]; if (!m || !/Railroad/.test(v)) return v; for (var i = 0; i < m.length; i++) { if (String(r.sport || "").indexOf(m[i][0]) === 0) return m[i][1]; } return v; }
+function oVenue(r, v, k){ var m = OSCN[k]; if (!m || !/Railroad|Grand Prairie|Skinner/.test(v)) return v; for (var i = 0; i < m.length; i++) { if (String(r.sport || "").indexOf(m[i][0]) === 0) return m[i][1]; } return v; }
 function scenOn(){ return !!SCN[scenVal()] || !!OSCN[scenOVal()]; }
 function rvenue(r){ return oVenue(r, rvenueK(r, scenVal()), scenOVal()); }
 function rvenueK(r, k){ var v = r.venue || "TBD", m = SCN[k]; if (!m || !/Farmers Branch|Northlake/.test(v)) return v; for (var i = 0; i < m.length; i++) { if (String(r.sport || "").indexOf(m[i][0]) === 0) return m[i][1]; } return v; }
@@ -516,7 +517,8 @@ function totals(){
 
   const byV={};
   /* O2: cricket (Hardball + Tapeball) plays across 4 pitches, Railroad 3 and GP Stadium 1, so athletes split 3:1 (Rizwan, 21 Oct). */
-  RR.forEach(r=>{ const parts=(scenOVal()==="o2" && /Railroad/.test(r.venue||"") && /^Cricket/.test(r.sport||"")) ? [["Railroad Park",3/4],["Grand Prairie Cricket Stadium",1/4]] : [[rvenue(r),1]];
+  const CRK_GP=RR.some(x=>/^Cricket/.test(x.sport||"")&&/Grand Prairie/.test(rvenue(x)));
+  RR.forEach(r=>{ const v0=rvenue(r); const parts=(CRK_GP && /^Cricket/.test(r.sport||"") && /Railroad|Grand Prairie/.test(v0)) ? [["Railroad Park",3/4],["Grand Prairie Cricket Stadium",1/4]] : [[v0,1]];
     parts.forEach(([v,f])=>{ (byV[v]=byV[v]||{n:0,sl:0,s:new Set()});
     byV[v].n+=rpeople(r)*f; byV[v].sl+=rslots(r)*f; if(r.sport) byV[v].s.add(r.sport); }); });
   Object.keys(byV).forEach(v=>{ byV[v].n=Math.round(byV[v].n); byV[v].sl=Math.round(byV[v].sl); });
@@ -550,7 +552,7 @@ function totals(){
   /* 20 Oct 2026: indoor scenarios table, after By venue. Same rows, same overlap rule, venues remapped per scenario. */
   (function(){ const box=$("byScen"); if(!box) return; box.textContent="";
     const TEAM={Basketball:1,Volleyball:1,Throwball:1};
-    const L=[["cur","Current","As in the sheet"],["b1","B1","Volleyball to Farmers Branch, Table Tennis to Northlake"],["b2","B2","Throwball to Farmers Branch, Table Tennis to Northlake"]];
+    const L=[["cur","B1 (current)","Volleyball at Farmers Branch, Table Tennis at Northlake"],["a0","Original","Table Tennis at Farmers Branch, Volleyball at Northlake"],["b2","B2","Throwball to Farmers Branch, Table Tennis and Volleyball at Northlake"]];
     L.forEach(([k,nm,desc])=>{ let fb=0,nl=0; const sfb=new Set(), snl=new Set();
       RR.forEach(r=>{ const v=rvenueK(r,k), g=(r.sport||"").split(" (")[0]; if(/Farmers Branch/.test(v)){ fb+=rpeople(r); sfb.add(g); } else if(/Northlake/.test(v)){ nl+=rpeople(r); snl.add(g); } });
       const mix=s=>[...s].some(x=>TEAM[x])&&[...s].some(x=>!TEAM[x]);
@@ -563,13 +565,13 @@ function totals(){
   })();
   (function(){ const box=$("byScenO"); if(!box) return; box.textContent="";
     OSCN_L.forEach(([k,nm,desc])=>{ const T={}, S={};
-      RR.forEach(r=>{ const v0=rvenueK(r,scenVal()); if(!/Railroad/.test(v0)) return; const v=oVenue(r,v0,k); const nmv=(k==="o2"&&/Railroad|Grand Prairie/.test(v))?"Railroad + GP Stadium":/Railroad/.test(v)?"Railroad":/Texomo/.test(v)?"Texomo (OKC)":/Grand Prairie/.test(v)?"GP Stadium":/Mansfield/.test(v)?"Mansfield":v; T[nmv]=(T[nmv]||0)+rpeople(r); (S[nmv]=S[nmv]||new Set()).add((r.sport||"").split(" - ")[0]); });
+      RR.forEach(r=>{ const v0=rvenueK(r,scenVal()); if(!/Railroad|Grand Prairie|Skinner/.test(v0)) return; const v=oVenue(r,v0,k); const nmv=(k==="cur"&&/Railroad|Grand Prairie/.test(v))?"Railroad + GP Stadium":/Railroad/.test(v)?"Railroad":/Texomo/.test(v)?"Texomo (OKC)":/Grand Prairie/.test(v)?"GP Stadium":/Mansfield/.test(v)?"Skinner (Mansfield)":v; T[nmv]=(T[nmv]||0)+rpeople(r); (S[nmv]=S[nmv]||new Set()).add((r.sport||"").split(" - ")[0]); });
       const on=k===scenOVal();
       const d=document.createElement("div"); d.className="vrow"; d.style.cursor="pointer"; d.title="Show the whole sheet as "+nm; if(on){ d.style.background="var(--soft)"; d.style.boxShadow="inset 4px 0 0 var(--accent)"; } d.addEventListener("click",()=>{ const s=$("fScenO"); if(!s) return; s.value=k; s.dispatchEvent(new Event("change")); });
       const a=document.createElement("div"); a.className="nm"; a.textContent=(on?"\u25CF ":"\u25CB ")+nm+(on?"  (showing)":"");
       const b=document.createElement("div"); b.className="sp"; b.textContent=desc+"  \u00b7  "+Object.keys(S).map(x=>x+": "+[...S[x]].sort().join(", ")).join("  \u00b7  ");
       d.appendChild(a); d.appendChild(b);
-      ["Railroad + GP Stadium","Railroad","Texomo (OKC)","GP Stadium","Mansfield"].forEach(x=>{ if(!T[x]) return; const c=document.createElement("div"); c.className="ct"; c.style.width="110px"; const l=document.createElement("div"); l.style.cssText="font-size:10px;font-weight:600;color:var(--muted)"; l.textContent=x; c.appendChild(l); c.appendChild(document.createTextNode(ath(T[x]).toLocaleString()+" athletes")); d.appendChild(c); });
+      ["Railroad + GP Stadium","Railroad","Texomo (OKC)","GP Stadium","Skinner (Mansfield)"].forEach(x=>{ if(!T[x]) return; const c=document.createElement("div"); c.className="ct"; c.style.width="110px"; const l=document.createElement("div"); l.style.cssText="font-size:10px;font-weight:600;color:var(--muted)"; l.textContent=x; c.appendChild(l); c.appendChild(document.createTextNode(ath(T[x]).toLocaleString()+" athletes")); d.appendChild(c); });
       box.appendChild(d); });
   })();
   const swrap=$("bySport"); swrap.textContent="";
