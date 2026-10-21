@@ -10326,7 +10326,8 @@ window.renderVenues = function() {
   if (!wrap) return;
   const all = Object.entries(window._venuesData || {});
   const search = (document.getElementById('venueSearch')||{}).value?.toLowerCase()||'';
-  const items = all.filter(([,v]) => !search || JSON.stringify(v).toLowerCase().includes(search));
+  /* 21 Oct 2026 (Rizwan): only venues in play. Archived or closed (Declined, Not Available, Not Selected, Dropped, Closed, Cancelled) never show; they live in the archive. */
+  const items = all.filter(([,v]) => !v.archived && !/^(declined|not available|not selected|dropped|closed|cancelled)/i.test(String(v.status || '').trim())).filter(([,v]) => !search || JSON.stringify(v).toLowerCase().includes(search));
 
   // Case-insensitive prefix match so descriptive suffixes (e.g. "Signed — Executed 8/18") still bucket correctly
   const _statusMatch = (status, prefixes) => {
@@ -10421,7 +10422,7 @@ window.renderVenues = function() {
     tier('Confirmed', confirmed, 'tier-confirmed', false, 'confirmed') +
     tier('Pending Deposit', pendingDeposit, 'tier-pending-deposit', false, 'pending-deposit') +
     tier('In Works', inWorks, 'tier-inworks', false, 'in-works') +
-    tier('Closed / Out', closed, 'tier-closed', true, 'closed');
+    /* Closed / Out tier removed 21 Oct 2026: closed sites stay in the archive and never show. */
 
   // The specs table and the fit matrix read the same data and the same search box.
   window.renderVenueSpecs && window.renderVenueSpecs();
@@ -21149,6 +21150,7 @@ var iv = setInterval(function(){
       var v = V[k] || {};
       var status = String(v.status || 'Identified');
       var live = !v.archived && !CLOSED.test(status);
+      if (!live) return; /* 21 Oct 2026: closed or archived sites never show */
       var pl = planFor(v.name, byV);
       out.push({
         id: k, name: v.name || k, status: status, live: live, city: v.location || '',
@@ -21215,7 +21217,7 @@ var iv = setInterval(function(){
       return '<tr class="' + (x.ath != null ? 'vo-a' : '') + '"><td><b>' + esc(x.name) + '</b></td><td>' + pill + '</td><td>' + esc(x.city) + '</td><td>' + sp + '</td>'
         + '<td class="n">' + (x.slots == null ? '—' : fmt(x.slots)) + '</td><td class="n">' + (x.ath == null ? '—' : fmt(x.ath)) + '</td>'
         + '<td>' + (x.cap ? esc(x.cap) : '<span class="vo-muted">N/A</span>') + '</td>'
-        + '<td class="n">' + (x.fee == null ? 'N/A' : '$' + fmt(x.fee) + (x.est ? ' est' : '')) + '</td><td class="n">' + (x.paid ? '$' + fmt(x.paid) : '—') + '</td></tr>';
+        + '</tr>';
     }).join('');
     el.innerHTML = '<div class="vo-sum"><b>Venue Directory</b> — one table for every site. Sports, slots and athletes come from the slot sheet. ' + scopeTxt
       + '<b>' + assignedN + '</b> sites carry events · <b>' + fmt(placed) + '</b> of <b>' + fmt(total) + '</b> athletes placed'
@@ -21224,13 +21226,13 @@ var iv = setInterval(function(){
       + '<label><input type="checkbox" id="voAssigned"' + (state.assigned ? ' checked' : '') + '> Only sites carrying events</label>'
       + '<span class="vo-muted">' + r.length + ' of ' + all.length + ' sites</span><button type="button" class="vt-btn" id="voCsv">↓ CSV</button></div>'
       + '<div class="vo-wrap"><table><thead><tr>' + th('name', 'Venue') + th('status', 'Status') + th('city', 'City') + '<th>Sports</th>'
-      + th('slots', 'Slots', 1) + th('ath', 'Athletes', 1) + '<th>Capacity</th>' + th('fee', 'Rental fee', 1) + '<th class="n">Paid</th></tr></thead><tbody>'
-      + (body || '<tr><td colspan="9" class="vo-muted">No sites match.</td></tr>') + '</tbody></table></div>';
+      + th('slots', 'Slots', 1) + th('ath', 'Athletes', 1) + '<th>Capacity</th>' + '</tr></thead><tbody>'
+      + (body || '<tr><td colspan="7" class="vo-muted">No sites match.</td></tr>') + '</tbody></table></div>';
   }
   function csv(){
     var r = filtered();
-    var lines = [['Venue','Status','City','Sports assigned','Candidate sports','Slots','Athletes','Capacity','Rental fee','Paid']].concat(r.map(function(x){
-      return [x.name, x.status, x.city, x.assigned, x.candidate, x.slots == null ? '' : x.slots, x.ath == null ? '' : x.ath, x.cap, x.fee == null ? 'N/A' : x.fee, x.paid || ''];
+    var lines = [['Venue','Status','City','Sports assigned','Candidate sports','Slots','Athletes','Capacity']].concat(r.map(function(x){
+      return [x.name, x.status, x.city, x.assigned, x.candidate, x.slots == null ? '' : x.slots, x.ath == null ? '' : x.ath, x.cap];
     })).map(function(a){ return a.map(function(c){ return '"' + String(c).replace(/"/g, '""') + '"'; }).join(','); }).join('\n');
     var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([lines], {type: 'text/csv'})); a.download = 'naig-venue-directory.csv'; a.click();
   }
@@ -22840,6 +22842,28 @@ var iv = setInterval(function(){
       s.innerHTML = first + list.map(function(v){ return '<option>' + esc(v) + '</option>'; }).join(''); s.value = keep; });
   }
   setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigIntake]', e); } }, 1000);
+})();
+</script>
+<script>
+/* Auto-archive (21 Oct 2026, Rizwan: "all closed should never show and should always be in archive").
+   Any venue whose status becomes Declined, Not Available, Not Selected, Dropped, Closed or Cancelled is marked
+   archived (archived, archivedAt, archivedBy) the moment the hub sees it. Nothing is deleted. Only sessions with edit rights write it. Reopening a site means setting a live status and clearing Archived in its record. */
+(function(){
+  if (window.__naigAutoArch) return; window.__naigAutoArch = true;
+  var CLOSED = /^(declined|not available|not selected|dropped|closed|cancelled)/i, busy = {};
+  setInterval(async function(){
+    try {
+      var V = window._venuesData; if (!V || typeof window._dbRef !== 'function') return;
+      if (!(window._axPerms && window._axPerms.edit)) return; /* only people who can edit write the archive flag */
+      var todo = Object.keys(V).filter(function(k){ var v = V[k] || {}; return !v.archived && CLOSED.test(String(v.status || '').trim()) && !busy[k]; });
+      if (!todo.length) return;
+      var d = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js');
+      for (var i = 0; i < todo.length; i++) {
+        var k = todo[i]; busy[k] = 1;
+        await d.update(window._dbRef('naig2027/venues/' + k), { archived: true, archivedAt: new Date().toISOString(), archivedBy: 'auto: status ' + V[k].status });
+      }
+    } catch(e){ console.warn('[naigAutoArch]', e); }
+  }, 4000);
 })();
 </script>
 </body>

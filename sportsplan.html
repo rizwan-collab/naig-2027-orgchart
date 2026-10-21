@@ -560,13 +560,13 @@ function totals(){
   })();
   (function(){ const box=$("byScenO"); if(!box) return; box.textContent="";
     OSCN_L.forEach(([k,nm,desc])=>{ const T={}, S={};
-      RR.forEach(r=>{ const v0=rvenueK(r,scenVal()); if(!/Railroad/.test(v0)) return; const v=oVenue(r,v0,k); const nmv=/Railroad/.test(v)?"Railroad":/Texomo/.test(v)?"Texomo (OKC)":/Grand Prairie/.test(v)?"GP Stadium":/Mansfield/.test(v)?"Mansfield":v; T[nmv]=(T[nmv]||0)+rpeople(r); (S[nmv]=S[nmv]||new Set()).add((r.sport||"").split(" - ")[0]); });
+      RR.forEach(r=>{ const v0=rvenueK(r,scenVal()); if(!/Railroad/.test(v0)) return; const v=oVenue(r,v0,k); const nmv=(k==="o2"&&/Railroad|Grand Prairie/.test(v))?"Railroad + GP Stadium":/Railroad/.test(v)?"Railroad":/Texomo/.test(v)?"Texomo (OKC)":/Grand Prairie/.test(v)?"GP Stadium":/Mansfield/.test(v)?"Mansfield":v; T[nmv]=(T[nmv]||0)+rpeople(r); (S[nmv]=S[nmv]||new Set()).add((r.sport||"").split(" - ")[0]); });
       const on=k===scenOVal();
       const d=document.createElement("div"); d.className="vrow"; d.style.cursor="pointer"; d.title="Show the whole sheet as "+nm; if(on){ d.style.background="var(--soft)"; d.style.boxShadow="inset 4px 0 0 var(--accent)"; } d.addEventListener("click",()=>{ const s=$("fScenO"); if(!s) return; s.value=k; s.dispatchEvent(new Event("change")); });
       const a=document.createElement("div"); a.className="nm"; a.textContent=(on?"\u25CF ":"\u25CB ")+nm+(on?"  (showing)":"");
       const b=document.createElement("div"); b.className="sp"; b.textContent=desc+"  \u00b7  "+Object.keys(S).map(x=>x+": "+[...S[x]].sort().join(", ")).join("  \u00b7  ");
       d.appendChild(a); d.appendChild(b);
-      ["Railroad","Texomo (OKC)","GP Stadium","Mansfield"].forEach(x=>{ if(!T[x]) return; const c=document.createElement("div"); c.className="ct"; c.style.width="110px"; const l=document.createElement("div"); l.style.cssText="font-size:10px;font-weight:600;color:var(--muted)"; l.textContent=x; c.appendChild(l); c.appendChild(document.createTextNode(ath(T[x]).toLocaleString()+" athletes")); d.appendChild(c); });
+      ["Railroad + GP Stadium","Railroad","Texomo (OKC)","GP Stadium","Mansfield"].forEach(x=>{ if(!T[x]) return; const c=document.createElement("div"); c.className="ct"; c.style.width="110px"; const l=document.createElement("div"); l.style.cssText="font-size:10px;font-weight:600;color:var(--muted)"; l.textContent=x; c.appendChild(l); c.appendChild(document.createTextNode(ath(T[x]).toLocaleString()+" athletes")); d.appendChild(c); });
       box.appendChild(d); });
   })();
   const swrap=$("bySport"); swrap.textContent="";
