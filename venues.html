@@ -598,9 +598,9 @@ import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10
 
   /* Scenario maps, same as sportsplan.html */
   var SCN = { b1: [["Volleyball","StarCenter Farmers Branch"],["Table Tennis","StarCenter Northlake"]], b2: [["Throwball","StarCenter Farmers Branch"],["Table Tennis","StarCenter Northlake"]] };
-  var OSCN = { o1: [["Cricket (Hardball)","Texomo Ground"]], o2: [["Cricket (Hardball)","Mansfield (Skinner / Chandler)"]], o3: [["Football","Mansfield (Skinner / Chandler)"],["Flag Football","Mansfield (Skinner / Chandler)"]] };
+  var OSCN = { o1: [["Cricket (Hardball)","Texomo Ground"]], o2: [["Cricket (Hardball)","Grand Prairie Cricket Stadium"],["Football","Mansfield (Skinner / Chandler)"],["Flag Football","Mansfield (Skinner / Chandler)"]] };
   var LBL = { cur: "Current", b1: "B1 · Volleyball to Farmers Branch, Table Tennis to Northlake", b2: "B2 · Throwball to Farmers Branch, Table Tennis to Northlake",
-    o1: "O1 · Hardball to Texomo (OKC)", o2: "O2 · Hardball to Mansfield", o3: "O3 · Football and Flag Football to Mansfield, Railroad runs cricket" };
+    o1: "O1 · Hardball to Texomo (OKC)", o2: "O2 · Railroad Tapeball, Hardball to Grand Prairie Stadium, Football and Flag Football to Mansfield" };
   function pick(k, map){ var v = "cur"; try { v = localStorage.getItem(k) || "cur"; } catch(e){} return map[v] ? v : "cur"; }
   function venueOf(r, ik, ok){
     var v = r.venue || "TBD", s = String(r.sport || ""), m = SCN[ik], i;
