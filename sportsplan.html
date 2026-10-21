@@ -409,7 +409,12 @@ function apportion(){
     parts.forEach(([v,f])=>P.push({v:v, s:r.sport||"Other", x:p*f*(1-OV/100)})); });
   const target=ath(tot); let fl=0; P.forEach(p=>{ p.i=Math.floor(p.x+1e-9); p.r=p.x-p.i; fl+=p.i; });
   P.slice().sort((a,b)=>b.r-a.r).slice(0,Math.max(0,target-fl)).forEach(p=>{ p.i++; });
-  const V={}, S={}, G={}; P.forEach(p=>{ V[p.v]=(V[p.v]||0)+p.i; S[p.s]=(S[p.s]||0)+p.i; const g=(p.s||"").split(" - ")[0]; G[g]=(G[g]||0)+p.i; });
+  const S={}; P.forEach(p=>{ S[p.s]=(S[p.s]||0)+p.i; });
+  /* venues and sport groups: round per (venue, sport) like the hub does (Track events merged), so both show the same venue numbers */
+  const Q={}; P.forEach(p=>{ const g=(p.s||"").split(" - ")[0], k=p.v+"||"+g; (Q[k]=Q[k]||{v:p.v,g:g,x:0}).x+=p.x; });
+  const QL=Object.values(Q); let fq=0; QL.forEach(q=>{ q.i=Math.floor(q.x+1e-9); q.r=q.x-q.i; fq+=q.i; });
+  QL.slice().sort((x,y)=>y.r-x.r).slice(0,Math.max(0,target-fq)).forEach(q=>{ q.i++; });
+  const V={}, G={}; QL.forEach(q=>{ V[q.v]=(V[q.v]||0)+q.i; G[q.g]=(G[q.g]||0)+q.i; });
   return { V:V, S:S, G:G, total:target };
 }
 /* 20 Oct 2026: indoor scenario view. Shows the sheet as if sports moved between the two StarCenters.
