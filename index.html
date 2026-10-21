@@ -22830,7 +22830,14 @@ var iv = setInterval(function(){
     sec.classList.add('naig-intake');
     var host = document.getElementById('naigIntake');
     if (!host) { host = document.createElement('div'); host.id = 'naigIntake'; sec.insertBefore(host, sec.firstChild); }
-    if (sec.offsetParent !== null) { subscribe(); if (host.__view !== VIEW || !host.firstChild) build(host); }
+    if (sec.offsetParent !== null) { subscribe(); if (host.__view !== VIEW || !host.firstChild) build(host); refreshVenues(); }
+  }
+  /* venues can load after the form is built: refill both venue lists, keeping what was picked */
+  function refreshVenues(){
+    var list = venues();
+    ['nik_venue', 'naigIntakeFV'].forEach(function(id){ var s = document.getElementById(id); if (!s || s.options.length === list.length + 1) return;
+      var keep = s.value, first = s.options[0].outerHTML;
+      s.innerHTML = first + list.map(function(v){ return '<option>' + esc(v) + '</option>'; }).join(''); s.value = keep; });
   }
   setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigIntake]', e); } }, 1000);
 })();
