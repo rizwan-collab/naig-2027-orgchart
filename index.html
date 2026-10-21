@@ -22670,5 +22670,170 @@ var iv = setInterval(function(){
   setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigVenuesPlan]', e); } }, 1000);
 })();
 </script>
+<script>
+/* Rentals & Signage intake (21 Oct 2026, Rizwan: "vendors tab is not really needed but add in rentals intake and
+   signage intake in its place as a toggle between the 2").
+   The Vendors tab button now reads "Rentals & Signage"; the old vendor list is hidden (its data stays in Firebase).
+   Each intake = a request form + a live tracker with venue and status filters. Saved at naig2027/intake/rentals and
+   naig2027/intake/signage. No prices here: money stays on Budget. Nothing is ever deleted; set status to Cancelled. */
+(function(){
+  if (window.__naigIntake) return; window.__naigIntake = true;
+  var KINDS = {
+    rentals: { label: 'Rentals', path: 'naig2027/intake/rentals',
+      status: ['Requested', 'Sourcing', 'Quoted', 'Booked', 'Delivered', 'Cancelled'],
+      fields: [
+        ['item', 'Item', 'text', 'e.g. 10x10 tent, folding tables, generator', 1],
+        ['qty', 'Qty', 'number', '', 1],
+        ['venue', 'Venue', 'venue', '', 1],
+        ['days', 'Days needed', 'days', '', 1],
+        ['vertical', 'Vertical', 'vertical', '', 1],
+        ['requestedBy', 'Requested by', 'text', '', 1],
+        ['vendor', 'Vendor (if known)', 'text', 'Leave blank if not sourced yet', 0],
+        ['notes', 'Notes', 'textarea', 'Size, power, delivery window, anything the vendor needs', 0]
+      ] },
+    signage: { label: 'Signage', path: 'naig2027/intake/signage',
+      status: ['Requested', 'Design', 'Approved', 'Printed', 'Installed', 'Cancelled'],
+      fields: [
+        ['signType', 'Sign type', 'select:Directional / wayfinding|Venue ID / entrance|Court or field ID|Banner|Step-and-repeat|Registration / info desk|Sponsor|Safety / rules|Other', '', 1],
+        ['size', 'Size', 'text', 'e.g. 24x36 in, 3x8 ft', 1],
+        ['qty', 'Qty', 'number', '', 1],
+        ['venue', 'Venue', 'venue', '', 1],
+        ['spot', 'Where at the venue', 'text', 'e.g. main entrance, Court 3 wall, parking lot B', 1],
+        ['wording', 'Wording', 'textarea', 'Exact text, arrows, logos', 1],
+        ['artworkDue', 'Artwork due', 'date', '', 0],
+        ['vertical', 'Vertical', 'vertical', '', 1],
+        ['requestedBy', 'Requested by', 'text', '', 1],
+        ['notes', 'Notes', 'textarea', 'Material, mounting, indoor/outdoor', 0]
+      ] }
+  };
+  var DAYS = [['wed', 'Wed 24'], ['thu', 'Thu 25'], ['fri', 'Fri 26'], ['sat', 'Sat 27'], ['sun', 'Sun 28'], ['mon', 'Mon 29']];
+  var VERTS = ['Core Team', 'Venues', 'Food & Beverage', 'Hotels & Accommodations', 'Transportation', 'Site Management', 'Equipment & Signage', 'Command Center', 'Medical', 'Other'];
+  var DATA = { rentals: {}, signage: {} }, VIEW = 'rentals', FV = '', FS = '', subscribed = false, sigs = {};
+  try { VIEW = localStorage.getItem('naigIntakeView') || 'rentals'; } catch(e){}
+  var st = document.createElement('style');
+  st.textContent = '#sectionVendors.naig-intake > :not(#naigIntake){display:none !important}'
+    + '#naigIntake{color:#0f172a}'
+    + '#naigIntake .ib{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap;align-items:center}'
+    + '#naigIntake .ib button{border:1px solid #cbd5e1;background:#fff;color:#1e293b;border-radius:999px;padding:5px 14px;font-size:13px;font-weight:600;cursor:pointer}'
+    + '#naigIntake .ib button.on{background:#1E3A8A;border-color:#1E3A8A;color:#fff}'
+    + '#naigIntake .ib .cnt{margin-left:auto;font-size:12px;color:#64748b}'
+    + '#naigIntake .card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin:0 0 14px}'
+    + '#naigIntake h3{margin:0 0 10px;font-size:14px}'
+    + '#naigIntake .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px 12px}'
+    + '#naigIntake label{display:block;font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.04em}'
+    + '#naigIntake label b{color:#b91c1c}'
+    + '#naigIntake input,#naigIntake select,#naigIntake textarea{width:100%;box-sizing:border-box;margin-top:4px;font:inherit;font-size:13.5px;padding:7px 9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0f172a;text-transform:none;letter-spacing:0;font-weight:400}'
+    + '#naigIntake textarea{min-height:60px;resize:vertical}'
+    + '#naigIntake .wide{grid-column:1/-1}'
+    + '#naigIntake .days{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}'
+    + '#naigIntake .days span{font-size:12.5px;font-weight:500;color:#0f172a;text-transform:none;letter-spacing:0;display:inline-flex;gap:4px;align-items:center;border:1px solid #cbd5e1;border-radius:8px;padding:4px 8px}'
+    + '#naigIntake .days input{width:auto;margin:0}'
+    + '#naigIntake .go{margin-top:12px;display:flex;gap:10px;align-items:center}'
+    + '#naigIntake .go button{background:#1E3A8A;color:#fff;border:0;border-radius:8px;padding:8px 16px;font-weight:700;cursor:pointer}'
+    + '#naigIntake .msg{font-size:12.5px;color:#64748b}'
+    + '#naigIntake .flt{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px}'
+    + '#naigIntake .flt select{width:auto;margin:0}'
+    + '#naigIntake .tw{overflow-x:auto}'
+    + '#naigIntake table{border-collapse:collapse;width:100%;font-size:13px}'
+    + '#naigIntake th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:#475569;background:#f1f5f9;padding:8px;white-space:nowrap}'
+    + '#naigIntake td{padding:8px;border-top:1px solid #eef2f7;vertical-align:top}'
+    + '#naigIntake td select{width:auto;margin:0;padding:4px 6px;font-size:12.5px}'
+    + '#naigIntake td .sub{font-size:11.5px;color:#64748b;margin-top:2px;white-space:pre-wrap}'
+    + '#naigIntake .empty{color:#64748b;font-size:13px;padding:10px 0}';
+  document.head.appendChild(st);
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function venues(){
+    var out = [];
+    Object.keys(window._venuesData || {}).forEach(function(id){ var v = window._venuesData[id] || {};
+      if (!v.name || v.archived || /^(declined|not available|not selected)/i.test(String(v.status || '')) || v.recordType === 'agreement') return; out.push(String(v.name)); });
+    out.sort(); return out.concat(['Command Centre / Hub', 'Hotels', 'Airports', 'Other']);
+  }
+  async function db(){ return await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js'); }
+  async function subscribe(){
+    if (subscribed || typeof window._dbRef !== 'function') return; subscribed = true;
+    var d = await db();
+    Object.keys(KINDS).forEach(function(k){ d.onValue(window._dbRef(KINDS[k].path), function(s){ DATA[k] = s.val() || {}; sigs[k] = ''; draw(); }, function(){ var m = document.getElementById('naigIntakeMsg'); if (m) m.textContent = 'Could not read saved requests.'; }); });
+  }
+  function input(f){
+    var id = 'nik_' + f[0], req = f[4] ? ' <b>*</b>' : '', t = f[2], wide = (t === 'textarea' || t === 'days') ? ' class="wide"' : '';
+    var who = (window._axUser && window._axUser.name) || '';
+    var h = '<div' + wide + '><label for="' + id + '">' + esc(f[1]) + req;
+    if (t === 'venue') h += '<select id="' + id + '"><option value="">Pick a venue</option>' + venues().map(function(v){ return '<option>' + esc(v) + '</option>'; }).join('') + '</select>';
+    else if (t === 'vertical') { var mine = (window._axUser && window._axUser.vertical) || ''; h += '<select id="' + id + '"><option value="">Pick one</option>' + VERTS.map(function(v){ return '<option' + (mine && v.toLowerCase().indexOf(String(mine).toLowerCase()) === 0 ? ' selected' : '') + '>' + esc(v) + '</option>'; }).join('') + '</select>'; }
+    else if (t.indexOf('select:') === 0) h += '<select id="' + id + '"><option value="">Pick one</option>' + t.slice(7).split('|').map(function(v){ return '<option>' + esc(v) + '</option>'; }).join('') + '</select>';
+    else if (t === 'days') h += '</label><div class="days" id="' + id + '">' + DAYS.map(function(x){ return '<span><input type="checkbox" value="' + x[0] + '">' + x[1] + '</span>'; }).join('') + '</div><label style="display:none">';
+    else if (t === 'textarea') h += '<textarea id="' + id + '" placeholder="' + esc(f[3]) + '"></textarea>';
+    else h += '<input id="' + id + '" type="' + (t === 'number' ? 'number' : t === 'date' ? 'date' : 'text') + '"' + (t === 'number' ? ' min="1" step="1"' : '') + ' placeholder="' + esc(f[3]) + '" value="' + (f[0] === 'requestedBy' ? esc(who) : '') + '">';
+    return h + '</label></div>';
+  }
+  function build(host){
+    var K = KINDS[VIEW];
+    host.innerHTML = '<div class="ib"><button type="button" data-k="rentals">Rentals intake</button><button type="button" data-k="signage">Signage intake</button><span class="cnt" id="naigIntakeCnt"></span></div>'
+      + '<div class="card"><h3>New ' + esc(K.label.toLowerCase()) + ' request</h3><div class="grid">' + K.fields.map(input).join('') + '</div>'
+      + '<div class="go"><button type="button" id="naigIntakeSave">Submit request</button><span class="msg" id="naigIntakeMsg">Fields marked * are required.</span></div></div>'
+      + '<div class="card"><h3>' + esc(K.label) + ' tracker</h3><div class="flt"><select id="naigIntakeFV"><option value="">All venues</option>' + venues().map(function(v){ return '<option>' + esc(v) + '</option>'; }).join('') + '</select>'
+      + '<select id="naigIntakeFS"><option value="">All statuses</option><option value="open">Open (not delivered/installed or cancelled)</option>' + K.status.map(function(s){ return '<option>' + esc(s) + '</option>'; }).join('') + '</select></div><div class="tw" id="naigIntakeList"></div></div>';
+    [].forEach.call(host.querySelectorAll('.ib button'), function(b){ b.classList.toggle('on', b.getAttribute('data-k') === VIEW);
+      b.addEventListener('click', function(){ VIEW = b.getAttribute('data-k'); try { localStorage.setItem('naigIntakeView', VIEW); } catch(e){} FV = ''; FS = ''; build(host); }); });
+    host.querySelector('#naigIntakeFV').addEventListener('change', function(e){ FV = e.target.value; sigs[VIEW] = ''; draw(); });
+    host.querySelector('#naigIntakeFS').addEventListener('change', function(e){ FS = e.target.value; sigs[VIEW] = ''; draw(); });
+    host.querySelector('#naigIntakeSave').addEventListener('click', save);
+    host.__view = VIEW; sigs[VIEW] = ''; draw();
+  }
+  async function save(){
+    var K = KINDS[VIEW], rec = {}, miss = [], msg = document.getElementById('naigIntakeMsg');
+    K.fields.forEach(function(f){
+      var el = document.getElementById('nik_' + f[0]), v;
+      if (f[2] === 'days') v = [].filter.call(el.querySelectorAll('input'), function(c){ return c.checked; }).map(function(c){ return c.value; }).join(',');
+      else v = String(el.value || '').trim();
+      if (f[2] === 'number' && v) { v = Math.round(Number(v)); if (!(v > 0)) v = ''; }
+      if (f[4] && !v) miss.push(f[1]);
+      rec[f[0]] = v;
+    });
+    if (miss.length) { msg.textContent = 'Missing: ' + miss.join(', ') + '.'; msg.style.color = '#b91c1c'; return; }
+    rec.status = 'Requested'; rec.createdAt = new Date().toISOString(); rec.createdBy = (window._axUser && (window._axUser.email || window._axUser.name)) || 'unknown';
+    try {
+      var d = await db(); await d.set(d.push(window._dbRef(K.path)), rec);
+      msg.textContent = 'Saved. It is at the top of the tracker below.'; msg.style.color = '#15803d';
+      K.fields.forEach(function(f){ if (f[0] === 'requestedBy' || f[0] === 'vertical') return; var el = document.getElementById('nik_' + f[0]); if (f[2] === 'days') [].forEach.call(el.querySelectorAll('input'), function(c){ c.checked = false; }); else el.value = ''; });
+    } catch(e){ msg.textContent = 'Not saved: ' + (e && e.message || e) + '. Check your access and try again.'; msg.style.color = '#b91c1c'; }
+  }
+  function dayTxt(s){ var m = {}; DAYS.forEach(function(x){ m[x[0]] = x[1].split(' ')[0]; }); return String(s || '').split(',').filter(Boolean).map(function(x){ return m[x] || x; }).join(', '); }
+  function draw(){
+    var list = document.getElementById('naigIntakeList'); if (!list || list.closest('#naigIntake').__view !== VIEW) return;
+    var K = KINDS[VIEW], D = DATA[VIEW] || {}, done = /^(Delivered|Installed|Cancelled)$/;
+    var ids = Object.keys(D).sort(function(a, b){ return String(D[b].createdAt || '').localeCompare(String(D[a].createdAt || '')); });
+    var all = ids.length, open = ids.filter(function(i){ return !done.test(D[i].status); }).length;
+    ids = ids.filter(function(i){ var r = D[i]; if (FV && r.venue !== FV) return false; if (FS === 'open') return !done.test(r.status); if (FS && r.status !== FS) return false; return true; });
+    var cnt = document.getElementById('naigIntakeCnt'); if (cnt) cnt.textContent = all + ' request' + (all === 1 ? '' : 's') + ' · ' + open + ' open';
+    var sig = JSON.stringify([ids, ids.map(function(i){ return D[i]; })]); if (sig === sigs[VIEW]) return; sigs[VIEW] = sig;
+    if (!ids.length) { list.innerHTML = '<div class="empty">' + (all ? 'Nothing matches these filters.' : 'No requests yet.') + '</div>'; return; }
+    var head = VIEW === 'rentals' ? ['Item', 'Qty', 'Venue', 'Days', 'Vertical / by', 'Vendor', 'Status'] : ['Sign', 'Size', 'Qty', 'Venue / spot', 'Artwork due', 'Vertical / by', 'Status'];
+    list.innerHTML = '<table><thead><tr>' + head.map(function(h){ return '<th>' + h + '</th>'; }).join('') + '</tr></thead><tbody>' + ids.map(function(i){
+      var r = D[i], sel = '<select data-id="' + esc(i) + '">' + K.status.map(function(s){ return '<option' + (s === r.status ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('') + '</select>';
+      var by = esc(r.vertical) + '<div class="sub">' + esc(r.requestedBy) + '</div>';
+      if (VIEW === 'rentals') return '<tr><td><b>' + esc(r.item) + '</b>' + (r.notes ? '<div class="sub">' + esc(r.notes) + '</div>' : '') + '</td><td>' + esc(r.qty) + '</td><td>' + esc(r.venue) + '</td><td>' + esc(dayTxt(r.days) || 'N/A') + '</td><td>' + by + '</td><td>' + esc(r.vendor || 'Not sourced') + '</td><td>' + sel + '</td></tr>';
+      return '<tr><td><b>' + esc(r.signType) + '</b><div class="sub">' + esc(r.wording) + '</div>' + (r.notes ? '<div class="sub">' + esc(r.notes) + '</div>' : '') + '</td><td>' + esc(r.size) + '</td><td>' + esc(r.qty) + '</td><td>' + esc(r.venue) + '<div class="sub">' + esc(r.spot) + '</div></td><td>' + esc(r.artworkDue || 'N/A') + '</td><td>' + by + '</td><td>' + sel + '</td></tr>';
+    }).join('') + '</tbody></table>';
+    [].forEach.call(list.querySelectorAll('select[data-id]'), function(s){ s.addEventListener('change', async function(){
+      try { var d = await db(); await d.update(window._dbRef(K.path + '/' + s.getAttribute('data-id')), { status: s.value, statusAt: new Date().toISOString(), statusBy: (window._axUser && (window._axUser.email || window._axUser.name)) || 'unknown' });
+        if (window.__naigToast) window.__naigToast('Status saved'); }
+      catch(e){ alertless('Not saved: ' + (e && e.message || e)); }
+    }); });
+  }
+  function alertless(t){ var m = document.getElementById('naigIntakeMsg'); if (m) { m.textContent = t; m.style.color = '#b91c1c'; } }
+  function tick(){
+    var b = document.getElementById('tabvendors');
+    if (b) { var tn = [].filter.call(b.childNodes, function(n){ return n.nodeType === 3 && /Vendors/.test(n.nodeValue); })[0]; if (tn) tn.nodeValue = tn.nodeValue.replace('Vendors', 'Rentals & Signage');
+      var bd = document.getElementById('badge-vendors'); if (bd) bd.style.display = 'none'; }
+    var sec = document.getElementById('sectionVendors'); if (!sec) return;
+    sec.classList.add('naig-intake');
+    var host = document.getElementById('naigIntake');
+    if (!host) { host = document.createElement('div'); host.id = 'naigIntake'; sec.insertBefore(host, sec.firstChild); }
+    if (sec.offsetParent !== null) { subscribe(); if (host.__view !== VIEW || !host.firstChild) build(host); }
+  }
+  setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigIntake]', e); } }, 1000);
+})();
+</script>
 </body>
 </html>
