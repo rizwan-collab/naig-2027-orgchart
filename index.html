@@ -18730,6 +18730,22 @@ function parseFee(raw){
 }
 function liveVenues(){
   var out = [];
+  /* 22 Oct 2026 (Rizwan): "show sites" lists the venues in the slot sheet (the single source of truth), each matched to its venue record by name.
+     It used to list only records with status Confirmed / Contract Review / Reserved, so Skinner, Railroad and Frisco were missing. */
+  try {
+    var sheet = (window.NAIG && NAIG.byVenue) ? Object.keys(NAIG.byVenue()).filter(function(n){ return n && n !== 'TBD'; }) : [];
+    if (sheet.length) {
+      var nrm = function(s){ return String(s || '').toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim(); };
+      sheet.forEach(function(n){
+        var sn = nrm(n), hit = null;
+        Object.keys(G.venues).forEach(function(k){ var v = G.venues[k] || {}; if (hit || v.archived) return; if (nrm(v.name).indexOf(sn) === 0) hit = k; });
+        var rec = hit ? G.venues[hit] : {};
+        out.push({ key: hit || n, name: String(rec.name || n), status: String(rec.status || 'N/A'), amount: hit ? parseFee(rec.rentalFee) : 0 });
+      });
+      out.sort(function(a, b){ return b.amount - a.amount; });
+      return out;
+    }
+  } catch(e) { out = []; }
   Object.keys(G.venues).forEach(function(k){
     var v = G.venues[k];
     if(/declined/i.test(String(v.status||''))) return;
