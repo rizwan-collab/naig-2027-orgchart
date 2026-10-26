@@ -22983,5 +22983,41 @@ var iv = setInterval(function(){
   window.naigAthCheck = function(){ var c = build(); if (!c) return null; var a = 0, b = 0; Object.keys(c.sport).forEach(function(k){ a += c.sport[k]; }); Object.keys(c.venue).forEach(function(k){ b += c.venue[k]; }); return { total: c.total, sports: a, venues: b }; };
 })();
 </script>
+<script>
+/* 26 Oct 2026 (Rizwan): Dietary and allergy policy card on the Food tab. Data lives at naig2027/food/policy. */
+(function(){
+  'use strict';
+  if (window.__naigFoodPolicyBooted) return;
+  window.__naigFoodPolicyBooted = true;
+  var P = null;
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function list(a){ return '<ul style="margin:6px 0 0 18px;padding:0;line-height:1.7;font-size:13px;color:#e2e8f0">' + (a||[]).map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>'; }
+  function draw(){
+    var g = document.getElementById('naigFoodGrid');
+    if (!g || !g.parentNode || !P) return;
+    var c = document.getElementById('naigFoodPolicy');
+    if (!c) {
+      c = document.createElement('div');
+      c.id = 'naigFoodPolicy';
+      c.style.cssText = 'background:#0f1a2e;border:1px solid rgba(148,163,184,0.18);border-radius:14px;padding:16px;margin:0 0 18px 0;color:#e2e8f0';
+      g.parentNode.insertBefore(c, g);
+    }
+    var h = '<div style="font-size:17px;font-weight:700;color:#f8fafc">' + esc(P.title || 'Dietary and allergy policy') + '</div>'
+      + '<div style="font-size:12px;color:#94a3b8;margin:3px 0 10px 0">' + esc(P.decided || '') + '</div>'
+      + '<div style="font-weight:700;font-size:13px;color:#f8fafc;margin-top:6px">Every meal</div>' + list(P.rules)
+      + (P.notice ? '<div style="margin-top:12px;padding:9px 12px;background:rgba(234,179,8,0.12);border-left:3px solid #eab308;font-size:12.5px;line-height:1.6"><b>Participant notice:</b> ' + esc(P.notice) + '</div>' : '')
+      + (P.vendorRules && P.vendorRules.items ? '<div style="font-weight:700;font-size:13px;color:#f8fafc;margin-top:14px">' + esc(P.vendorRules.title || 'Venue food vendor rules') + '</div>' + list(P.vendorRules.items) : '');
+    if (c.__h !== h) { c.innerHTML = h; c.__h = h; }
+  }
+  function boot(){
+    if (!window._dbRef) { setTimeout(boot, 1000); return; }
+    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js').then(function(m){
+      m.onValue(window._dbRef('naig2027/food/policy'), function(s){ P = s.val(); draw(); });
+    }).catch(function(){});
+    setInterval(draw, 1500);
+  }
+  boot();
+})();
+</script>
 </body>
 </html>
