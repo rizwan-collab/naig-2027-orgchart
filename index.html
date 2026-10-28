@@ -23067,5 +23067,58 @@ var iv = setInterval(function(){
   boot();
 })();
 </script>
+<script>
+/* 28 Oct 2026 (Rizwan): Start-day split model on the Budget tab (games start Thursday vs Wednesday). Data: naig2027/budget/startScenarios. Lives inside the PIN-gated budget block. */
+(function(){
+  'use strict';
+  if (window.__naigStartScenBooted) return;
+  window.__naigStartScenBooted = true;
+  var D = null;
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function money(n){ return '$' + Number(n).toLocaleString('en-US', {minimumFractionDigits: (n % 1 ? 2 : 0), maximumFractionDigits: 2}); }
+  function col(key, s){
+    var tot = 0, opt = 0, na = 0, rows = '';
+    (s.lines || []).forEach(function(l){
+      var amt = (l.amount == null) ? '<span style="color:#b45309">' + esc(l.na || 'N/A') + '</span>' : money(l.amount);
+      if (l.amount != null) { if (l.optional) opt += l.amount; else tot += l.amount; } else na++;
+      rows += '<tr style="border-top:1px solid #eef2f7"><td style="padding:5px 6px;font-size:12px;color:' + (l.optional ? '#64748b' : '#0f172a') + '">' + esc(l.item) + (l.optional ? ' <i>(not in total)</i>' : '') + '</td><td style="padding:5px 6px;font-size:12px;text-align:right;white-space:nowrap">' + amt + '</td></tr>';
+    });
+    var on = D.active === key;
+    return { tot: tot, html: '<div style="border:1px solid ' + (on ? '#1e3a8a' : '#e2e8f0') + ';border-radius:10px;padding:10px 12px;background:' + (on ? '#eff6ff' : '#fff') + '">'
+      + '<div style="font-weight:800;font-size:14px;color:#0f172a">' + esc(s.label) + (on ? ' <span style="font-size:11px;font-weight:700;color:#1e3a8a">· CURRENT PLAN</span>' : '') + '</div>'
+      + '<div style="font-size:12px;color:#64748b;margin:2px 0 6px">' + esc(s.days) + '</div>'
+      + '<table style="width:100%;border-collapse:collapse">' + rows + '</table>'
+      + '<div style="display:flex;justify-content:space-between;margin-top:8px;padding-top:6px;border-top:2px solid #e2e8f0;font-weight:800;font-size:13px"><span>Lewisville total' + (na ? ' (+ ' + na + ' N/A)' : '') + '</span><span>' + money(tot) + '</span></div>'
+      + (opt ? '<div style="font-size:11px;color:#64748b;text-align:right">Lake Park if used: +' + money(opt) + '</div>' : '')
+      + '</div>' };
+  }
+  function draw(){
+    var host = document.getElementById('naigBudget2');
+    if (!host || !D || !D.scen || !host.offsetParent) return;
+    var c = document.getElementById('naigStartScen');
+    if (!c || c.parentNode !== host) {
+      c = document.createElement('div');
+      c.id = 'naigStartScen';
+      c.style.cssText = 'background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin:0 0 14px;color:#0f172a';
+      host.insertBefore(c, host.firstChild);
+    }
+    var a = col('thu', D.scen.thu), b = col('wed', D.scen.wed);
+    var h = '<div style="font-weight:800;font-size:16px;color:#1e3a8a">Start-day scenarios — Lewisville (Railroad + Lake Park)</div>'
+      + '<div style="font-size:12px;color:#64748b;margin:3px 0 10px;line-height:1.5">' + esc(D.note) + '</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px">' + a.html + b.html + '</div>'
+      + '<div style="margin-top:10px;font-size:13px"><b>Wednesday start costs ' + money(b.tot - a.tot) + ' more</b> at Lewisville, before setup-day crew and the other venues.</div>';
+    if (D.quote) h += '<div style="margin-top:8px;padding:8px 11px;background:#fef9c3;border-left:3px solid #a16207;font-size:12px;line-height:1.5">' + esc(D.quote.label) + ': fields ' + money(D.quote.fields) + ' + crew ' + money(D.quote.crew) + ' = <b>' + money(D.quote.total) + '</b>. ' + esc(D.quote.flag || '') + '</div>';
+    if (c.__h !== h) { c.innerHTML = h; c.__h = h; }
+  }
+  function boot(){
+    if (!window._dbRef) { setTimeout(boot, 1000); return; }
+    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js').then(function(m){
+      m.onValue(window._dbRef('naig2027/budget/startScenarios'), function(s){ D = s.val(); draw(); });
+    }).catch(function(){});
+    setInterval(draw, 1500);
+  }
+  boot();
+})();
+</script>
 </body>
 </html>
