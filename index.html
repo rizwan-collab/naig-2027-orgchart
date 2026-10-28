@@ -23019,5 +23019,53 @@ var iv = setInterval(function(){
   boot();
 })();
 </script>
+<script>
+/* 28 Oct 2026 (Rizwan): Scenarios & backups card on the Venues tab. Plan A / backups / out / trigger per area. Data: naig2027/scenarios. */
+(function(){
+  'use strict';
+  if (window.__naigScenBooted) return;
+  window.__naigScenBooted = true;
+  var S = null;
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function pill(t, bg, fg){ return '<span style="display:inline-block;padding:1px 7px;border-radius:5px;font-size:11px;font-weight:700;background:' + bg + ';color:' + fg + '">' + esc(t) + '</span>'; }
+  function draw(){
+    var sec = document.getElementById('sectionVenues');
+    if (!sec || !S || !S.areas) return;
+    var c = document.getElementById('naigScenCard');
+    if (!c) {
+      c = document.createElement('details');
+      c.id = 'naigScenCard';
+      c.style.cssText = 'background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 16px;margin:0 0 14px';
+      var bar = document.getElementById('naigVpBar');
+      if (bar && bar.parentNode === sec) sec.insertBefore(c, bar.nextSibling); else sec.insertBefore(c, sec.firstChild);
+    }
+    var h = '<summary style="cursor:pointer;font-weight:800;color:#1e3a8a;font-size:15px">Scenarios &amp; backups <span style="font-weight:400;color:#64748b;font-size:12px">· ' + S.areas.length + ' areas · ' + esc(S.updatedBy || '') + '</span></summary>';
+    h += '<div style="font-size:12px;color:#64748b;margin:6px 0 10px">' + esc(S.note || '') + '</div>';
+    h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px">';
+    S.areas.forEach(function(a){
+      var none = /^TBD/.test((a.planA && a.planA.venue) || '');
+      h += '<div style="border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;background:' + (none ? '#fff7ed' : '#f8fafc') + '">';
+      h += '<div style="font-weight:800;font-size:14px;color:#0f172a;margin-bottom:6px">' + esc(a.area) + '</div>';
+      if (a.planA) h += '<div style="font-size:12.5px;margin-bottom:6px">' + pill('Plan A', none ? '#fed7aa' : '#dcfce7', none ? '#9a3412' : '#166534') + ' <b>' + esc(a.planA.venue) + '</b> <span style="color:#64748b">· ' + esc(a.planA.status) + '</span><div style="color:#475569;font-size:12px;margin-top:2px">' + esc(a.planA.note) + '</div></div>';
+      (a.backups || []).forEach(function(b){
+        h += '<div style="font-size:12.5px;margin:4px 0">' + pill('Backup', '#dbeafe', '#1e40af') + ' <b>' + esc(b.venue) + '</b> <span style="color:#64748b">· ' + esc(b.status) + '</span><div style="color:#475569;font-size:12px;margin-top:1px">' + esc(b.note) + '</div></div>';
+      });
+      if (a.out && a.out.length) h += '<div style="font-size:12px;color:#991b1b;margin-top:6px"><b>Out:</b> ' + a.out.map(esc).join('; ') + '</div>';
+      if (a.trigger) h += '<div style="font-size:12px;color:#334155;margin-top:6px;padding-top:6px;border-top:1px dashed #e2e8f0"><b>Trigger:</b> ' + esc(a.trigger) + '</div>';
+      h += '</div>';
+    });
+    h += '</div>';
+    if (c.__h !== h) { var open = c.open; c.innerHTML = h; c.open = open; c.__h = h; }
+  }
+  function boot(){
+    if (!window._dbRef) { setTimeout(boot, 1000); return; }
+    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js').then(function(m){
+      m.onValue(window._dbRef('naig2027/scenarios'), function(s){ S = s.val(); draw(); });
+    }).catch(function(){});
+    setInterval(draw, 1500);
+  }
+  boot();
+})();
+</script>
 </body>
 </html>
