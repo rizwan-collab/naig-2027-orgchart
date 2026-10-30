@@ -23120,5 +23120,93 @@ var iv = setInterval(function(){
   boot();
 })();
 </script>
+<script>
+/* 30 Oct 2026 (Rizwan): Hub clean-up. Each tab's blocks become collapsible sections with a title bar, plus Expand all / Collapse all per tab. Non-destructive: no DOM moves, only a class + title on existing blocks. State remembered per viewer. */
+(function(){
+  'use strict';
+  if (window.__naigAccBooted) return;
+  window.__naigAccBooted = true;
+  var CFG = {
+    sectionDashboard: [['#naigHeadFood','Headcount & food',0],['#dashKpiRow','Key numbers',1],['#dashGrid','My work',1],['#orgWatch','Org watch',0]],
+    sectionPlan: [['.plan-layout','Project plan',1]],
+    sectionTasks: [['#taskDependencyMatrices','Dependency matrices',0],['#taskWorkloadStrip','Workload by person',0]],
+    sectionVenues: [['#venueSummary','Summary',1],['#naigVenueOne','Venue directory',1],['#venuesTierWrap','Venues by tier',0],['#venuesSpecsWrap','Venue specs',0]],
+    sectionSports: [['#sportsDrift','Slot sheet checks',0],['#sportsSummary','Summary',1],['#sportsByVenue','Sports by venue',1],['#sportsQuestions','Open questions',0],['#naigScen','Indoor scenarios',0]],
+    sectionVendors: [['#vendorSummary','Summary',1],['.naig-tscroll','Rentals & signage list',1]],
+    sectionHotels: [['#hotelSummary','Summary',1],['#naigHotelAddon','Hotel details',0],['.naig-tscroll','Hotel list',1]],
+    sectionTransport: [['#naigMaps','Maps',0]],
+    sectionDocs: [['#docSummary','Summary',1],['#naigDD','Team Drive',0],['.naig-tscroll','Documents',1]],
+    sectionFood: [['#naigFoodPolicy','Participant notice',0],['#naigFoodGrid','Food plan',1],['#naigFoodMenu','Menu',0]],
+    sectionBrief: [['#briefArchive','Brief archive',1]]
+  };
+  var H = 42;
+  function store(k, v){ try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch(e){ return null; } }
+  var css = document.createElement('style');
+  css.textContent =
+    '.naigAcc{position:relative!important;padding-top:' + (H + 8) + 'px!important;border:1px solid #e2e8f0!important;border-radius:12px!important;background-color:#fff;margin:0 0 10px!important;box-sizing:border-box}' +
+    '.naigAcc::before{content:"\\25BE\\00a0\\00a0" attr(data-acc);position:absolute;left:0;right:0;top:0;height:' + H + 'px;line-height:' + H + 'px;padding:0 16px;font:800 14px/' + H + 'px system-ui,-apple-system,Segoe UI,sans-serif;color:#1e3a8a;background:#f8fafc;border-bottom:1px solid #e2e8f0;border-radius:12px 12px 0 0;cursor:pointer;z-index:3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box}' +
+    '.naigAcc:hover::before{background:#eff6ff}' +
+    '.naigAcc.naigShut{height:' + H + 'px!important;min-height:0!important;max-height:' + H + 'px!important;padding:' + H + 'px 0 0!important;overflow:hidden!important}' +
+    '.naigAcc.naigShut::before{content:"\\25B8\\00a0\\00a0" attr(data-acc);border-bottom:0;border-radius:12px}' +
+    '.naigAcc.naigShut>*{display:none!important}' +
+    '.naigAcc .naig-cbtn{display:none!important}' +
+    '.naigAccBar{display:flex;gap:8px;justify-content:flex-end;margin:0 0 8px}' +
+    '.naigAccBar button{font:600 12px system-ui,sans-serif;padding:5px 11px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#334155;cursor:pointer}' +
+    '.naigAccBar button:hover{background:#f1f5f9}';
+  document.head.appendChild(css);
+  function blocks(secId){
+    var sec = document.getElementById(secId); if (!sec) return [];
+    var out = [];
+    (CFG[secId] || []).forEach(function(c){
+      var el = null;
+      for (var i = 0; i < sec.children.length; i++) { if (sec.children[i].matches(c[0])) { el = sec.children[i]; break; } }
+      if (el) out.push({el: el, title: c[1], open: c[2], key: 'naigAcc:' + secId + ':' + c[1]});
+    });
+    return out;
+  }
+  function apply(){
+    Object.keys(CFG).forEach(function(secId){
+      var sec = document.getElementById(secId); if (!sec) return;
+      var bl = blocks(secId);
+      bl.forEach(function(b){
+        var el = b.el;
+        var has = el.children.length || (el.textContent || '').trim();
+        if (!has) { el.classList.remove('naigAcc', 'naigShut'); return; }
+        if (!el.classList.contains('naigAcc')) {
+          el.classList.add('naigAcc');
+          el.setAttribute('data-acc', b.title);
+          el.__naigKey = b.key;
+          var saved = store(b.key);
+          var shut = saved === null ? !b.open : saved === 'shut';
+          el.classList.toggle('naigShut', shut);
+        }
+      });
+      if (bl.length > 1 && !document.getElementById('naigAccBar_' + secId)) {
+        var bar = document.createElement('div');
+        bar.className = 'naigAccBar'; bar.id = 'naigAccBar_' + secId;
+        bar.innerHTML = '<button type="button" data-a="open">Expand all</button><button type="button" data-a="shut">Collapse all</button>';
+        bar.addEventListener('click', function(e){
+          var a = e.target && e.target.getAttribute('data-a'); if (!a) return;
+          blocks(secId).forEach(function(b){ if (b.el.classList.contains('naigAcc')) { b.el.classList.toggle('naigShut', a === 'shut'); store(b.key, a); } });
+        });
+        var first = bl[0].el;
+        sec.insertBefore(bar, first);
+      }
+    });
+  }
+  document.addEventListener('click', function(e){
+    var el = e.target && e.target.closest ? e.target.closest('.naigAcc') : null;
+    if (!el) return;
+    var r = el.getBoundingClientRect();
+    if (e.clientY - r.top > H) return;
+    e.preventDefault(); e.stopPropagation();
+    var shut = !el.classList.contains('naigShut');
+    el.classList.toggle('naigShut', shut);
+    if (el.__naigKey) store(el.__naigKey, shut ? 'shut' : 'open');
+  }, true);
+  apply();
+  setInterval(apply, 1500);
+})();
+</script>
 </body>
 </html>
