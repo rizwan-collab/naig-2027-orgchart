@@ -23198,7 +23198,7 @@ var iv = setInterval(function(){
     var el = e.target && e.target.closest ? e.target.closest('.naigAcc') : null;
     if (!el) return;
     var r = el.getBoundingClientRect();
-    if (e.clientY - r.top > H) return;
+    if (e.clientY < r.top || e.clientY - r.top > H) return;
     e.preventDefault(); e.stopPropagation();
     var shut = !el.classList.contains('naigShut');
     el.classList.toggle('naigShut', shut);
@@ -23253,7 +23253,7 @@ var iv = setInterval(function(){
     var names = Object.keys(sports).sort(function(a,b){ var ia = order.indexOf(a), ib = order.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); });
     var srows = names.map(function(s){
       var o = sports[s]; var ages = Object.keys(o.age).sort(function(a,b){ return (a==='U18'?0:a==='18+'?1:2) - (b==='U18'?0:b==='18+'?1:2); }).join(', ');
-      var ev = Object.keys(o.ev).filter(Boolean); var kind = ev.indexOf('Team') >= 0 ? 'teams' : (ev.indexOf('Singles') >= 0 ? 'singles, doubles' + (ev.indexOf('Mixed Doubles') >= 0 ? ', mixed' : '') : (s === 'Track' ? ev.length + ' events' : ev.join(', ').toLowerCase()));
+      var ev = Object.keys(o.ev).filter(Boolean); var kind = ev.indexOf('Team') >= 0 ? 'teams' : (ev.indexOf('Singles') >= 0 ? 'singles' + (ev.indexOf('Doubles') >= 0 ? ', doubles' : '') + (ev.indexOf('Mixed Doubles') >= 0 ? ', mixed' : '') : (s === 'Track' ? rows.filter(function(r){ return /^Track/.test(r.sport); }).map(function(r){ return r.sport; }).filter(function(v,i,a){ return a.indexOf(v) === i; }).length + ' events, 100M to 5000M' : ev.join(', ').toLowerCase()));
       var who = ages + ' · ' + kind; if (s === 'Throwball') who = 'Women 18+ · teams'; if (s === 'Cricket') who = 'Open 18+ hardball, women 18+ tapeball · teams';
       var vs = Object.keys(o.venue).map(venueLabel).join(' / ');
       return [s.replace('Table Tennis','Table tennis').replace('Flag Football','Flag football'), who, vs];
