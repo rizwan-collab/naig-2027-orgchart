@@ -23208,5 +23208,257 @@ var iv = setInterval(function(){
   setInterval(apply, 1500);
 })();
 </script>
+<script>
+/* 2 Nov 2026 (Rizwan): Games program deck, live on the Dashboard. Built from hub data (slot sheet, venues, hotels, M2M, food policy,
+   scenarios) plus editable text at naig2027/programDeck/static. Updates the moment the hub changes. Exports PowerPoint and PDF.
+   No money anywhere. Audience: vertical leads. */
+(function(){
+  'use strict';
+  if (window.__naigPDBooted) return;
+  window.__naigPDBooted = true;
+  var DB = {}, cur = 0, slides = [], timer = null;
+  var C = {navy:'#1F3A5F', gold:'#C8A951', ink:'#1F2937', body:'#374151', muted:'#6B7280', bg:'#F4F6F9', card:'#FBFBF8', rule:'#D5DBE3', band:'#EEF2F7', light:'#DCE6F2', gold2:'#E3CB82', navy2:'#26476F'};
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function t12(hm){ if (!hm || !/^\d\d:\d\d$/.test(hm)) return null; var h = +hm.slice(0,2), m = hm.slice(3); var ap = h < 12 ? 'AM' : 'PM'; h = h % 12 || 12; return h + (m === '00' ? '' : ':' + m) + ' ' + ap; }
+  function today(){ return new Date().toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'}); }
+  function base(s){ return String(s || '').replace(/ - .*/, ''); }
+  function sportName(s){ var b = base(s); if (/^Cricket/.test(b)) return 'Cricket'; if (/^Football \(Soccer\)/.test(b)) return 'Soccer'; if (/^Volleyball/.test(b)) return 'Volleyball'; return b; }
+  function venueRec(name){
+    var v = DB.venues || {}; var n = String(name || '').toLowerCase();
+    for (var k in v) { var x = v[k]; if (!x || x.archived) continue; var nm = String(x.name || '').toLowerCase(); if (nm.indexOf(n) === 0 || n.indexOf(nm.split(' (')[0].split(' —')[0]) === 0) return x; }
+    return null;
+  }
+  function venueLabel(name){ if (!name || /^TBD/i.test(name)) return 'Being finalised'; var r = venueRec(name); var city = r && (r.city || '').replace(/, TX$/, '').replace(/, OK$/, ' OK'); var short = String(name).replace(/ \(.*\)$/, ''); return city && short.indexOf(city.split(',')[0]) < 0 ? short + ', ' + city : short; }
+
+  function model(){
+    var S = (DB.programDeck && DB.programDeck.static) || {};
+    var rows = DB.rows ? Object.values(DB.rows).filter(Boolean) : [];
+    var raw = 0, sports = {}, venues = {};
+    rows.forEach(function(r){
+      var slots = +r.slots || 0, cap = +r.cap || 0; raw += slots * cap;
+      var sp = sportName(r.sport); var o = sports[sp] = sports[sp] || {age:{}, div:{}, ev:{}, venue:{}};
+      if (r.age) o.age[r.age] = 1; if (r.division) o.div[r.division] = 1; o.ev[r.event || ''] = 1; o.venue[r.venue || 'TBD'] = 1;
+      if (r.venue && !/^TBD/i.test(r.venue)) venues[r.venue] = 1;
+    });
+    var athletes = Math.round(raw * 0.8);
+    var tbdSports = Object.keys(sports).filter(function(s){ return Object.keys(sports[s].venue).some(function(v){ return /^TBD/i.test(v); }); });
+    var vNames = Object.keys(venues);
+    var upd = 'Updated ' + today();
+    var out = [];
+    out.push({type:'cover', title:'NAIG 2027', sub: S.title || 'The Games program — Logistics view', line: S.when || '', foot: 'For vertical leads · ' + upd + ' · ' + (S.owner || '')});
+    out.push({type:'stats', eyebrow:'The Games at a glance', title:'Four days of competition across Dallas–Fort Worth over Easter weekend',
+      stats:[{n: athletes.toLocaleString('en-US'), l:'athlete places planned on the slot sheet'}, {n: String(Object.keys(sports).length), l:'sports, from U18 to 45+'}, {n: String(vNames.length + tbdSports.length), l:'competition venues, ' + tbdSports.length + ' still being finalised'}, {n:'6', l:'days on site, load-in to move-out', accent:true}],
+      text: S.glanceLine || '', foot:'Source: Logistics Hub slot sheet · ' + upd});
+    var order = ['Badminton','Volleyball','Basketball','Table Tennis','Throwball','Soccer','Flag Football','Cricket','Pickleball','Tennis','Chess','Track','Dance'];
+    var names = Object.keys(sports).sort(function(a,b){ var ia = order.indexOf(a), ib = order.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); });
+    var srows = names.map(function(s){
+      var o = sports[s]; var ages = Object.keys(o.age).sort(function(a,b){ return (a==='U18'?0:a==='18+'?1:2) - (b==='U18'?0:b==='18+'?1:2); }).join(', ');
+      var ev = Object.keys(o.ev).filter(Boolean); var kind = ev.indexOf('Team') >= 0 ? 'teams' : (ev.indexOf('Singles') >= 0 ? 'singles, doubles' + (ev.indexOf('Mixed Doubles') >= 0 ? ', mixed' : '') : (s === 'Track' ? ev.length + ' events' : ev.join(', ').toLowerCase()));
+      var who = ages + ' · ' + kind; if (s === 'Throwball') who = 'Women 18+ · teams'; if (s === 'Cricket') who = 'Open 18+ hardball, women 18+ tapeball · teams';
+      var vs = Object.keys(o.venue).map(venueLabel).join(' / ');
+      return [s.replace('Table Tennis','Table tennis').replace('Flag Football','Flag football'), who, vs];
+    });
+    out.push({type:'table', eyebrow:'Sports and venues', title:'Every sport, who plays it, and where', cols:[['Sport',26],['Who plays',40],['Venue',34]], rows:srows, split:true, foot: tbdSports.length ? tbdSports.join(' and ') + ' venues being finalised' : upd});
+    out.push({type:'cards', eyebrow:'Games week', title:'Cricket opens Thursday; every other sport starts Friday', cards: S.week || [], cols:6, text: S.weekNote || '', foot: upd});
+    var days = [['2027-03-25','Thu 25'],['2027-03-26','Fri 26'],['2027-03-27','Sat 27'],['2027-03-28','Sun 28']];
+    var comp = {};
+    Object.keys(DB.m2m || {}).forEach(function(d){ ((DB.m2m[d] || {}).blocks || []).forEach(function(b){ var a = b.activity || ''; if (!/^COMPETITION/.test(a)) return; var mm = a.match(/\[\[ath:([^\]|]+)/); var v = mm ? mm[1].trim() : null; if (!v || /TBD/i.test(v)) return; comp[v] = comp[v] || {}; comp[v][d] = b; }); });
+    var grid = vNames.map(function(v){
+      var r = venueRec(v); var addr = r && r.address ? String(r.address).split(',')[0] : '';
+      var key = Object.keys(comp).filter(function(c){ return c.indexOf(v) === 0 || v.indexOf(c) === 0; })[0];
+      var cells = days.map(function(d){ var b = key && comp[key][d[0]]; if (!b) return 'No games'; var s = t12(b.start), e = t12(b.end); var lbl = d[0] === '2027-03-28' ? 'Finals' : 'Games'; if (/Texomo/.test(v)) return lbl + ', daylight'; return s && e ? lbl + ' ' + s + '–' + e : (e ? lbl + ' to ' + e : lbl + ', hours TBD'); });
+      return [v.replace(/ \(.*\)$/, '') + (addr ? ' · ' + addr : '')].concat(cells);
+    });
+    if (tbdSports.length) grid.push([tbdSports.join(' and ') + ' · venues being finalised', '—', 'Games to 7 PM', 'Games all day', 'Finals, end 3 PM']);
+    out.push({type:'table', eyebrow:'Venue by day', title:'What runs where, each day of Games week', cols:[['Venue · address',28],['Thu 25',18],['Fri 26',18],['Sat 27',18],['Sun 28',18]], rows:grid, text: S.venueNote || '', foot:'Source: Logistics Hub minute-to-minute plan · ' + upd});
+    var hrows = [];
+    Object.values(DB.hotels || {}).forEach(function(h){
+      if (!h || h.archived) return; var nm = String(h.name || ''); if (/ON HOLD|backup|Not Available/i.test(nm + ' ' + (h.status || ''))) return;
+      var parts = nm.split(' — '); var cl = parts[0].replace(' Cluster', ''); var hotel = (parts[1] || '').replace(/by Marriott |by Hilton |Dallas |Fort Worth|\(.*\)/g, '').replace(/\s+/g, ' ').trim();
+      var block = /^\d+$/.test(String(h.blockSize || '')) ? String(h.blockSize) : 'N/A';
+      if (/NO PROPERTY/i.test(nm)) hotel = 'Being sourced';
+      var city = (h.address || '').split(',').slice(-2, -1)[0] || ''; if (/Being sourced/.test(hotel)) city = parts[0].replace('Airport Cluster', '').trim();
+      hrows.push([cl + (city && !/TBD|N\/A/.test(city) ? ' · ' + city.trim() : ''), /Courtyard/.test(hotel) ? hotel + ' (hub)' : hotel, block]);
+    });
+    hrows.sort(function(a,b){ return (b[2] === 'N/A' ? -1 : +b[2]) - (a[2] === 'N/A' ? -1 : +a[2]); });
+    out.push({type:'stay', eyebrow:'Where people stay', title:'One hub hotel, with clusters near each group of venues', hub: S.hubHotel || {}, cols:[['Cluster',32],['Hotel',44],['Rooms asked',24]], rows:hrows, text: S.stayNote || '', foot:'Hotels lead: Malekah Surani · ' + upd});
+    out.push({type:'cards', eyebrow:'Getting around', title:'Four transport legs carry people from the airport to the field and back', cards:(S.move || []).map(function(c, i){ return {k:String(i + 1), h:c.h, p:c.p, accent:c.accent}; }), cols:4, text:S.moveNote || '', foot:S.moveFoot || ''});
+    var pol = (DB.food && DB.food.policy) || {};
+    out.push({type:'two', eyebrow:'Food', title:'Every meal is halal and nut-free, with a vegetarian option', a:{h:'The policy, for everyone NAIG feeds', li: pol.rules || []}, b:{h:'What it means for your vertical', li: S.foodForYou || []}, foot:(S.foodFoot || '') + (pol.updated ? ' · Policy set ' + new Date(pol.updated).toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'}) : '')});
+    out.push({type:'table', eyebrow:'Procurement and equipment scope', title:'What Logistics buys, rents and stages for the Games', cols:[['Area',22],['In scope',56],['Timing',22]], rows:S.procurement || [], bold0:true, text:S.procurementNote || '', foot:S.procurementFoot || ''});
+    out.push({type:'cardstable', eyebrow:'Signage scope', title:'Five kinds of signs and print, produced once from every vertical’s list', cards:S.signageKinds || [], cols:[['Step',12],['What happens',58],['When',30]], rows:S.signageSteps || [], foot:'Signage: Simin Kabani · Print vendor being sourced'});
+    var oc = ((DB.scenarios || {}).areas || []).filter(function(a){ return /Opening ceremony/i.test(a.area || ''); })[0];
+    var cer = (S.ceremony || []).map(function(c){ return Object.assign({}, c); });
+    if (oc && oc.planA && oc.planA.venue && !/^TBD/i.test(oc.planA.venue) && cer[1]) { cer[1].h = oc.planA.venue; cer[1].p = oc.planA.status || ''; }
+    out.push({type:'cards', dark:true, eyebrow:'Opening ceremony', title:'One evening that brings the whole delegation together', cards:cer, cols:3, foot:'Program content is set by the ceremony team'});
+    out.push({type:'table', eyebrow:'Who to talk to in Logistics', title:'The right people for each kind of question', cols:[['If your question is about',34],['Tag',40],['Role',26]], rows:S.contacts || [], foot:'Source: Logistics org chart'});
+    out.push({type:'table', eyebrow:'What we need from you', title:'Five inputs from every vertical: what, how, when, and to whom', cols:[['Input',16],['What exactly',38],['How',18],['By',12],['Send to',16]], rows:S.asks || [], bold0:true, pills:S.keyDates || [], foot: upd});
+    return out;
+  }
+
+  function hdr(s, dark){ return '<div style="display:flex;flex-direction:column;gap:.5cqw"><div style="font-size:1.25cqw;font-weight:700;letter-spacing:.12cqw;text-transform:uppercase;color:' + (dark ? C.gold2 : C.navy) + '">' + esc(s.eyebrow) + '</div><div style="font-family:Georgia,serif;font-size:2.8cqw;line-height:1.15;color:' + (dark ? C.bg : C.navy) + '">' + esc(s.title) + '</div></div>'; }
+  function tbl(cols, rows, bold0){
+    var h = '<table style="width:100%;border-collapse:collapse;font-size:1.2cqw;background:' + C.card + ';border:1px solid ' + C.rule + '"><tr style="background:' + C.navy + '">' + cols.map(function(c){ return '<th style="width:' + c[1] + '%;text-align:left;padding:.45cqw .6cqw;color:' + C.bg + ';font-weight:700">' + esc(c[0]) + '</th>'; }).join('') + '</tr>';
+    rows.forEach(function(r, i){ h += '<tr style="background:' + (i % 2 ? C.band : C.card) + '">' + r.map(function(c, j){ return '<td style="padding:.45cqw .6cqw;vertical-align:top;color:' + C.ink + ';border-top:1px solid ' + C.rule + '">' + (j === 0 && bold0 ? '<b>' + esc(c) + '</b>' : esc(c)) + '</td>'; }).join('') + '</tr>'; });
+    return h + '</table>';
+  }
+  function card(c, dark){ return '<div style="background:' + (dark ? C.navy2 : C.card) + ';border:1px solid ' + (dark ? '#3B5C85' : C.rule) + ';border-top:.42cqw solid ' + (dark ? '#3B5C85' : (c.accent ? C.gold : C.navy)) + ';border-radius:.6cqw;padding:1.3cqw;display:flex;flex-direction:column;gap:.5cqw">' + (c.k ? '<div style="font-size:1.25cqw;font-weight:700;color:' + (dark ? C.gold2 : (/^\d$/.test(c.k) ? C.gold : C.muted)) + '">' + esc(c.k) + '</div>' : '') + '<div style="font-size:' + (dark ? '2cqw' : '1.6cqw') + ';font-weight:700;line-height:1.2;color:' + (dark ? C.bg : C.navy) + '">' + esc(c.h) + '</div><div style="font-size:1.3cqw;line-height:1.4;color:' + (dark ? C.light : C.body) + '">' + esc(c.p) + '</div></div>'; }
+  function slideHTML(s, n, total){
+    var dark = s.type === 'cover' || s.dark;
+    var wrap = '<div class="naigPDslide" style="container-type:inline-size;width:100%;aspect-ratio:16/9;position:relative;overflow:hidden;background:' + (dark ? C.navy : C.bg) + ';color:' + C.ink + ';font-family:Carlito,Calibri,Arial,sans-serif;border-radius:8px;box-sizing:border-box">';
+    var inner = '<div style="position:absolute;inset:0;padding:5.5cqw 6.6cqw 8cqw;display:flex;flex-direction:column;gap:1.8cqw;box-sizing:border-box">';
+    var body = '';
+    if (s.type === 'cover') {
+      inner = '<div style="position:absolute;inset:0;padding:6.6cqw;display:flex;flex-direction:column;justify-content:center;gap:2cqw;box-sizing:border-box">';
+      body = '<div style="width:8cqw;height:.42cqw;background:' + C.gold + '"></div><div style="font-family:Georgia,serif;font-size:7.3cqw;font-weight:700;line-height:1.05;color:' + C.bg + '">' + esc(s.title) + '</div><div style="font-family:Georgia,serif;font-size:3.6cqw;line-height:1.1;color:' + C.bg + '">' + esc(s.sub) + '</div><div style="font-size:1.9cqw;color:' + C.light + '">' + esc(s.line) + '</div>';
+      return wrap + inner + body + '</div><div style="position:absolute;left:6.6cqw;bottom:5cqw;font-size:1.45cqw;color:' + C.light + '">' + esc(s.foot) + '</div></div>';
+    }
+    body += hdr(s, dark);
+    if (s.type === 'stats') {
+      body += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1.25cqw">' + s.stats.map(function(x){ return '<div style="background:' + C.card + ';border:1px solid ' + C.rule + ';border-top:.42cqw solid ' + (x.accent ? C.gold : C.navy) + ';border-radius:.6cqw;padding:2cqw;display:flex;flex-direction:column;gap:.6cqw"><div style="font-family:Georgia,serif;font-size:5cqw;font-weight:700;line-height:1.05;color:' + C.navy + '">' + esc(x.n) + '</div><div style="font-size:1.55cqw;line-height:1.3;color:' + C.body + '">' + esc(x.l) + '</div></div>'; }).join('') + '</div>';
+      body += '<div style="font-size:1.65cqw;line-height:1.45;color:' + C.body + '">' + esc(s.text) + '</div>';
+    } else if (s.type === 'table') {
+      if (s.split) { var h1 = Math.ceil(s.rows.length / 2); body += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25cqw;align-items:start">' + tbl(s.cols, s.rows.slice(0, h1)) + tbl(s.cols, s.rows.slice(h1)) + '</div>'; }
+      else body += tbl(s.cols, s.rows, s.bold0);
+      if (s.text) body += '<div style="font-size:1.3cqw;line-height:1.4;color:' + C.body + '">' + esc(s.text) + '</div>';
+      if (s.pills) body += '<div style="display:flex;gap:.6cqw;flex-wrap:wrap">' + s.pills.map(function(p, i){ var last = i === s.pills.length - 1; return '<span style="font-size:1.25cqw;color:' + (last ? '#5C4510' : C.navy) + ';background:' + (last ? '#F3E7C2' : C.light) + ';padding:.4cqw .85cqw;border-radius:99px"><b>' + esc(p[0]) + '</b> ' + esc(p[1]) + '</span>'; }).join('') + '</div>';
+    } else if (s.type === 'cards') {
+      body += '<div style="display:grid;grid-template-columns:repeat(' + s.cols + ',1fr);gap:1cqw">' + s.cards.map(function(c){ return card(c, dark); }).join('') + '</div>';
+      if (s.text) body += '<div style="font-size:1.5cqw;line-height:1.45;color:' + (dark ? C.light : C.body) + '">' + esc(s.text) + '</div>';
+    } else if (s.type === 'stay') {
+      var hub = s.hub || {};
+      body += '<div style="display:grid;grid-template-columns:2fr 3fr;gap:1.7cqw;align-items:start"><div style="background:' + C.navy + ';border-radius:.6cqw;padding:2cqw;display:flex;flex-direction:column;gap:.8cqw"><div style="font-size:1.25cqw;font-weight:700;color:' + C.gold2 + '">HUB HOTEL</div><div style="font-size:2.1cqw;font-weight:700;line-height:1.2;color:' + C.bg + '">' + esc(hub.name) + '</div><ul style="margin:0;padding-left:1.4cqw;font-size:1.45cqw;line-height:1.45;color:' + C.light + '">' + (hub.roles || []).map(function(r){ return '<li>' + esc(r) + '</li>'; }).join('') + '</ul></div>' + tbl(s.cols, s.rows) + '</div><div style="font-size:1.35cqw;line-height:1.4;color:' + C.body + '">' + esc(s.text) + '</div>';
+    } else if (s.type === 'two') {
+      body += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.7cqw">' + [s.a, s.b].map(function(x, i){ return '<div style="background:' + C.card + ';border:1px solid ' + C.rule + ';border-top:.42cqw solid ' + (i ? C.gold : C.navy) + ';border-radius:.6cqw;padding:2cqw;display:flex;flex-direction:column;gap:.8cqw"><div style="font-size:1.9cqw;font-weight:700;color:' + C.navy + '">' + esc(x.h) + '</div><ul style="margin:0;padding-left:1.4cqw;font-size:1.45cqw;line-height:1.45;color:' + C.body + '">' + x.li.map(function(l){ return '<li>' + esc(l) + '</li>'; }).join('') + '</ul></div>'; }).join('') + '</div>';
+    } else if (s.type === 'cardstable') {
+      body += '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:.85cqw">' + s.cards.map(function(c){ return card(c, false); }).join('') + '</div>' + tbl(s.cols, s.rows);
+    }
+    var foot = '<div style="position:absolute;left:6.6cqw;right:6.6cqw;bottom:3.3cqw;display:flex;justify-content:space-between;font-size:1.25cqw;color:' + (dark ? '#B9C7D8' : C.muted) + '"><span>NAIG 2027 · Games program, Logistics view' + (s.foot ? ' · ' + esc(s.foot) : '') + '</span><span>' + n + ' / ' + total + '</span></div>';
+    return wrap + inner + body + '</div>' + foot + '</div>';
+  }
+
+  function loadPptx(cb){ if (window.PptxGenJS) return cb(); var s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js'; s.onload = cb; s.onerror = function(){ alert('Could not load the PowerPoint library. Try Print / PDF instead.'); }; document.head.appendChild(s); }
+  function hx(c){ return c.replace('#', ''); }
+  function exportPptx(){
+    loadPptx(function(){
+      var p = new window.PptxGenJS(); p.layout = 'LAYOUT_WIDE'; p.title = 'NAIG 2027 — Games program, Logistics view';
+      var F = 'Calibri', G = 'Georgia', W = 13.33, M = 0.85, CW = W - 2 * M;
+      slides.forEach(function(s, i){
+        var dark = s.type === 'cover' || s.dark; var sl = p.addSlide(); sl.background = {color: hx(dark ? C.navy : C.bg)};
+        if (s.type === 'cover') {
+          sl.addShape(p.ShapeType.rect, {x:M, y:2.0, w:1.1, h:0.06, fill:{color:hx(C.gold)}, line:{color:hx(C.gold)}});
+          sl.addText(s.title, {x:M, y:2.2, w:CW, h:1.2, fontFace:G, fontSize:60, bold:true, color:hx(C.bg)});
+          sl.addText(s.sub, {x:M, y:3.4, w:CW, h:0.8, fontFace:G, fontSize:32, color:hx(C.bg)});
+          sl.addText(s.line, {x:M, y:4.2, w:CW, h:0.5, fontFace:F, fontSize:18, color:hx(C.light)});
+          sl.addText(s.foot, {x:M, y:6.5, w:CW, h:0.4, fontFace:F, fontSize:13, color:hx(C.light)});
+          return;
+        }
+        sl.addText(s.eyebrow.toUpperCase(), {x:M, y:0.45, w:CW, h:0.3, fontFace:F, fontSize:12, bold:true, color:hx(dark ? C.gold2 : C.navy), charSpacing:2});
+        sl.addText(s.title, {x:M, y:0.75, w:CW, h:0.75, fontFace:G, fontSize:26, color:hx(dark ? C.bg : C.navy), valign:'top'});
+        var y = 1.65;
+        function ptable(cols, rows, x, w, yy, bold0, fs){
+          var head = cols.map(function(c){ return {text:c[0], options:{bold:true, color:hx(C.bg), fill:{color:hx(C.navy)}}}; });
+          var body = rows.map(function(r, ri){ return r.map(function(c, j){ return {text:String(c), options:{bold:!!(bold0 && j === 0), fill:{color:hx(ri % 2 ? C.band : C.card)}}}; }); });
+          sl.addTable([head].concat(body), {x:x, y:yy, w:w, colW:cols.map(function(c){ return w * c[1] / 100; }), fontFace:F, fontSize:fs || 11, color:hx(C.ink), border:{type:'solid', pt:0.5, color:hx(C.rule)}, valign:'top', margin:0.05});
+        }
+        function pcard(c, x, yy, w, h, dk){
+          sl.addShape(p.ShapeType.rect, {x:x, y:yy, w:w, h:h, fill:{color:hx(dk ? C.navy2 : C.card)}, line:{color:hx(dk ? '3B5C85' : C.rule), width:0.5}});
+          sl.addShape(p.ShapeType.rect, {x:x, y:yy, w:w, h:0.06, fill:{color:hx(dk ? '#3B5C85' : (c.accent ? C.gold : C.navy))}, line:{color:hx(dk ? '#3B5C85' : (c.accent ? C.gold : C.navy))}});
+          var t = []; if (c.k) t.push({text:c.k + '\n', options:{fontSize:11, bold:true, color:hx(dk ? C.gold2 : C.muted)}}); t.push({text:c.h + '\n', options:{fontSize:dk ? 17 : 14, bold:true, color:hx(dk ? C.bg : C.navy)}}); t.push({text:c.p, options:{fontSize:11, color:hx(dk ? C.light : C.body)}});
+          sl.addText(t, {x:x + 0.12, y:yy + 0.15, w:w - 0.24, h:h - 0.25, fontFace:F, valign:'top'});
+        }
+        if (s.type === 'stats') {
+          var sw = (CW - 3 * 0.2) / 4;
+          s.stats.forEach(function(x, j){ var xx = M + j * (sw + 0.2); sl.addShape(p.ShapeType.rect, {x:xx, y:y, w:sw, h:2.2, fill:{color:hx(C.card)}, line:{color:hx(C.rule), width:0.5}}); sl.addShape(p.ShapeType.rect, {x:xx, y:y, w:sw, h:0.06, fill:{color:hx(x.accent ? C.gold : C.navy)}, line:{color:hx(x.accent ? C.gold : C.navy)}}); sl.addText([{text:x.n + '\n', options:{fontFace:G, fontSize:40, bold:true, color:hx(C.navy)}}, {text:x.l, options:{fontSize:13, color:hx(C.body)}}], {x:xx + 0.15, y:y + 0.2, w:sw - 0.3, h:1.9, fontFace:F, valign:'top'}); });
+          sl.addText(s.text, {x:M, y:y + 2.5, w:CW, h:1, fontFace:F, fontSize:14, color:hx(C.body), valign:'top'});
+        } else if (s.type === 'table') {
+          if (s.split) { var h1 = Math.ceil(s.rows.length / 2), hw = (CW - 0.2) / 2; ptable(s.cols, s.rows.slice(0, h1), M, hw, y, false, 10.5); ptable(s.cols, s.rows.slice(h1), M + hw + 0.2, hw, y, false, 10.5); }
+          else ptable(s.cols, s.rows, M, CW, y, s.bold0, s.rows.length > 7 ? 10 : 11);
+          var ny = y + 0.42 * (s.split ? Math.ceil(s.rows.length / 2) + 1 : s.rows.length + 1) + 0.2;
+          if (s.text) sl.addText(s.text, {x:M, y:Math.min(ny, 6.2), w:CW, h:0.5, fontFace:F, fontSize:11, color:hx(C.body), valign:'top'});
+          if (s.pills) sl.addText(s.pills.map(function(pp){ return pp[0] + ' ' + pp[1]; }).join('   ·   '), {x:M, y:Math.min(ny + 0.1, 6.3), w:CW, h:0.4, fontFace:F, fontSize:11, bold:true, color:hx(C.navy)});
+        } else if (s.type === 'cards') {
+          var n = s.cols, cw = (CW - (n - 1) * 0.15) / n;
+          s.cards.forEach(function(c, j){ pcard(c, M + j * (cw + 0.15), y, cw, n > 4 ? 2.4 : 2.2, dark); });
+          if (s.text) sl.addText(s.text, {x:M, y:y + 2.6, w:CW, h:1, fontFace:F, fontSize:13, color:hx(dark ? C.light : C.body), valign:'top'});
+        } else if (s.type === 'stay') {
+          var lw = CW * 0.38; sl.addShape(p.ShapeType.rect, {x:M, y:y, w:lw, h:2.9, fill:{color:hx(C.navy)}, line:{color:hx(C.navy)}});
+          sl.addText([{text:'HUB HOTEL\n', options:{fontSize:11, bold:true, color:hx(C.gold2)}}, {text:(s.hub.name || '') + '\n', options:{fontSize:17, bold:true, color:hx(C.bg)}}].concat((s.hub.roles || []).map(function(r){ return {text:r, options:{fontSize:12, color:hx(C.light), bullet:true}}; })), {x:M + 0.15, y:y + 0.15, w:lw - 0.3, h:2.6, fontFace:F, valign:'top'});
+          ptable(s.cols, s.rows, M + lw + 0.3, CW - lw - 0.3, y, false, 12);
+          sl.addText(s.text, {x:M, y:y + 3.2, w:CW, h:0.7, fontFace:F, fontSize:12, color:hx(C.body), valign:'top'});
+        } else if (s.type === 'two') {
+          var tw = (CW - 0.3) / 2;
+          [s.a, s.b].forEach(function(x, j){ var xx = M + j * (tw + 0.3); sl.addShape(p.ShapeType.rect, {x:xx, y:y, w:tw, h:3.8, fill:{color:hx(C.card)}, line:{color:hx(C.rule), width:0.5}}); sl.addShape(p.ShapeType.rect, {x:xx, y:y, w:tw, h:0.06, fill:{color:hx(j ? C.gold : C.navy)}, line:{color:hx(j ? C.gold : C.navy)}}); sl.addText([{text:x.h + '\n', options:{fontSize:16, bold:true, color:hx(C.navy)}}].concat(x.li.map(function(l){ return {text:l, options:{fontSize:12, color:hx(C.body), bullet:true}}; })), {x:xx + 0.15, y:y + 0.2, w:tw - 0.3, h:3.5, fontFace:F, valign:'top'}); });
+        } else if (s.type === 'cardstable') {
+          var kw = (CW - 4 * 0.12) / 5; s.cards.forEach(function(c, j){ pcard(c, M + j * (kw + 0.12), y, kw, 1.7, false); });
+          ptable(s.cols, s.rows, M, CW, y + 1.95, false, 11);
+        }
+        sl.addText('NAIG 2027 · Games program, Logistics view' + (s.foot ? ' · ' + s.foot : ''), {x:M, y:6.85, w:CW - 0.8, h:0.3, fontFace:F, fontSize:9, color:hx(dark ? 'B9C7D8' : C.muted)});
+        sl.addText((i + 1) + ' / ' + slides.length, {x:W - M - 0.8, y:6.85, w:0.8, h:0.3, fontFace:F, fontSize:9, align:'right', color:hx(dark ? 'B9C7D8' : C.muted)});
+      });
+      p.writeFile({fileName:'NAIG2027_Games_Program_Logistics_' + new Date().toISOString().slice(0,10) + '.pptx'});
+    });
+  }
+  function exportPdf(){
+    var w = window.open('', '_blank'); if (!w) { alert('Allow pop-ups to print or save as PDF.'); return; }
+    var html = slides.map(function(s, i){ return '<div class="pg">' + slideHTML(s, i + 1, slides.length) + '</div>'; }).join('');
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>NAIG 2027 — Games program, Logistics view</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Carlito:wght@400;700&display=swap"><style>@page{size:13.333in 7.5in;margin:0}body{margin:0;background:#fff}.pg{width:13.333in;height:7.5in;page-break-after:always;break-after:page}.pg>div{border-radius:0!important;height:100%}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}</style></head><body>' + html + '<script>setTimeout(function(){window.print()},900)<\/script></body></html>');
+    w.document.close();
+  }
+
+  function ensureTile(){
+    var sec = document.getElementById('sectionDashboard'); if (!sec) return null;
+    var t = document.getElementById('naigProgramDeck');
+    if (!t) {
+      t = document.createElement('div'); t.id = 'naigProgramDeck';
+      t.className = 'naigAcc'; t.setAttribute('data-acc', 'Games program deck — live, for vertical leads');
+      try { var sv = localStorage.getItem('naigAcc:sectionDashboard:Games program deck'); if (sv === 'shut') t.classList.add('naigShut'); t.__naigKey = 'naigAcc:sectionDashboard:Games program deck'; } catch(e){}
+      t.style.cssText = 'padding:50px 16px 16px;margin:0 0 10px';
+      t.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px">'
+        + '<button type="button" data-pd="prev" style="' + bs() + '">◀</button><span id="naigPDnum" style="font:600 13px system-ui;color:#334155;min-width:60px;text-align:center"></span><button type="button" data-pd="next" style="' + bs() + '">▶</button>'
+        + '<span style="flex:1"></span>'
+        + '<button type="button" data-pd="present" style="' + bs() + '">Present</button><button type="button" data-pd="pptx" style="' + bs(1) + '">Download PowerPoint</button><button type="button" data-pd="pdf" style="' + bs() + '">Print / PDF</button>'
+        + '<a id="naigPDlink" target="_blank" rel="noopener" style="font:600 12px system-ui;color:#1e3a8a;text-decoration:underline;margin-left:4px">Polished copy</a></div>'
+        + '<div id="naigPDstage" style="max-width:1100px;margin:0 auto"></div>'
+        + '<div style="font:12px system-ui;color:#64748b;margin-top:8px;text-align:center">Built live from the hub: slot sheet, venues, hotels, M2M, food policy. Text slides edit at programDeck/static.</div>';
+      var kpi = document.getElementById('dashKpiRow'); var anchor = kpi && kpi.parentNode === sec ? kpi : null;
+      var bar = document.getElementById('naigAccBar_sectionDashboard');
+      sec.insertBefore(t, anchor || (bar ? bar.nextSibling : sec.firstChild));
+      t.addEventListener('click', function(e){
+        var a = e.target && e.target.getAttribute && e.target.getAttribute('data-pd'); if (!a) return;
+        if (a === 'prev') { cur = Math.max(0, cur - 1); draw(); } else if (a === 'next') { cur = Math.min(slides.length - 1, cur + 1); draw(); }
+        else if (a === 'pptx') exportPptx(); else if (a === 'pdf') exportPdf();
+        else if (a === 'present') { var st = document.getElementById('naigPDstage'); if (st.requestFullscreen) st.requestFullscreen(); }
+      });
+      document.addEventListener('keydown', function(e){ if (document.fullscreenElement && document.fullscreenElement.id === 'naigPDstage') { if (e.key === 'ArrowRight' || e.key === ' ') { cur = Math.min(slides.length - 1, cur + 1); draw(); } if (e.key === 'ArrowLeft') { cur = Math.max(0, cur - 1); draw(); } } });
+    }
+    return t;
+  }
+  function bs(primary){ return 'font:600 12px system-ui,sans-serif;padding:6px 12px;border-radius:8px;cursor:pointer;border:1px solid ' + (primary ? '#1F3A5F' : '#cbd5e1') + ';background:' + (primary ? '#1F3A5F' : '#fff') + ';color:' + (primary ? '#fff' : '#334155'); }
+  function draw(){
+    var t = ensureTile(); if (!t) return;
+    var st = document.getElementById('naigPDstage'); if (!st || !slides.length) return;
+    cur = Math.min(cur, slides.length - 1);
+    var fs = document.fullscreenElement === st;
+    st.style.cssText = fs ? 'display:flex;align-items:center;justify-content:center;background:#0b1626;width:100vw;height:100vh' : 'max-width:1100px;margin:0 auto';
+    st.innerHTML = '<div style="width:' + (fs ? 'min(100vw, 177.7vh)' : '100%') + '">' + slideHTML(slides[cur], cur + 1, slides.length) + '</div>';
+    var n = document.getElementById('naigPDnum'); if (n) n.textContent = (cur + 1) + ' / ' + slides.length;
+    var l = document.getElementById('naigPDlink'); var S = (DB.programDeck && DB.programDeck.static) || {}; if (l) { if (S.polishedLink) { l.href = S.polishedLink; l.style.display = ''; } else l.style.display = 'none'; }
+  }
+  function rebuild(){ clearTimeout(timer); timer = setTimeout(function(){ try { slides = model(); draw(); } catch(e){ console.warn('programDeck', e); } }, 250); }
+  function boot(){
+    if (!window._dbRef) { setTimeout(boot, 1000); return; }
+    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js').then(function(m){
+      [['rows','naig2027/sportsPlan/rows'],['venues','naig2027/venues'],['hotels','naig2027/hotels'],['m2m','naig2027/m2m'],['food','naig2027/food'],['scenarios','naig2027/scenarios'],['programDeck','naig2027/programDeck']].forEach(function(p){
+        m.onValue(window._dbRef(p[1]), function(s){ DB[p[0]] = s.val(); rebuild(); });
+      });
+    }).catch(function(){});
+    document.addEventListener('fullscreenchange', draw);
+    setInterval(function(){ if (!document.getElementById('naigProgramDeck') && slides.length) draw(); }, 2000);
+  }
+  window.naigProgramDeck = {export: function(){ exportPptx(); }, pdf: exportPdf, slides: function(){ return slides; }};
+  boot();
+})();
+</script>
 </body>
 </html>
