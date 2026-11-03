@@ -2150,7 +2150,7 @@ html.onboard-mode #onboardScreen { display: flex !important; }
 
  <div class="t-cards">
  <div class="t-card navy"><div class="t-card-icon"></div><div class="t-card-label">HQ Hub</div><div class="t-card-value">Carrollton, TX</div><div class="t-card-sub">2500 Dickerson Pkwy · All routes start here</div></div>
- <div class="t-card"><div class="t-card-icon"></div><div class="t-card-label">Total Venue Sites</div><div class="t-card-value">6 Primary</div><div class="t-card-sub">RYSE · Northlake · Gateway · Texomo · Picklr · McKinney Courts</div></div>
+ <div class="t-card"><div class="t-card-icon"></div><div class="t-card-label">Total Venue Sites</div><div class="t-card-value">6 Primary</div><div class="t-card-sub">RYSE · Northlake · Gateway · Texoma · Picklr · McKinney Courts</div></div>
  <div class="t-card green"><div class="t-card-icon"></div><div class="t-card-label">Airports Served</div><div class="t-card-value">DFW + DAL</div><div class="t-card-sub">DFW ~45 min · DAL ~35 min from hub</div></div>
  <div class="t-card amber"><div class="t-card-icon"></div><div class="t-card-label">Athletes</div><div class="t-card-value" data-naig="athletes">N/A</div><div class="t-card-sub" data-naig="teamline">from the slot sheet</div></div>
  <div class="t-card"><div class="t-card-icon"></div><div class="t-card-label">Arrivals</div><div class="t-card-value">N/A</div><div class="t-card-sub">Cricket check-in Wed 24 Mar · airport windows not set</div></div>
@@ -2177,7 +2177,7 @@ html.onboard-mode #onboardScreen { display: flex !important; }
  <div>
  <div class="t-cluster-label">⬇ South Cluster</div>
  <div class="t-venue-node">GatewayPark Soccer Fields<br><small>Fort Worth · Soccer/Flag FB</small></div>
- <div class="t-venue-node">Texomo Cricket Ground<br><small>Cricket</small></div>
+ <div class="t-venue-node">Texoma Cricket Ground<br><small>Cricket</small></div>
  <div class="t-venue-node pending">Track TBD</div>
  <div class="t-venue-node pending">Chess TBD</div>
  </div>
@@ -2296,7 +2296,7 @@ html.onboard-mode #onboardScreen { display: flex !important; }
  <tr><td>RYSE Energy StarCenter — Farmers Branch</td><td>2400 Pike St, Farmers Branch, TX 75234</td><td>Volleyball, Throwball</td><td>South-Central</td><td>~17 min</td></tr>
  <tr><td>Children's Health StarCenter — Northlake</td><td>13850 Chadwick Pkwy, Northlake, TX 76262</td><td>Badminton, Basketball, Table Tennis</td><td>North</td><td>~15 min</td></tr>
  <tr><td>GatewayPark Soccer Fields — Fort Worth</td><td>4321 E 1st St, Fort Worth, TX 76111</td><td>Soccer 11v11, Soccer 7v7, Flag Football</td><td>West</td><td>~33 min</td></tr>
- <tr><td>Texomo Cricket Ground</td><td>TBD</td><td>Cricket</td><td>TBD</td><td>TBD</td></tr>
+ <tr><td>Texoma Cricket Ground</td><td>TBD</td><td>Cricket</td><td>TBD</td><td>TBD</td></tr>
  <tr><td>Picklr</td><td>DFW Area (address TBD)</td><td>Pickleball, Dance</td><td>TBD</td><td>TBD</td></tr>
 <tr><td>McKinney Courts</td><td>McKinney, TX (address TBD)</td><td>Tennis, Pickleball</td><td>North</td><td>TBD</td></tr>
  <tr style="color:#888"><td>Lewisville Badminton Center (backup)</td><td>2801 Rockbrook Dr, Lewisville, TX 75067</td><td>Badminton, TT — backup</td><td>Central-North</td><td>~12 min</td></tr>
@@ -2944,7 +2944,7 @@ const DEFAULT_DATA = {
         { id: 'venue-ryse',     name: 'Shah', role: 'Venue Co-Lead — TBD Assignment',                        tier: 't3-tbd', status: 'tbd',       region: 'usa', children: [] },
         { id: 'venue-northlake',name: 'TBD',  role: "Venue Lead — Children's Health StarCenter, Northlake",    tier: 't3-tbd', status: 'tbd', region: 'usa', children: [] },
         { id: 'venue-fw',       name: 'TBD',  role: 'Venue Lead — GatewayPark Soccer Fields, Fort Worth',      tier: 't3-tbd', status: 'tbd', region: 'usa', children: [] },
-        { id: 'venue-cricket',  name: 'TBD',  role: 'Venue Lead — Texomo Cricket Ground',                      tier: 't3-tbd', status: 'tbd', region: 'usa', children: [] },
+        { id: 'venue-cricket',  name: 'TBD',  role: 'Venue Lead — Texoma Cricket Ground',                      tier: 't3-tbd', status: 'tbd', region: 'usa', children: [] },
         { id: 'venue-pick',     name: 'TBD',  role: 'Venue Lead — Picklr (Pickleball / Dance)',                tier: 't3-tbd', status: 'tbd', region: 'usa', children: [] },
         { id: 'venue-mckinney', name: 'TBD',  role: 'Venue Lead — McKinney Courts (Tennis / Pickleball)',      tier: 't3-tbd', status: 'tbd', region: 'usa', children: [] },
         { id: 'venue-track',    name: 'TBD',  role: 'Venue Lead — Track & Field (TBD)',                        tier: 't3-tbd', status: 'tbd', region: 'usa', children: [] },
@@ -6975,7 +6975,7 @@ function deptKey(d) { return d.replace(/[.#$\/\[\]]/g,'_'); }
 const DEFAULT_MILESTONES = [
   { phase:'foundation',   title:'NAIG Hub launched',                    dept:'Technology',      due:'2026-07-15', status:'done',        notes:'Live at GitHub Pages' },
   { phase:'foundation',   title:'Sport directors appointed (14 sports)', dept:'Sports',          due:'2026-09-01', status:'in-progress', notes:'' },
-  { phase:'foundation',   title:'Venue contracts signed',               dept:'Venue / Legal',   due:'2026-10-01', status:'in-progress', notes:'Picklr, McKinney Courts, Texomo TBD' },
+  { phase:'foundation',   title:'Venue contracts signed',               dept:'Venue / Legal',   due:'2026-10-01', status:'in-progress', notes:'Picklr, McKinney Courts, Texoma TBD' },
   { phase:'foundation',   title:'Klubsoft registration system configured',dept:'Registration',  due:'2026-10-15', status:'not-started', notes:'' },
   { phase:'foundation',   title:'Technology scope doc finalized',        dept:'Technology',      due:'2026-11-01', status:'not-started', notes:'' },
   { phase:'foundation',   title:'Budget approved by ELT',               dept:'Finance',         due:'2026-12-01', status:'not-started', notes:'' },
@@ -8224,7 +8224,7 @@ window.seedOrgWatch = function () {
     dependencies: [
       { title: '#14 Venue Contracts Executed', owner: 'Legal — NO OWNER NAMED', due: '15 Oct 2026', tone: '#dc2626',
         why: 'The single biggest external dependency we have. Every venue on our board — 13 live, none '
-           + 'confirmed — gets contracted under this one unowned Legal item, 43 days out. Texomo, UT '
+           + 'confirmed — gets contracted under this one unowned Legal item, 43 days out. Texoma, UT '
            + 'Arlington and the StarCenters all sit behind it.' },
       { title: '#83 Finalize min-by-min and overall programme schedule', owner: 'PMO — TBD', due: '1 Feb 2027', tone: '#dc2626',
         why: 'SEQUENCING IS BACKWARDS. Our transport plan (#64) and coach contracts (#65) are both due '
@@ -8509,7 +8509,7 @@ function _taskOwningStream(t) {
   if (['site management','venues'].includes(scope)) return 'Site Management';
   if (scope === 'equipment / signage' || title.includes('signage') || title.includes('supply list')) return 'Equipment & Signage';
   if (/hotel|room block|hospitality/.test(title)) return 'Hotels & Accommodations';
-  if (/venue|texomo|russell creek|pickler|tennis|cricket/.test(title)) return 'Site Management';
+  if (/venue|texom[ao]|russell creek|pickler|tennis|cricket/.test(title)) return 'Site Management';
   return 'Core Team';
 }
 
@@ -9081,7 +9081,7 @@ window.seedInitialTasks = function() {
     [k()]: { title:'Volunteer management system setup', status:'todo', priority:'Medium', owner:'', scopeArea:'Technology', due:'2027-02-01', notes:'Track 750–1,000 volunteers. Role assignment, shift scheduling, communication.' },
     [k()]: { title:'Event app / mobile guide for athletes', status:'todo', priority:'Low', owner:'', scopeArea:'Technology', due:'2027-06-01', notes:'Schedule, maps, results, transport info for athletes.' },
     // ── Venues ──
-    [k()]: { title:'Finalize venue shortlist — all sports', status:'inprogress', priority:'High', owner:'', scopeArea:'Venues', due:'2026-09-01', notes:'Primary (In Conversation): RYSE Farmers Branch (VB/Throwball), CH StarCenter Northlake (Bad/BB/TT), GatewayPark Fort Worth (Soccer/Flag FB), Texomo Cricket Ground, Picklr (Pickleball/Dance), McKinney Courts (Tennis/Pickleball). Backups: Lewisville Badminton, Little Elm Soccer, Russell Creek (Cricket), Prairie View (Cricket). TBD: Track, Chess.' },
+    [k()]: { title:'Finalize venue shortlist — all sports', status:'inprogress', priority:'High', owner:'', scopeArea:'Venues', due:'2026-09-01', notes:'Primary (In Conversation): RYSE Farmers Branch (VB/Throwball), CH StarCenter Northlake (Bad/BB/TT), GatewayPark Fort Worth (Soccer/Flag FB), Texoma Cricket Ground, Picklr (Pickleball/Dance), McKinney Courts (Tennis/Pickleball). Backups: Lewisville Badminton, Little Elm Soccer, Russell Creek (Cricket), Prairie View (Cricket). TBD: Track, Chess.' },
     [k()]: { title:'Confirm venue details — RYSE Energy StarCenter, Farmers Branch', status:'todo', priority:'High', owner:'Alishah Momin', scopeArea:'Venues', due:'2026-08-31', notes:'2400 Pike St, Farmers Branch. Contact: Lee Wisener 972-880-5281. Confirm court count (est 16), floor type, AV, parking.' },
     [k()]: { title:"Confirm venue details — Children's Health StarCenter, Northlake", status:'todo', priority:'High', owner:'Karim Hemani', scopeArea:'Venues', due:'2026-08-31', notes:'13850 Chadwick Pkwy, Northlake. Contact: Lee Wisener 972-880-5281. Sports: Badminton, Basketball, Table Tennis (Tennis moved to McKinney Courts). Confirm court count (est 8+), TT table space, floor type, parking.' },
     [k()]: { title:'Site visit — Town of Little Elm Soccer Site 1', status:'todo', priority:'High', owner:'', scopeArea:'Venues', due:'2026-10-01', notes:'704 W Eldorado Pkwy, Little Elm, TX 75068. Contact: Ellie Peters 214-618-3103. North cluster. Confirm # of fields, turf/grass mix, locker rooms, insurance requirements.' },
@@ -9635,7 +9635,7 @@ window.setVenueView = function (v) {
 
 
 /* ── DAYLIGHT MODEL ────────────────────────────────────────────────────
-   Built 10 Sep 2026, after Texomo turned up unlit with a 4:00pm match
+   Built 10 Sep 2026, after Texoma turned up unlit with a 4:00pm match
    slot whose games end 7:30–8:00pm. Sunset at Calera on those dates is
    7:40–7:43pm. Nobody had checked, because nothing in the hub knew what
    time the sun goes down.
@@ -9704,7 +9704,7 @@ window.NAIG_SOLAR = (function () {
 window.NAIG_GEO = {
   tzOffset: -5,                    // CDT — DST begins 14 Mar 2027, before the event
   table: [
-    [/calera|texomo/i,             33.9312, -96.4231, 'Calera, OK'],
+    [/calera|texom[ao]/i,             33.9312, -96.4231, 'Calera, OK'],
     [/prairie view/i,              30.0938, -95.9908, 'Prairie View, TX'],
     [/mckinney/i,                  33.1972, -96.6398, 'McKinney, TX'],
     [/the colony/i,                33.0890, -96.8861, 'The Colony, TX'],
@@ -9754,7 +9754,7 @@ window._venuePlayEnd = function (v) {
   /* Scan the venue's own hours for every clock time it mentions and take the
      latest one. This deliberately does NOT use _parseHours: that function wants
      a tidy "8am-10pm" and returns null on anything else, and the hours fields
-     have grown into prose — Texomo's reads "Play 9:00am – ~8:00pm (game starts
+     have grown into prose — Texoma's reads "Play 9:00am – ~8:00pm (game starts
      9am / 1pm / 4pm)". Falling back to the model's 6:00pm on a string like that
      would report the one venue that actually finishes after sunset as clear,
      which is the exact failure this whole tab exists to catch. A latest-time
@@ -9873,7 +9873,7 @@ window.renderVenueDaylight = function () {
 
   const refPts = [
     { name: 'DFW (Dallas)', lat: 32.7767, lon: -96.7970 },
-    { name: 'Calera, OK \u2014 Texomo', lat: 33.9312, lon: -96.4231 },
+    { name: 'Calera, OK \u2014 Texoma', lat: 33.9312, lon: -96.4231 },
     { name: 'Prairie View \u2014 Houston', lat: 30.0938, lon: -95.9908 }
   ];
   const TH = 'text-align:left;padding:6px 9px;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;'
@@ -10000,7 +10000,7 @@ window.NAIG_WINDOW = [
 window.NAIG_CRICKET = {
   play: 'Thu 25 – Sun 28 Mar 2027, 8:00am–6:00pm',
   extra: 'Mon 29 Mar held as the rain-day makeup',
-  test: /cricket|texomo|calera|prairie view|russell creek/i
+  test: /cricket|texom[ao]|calera|prairie view|russell creek/i
 };
 
 /* MINIMUM COURT COUNTS. Rizwan, 8 Sep 2026: "for pb we need 14-16 and tennis
@@ -11106,13 +11106,13 @@ window.seedInitialVenues = function() {
     [k()]: { name:'RYSE Energy StarCenter — Farmers Branch', type:'Arena', cluster:'South-Central', location:'Farmers Branch, TX', address:'2400 Pike St, Farmers Branch, TX 75234', status:'In Conversation', pipelineStatus:'In Conversation', sports:'Volleyball, Throwball', contact:'Lee Wisener', phone:'972-880-5281', email:'LWisener@dallasstars.com', siteLead:'TBD', notes:'Primary VB + Throwball venue. ~16 courts est — pending site walk. Same Dallas Stars operator as Northlake.', driveTime:'17 min from Carrollton HQ', updated:new Date().toISOString() },
     [k()]: { name:"Children's Health StarCenter — Northlake", type:'Arena', cluster:'North', location:'Northlake, TX', address:'13850 Chadwick Pkwy, Northlake, TX 76262', status:'In Conversation', pipelineStatus:'In Conversation', sports:'Badminton, Basketball, Table Tennis', contact:'Lee Wisener', phone:'972-880-5281', email:'LWisener@dallasstars.com', siteLead:'TBD', notes:'Primary venue for Badminton, Basketball, Table Tennis. ~8 courts est. Same Dallas Stars operator as Farmers Branch. Lewisville Badminton Center = backup. Tennis moved to McKinney Courts.', driveTime:'15 min from Carrollton HQ', updated:new Date().toISOString() },
     [k()]: { name:'GatewayPark Soccer Fields — Fort Worth', type:'Multi-sport Park', cluster:'West', location:'Fort Worth, TX', address:'4321 E 1st St, Fort Worth, TX 76111', status:'In Conversation', pipelineStatus:'In Conversation', sports:'Soccer 11v11, Soccer 7v7, Flag Football', contact:'Samuel Robbie', phone:'817-925-2459', email:'Robbie.Samuel@fortworthtexas.gov', siteLead:'TBD', notes:'ALL soccer (11v11 + 7v7) + Flag Football. Farthest venue — 33 min from Carrollton HQ. Dedicated shuttle loop required. Little Elm = backup.', driveTime:'33 min from Carrollton HQ', updated:new Date().toISOString() },
-    [k()]: { name:'Texomo Cricket Ground', type:'Cricket Ground', cluster:'TBD', location:'DFW Area', address:'TBD', status:'In Conversation', pipelineStatus:'In Conversation', sports:'Cricket', contact:'TBD', siteLead:'TBD', notes:'PRIMARY cricket venue. Need 22-yard hardball pitch + tapeball outfield. Backups: Russell Creek, Prairie View.', driveTime:'TBD', updated:new Date().toISOString() },
+    [k()]: { name:'Texoma Cricket Ground', type:'Cricket Ground', cluster:'TBD', location:'DFW Area', address:'TBD', status:'In Conversation', pipelineStatus:'In Conversation', sports:'Cricket', contact:'TBD', siteLead:'TBD', notes:'PRIMARY cricket venue. Need 22-yard hardball pitch + tapeball outfield. Backups: Russell Creek, Prairie View.', driveTime:'TBD', updated:new Date().toISOString() },
     [k()]: { name:'Picklr', type:'Pickleball / Event Center', cluster:'North', location:'DFW Area, TX', address:'TBD', status:'In Conversation', pipelineStatus:'In Conversation', sports:'Pickleball, Dance', contact:'TBD', siteLead:'TBD', notes:'Primary for Pickleball + Dance. Possibly Chess TBD. Confirm court count + performance space availability for NAIG 2027 dates.', driveTime:'TBD', updated:new Date().toISOString() },
     [k()]: { name:'McKinney Courts', type:'Tennis / Multi-Sport Courts', cluster:'North', location:'McKinney, TX', address:'TBD', status:'In Conversation', pipelineStatus:'In Conversation', sports:'Tennis, Pickleball', contact:'TBD', siteLead:'TBD', notes:'Primary for Tennis. Pickleball also in play. Possibly Chess TBD. Confirm court count + availability for NAIG 2027 dates.', driveTime:'TBD', updated:new Date().toISOString() },
     [k()]: { name:'Lewisville Badminton Center', type:'Badminton Center', cluster:'Central-North', location:'Lewisville, TX', address:'2801 Rockbrook Dr, Lewisville, TX 75067', status:'In Works', pipelineStatus:'In Conversation', sports:'Badminton, Table Tennis (Backup)', contact:'Cin Abidin', phone:'949-436-8849', email:'info@lewisvillebadmintoncenter.com', siteLead:'TBD', notes:'BACKUP site for Badminton + TT. Primary is CH StarCenter Northlake. 28 courts available. 12 min from Carrollton HQ.', driveTime:'12 min from Carrollton HQ', updated:new Date().toISOString() },
     [k()]: { name:'Town of Little Elm — Soccer Site 1', type:'Soccer Park', cluster:'North', location:'Little Elm, TX', address:'704 W Eldorado Pkwy, Little Elm, TX 75068', status:'In Works', pipelineStatus:'In Conversation', sports:'Soccer (Backup)', contact:'Ellie Peters', phone:'214-618-3103', email:'Ellie.Peters@littleelm.gov', siteLead:'TBD', notes:'BACKUP soccer site. Primary is GatewayPark Fort Worth. Grass + turf fields. 20 min from Carrollton HQ.', driveTime:'20 min from Carrollton HQ', updated:new Date().toISOString() },
-    [k()]: { name:'Russell Creek — Cricket Backup', type:'Field / Outdoor', cluster:'TBD', location:'DFW Area', address:'TBD', status:'In Works', sports:'Cricket (Backup)', contact:'TBD', siteLead:'TBD', notes:'Backup cricket site. Primary: Texomo Cricket Ground.', driveTime:'TBD', updated:new Date().toISOString() },
-    [k()]: { name:'Prairie View — Cricket Backup', type:'Field / Outdoor', cluster:'TBD', location:'DFW Area', address:'TBD', status:'In Works', sports:'Cricket (Backup)', contact:'TBD', siteLead:'TBD', notes:'Backup cricket site. Primary: Texomo Cricket Ground.', driveTime:'TBD', updated:new Date().toISOString() },
+    [k()]: { name:'Russell Creek — Cricket Backup', type:'Field / Outdoor', cluster:'TBD', location:'DFW Area', address:'TBD', status:'In Works', sports:'Cricket (Backup)', contact:'TBD', siteLead:'TBD', notes:'Backup cricket site. Primary: Texoma Cricket Ground.', driveTime:'TBD', updated:new Date().toISOString() },
+    [k()]: { name:'Prairie View — Cricket Backup', type:'Field / Outdoor', cluster:'TBD', location:'DFW Area', address:'TBD', status:'In Works', sports:'Cricket (Backup)', contact:'TBD', siteLead:'TBD', notes:'Backup cricket site. Primary: Texoma Cricket Ground.', driveTime:'TBD', updated:new Date().toISOString() },
     [k()]: { name:'Track & Field Venue — TBD', type:'Track / Stadium', capacity:'TBD', location:'DFW Area — TBD', address:'TBD', status:'In Works', sports:'Track & Field', contact:'TBD', notes:'Target WBE 40. Needs 400m track. PROSPECT: Carroll ISD (in exploration). Need additional venue options — reach out to more DFW-area school districts and parks. Dance moved to Picklr.', updated:new Date().toISOString() },
   };
   window._dbSet(window._dbRef('naig2027/venues'), seed);
@@ -11459,12 +11459,12 @@ window.seedInitialTransport = function() {}; // legacy — loops now used
 window.renderTransport = function() {};       // legacy stub
 
 /* ══════════════════════════════════════════════════════════
-   MIGRATION — Texomo (Calera, OK) becomes the PRIMARY cricket ground
+   MIGRATION — Texoma (Calera, OK) becomes the PRIMARY cricket ground
    ──────────────────────────────────────────────────────────
    Decided 31 Aug 2026. Calera sits ~90 mi / ~90 min from the DFW
    clusters, so it cannot share either the hotel blocks or the shuttle
    loops. This migration:
-     • promotes Texomo to primary and demotes Prairie View + Russell Creek
+     • promotes Texoma to primary and demotes Prairie View + Russell Creek
      • turns the "cricket outlier — decision needed" hotel placeholder into
        a real Durant/Denison prospect block
      • splits the single long Calera run into a long-haul transfer loop and
@@ -11482,10 +11482,10 @@ window._migrateCricketPrimary = function () {
   const findVenue = (re) => Object.keys(V).find(k => re.test(String((V[k] || {}).name || '')));
 
   // ── Venues ───────────────────────────────────────────────
-  const kTex = findVenue(/texomo/i);
+  const kTex = findVenue(/texom[ao]/i);
   if (kTex) {
     set('naig2027/venues/' + kTex, Object.assign({}, V[kTex], {
-      name: 'Texomo Cricket Ground — Calera, OK (PRIMARY)',
+      name: 'Texoma Cricket Ground — Calera, OK (PRIMARY)',
       sports: 'Cricket (PRIMARY SITE)',
       cluster: 'Calera / Durant — standalone outlier cluster',
       driveTime: '~90 mi / ~90 min each way from the DFW clusters',
@@ -11501,7 +11501,7 @@ window._migrateCricketPrimary = function () {
   if (kPV) {
     set('naig2027/venues/' + kPV, Object.assign({}, V[kPV], {
       sports: 'Cricket (Backup)',
-      notes: 'BACKUP to Texomo (primary). Keep warm as overflow / weather contingency — a second '
+      notes: 'BACKUP to Texoma (primary). Keep warm as overflow / weather contingency — a second '
            + 'ground only helps if it can absorb a full day of fixtures. Abid Bhai POC. Not sited yet. '
            + String((V[kPV] || {}).notes || ''),
       updated: now
@@ -11511,7 +11511,7 @@ window._migrateCricketPrimary = function () {
   if (kRC) {
     set('naig2027/venues/' + kRC, Object.assign({}, V[kRC], {
       sports: 'Cricket (Backup — DFW local)',
-      notes: 'BACKUP to Texomo (primary). The only cricket option inside the DFW footprint, so it is '
+      notes: 'BACKUP to Texoma (primary). The only cricket option inside the DFW footprint, so it is '
            + 'the fallback if the Calera hotel block or the 90-minute coach run proves unworkable. '
            + 'Not yet approached. ' + String((V[kRC] || {}).notes || ''),
       updated: now
@@ -11536,7 +11536,7 @@ window._migrateCricketPrimary = function () {
       checkOut: '2027-03-29',
       pocName: 'TBD — Sales Office',
       pocTitle: '', pocEmail: '', pocPhone: '', contractLink: '',
-      notes: 'Texomo is the PRIMARY cricket ground and sits ~90 min from the DFW clusters, so cricket '
+      notes: 'Texoma is the PRIMARY cricket ground and sits ~90 min from the DFW clusters, so cricket '
            + 'cannot share the main blocks. This is a separate contract. Durant is the nearest real '
            + 'lodging market (~12 mi from the ground); Denison is the Texas-side fallback (~17–20 mi) '
            + 'and keeps the squads in-state. Ground crew may need to check in Fri 19 Mar for pitch '
@@ -11561,7 +11561,7 @@ window._migrateCricketPrimary = function () {
       capacity: '55',
       stops: 'DFW Airport (Terminal C/D)\nNorth cluster hotels\nMid cluster hotels\nDurant cricket block',
       status: 'Planning',
-      notes: 'Texomo is the PRIMARY cricket ground (confirmed 31 Aug 2026). Cricket squads are housed '
+      notes: 'Texoma is the PRIMARY cricket ground (confirmed 31 Aug 2026). Cricket squads are housed '
            + 'in Durant, so this is a transfer service — bulk in on Wed Mar 24, bulk out on Mon Mar 29 '
            + '— not a daily loop. Day-to-day movement is handled by loop-cricket-local. Keep one daily '
            + 'run each way for officials, family and anyone who has to be in both places. Longest run '
@@ -11571,9 +11571,9 @@ window._migrateCricketPrimary = function () {
   }
   if (!L['loop-cricket-local']) {
     set('naig2027/loops/loop-cricket-local', {
-      name: 'Durant hotel ⇄ Texomo Cricket Ground (local shuttle)',
+      name: 'Durant hotel ⇄ Texoma Cricket Ground (local shuttle)',
       from: 'Durant, OK cricket block',
-      to: 'Texomo Cricket Ground, Calera OK',
+      to: 'Texoma Cricket Ground, Calera OK',
       frequency: 'Every 45 min',
       firstBus: '06:30',
       lastBus: '21:00',
@@ -11581,7 +11581,7 @@ window._migrateCricketPrimary = function () {
       rideTime: '~20 min',
       vehicles: 'TBD',
       capacity: '25',
-      stops: 'Durant cricket block hotels\nTexomo Cricket Ground',
+      stops: 'Durant cricket block hotels\nTexoma Cricket Ground',
       contractLink: '',
       status: 'Planning',
       notes: 'Short local shuttle — the only daily cricket movement once squads are housed in Durant. '
@@ -11598,7 +11598,7 @@ window._migrateCricketPrimary = function () {
       createdAt: Date.now(), dept: 'Lodging', due: '2026-11-20', phase: 'pregames',
       priority: 'critical', status: 'not-started', owner: 'Hotel Lead', wbe: 'C-1',
       title: 'Contract the Durant/Denison cricket hotel block — cricket cannot share the DFW clusters',
-      notes: 'Follows from Texomo being the primary cricket ground. Separate contract from the main '
+      notes: 'Follows from Texoma being the primary cricket ground. Separate contract from the main '
            + 'blocks. Confirm whether ground crew needs a Fri 19 Mar check-in for pitch prep.'
     });
     if (!M['cr02']) set('naig2027/plan/milestones/cr02', {
@@ -11606,7 +11606,7 @@ window._migrateCricketPrimary = function () {
       priority: 'high', status: 'not-started', owner: 'Transportation Lead', wbe: 'C-2',
       title: 'Quote and contract the Calera coach transfers + Durant local shuttle',
       notes: 'Two services: a long-haul DFW⇄Durant coach transfer (Mar 24 in, Mar 29 out, plus a '
-           + 'daily officials run) and a local Durant⇄Texomo shuttle running Mar 20–28. Coach charter '
+           + 'daily officials run) and a local Durant⇄Texoma shuttle running Mar 20–28. Coach charter '
            + 'pricing, not shuttle pricing.'
     });
   }
@@ -11635,13 +11635,13 @@ window._migrateCricketWindow = function () {
   const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
   const findVenue = (re) => Object.keys(V).find(k => re.test(String((V[k] || {}).name || '')));
 
-  // ── Texomo: real access window, and the contract is the blocker ──
-  const kTex = findVenue(/texomo/i);
+  // ── Texoma: real access window, and the contract is the blocker ──
+  const kTex = findVenue(/texom[ao]/i);
   if (kTex) {
     set('naig2027/venues/' + kTex, Object.assign({}, V[kTex], {
       notes: 'PRIMARY cricket ground. ACCESS WINDOW (confirmed 31 Aug 2026): venue handover Tue 23 or '
            + 'Wed 24 Mar · play Thu 25 – Sun 28 Mar · Mon 29 Mar held as a reserve day if fixtures run '
-           + 'over. CONTRACT NOT YET RECEIVED — waiting on Texomo; Abid Bhai coordinating. Nothing '
+           + 'over. CONTRACT NOT YET RECEIVED — waiting on Texoma; Abid Bhai coordinating. Nothing '
            + 'downstream (hotel block, coach charter, ground crew) can be signed until it lands, and '
            + 'the contract has to name the Tue/Wed handover and the Monday reserve day explicitly. '
            + 'Still open: layout, lighting, field count. Calera sits ~90 mi / ~90 min from the DFW '
@@ -11654,8 +11654,8 @@ window._migrateCricketWindow = function () {
   const kPV = findVenue(/prairie\s*view/i);
   if (kPV) {
     set('naig2027/venues/' + kPV, Object.assign({}, V[kPV], {
-      notes: 'BACKUP to Texomo (primary). Rizwan 31 Aug 2026: not expecting detail from Prairie View '
-           + 'for a while — leave it warm, do not chase. Only worth reviving if Texomo’s contract '
+      notes: 'BACKUP to Texoma (primary). Rizwan 31 Aug 2026: not expecting detail from Prairie View '
+           + 'for a while — leave it warm, do not chase. Only worth reviving if Texoma’s contract '
            + 'falls through or fixtures need a second ground. Abid Bhai POC. Not sited.',
       updated: now
     }));
@@ -11693,13 +11693,13 @@ window._migrateCricketWindow = function () {
     set('naig2027/hotels/' + kH, Object.assign({}, H[kH], {
       checkIn:  '2027-03-23',
       checkOut: '2027-03-30',
-      notes: 'Texomo is the PRIMARY cricket ground, ~90 min from the DFW clusters, so cricket cannot '
+      notes: 'Texoma is the PRIMARY cricket ground, ~90 min from the DFW clusters, so cricket cannot '
            + 'share the main blocks. Separate contract. DATES follow the venue access window: handover '
            + 'Tue 23 / Wed 24 Mar, play Thu 25 – Sun 28, Mon 29 held as a reserve day. So: setup crew '
            + 'in Tue 23, squads in Wed 24, out Tue 30 — booked through the reserve day. Negotiate a '
            + 'release-back clause on the Mon 29 night so unused rooms drop without penalty once the '
            + 'fixture list is final. Durant is the nearest lodging market (~12 mi to the ground); '
-           + 'Denison is the Texas-side fallback (~17–20 mi). CANNOT SIGN until the Texomo contract '
+           + 'Denison is the Texas-side fallback (~17–20 mi). CANNOT SIGN until the Texoma contract '
            + 'arrives. Size the block off the cricket entry count once Registration closes.',
       updated: now
     }));
@@ -11735,7 +11735,7 @@ window._migrateCricketWindow = function () {
     set('naig2027/plan/milestones/wk00', Object.assign({}, M['wk00'], {
       due: '2027-03-23',
       wbe: 'T-2 days',
-      title: 'Cricket ground handover at Texomo — venue is ours Tue 23 / Wed 24 Mar, play starts Thu 25',
+      title: 'Cricket ground handover at Texoma — venue is ours Tue 23 / Wed 24 Mar, play starts Thu 25',
       notes: 'Corrected 31 Aug 2026. We do not get the ground five days early — handover is Tue 23 or '
            + 'Wed 24 Mar. All pitch prep, kit drop and line marking has to fit in that window. Play '
            + 'Thu 25 – Sun 28, Mon 29 held in reserve.'
@@ -11745,7 +11745,7 @@ window._migrateCricketWindow = function () {
     set('naig2027/plan/milestones/cr03', {
       createdAt: Date.now(), dept: 'Venue / Legal', due: '2026-10-16', phase: 'pregames',
       priority: 'critical', status: 'blocked', owner: 'Logistics Lead', wbe: 'C-0',
-      title: 'Receive and sign the Texomo cricket ground contract — everything downstream is waiting on it',
+      title: 'Receive and sign the Texoma cricket ground contract — everything downstream is waiting on it',
       notes: 'As of 31 Aug 2026 the contract has not been received. Blocks the Durant hotel block '
            + '(cr01) and the coach charter (cr02). Contract must state the Tue 23 / Wed 24 Mar handover, '
            + 'play Thu 25 – Sun 28, and the Mon 29 reserve day. Also close out layout, lighting and '
@@ -11925,7 +11925,7 @@ window._migrateAirportPause = function () {
     const l = L[k] || {};
     const nm = String(l.name || '');
     // Cricket's long-haul loop has "DFW" in its name but is not airport work — never pause it.
-    if (/cricket|calera|texomo|durant/i.test(nm)) return;
+    if (/cricket|calera|texom[ao]|durant/i.test(nm)) return;
     if (!/airport|love field|\(DAL\)/i.test(nm)) return;
     set('naig2027/loops/' + k, Object.assign({}, l, {
       status: 'On Hold',
@@ -11951,7 +11951,7 @@ window._migrateTransportModel = function () {
   const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
 
   const phaseFor = (nm) => {
-    if (/cricket|calera|texomo|durant/i.test(nm))            return 'Cricket';
+    if (/cricket|calera|texom[ao]|durant/i.test(nm))            return 'Cricket';
     if (/departure/i.test(nm))                               return 'Departure day';
     if (/arrival|airport|love field|\(DAL\)/i.test(nm))       return 'Reg day';
     if (/floater|officials|jk hub/i.test(nm))                return 'Standing';
@@ -12225,7 +12225,7 @@ window._migrateDriveRecon = function () {
       notes: 'Found 1 Sep 2026 in the org onboarding deck (27 Aug, Aziz Hirani). The deck: Thu 25 Mar '
            + 'is ARRIVAL & CHECK-IN, competition Fri 26 – Sun 28. This hub: check-in Wed 24, play Thu 25 '
            + '– Sun 28. BLOCKS EVERYTHING DOWNSTREAM — if the deck is right then registration day moves '
-           + 'to Thursday, cricket does not play Day 1, the Texomo access window shifts, the Durant '
+           + 'to Thursday, cricket does not play Day 1, the Texoma access window shifts, the Durant '
            + 'hotel block dates shift, and every loop\'s operating days change. Nothing has been altered '
            + 'in this hub pending the decision. Settle which document is authoritative first, then '
            + 'apply once. The org deck is what the wider team has already been shown.'
@@ -12255,10 +12255,10 @@ window._migrateDriveRecon = function () {
       priority: 'high', status: 'not-started', owner: 'Logistics Lead', wbe: 'X-4',
       title: 'Cricket is two formats — confirm Calera can hold Hardball and Tapeball',
       notes: 'The org deck lists Cricket (Hardball) and Cricket (Tapeball) as two separate sports. '
-           + 'Texomo is the single primary ground and its field count is still unknown. Two formats on '
+           + 'Texoma is the single primary ground and its field count is still unknown. Two formats on '
            + 'one site is roughly double the field-time, which is the strongest argument yet that '
            + 'Prairie View or Russell Creek is a real requirement rather than a contingency. Settle '
-           + 'this with Abid Bhai in the same conversation as the Texomo contract.'
+           + 'this with Abid Bhai in the same conversation as the Texoma contract.'
     });
   }
 
@@ -12278,7 +12278,7 @@ window._migrateDriveRecon = function () {
       set('naig2027/scope/' + k, Object.assign({}, s, {
         sport: 'Cricket (Hardball + Tapeball)',
         notes: 'ORG DECK 27 Aug 2026 lists these as TWO separate sports. Roughly double the field-time '
-             + 'on one ground. Texomo field count still unknown — see milestone X-4. ' + String(s.notes || ''),
+             + 'on one ground. Texoma field count still unknown — see milestone X-4. ' + String(s.notes || ''),
         updated: now
       }));
     }
@@ -12510,7 +12510,7 @@ window._migrateOrgPlan = function () {
   t(99, { title: 'Site preparation & setup coordination', scopeArea: 'Site Management', due: '2027-03-26', priority: 'High',
     notes: 'Org plan #99, Critical, starts 1 Mar. CHECK AGAINST THE CALENDAR: a 26 Mar completion is the Friday. '
          + 'Under this hub\'s calendar that is day 2 of play; under the onboarding deck it is day 1. Either way '
-         + 'setup finishing then is too late. Cricket at Texomo already has a Tue 23 Mar handover.' });
+         + 'setup finishing then is too late. Cricket at Texoma already has a Tue 23 Mar handover.' });
 
   if (!D['doc-org-project-plan']) set('naig2027/docs/doc-org-project-plan', {
     area: 'Overall', name: 'NAIG Project Plan 2027 (org master, v9.1.26)', type: 'Reference',
@@ -12605,7 +12605,7 @@ window._migrateLensDates = function () {
     title: 'Org #14 Venue Contracts Executed has no owner — every venue we track sits behind it',
     notes: 'Watch item, not our task. The org master plan carries "#14 Venue Contracts Executed" under '
          + 'Legal with NO OWNER NAMED, due 15 Oct 2026. All 13 live venues on our board — none of them '
-         + 'confirmed — are contracted through it, Texomo and UT Arlington included. This is the largest '
+         + 'confirmed — are contracted through it, Texoma and UT Arlington included. This is the largest '
          + 'external dependency Logistics has. Escalate until it has a name against it.'
   });
 
@@ -12676,7 +12676,7 @@ window._migrateVenuesContracted = function () {
     title: 'Org #14 Venue Contracts Executed has no owner — 11 of our 13 venues sit behind it',
     notes: 'Watch item, not our task. Updated 1 Sep 2026: TWO venues are contracted — StarCenter '
          + 'Northlake and StarCenter Farmers Branch, both signed 18 Aug, both still awaiting deposit. '
-         + 'Everything else is TBD, including Texomo (primary cricket), UT Arlington (track), Gateway '
+         + 'Everything else is TBD, including Texoma (primary cricket), UT Arlington (track), Gateway '
          + 'Park, Pickler and Little Elm. All of it is contracted through org item #14, which sits under '
          + 'Legal with NO OWNER NAMED and is due 15 Oct 2026. Two signed out of thirteen, six weeks from '
          + 'the deadline, with nobody assigned. Escalate until it has a name.'
@@ -12708,7 +12708,7 @@ window._migrateVenuesContracted = function () {
       if (!/#14 Venue Contracts/i.test(String(d.title || ''))) return d;
       return Object.assign({}, d, {
         why: 'Our largest external dependency. TWO venues are contracted — StarCenter Northlake and '
-           + 'Farmers Branch, signed 18 Aug, deposits outstanding. The other eleven are TBD, Texomo and '
+           + 'Farmers Branch, signed 18 Aug, deposits outstanding. The other eleven are TBD, Texoma and '
            + 'UT Arlington included, and all of them are contracted through this one unowned Legal item '
            + 'due 15 Oct.'
       });
@@ -12742,7 +12742,7 @@ window._migratePlayDays = function () {
   const M = ((window._planData || {}).milestones) || {};
   const TM = window._transportModelData;
   const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
-  const isCricket = (v) => /cricket|texomo|calera|prairie view|russell creek/i.test(
+  const isCricket = (v) => /cricket|texom[ao]|calera|prairie view|russell creek/i.test(
     String((v && v.name) || '') + ' ' + String((v && v.sports) || ''));
   const isDead = (v) => /dropped|declined|not selected|closed|cancelled|not available/i.test(
     String((v && v.status) || ''));
@@ -12752,7 +12752,7 @@ window._migratePlayDays = function () {
     const v = V[k] || {};
     if (isDead(v)) return;
     if (isCricket(v)) {
-      if (!/texomo/i.test(String(v.name || ''))) return;   // only the primary ground
+      if (!/texom[ao]/i.test(String(v.name || ''))) return;   // only the primary ground
       set('naig2027/venues/' + k, Object.assign({}, v, {
         notes: 'PLAY DAYS CONFIRMED 3 Sep 2026 — cricket plays Thu 25 – Sun 28 Mar, with Mon 29 held as '
              + 'a RAIN-DAY MAKEUP. Cricket is the only sport playing Thursday; everything else starts '
@@ -12894,7 +12894,7 @@ window._migratePlayDays = function () {
     title: 'Re-quote the ten non-cricket venues for THREE play days, not four — before org #14 signs 15 Oct',
     notes: 'Competition at every non-cricket venue is Fri 26 – Sun 28. If any quote was built on a Thu–Sun '
          + 'window we are paying for a day we do not compete, ten times over. Ask instead for Thu 25 as '
-         + 'load-in access, which is usually cheaper or free. Texomo is the exception and goes the other '
+         + 'load-in access, which is usually cheaper or free. Texoma is the exception and goes the other '
          + 'way: it needs Thu–Sun plus a Mon 29 contingency day, priced as a release-back option.'
   });
 
@@ -12938,7 +12938,7 @@ window._migrateSetupDay = function () {
   const M = ((window._planData || {}).milestones) || {};
   const TM = window._transportModelData;
   const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
-  const isCricket = (v) => /cricket|texomo|calera|prairie view|russell creek/i.test(
+  const isCricket = (v) => /cricket|texom[ao]|calera|prairie view|russell creek/i.test(
     String((v && v.name) || '') + ' ' + String((v && v.sports) || ''));
   const isDead = (v) => /dropped|declined|not selected|closed|cancelled|not available/i.test(
     String((v && v.status) || ''));
@@ -12965,7 +12965,7 @@ window._migrateSetupDay = function () {
     notes: 'DATE CONFLICT FOUND 3 Sep 2026. Org plan #99 is dated 26 Mar 2027 — that is the Friday, '
          + 'day one of competition for every non-cricket sport. But Thursday 25 Mar is setup day, so '
          + 'this work has to be COMPLETE by the end of Thursday, not the Friday. Raise it with PMO and '
-         + 'move the date to 25 Mar. Cricket is the exception in the other direction: Texomo needs its '
+         + 'move the date to 25 Mar. Cricket is the exception in the other direction: Texoma needs its '
          + 'ground ready by Wed 24 because they play Thursday. '
          + String(T['org-99'].notes || ''),
     updated: now
@@ -12976,7 +12976,7 @@ window._migrateSetupDay = function () {
          + 'built on a Thu–Sun window we are paying for a day we do not compete, ten times over. '
          + 'BUT THURSDAY IS STILL REQUIRED: it is setup day, so the contract needs three play days PLUS '
          + 'named setup access on Thu 25. Do not trade Thursday away to save money — trade its PRICE, '
-         + 'from a competition day to a load-in day. Texomo is the exception and goes the other way: '
+         + 'from a competition day to a load-in day. Texoma is the exception and goes the other way: '
          + 'Thu–Sun play plus a Mon 29 contingency, priced as a release-back option.'
   }));
 
@@ -12999,7 +12999,7 @@ window._migrateSetupDay = function () {
     notes: 'Thursday is setup day at ten venues. If deliveries land Thursday the crews spend the day '
          + 'receiving instead of building, and there is no second chance before Friday play. Everything '
          + 'from the 336-line equipment and signage list has to be at its venue by end of Wed 24. '
-         + 'Cricket is earlier again: Texomo needs its kit by Tue 23 to be ready for Thursday play. '
+         + 'Cricket is earlier again: Texoma needs its kit by Tue 23 to be ready for Thursday play. '
          + 'Build the delivery schedule backwards from these two dates, not from the Games start.'
   });
 
@@ -13074,9 +13074,9 @@ window._migrateSourceOfTruth = function () {
          + 'for logistics dates, but it cannot sign a contract for us. Legal executes venue agreements '
          + 'under org item #14, currently with NO OWNER NAMED and dated 15 Oct 2026. Two venues are '
          + 'contracted (both StarCenters, signed 18 Aug, deposits outstanding); the other eleven are not, '
-         + 'Texomo and UT Arlington included. Whoever picks this up needs the corrected play-day windows '
+         + 'Texoma and UT Arlington included. Whoever picks this up needs the corrected play-day windows '
          + 'from PD-1 BEFORE they sign — three play days plus Thursday setup for the ten non-cricket '
-         + 'venues, Thu–Sun plus a released Monday for Texomo. Escalate until it has a name.'
+         + 'venues, Thu–Sun plus a released Monday for Texoma. Escalate until it has a name.'
   }));
 
   if (M['xr09']) set('naig2027/plan/milestones/xr09', Object.assign({}, M['xr09'], {
@@ -13090,7 +13090,7 @@ window._migrateSourceOfTruth = function () {
   }));
 
   if (T['org-99']) set('naig2027/tasks/org-99', Object.assign({}, T['org-99'], {
-    notes: 'OUR DATE IS THU 25 MAR — setup day for the ten non-cricket venues, and Wed 24 for Texomo so '
+    notes: 'OUR DATE IS THU 25 MAR — setup day for the ten non-cricket venues, and Wed 24 for Texoma so '
          + 'it is ready for Thursday cricket. The org plan carries 26 Mar, the Friday, which is day one '
          + 'of play; that is one of the assumptions in their working doc rather than a date we follow. '
          + 'Worth telling PMO so their sheet stops disagreeing with the build, but it does not change '
@@ -13141,9 +13141,9 @@ window._migrateSourceOfTruth = function () {
          + 'still missing is an owner on the ORG side: Legal executes venue agreements under org item '
          + '#14, dated 15 Oct 2026, with no name against it. Azmina\'s job here is to find that person '
          + 'and get the corrected windows to them before signature: three play days plus Thursday setup '
-         + 'access for the ten non-cricket venues, Thu–Sun plus a released Monday for Texomo (see PD-1). '
+         + 'access for the ten non-cricket venues, Thu–Sun plus a released Monday for Texoma (see PD-1). '
          + 'Two venues are already contracted — both StarCenters, signed 18 Aug, deposits outstanding. '
-         + 'The other eleven, Texomo and UT Arlington included, are not.'
+         + 'The other eleven, Texoma and UT Arlington included, are not.'
   }));
 
   if (M && Object.keys(M).length && !M['gv02']) set('naig2027/plan/milestones/gv02', {
@@ -13153,7 +13153,7 @@ window._migrateSourceOfTruth = function () {
     notes: 'First job now that contract work is consolidated. Two things in one conversation: (1) get a '
          + 'name against org item #14, which signs eleven venue contracts on 15 Oct and currently has '
          + 'none; (2) give them the play-day correction before they sign — ten non-cricket venues need '
-         + 'three play days (Fri 26 – Sun 28) plus named setup access on Thu 25, and Texomo needs '
+         + 'three play days (Fri 26 – Sun 28) plus named setup access on Thu 25, and Texoma needs '
          + 'Thu 25 – Sun 28 with Mon 29 as a release-back rain day. Signing on the old Thu–Sun '
          + 'assumption buys a day we do not compete, ten times over, and it is far harder to unwind '
          + 'after signature than before.'
@@ -13188,7 +13188,7 @@ window._migrateFacilitySpecs = function () {
   const now = new Date().toISOString();
   const V = window._venuesData || {};
   const set = (path, val) => window._dbSet && window._dbSet(window._dbRef(path), val);
-  const isCricket = (v) => /cricket|texomo|calera|prairie view|russell creek/i.test(
+  const isCricket = (v) => /cricket|texom[ao]|calera|prairie view|russell creek/i.test(
     String((v && v.name) || '') + ' ' + String((v && v.sports) || ''));
   const isDead = (v) => /dropped|declined|not selected|closed|cancelled|not available/i.test(
     String((v && v.status) || ''));
@@ -13199,7 +13199,7 @@ window._migrateFacilitySpecs = function () {
     const v = V[k] || {};
     if (isDead(v)) return;
     const patch = {};
-    const texomo = /texomo/i.test(String(v.name || ''));
+    const texomo = /texom[ao]/i.test(String(v.name || ''));
 
     if (!v.datesAvailable) {
       patch.datesAvailable = texomo
@@ -13240,7 +13240,7 @@ window._migrateFacilitySpecs = function () {
    sport assignment is downstream of it. So the record carries all three
    and the specs stay blank on purpose until Inara answers.
 
-   PRAIRIE VIEW goes back to warm-backup status behind Texomo (Calera,
+   PRAIRIE VIEW goes back to warm-backup status behind Texoma (Calera,
    OK). I had closed it out on distance grounds and Rizwan has put it
    back — his call, and it stands. The distance finding is kept on the
    record rather than deleted, so whoever reaches for this backup in a
@@ -13297,7 +13297,7 @@ window._migrateVenuePOCs = function () {
     }));
   }
 
-  // ── Prairie View: back to a live backup behind Texomo ──
+  // ── Prairie View: back to a live backup behind Texoma ──
   const kPV = findVenue(/prairie\s*view/i);
   if (kPV) {
     const v = V[kPV] || {};
@@ -13305,13 +13305,13 @@ window._migrateVenuePOCs = function () {
       status: 'In Works',
       sports: 'Cricket (backup)',
       notes: 'REINSTATED 3 Sep 2026 (Rizwan): "prairie view is back up venue to okc" — this is the '
-           + 'BACKUP behind Texomo Cricket Ground in Calera, OK. Keep it warm; do not chase it while '
-           + 'Texomo holds. KNOWN TRADE-OFF, recorded so it is not rediscovered under pressure: the '
+           + 'BACKUP behind Texoma Cricket Ground in Calera, OK. Keep it warm; do not chase it while '
+           + 'Texoma holds. KNOWN TRADE-OFF, recorded so it is not rediscovered under pressure: the '
            + 'Prairie View ground sits in Waller County, roughly 240 mi / ~4 hrs from the DFW clusters '
            + 'and further still from the Durant/Denison cricket block. Falling back to it is not a venue '
            + 'swap — it is a second hotel market, a second coach charter and a travel day. That is '
            + 'survivable as a contingency and expensive as a plan, which is exactly why it stays a '
-           + 'backup. TRIGGER TO REVIVE: the Texomo contract fails to land, or fixtures need a second '
+           + 'backup. TRIGGER TO REVIVE: the Texoma contract fails to land, or fixtures need a second '
            + 'ground. If either looks likely, raise it early — the lead time is the whole problem. '
            + String(v.notes || ''),
       updated: now
@@ -13495,7 +13495,7 @@ window._migrateFitMatrix = function () {
 
   // Indoor/outdoor where the venue type leaves no room for doubt.
   [[/starcenter|athletic club|badminton center|pickler/i, 'Indoor'],
-   [/gateway park|little elm soccer|texomo|russell creek|railroad park|maverick stadium|skinner/i, 'Outdoor']
+   [/gateway park|little elm soccer|texom[ao]|russell creek|railroad park|maverick stadium|skinner/i, 'Outdoor']
   ].forEach(([re, io]) => {
     Object.keys(V).forEach(k => {
       const v = V[k] || {};
@@ -13692,7 +13692,7 @@ window._migrateVenueSourceSep17 = function () {
     status: 'Reserved'
   }, 'The 9/16 meeting records the pickleball venue as locked in. The stage and space inspection is being coordinated, but pricing and documentation still need reconfirmation; locked in does not mean signed.');
 
-  set(/texomo.*calera|calera.*texomo/i, {
+  set(/texom[ao].*calera|calera.*texom[ao]/i, {
     contractStatus: 'Invoice received 9/16; billed amount is 2x expected and correction is in progress',
     invoiced: 'Corrected invoice pending', pipelineStatus: 'Invoice Correction', status: 'In Works'
   }, 'The Oklahoma invoice was received for Thu-Sun plus Monday contingency, but it is twice the expected amount. A corrected invoice is pending; do not treat the received invoice as approved or paid.');
@@ -14331,7 +14331,7 @@ function initDocDefaults() {
   docs[dk()] = doc('Venue Contract — RYSE Energy StarCenter, Farmers Branch','Venue Contract','Venues','Outreach Sent','VB/Throwball venue. Lead: Alishah Momin. In conversation.');
   docs[dk()] = doc('Venue Contract — CH StarCenter, Northlake','Venue Contract','Venues','Outreach Sent','Badminton, Basketball, Table Tennis. Lead: Karim Hemani.');
   docs[dk()] = doc('Venue Contract — Gateway Park Soccer Fields, Fort Worth','Venue Contract','Venues','Outreach Sent','Soccer 11v11/7v7, Flag Football. Lead: Nadeem Ali.');
-  docs[dk()] = doc('Venue Contract — Texomo Cricket Ground','Venue Contract','Venues','Not Started','Cricket. Primary hardball pitch + tapeball. Address TBD.');
+  docs[dk()] = doc('Venue Contract — Texoma Cricket Ground','Venue Contract','Venues','Not Started','Cricket. Primary hardball pitch + tapeball. Address TBD.');
   docs[dk()] = doc('Venue Contract — Picklr (DFW)','Venue Contract','Venues','Not Started','Pickleball + Dance. DFW location TBD.');
   docs[dk()] = doc('Venue Contract — McKinney Courts','Venue Contract','Venues','Not Started','Tennis + Pickleball. McKinney, TX.');
   docs[dk()] = doc('Venue Contract — Track & Field Venue (TBD)','Venue Contract','Venues','Not Started','Track & Field. Carroll ISD in exploration.');
@@ -14543,7 +14543,7 @@ window.seedInitialScope = function() {
     [sk()]: { sport:'Soccer 11v11', category:'Team', participants:'~42–84', genderDivisions:"Men's Open · Women's Open · U18 Boys · U18 Girls", numTeams:'TBD', sessionDates:'Mar 25–28, 2027', venue:'GatewayPark Soccer Fields, Fort Worth', sportLead:'TBD', leadPOC:'', status:'Planning', notes:'Little Elm = backup site. Shares GatewayPark with Soccer 7v7 & Flag Football.' },
     [sk()]: { sport:'Soccer 7v7', category:'Team', participants:'~28–56', genderDivisions:'Mixed Open · U18', numTeams:'TBD', sessionDates:'Mar 25–28, 2027', venue:'GatewayPark Soccer Fields, Fort Worth', sportLead:'TBD', leadPOC:'', status:'Planning', notes:'Shares GatewayPark with Soccer 11v11 & Flag Football.' },
     [sk()]: { sport:'Flag Football', category:'Team', participants:'~28–56', genderDivisions:"Mixed Open · Women's", numTeams:'TBD', sessionDates:'Mar 27–28, 2027', venue:'GatewayPark Soccer Fields, Fort Worth', sportLead:'TBD', leadPOC:'', status:'Planning', notes:'Shares GatewayPark with Soccer.' },
-    [sk()]: { sport:'Cricket', category:'Team', participants:'~28–56', genderDivisions:"Hardball Mixed · Tapeball Women's", numTeams:'TBD', sessionDates:'Mar 25–28, 2027', venue:'Texomo Cricket Ground (primary) · Russell Creek & Prairie View (backup)', sportLead:'TBD', leadPOC:'', status:'Planning', notes:'Hardball 22-yd pitch + Tapeball. Backups: Russell Creek, Prairie View.' },
+    [sk()]: { sport:'Cricket', category:'Team', participants:'~28–56', genderDivisions:"Hardball Mixed · Tapeball Women's", numTeams:'TBD', sessionDates:'Mar 25–28, 2027', venue:'Texoma Cricket Ground (primary) · Russell Creek & Prairie View (backup)', sportLead:'TBD', leadPOC:'', status:'Planning', notes:'Hardball 22-yd pitch + Tapeball. Backups: Russell Creek, Prairie View.' },
     [sk()]: { sport:'Pickleball', category:'Individual', participants:'~28–56', genderDivisions:'Mixed Open · U18 · Legends 45+', numTeams:'TBD', sessionDates:'Mar 26–28, 2027', venue:'Picklr / McKinney Courts (TBD)', sportLead:'TBD', leadPOC:'', status:'TBD', notes:'Final venue split between Picklr and McKinney TBD.' },
     [sk()]: { sport:'Dance', category:'Team', participants:'~56–112', genderDivisions:'U18 Girls · U18 Boys · Open', numTeams:'TBD', sessionDates:'Mar 27–28, 2027', venue:'Picklr', sportLead:'TBD', leadPOC:'', status:'Planning', notes:'Performance space at Picklr TBD at site visit.' },
     [sk()]: { sport:'Tennis', category:'Individual', participants:'~28–56', genderDivisions:'Mixed Open · U18', numTeams:'TBD', sessionDates:'Mar 26–28, 2027', venue:'McKinney Courts', sportLead:'TBD', leadPOC:'', status:'Planning', notes:'McKinney Courts primary.' },
@@ -23266,7 +23266,7 @@ var iv = setInterval(function(){
     var grid = vNames.map(function(v){
       var r = venueRec(v); var addr = r && r.address ? String(r.address).split(',')[0] : '';
       var key = Object.keys(comp).filter(function(c){ return c.indexOf(v) === 0 || v.indexOf(c) === 0; })[0];
-      var cells = days.map(function(d){ var b = key && comp[key][d[0]]; if (!b) return 'No games'; var s = t12(b.start), e = t12(b.end); var lbl = d[0] === '2027-03-28' ? 'Finals' : 'Games'; if (/Texomo/.test(v)) return lbl + ', daylight'; return s && e ? lbl + ' ' + s + '–' + e : (e ? lbl + ' to ' + e : lbl + ', hours TBD'); });
+      var cells = days.map(function(d){ var b = key && comp[key][d[0]]; if (!b) return 'No games'; var s = t12(b.start), e = t12(b.end); var lbl = d[0] === '2027-03-28' ? 'Finals' : 'Games'; if (/Texoma/.test(v)) return lbl + ', daylight'; return s && e ? lbl + ' ' + s + '–' + e : (e ? lbl + ' to ' + e : lbl + ', hours TBD'); });
       return [v.replace(/ \(.*\)$/, '') + (addr ? ' · ' + addr : '')].concat(cells);
     });
     if (tbdSports.length) grid.push([tbdSports.join(' and ') + ' · venues being finalised', '—', 'Games to 7 PM', 'Games all day', 'Finals, end 3 PM']);
