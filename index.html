@@ -23294,7 +23294,7 @@ var iv = setInterval(function(){
     var pol = (DB.food && DB.food.policy) || {};
     out.push({type:'two', eyebrow:'Food', title:'Every meal is halal and nut-free, with a vegetarian option', a:{h:'The policy, for everyone NAIG feeds', li: pol.rules || []}, b:{h:'What it means for your vertical', li: S.foodForYou || []}, foot:(S.foodFoot || '') + (pol.updated ? ' · Policy set ' + new Date(pol.updated).toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'}) : '')});
     out.push({type:'table', eyebrow:'Procurement and equipment scope', title:'What Logistics buys, rents and stages for the Games', cols:[['Area',22],['In scope',56],['Timing',22]], rows:S.procurement || [], bold0:true, text:S.procurementNote || '', foot:S.procurementFoot || ''});
-    out.push({type:'cardstable', eyebrow:'Signage scope', title:'Five kinds of signs and print, produced once from every vertical’s list', cards:S.signageKinds || [], cols:[['Step',12],['What happens',58],['When',30]], rows:S.signageSteps || [], foot:'Signage: Simin Kabani · Print vendor being sourced'});
+    out.push({type:'cardstable', eyebrow:'Signage scope', title:(['No','One','Two','Three','Four','Five','Six'][(S.signageKinds || []).length] || String((S.signageKinds || []).length)) + ' kinds of signs and print, produced once from every vertical’s list', cards:S.signageKinds || [], cols:[['Step',12],['What happens',58],['When',30]], rows:S.signageSteps || [], foot:'Signage: Simin Kabani · Print vendor being sourced'});
     var oc = ((DB.scenarios || {}).areas || []).filter(function(a){ return /Opening ceremony/i.test(a.area || ''); })[0];
     var cer = (S.ceremony || []).map(function(c){ return Object.assign({}, c); });
     if (oc && oc.planA && oc.planA.venue && !/^TBD/i.test(oc.planA.venue) && cer[1]) { cer[1].h = oc.planA.venue; cer[1].p = oc.planA.status || ''; }
@@ -23339,7 +23339,7 @@ var iv = setInterval(function(){
     } else if (s.type === 'two') {
       body += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.7cqw">' + [s.a, s.b].map(function(x, i){ return '<div style="background:' + C.card + ';border:1px solid ' + C.rule + ';border-top:.42cqw solid ' + (i ? C.gold : C.navy) + ';border-radius:.6cqw;padding:2cqw;display:flex;flex-direction:column;gap:.8cqw"><div style="font-size:1.9cqw;font-weight:700;color:' + C.navy + '">' + esc(x.h) + '</div><ul style="margin:0;padding-left:1.4cqw;font-size:1.45cqw;line-height:1.45;color:' + C.body + '">' + x.li.map(function(l){ return '<li>' + esc(l) + '</li>'; }).join('') + '</ul></div>'; }).join('') + '</div>';
     } else if (s.type === 'cardstable') {
-      body += '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:.85cqw">' + s.cards.map(function(c){ return card(c, false); }).join('') + '</div>' + tbl(s.cols, s.rows);
+      body += '<div style="display:grid;grid-template-columns:repeat(' + (s.cards.length || 1) + ',1fr);gap:.85cqw">' + s.cards.map(function(c){ return card(c, false); }).join('') + '</div>' + tbl(s.cols, s.rows);
     }
     var foot = '<div style="position:absolute;left:6.6cqw;right:6.6cqw;bottom:3.3cqw;display:flex;justify-content:space-between;font-size:1.25cqw;color:' + (dark ? '#B9C7D8' : C.muted) + '"><span>NAIG 2027 · Games program, Logistics view' + (s.foot ? ' · ' + esc(s.foot) : '') + '</span><span>' + n + ' / ' + total + '</span></div>';
     return wrap + inner + body + '</div>' + foot + '</div>';
@@ -23398,7 +23398,7 @@ var iv = setInterval(function(){
           var tw = (CW - 0.3) / 2;
           [s.a, s.b].forEach(function(x, j){ var xx = M + j * (tw + 0.3); sl.addShape(p.ShapeType.rect, {x:xx, y:y, w:tw, h:3.8, fill:{color:hx(C.card)}, line:{color:hx(C.rule), width:0.5}}); sl.addShape(p.ShapeType.rect, {x:xx, y:y, w:tw, h:0.06, fill:{color:hx(j ? C.gold : C.navy)}, line:{color:hx(j ? C.gold : C.navy)}}); sl.addText([{text:x.h + '\n', options:{fontSize:16, bold:true, color:hx(C.navy)}}].concat(x.li.map(function(l){ return {text:l, options:{fontSize:12, color:hx(C.body), bullet:true}}; })), {x:xx + 0.15, y:y + 0.2, w:tw - 0.3, h:3.5, fontFace:F, valign:'top'}); });
         } else if (s.type === 'cardstable') {
-          var kw = (CW - 4 * 0.12) / 5; s.cards.forEach(function(c, j){ pcard(c, M + j * (kw + 0.12), y, kw, 1.7, false); });
+          var kn = s.cards.length || 1, kw = (CW - (kn - 1) * 0.12) / kn; s.cards.forEach(function(c, j){ pcard(c, M + j * (kw + 0.12), y, kw, 1.7, false); });
           ptable(s.cols, s.rows, M, CW, y + 1.95, false, 11);
         }
         sl.addText('NAIG 2027 · Games program, Logistics view' + (s.foot ? ' · ' + s.foot : ''), {x:M, y:6.85, w:CW - 0.8, h:0.3, fontFace:F, fontSize:9, color:hx(dark ? 'B9C7D8' : C.muted)});
