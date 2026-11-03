@@ -23271,6 +23271,13 @@ var iv = setInterval(function(){
     });
     if (tbdSports.length) grid.push([tbdSports.join(' and ') + ' · venues being finalised', '—', 'Games to 7 PM', 'Games all day', 'Finals, end 3 PM']);
     out.push({type:'table', eyebrow:'Venue by day', title:'What runs where, each day of Games week', cols:[['Venue · address',28],['Thu 25',18],['Fri 26',18],['Sat 27',18],['Sun 28',18]], rows:grid, text: S.venueNote || '', foot:'Source: Logistics Hub minute-to-minute plan · ' + upd});
+    var OV = S.openVenues || [];
+    if (OV.length) {
+      var athBy = {}; rows.forEach(function(r){ var v = r.venue || ''; athBy[v] = (athBy[v] || 0) + (+r.slots || 0) * (+r.cap || 0); });
+      var athOf = function(o){ var n = 0, any = false; (o.slot || []).forEach(function(nm){ Object.keys(athBy).forEach(function(v){ if (v.toLowerCase().indexOf(String(nm).toLowerCase()) === 0) { n += athBy[v]; any = true; } }); }); return any ? Math.round(n * 0.8).toLocaleString('en-US') + (o.athNote ? ' ' + o.athNote : '') : (o.athNote || '—'); };
+      out.push({type:'table', eyebrow:'Open venues', title:'When we have each venue, and who it serves', cols:[['Venue',17],['Our window (Central time)',33],['Booking',14],['Athletes',10],['Address',26]], rows:OV.map(function(o){ return [o.name, (o.window || []).join('\n'), o.booking || 'N/A', athOf(o), o.address || 'N/A']; }), bold0:true, fs:1.0, text: S.openVenuesNote || '', foot:'Athletes: slot sheet with the 20% overlap rule · ' + upd});
+      out.push({type:'table', eyebrow:'Travel and medical, by venue', title:'How far each open venue is, and where to go for medical care', cols:[['Venue',18],['Drive from Mid-Cities JK',14],['Nearest urgent care',38],['Weekend hours',30]], rows:OV.map(function(o){ return [o.name, o.drive || 'N/A', o.care || 'N/A', o.careHours || 'N/A']; }), bold0:true, fs:1.0, text: S.travelNote || '', foot: S.teamLine || upd});
+    }
     var hrows = [];
     Object.values(DB.hotels || {}).forEach(function(h){
       if (!h || h.archived) return; var nm = String(h.name || ''); if (/ON HOLD|backup|Not Available/i.test(nm + ' ' + (h.status || ''))) return;
@@ -23297,9 +23304,9 @@ var iv = setInterval(function(){
   }
 
   function hdr(s, dark){ return '<div style="display:flex;flex-direction:column;gap:.5cqw"><div style="font-size:1.25cqw;font-weight:700;letter-spacing:.12cqw;text-transform:uppercase;color:' + (dark ? C.gold2 : C.navy) + '">' + esc(s.eyebrow) + '</div><div style="font-family:Georgia,serif;font-size:2.8cqw;line-height:1.15;color:' + (dark ? C.bg : C.navy) + '">' + esc(s.title) + '</div></div>'; }
-  function tbl(cols, rows, bold0){
-    var h = '<table style="width:100%;border-collapse:collapse;font-size:1.2cqw;background:' + C.card + ';border:1px solid ' + C.rule + '"><tr style="background:' + C.navy + '">' + cols.map(function(c){ return '<th style="width:' + c[1] + '%;text-align:left;padding:.45cqw .6cqw;color:' + C.bg + ';font-weight:700">' + esc(c[0]) + '</th>'; }).join('') + '</tr>';
-    rows.forEach(function(r, i){ h += '<tr style="background:' + (i % 2 ? C.band : C.card) + '">' + r.map(function(c, j){ return '<td style="padding:.45cqw .6cqw;vertical-align:top;color:' + C.ink + ';border-top:1px solid ' + C.rule + '">' + (j === 0 && bold0 ? '<b>' + esc(c) + '</b>' : esc(c)) + '</td>'; }).join('') + '</tr>'; });
+  function tbl(cols, rows, bold0, fs){
+    var h = '<table style="width:100%;border-collapse:collapse;font-size:' + (fs || 1.2) + 'cqw;background:' + C.card + ';border:1px solid ' + C.rule + '"><tr style="background:' + C.navy + '">' + cols.map(function(c){ return '<th style="width:' + c[1] + '%;text-align:left;padding:.45cqw .6cqw;color:' + C.bg + ';font-weight:700">' + esc(c[0]) + '</th>'; }).join('') + '</tr>';
+    rows.forEach(function(r, i){ h += '<tr style="background:' + (i % 2 ? C.band : C.card) + '">' + r.map(function(c, j){ return '<td style="padding:.45cqw .6cqw;vertical-align:top;color:' + C.ink + ';border-top:1px solid ' + C.rule + '">' + (j === 0 && bold0 ? '<b>' + esc(c).replace(/\n/g, '<br>') + '</b>' : esc(c).replace(/\n/g, '<br>')) + '</td>'; }).join('') + '</tr>'; });
     return h + '</table>';
   }
   function card(c, dark){ return '<div style="background:' + (dark ? C.navy2 : C.card) + ';border:1px solid ' + (dark ? '#3B5C85' : C.rule) + ';border-top:.42cqw solid ' + (dark ? '#3B5C85' : (c.accent ? C.gold : C.navy)) + ';border-radius:.6cqw;padding:1.3cqw;display:flex;flex-direction:column;gap:.5cqw">' + (c.k ? '<div style="font-size:1.25cqw;font-weight:700;color:' + (dark ? C.gold2 : (/^\d$/.test(c.k) ? C.gold : C.muted)) + '">' + esc(c.k) + '</div>' : '') + '<div style="font-size:' + (dark ? '2cqw' : '1.6cqw') + ';font-weight:700;line-height:1.2;color:' + (dark ? C.bg : C.navy) + '">' + esc(c.h) + '</div><div style="font-size:1.3cqw;line-height:1.4;color:' + (dark ? C.light : C.body) + '">' + esc(c.p) + '</div></div>'; }
@@ -23319,7 +23326,7 @@ var iv = setInterval(function(){
       body += '<div style="font-size:1.65cqw;line-height:1.45;color:' + C.body + '">' + esc(s.text) + '</div>';
     } else if (s.type === 'table') {
       if (s.split) { var h1 = Math.ceil(s.rows.length / 2); body += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25cqw;align-items:start">' + tbl(s.cols, s.rows.slice(0, h1)) + tbl(s.cols, s.rows.slice(h1)) + '</div>'; }
-      else body += tbl(s.cols, s.rows, s.bold0);
+      else body += tbl(s.cols, s.rows, s.bold0, s.fs);
       if (s.text) body += '<div style="font-size:1.3cqw;line-height:1.4;color:' + C.body + '">' + esc(s.text) + '</div>';
       if (s.pills) body += '<div style="display:flex;gap:.6cqw;flex-wrap:wrap">' + s.pills.map(function(p, i){ var last = i === s.pills.length - 1; return '<span style="font-size:1.25cqw;color:' + (last ? '#5C4510' : C.navy) + ';background:' + (last ? '#F3E7C2' : C.light) + ';padding:.4cqw .85cqw;border-radius:99px"><b>' + esc(p[0]) + '</b> ' + esc(p[1]) + '</span>'; }).join('') + '</div>';
     } else if (s.type === 'cards') {
@@ -23373,7 +23380,7 @@ var iv = setInterval(function(){
           sl.addText(s.text, {x:M, y:y + 2.5, w:CW, h:1, fontFace:F, fontSize:14, color:hx(C.body), valign:'top'});
         } else if (s.type === 'table') {
           if (s.split) { var h1 = Math.ceil(s.rows.length / 2), hw = (CW - 0.2) / 2; ptable(s.cols, s.rows.slice(0, h1), M, hw, y, false, 10.5); ptable(s.cols, s.rows.slice(h1), M + hw + 0.2, hw, y, false, 10.5); }
-          else ptable(s.cols, s.rows, M, CW, y, s.bold0, s.rows.length > 7 ? 10 : 11);
+          else ptable(s.cols, s.rows, M, CW, y, s.bold0, s.fs ? 9 : (s.rows.length > 7 ? 10 : 11));
           var ny = y + 0.42 * (s.split ? Math.ceil(s.rows.length / 2) + 1 : s.rows.length + 1) + 0.2;
           if (s.text) sl.addText(s.text, {x:M, y:Math.min(ny, 6.2), w:CW, h:0.5, fontFace:F, fontSize:11, color:hx(C.body), valign:'top'});
           if (s.pills) sl.addText(s.pills.map(function(pp){ return pp[0] + ' ' + pp[1]; }).join('   ·   '), {x:M, y:Math.min(ny + 0.1, 6.3), w:CW, h:0.4, fontFace:F, fontSize:11, bold:true, color:hx(C.navy)});
