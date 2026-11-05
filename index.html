@@ -16453,7 +16453,7 @@ document.addEventListener('DOMContentLoaded', () => { axShowGateState('signin');
       var on=(key===cur);
       return "<button data-v=\""+esc(key)+"\" style=\"text-align:left;padding:12px 14px;border-radius:10px;cursor:pointer;font-family:inherit;border:1px solid "+(on?"#1e3a8a":"#cbd5e1")+";background:"+(on?"#1e3a8a":"#fff")+";color:"+(on?"#fff":"#0f172a")+"\">"
         +"<div style=\"font-weight:800;font-size:14px;line-height:1.3\">"+esc(title)+"</div>"
-        +"<div style=\"font-size:12px;opacity:.8;margin-top:4px\">"+esc(sub)+"</div>"
+        +"<div style=\"font-size:12px;opacity:.8;margin-top:4px\">"+esc(sub)+(/^[\d,]+ athletes$/.test(String(sub)) ? esc(((window.NAIG && NAIG.splitText) ? NAIG.splitText(title) : '')) : '')+"</div>"
         +"<div style=\"font-size:12px;opacity:.8;margin-top:2px\">"+n+" block"+(n===1?"":"s")+"</div></button>";
     }
     h+=tile("__all","Overall","All venues · "+ks.length+" days",total);
@@ -20627,7 +20627,7 @@ var iv = setInterval(function(){
     if(!hit||!hit.people) return "";
         var tail="";
     return '<div class="vc-sports" style="background:#fff7ed;color:#9a3412">'+
-      ((window.naigAthVenue&&hit.name&&naigAthVenue(hit.name)!=null)?naigAthVenue(hit.name):(window.naigAth?naigAth(hit.people):hit.people)).toLocaleString()+" athletes &middot; "+hit.slots+" slots"+tail+"</div>";
+      ((window.naigAthVenue&&hit.name&&naigAthVenue(hit.name)!=null)?naigAthVenue(hit.name):(window.naigAth?naigAth(hit.people):hit.people)).toLocaleString()+" athletes"+((window.NAIG && NAIG.splitText) ? NAIG.splitText(hit.name, " &middot; ") : "")+" &middot; "+hit.slots+" slots"+tail+"</div>";
   };
   function compute(v){
     var rows=(v&&Array.isArray(v.rows))?v.rows:[], byVenue={}, slots=0, people=0, done=0;
@@ -20660,9 +20660,9 @@ var iv = setInterval(function(){
     sum.innerHTML=card("Events with slots",p.done+" / "+p.rows)+
       card("Total slots",(__fm?Math.round(__fm.slots):p.slots).toLocaleString())+
       card("Athletes",(__fm?__fm.athletes:(window.naigAth?naigAth(p.people):p.people)).toLocaleString())+
-      card("Venues used",String(Object.keys(p.byVenue).filter(function(k){return k!=="TBD";}).length));
+      card("On site", (__fm && __fm.onSite != null) ? (__fm.onSite.toLocaleString() + ' (' + __fm.coaches + ' coaches, ' + __fm.chaperones + ' chaperones, ' + __fm.volunteers.toLocaleString() + ' volunteers, ' + __fm.staff + ' staff)') : 'N/A')+ card("Venues used",String(Object.keys(p.byVenue).filter(function(k){return k!=="TBD";}).length));
     var h='<table class="hub-table"><thead><tr><th>Venue</th><th>Sports</th>'+
-      '<th style="text-align:right">Slots</th><th style="text-align:right">Athletes</th>'+
+      '<th style="text-align:right">Slots</th><th style="text-align:right">Athletes</th><th>Coaches \u00b7 chaperones \u00b7 volunteers \u00b7 staff \u00b7 on site</th>'+
       '</tr></thead><tbody>';
     var __src=(__bv&&Object.keys(__bv).length)?__bv:p.byVenue;
     Object.keys(__src).sort().forEach(function(k){
@@ -20670,7 +20670,7 @@ var iv = setInterval(function(){
       h+="<tr><td><b>"+esc2(k)+'</b></td><td style="color:#64748b;font-size:.8rem">'+
         esc2(Object.keys(r.sports).sort().join(" \u00b7 "))+"</td>"+
         '<td style="text-align:right">'+Math.round(r.slots)+"</td>"+
-        '<td style="text-align:right;font-weight:600">'+((window.naigAthVenue&&naigAthVenue(k)!=null)?naigAthVenue(k):(window.naigAth?naigAth(r.people):r.people)).toLocaleString()+"</td>"+
+        '<td style="text-align:right;font-weight:600">'+((window.naigAthVenue&&naigAthVenue(k)!=null)?naigAthVenue(k):(window.naigAth?naigAth(r.people):r.people)).toLocaleString()+"</td>"+'<td style="font-size:.8rem;color:#475569">'+((window.NAIG && NAIG.splitText) ? NAIG.splitText(k, ' \u00b7 ').replace(/^ \u00b7 /, '') : '')+'</td>'+
         '</tr>'; });
     h+="</tbody></table>";
     if(p.by) h+='<div style="margin-top:8px;color:#64748b;font-size:.78rem">Last edited by '+
@@ -22663,7 +22663,7 @@ function people(list, total){
   list.forEach(function(r){ var t = tmOf(r.sport.replace(/\s*·.*$/, '')); if (!t || !t.raw) return; var a = r.ath || 0; yth += a * t.y / t.raw;
     var sa = window.naigAthSport ? naigAthSport(r.sport) : null; co += t.yt * __SR.coachPerYouthTeam * (sa ? Math.min(1, a / sa) : 1); });
   var A = total || 0;
-  return { athletes: A, coaches: known ? Math.round(co) : null, chaperones: known ? Math.ceil(Math.round(yth) / __SR.chaperonePerMinors) : null, minors: Math.round(yth),
+  return { athletes: A, coaches: known ? Math.round(co) : null, chaperones: known ? Math.ceil(Math.round(yth) / __SR.chaperonePerMinors) : null, minors: Math.round(yth), minorsRaw: yth,
     volunteers: Math.ceil(A / R.athletesPerVolunteer), staff: Math.ceil(A / R.athletesPerStaff) };
 }
 function pplRow(p, withAth){
@@ -22673,6 +22673,37 @@ function pplRow(p, withAth){
   if (withAth) L.unshift(['Athletes', p.athletes]);
   return '<div class="pp">' + L.map(function(x, i){ return '<div' + (i === L.length - 1 ? ' class="pt"' : '') + '><b>' + n(x[1]) + '</b><span>' + x[0] + '</span></div>'; }).join('') + '</div>';
 }
+/* 5 Nov 2026 (Rizwan): every athlete count shows the full split. Games-level volunteers, staff and chaperones are shared across venues (largest remainder) so venue figures add up to the totals. */
+function alloc(groups){
+  var f = (window.NAIG && NAIG.formula) ? NAIG.formula() : null, P = {};
+  groups.forEach(function(g){ P[g.name] = people(g.list, g.total); });
+  if (!f) return P;
+  function lr(total, k2, wf){ var ks = Object.keys(P), W = ks.map(function(k){ return wf(P[k]) || 0; }), S = W.reduce(function(a, b){ return a + b; }, 0); if (!S || total == null) return;
+    var raw = W.map(function(w){ return total * w / S; }), fl = raw.map(Math.floor), rem = total - fl.reduce(function(a, b){ return a + b; }, 0);
+    raw.map(function(r, i){ return [r - fl[i], i]; }).sort(function(a, b){ return b[0] - a[0]; }).slice(0, Math.max(0, rem)).forEach(function(x){ fl[x[1]]++; });
+    ks.forEach(function(k, i){ P[k][k2] = fl[i]; }); }
+  lr(f.volunteers, 'volunteers', function(p){ return p.athletes; });
+  lr(f.staff, 'staff', function(p){ return p.athletes; });
+  if (f.chaperones) lr(f.chaperones, 'chaperones', function(p){ return p.minorsRaw; });
+  if (f.coaches != null) { var cs = 0; Object.keys(P).forEach(function(k){ cs += P[k].coaches || 0; }); if (cs !== f.coaches) lr(f.coaches, 'coaches', function(p){ return p.coaches; }); }
+  return P;
+}
+var __VA = null, __VAt = 0;
+function venueAll(){
+  if (__VA && Date.now() - __VAt < 1500) return __VA;
+  loadTM();
+  var BV = (window.NAIG && NAIG.byVenue) ? (NAIG.byVenue() || {}) : {}, groups = [], A = window.naigAth || function(x){ return Math.round(x); };
+  Object.keys(BV).forEach(function(v){ var o = BV[v] || {}, sp = o.sports || {};
+    var list = Object.keys(sp).map(function(s){ var x = sp[s], pe = typeof x === 'number' ? x : ((x && x.people) || 0); return { sport: s, ath: A(pe) }; });
+    var tot = (window.naigAthVenue && naigAthVenue(v) != null) ? naigAthVenue(v) : A(o.people || 0);
+    groups.push({ name: v, list: list, total: tot }); });
+  __VA = alloc(groups); __VAt = Date.now(); return __VA;
+}
+function venueFind(name){ var A = venueAll(), k = key(name), hit = A[name] || null; if (hit) return hit; Object.keys(A).forEach(function(n){ var nk = key(n); if (!hit && nk && k && (k.indexOf(nk) >= 0 || nk.indexOf(k) >= 0)) hit = A[n]; }); return hit; }
+(function(NG){ NG.venuePeople = venueFind;
+  NG.splitText = function(name, sep){ var p = venueFind(name); if (!p || p.coaches == null || !__TM) return ''; sep = sep || ' \u00b7 '; var tot = p.athletes + p.coaches + p.chaperones + p.volunteers + p.staff; return sep + p.coaches + ' coaches' + sep + p.chaperones + ' chaperones' + sep + p.volunteers.toLocaleString('en-US') + ' volunteers' + sep + p.staff + ' staff' + sep + tot.toLocaleString('en-US') + ' on site'; };
+})(window.NAIG || (window.NAIG = {}));
+loadTM();
 function strip(R){
   var f = (window.NAIG && NAIG.formula) ? NAIG.formula() : null; if (!f) return '';
   var p = people(R.map(function(r){ return { sport: r.sport, ath: window.naigAthSport ? (naigAthSport(r.sport) || 0) : (r.ath || 0) }; }).filter(function(r, i, a){ return a.findIndex(function(z){ return z.sport === r.sport; }) === i; }), f.athletes);
@@ -22715,6 +22746,7 @@ function strip(R){
       }
       return g;
     }).sort(function(a, b){ return b.total - a.total; });
+    var AL = venueAll();
     var html = out.map(function(g){
       var v = venueRec(g.name), t = tone(g.status), city = cityOf(v);
       g.list.sort(function(a, b){ return (b.ath || 0) - (a.ath || 0); });
@@ -22722,7 +22754,7 @@ function strip(R){
         + '<div class="vh"><div><div class="vn">' + esc(g.name) + '</div>' + (city ? '<div class="vc">' + esc(city) + '</div>' : '')
         + '<span class="vs">' + esc(g.status || 'N/A') + '</span></div>'
         + '<div class="vt"><b>' + (g.total ? g.total.toLocaleString('en-US') : 'N/A') + '</b><span>athletes</span></div></div>'
-        + pplRow(people(g.list, g.total))
+        + pplRow(AL[g.name] || people(g.list, g.total))
         + g.list.map(function(r){ var d = days(r.dates);
             return '<div class="sr" title="' + esc(r.sport + ' · ' + r.cat + ' · ' + r.dates) + '"><div class="sn">' + esc(r.sport) + '</div>'
               + '<div class="bar"><i style="width:' + Math.max(3, Math.round(100 * (r.ath || 0) / max)) + '%"></i></div>'
@@ -23325,7 +23357,7 @@ function strip(R){
     var out = [];
     out.push({type:'cover', title:'NAIG 2027', sub: S.title || 'The Games program — Logistics view', line: S.when || '', foot: 'For vertical leads · ' + upd + ' · ' + (S.owner || '')});
     out.push({type:'stats', eyebrow:'The Games at a glance', title:'Four days of competition across Dallas–Fort Worth over Easter weekend',
-      stats:[{n: athletes.toLocaleString('en-US'), l:'athlete places planned on the slot sheet'}, {n: String(Object.keys(sports).length), l:'sports, from U18 to 45+'}, {n: String(vNames.length + tbdSports.length), l:'competition venues, ' + tbdSports.length + ' still being finalised'}, {n:'6', l:'days on site, load-in to move-out', accent:true}],
+      stats:[{n: athletes.toLocaleString('en-US'), l:'athletes on the slot sheet' + ((window.NAIG && NAIG.formula && NAIG.formula() && NAIG.formula().onSite) ? ' \u00b7 ' + NAIG.formula().onSite.toLocaleString('en-US') + ' on site with coaches, chaperones, volunteers and staff' : '')}, {n: String(Object.keys(sports).length), l:'sports, from U18 to 45+'}, {n: String(vNames.length + tbdSports.length), l:'competition venues, ' + tbdSports.length + ' still being finalised'}, {n:'6', l:'days on site, load-in to move-out', accent:true}],
       text: S.glanceLine || '', foot:'Source: Logistics Hub slot sheet · ' + upd});
     var order = ['Badminton','Volleyball','Basketball','Table Tennis','Throwball','Soccer','Flag Football','Cricket','Pickleball','Tennis','Chess','Track','Dance'];
     var names = Object.keys(sports).sort(function(a,b){ var ia = order.indexOf(a), ib = order.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); });
@@ -23353,8 +23385,8 @@ function strip(R){
     if (OV.length) {
       var athBy = {}; rows.forEach(function(r){ var v = r.venue || ''; athBy[v] = (athBy[v] || 0) + (+r.slots || 0) * (+r.cap || 0); });
       var athOf = function(o){ var n = 0, any = false; (o.slot || []).forEach(function(nm){ Object.keys(athBy).forEach(function(v){ if (v.toLowerCase().indexOf(String(nm).toLowerCase()) === 0) { n += athBy[v]; any = true; } }); }); return any ? Math.round(n * 0.8).toLocaleString('en-US') + (o.athNote ? ' ' + o.athNote : '') : (o.athNote || '—'); };
-      var ovRows = OV.map(function(o){ return [o.name, (o.window || []).join('\n'), o.booking || 'N/A', athOf(o), o.address || 'N/A']; }); var ovPer = 4, ovN = Math.ceil(ovRows.length / ovPer);
-      for (var oi = 0; oi < ovN; oi++) out.push({type:'table', eyebrow:'Open venues' + (ovN > 1 ? ' (' + (oi + 1) + ' of ' + ovN + ')' : ''), title:'When we have each venue, and who it serves', cols:[['Venue',17],['Our window (Central time)',33],['Booking',14],['Athletes',10],['Address',26]], rows:ovRows.slice(oi * ovPer, oi * ovPer + ovPer), bold0:true, fs:1.1, text: oi === ovN - 1 ? (S.openVenuesNote || '') : '', foot:'Athletes: slot sheet with the 20% overlap rule \u00b7 ' + upd});
+      var ovRows = OV.map(function(o){ return [o.name, (o.window || []).join('\n'), o.booking || 'N/A', (/^[\d,]+$/.test(String(athOf(o))) ? athOf(o) + ' athletes' + ((window.NAIG && NAIG.splitText) ? NAIG.splitText(o.name, '\n') : '') : athOf(o)), o.address || 'N/A']; }); var ovPer = 4, ovN = Math.ceil(ovRows.length / ovPer);
+      for (var oi = 0; oi < ovN; oi++) out.push({type:'table', eyebrow:'Open venues' + (ovN > 1 ? ' (' + (oi + 1) + ' of ' + ovN + ')' : ''), title:'When we have each venue, and who it serves', cols:[['Venue',16],['Our window (Central time)',29],['Booking',13],['People on site',18],['Address',24]], rows:ovRows.slice(oi * ovPer, oi * ovPer + ovPer), bold0:true, fs:1.1, text: oi === ovN - 1 ? (S.openVenuesNote || '') : '', foot:'Athletes: slot sheet with the 20% overlap rule \u00b7 ' + upd});
       out.push({type:'table', eyebrow:'Travel and medical, by venue', title:'How far each open venue is, and where to go for medical care', cols:[['Venue',18],['Drive from Mid-Cities JK',14],['Nearest urgent care',38],['Weekend hours',30]], rows:OV.map(function(o){ return [o.name, o.drive || 'N/A', o.care || 'N/A', o.careHours || 'N/A']; }), bold0:true, fs:1.0, text: S.travelNote || '', foot: S.teamLine || upd});
     }
     var hrows = [];
