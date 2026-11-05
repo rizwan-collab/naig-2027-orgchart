@@ -23623,5 +23623,125 @@ function strip(R){
   } catch(e){ console.warn('[naigActLink]', e); } }, 1500);
 })();
 </script>
+<script>
+/* __naigPW: Progress Watch (v141, 5 Nov 2026). Compares tasks against the last review snapshot,
+   shows what the team changed, recomputes progress per vertical, and lists what
+   needs Rizwan's direction. Mark reviewed saves a new snapshot at naig2027/progressWatch. */
+(function(){
+  if (window.__naigPW) return; window.__naigPW = 1;
+  var OWNER = 'rizwan@swagprint.com';
+  var pw = null, pwLoaded = false, lastSig = '';
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function ts(v){ if (!v) return 0; if (typeof v === 'number') return v; var n = Date.parse(v); return isNaN(n) ? 0 : n; }
+  function today(){ var d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  function fmt(ms){ if (!ms) return 'never'; var d = new Date(ms); var h = d.getHours(), m = String(d.getMinutes()).padStart(2,'0'); var ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+', '+h+':'+m+' '+ap; }
+  function stLabel(s){ return ({todo:'To do',inprogress:'In progress',blocked:'Blocked',done:'Done'})[s] || s || 'N/A'; }
+  function owner(t){ return t.owner || (Array.isArray(t.owners) && t.owners.join(', ')) || 'No owner'; }
+  function due(t){ return t.due || t.dueDate || ''; }
+  function lastUpdateLine(t){ var n = String(t.notes || ''); var i = n.lastIndexOf('UPDATE '); if (i < 0) return ''; return n.slice(i).split('\n')[0].slice(0, 220); }
+  function whoMap(){ var A = window._activityLog, arr = Array.isArray(A) ? A : Object.values(A || {}); var m = {}; arr.forEach(function(e){ if (e && e.entityKey && (!m[e.entityKey] || e.ts > m[e.entityKey].ts)) m[e.entityKey] = e; }); return m; }
+
+  function load(){
+    if (pwLoaded || !window._fb || typeof _dbRef !== 'function') return;
+    pwLoaded = true;
+    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js').then(function(m){
+      m.onValue(_dbRef('naig2027/progressWatch'), function(s){ pw = s.val() || {}; lastSig = ''; render(true); });
+    }).catch(function(){ pwLoaded = false; });
+  }
+
+  function compute(){
+    var T = window._tasksData || {}, snap = (pw && pw.snapshot) || {}, last = (pw && pw.lastReview) || 0;
+    var hasSnap = Object.keys(snap).length > 0, td = today(), W = whoMap();
+    var out = { done:[], moved:[], noted:[], added:[], direction:[], verticals:{} };
+    Object.keys(T).forEach(function(id){
+      var t = T[id]; if (!t || !t.title) return;
+      var v = t.vertical || t.department || 'Other';
+      var vb = out.verticals[v] || (out.verticals[v] = {done:0,total:0,blocked:0});
+      vb.total++; if (t.status === 'done') vb.done++; if (t.status === 'blocked') vb.blocked++;
+      var s = snap[id], u = ts(t.updated), w = W[id];
+      var row = { id:id, t:t, who: w && w.who ? w.who : '', line: lastUpdateLine(t) };
+      if (hasSnap && !s) out.added.push(row);
+      else if (s && s.s !== t.status) { row.from = s.s; (t.status === 'done' ? out.done : out.moved).push(row); }
+      else if (u > last && last) out.noted.push(row);
+      if (t.status !== 'done') {
+        var d = due(t), why = '';
+        if (t.status === 'blocked') why = 'Blocked';
+        else if (d && d < td) why = 'Overdue (due ' + d + ')';
+        else if (!t.owner && !(t.owners && t.owners.length)) why = 'No owner';
+        else if (!d) why = 'No due date';
+        if (why) { row = Object.assign({}, row, { why: why }); out.direction.push(row); }
+      }
+    });
+    out.direction.sort(function(a,b){ return (a.why === 'Blocked' ? 0 : 1) - (b.why === 'Blocked' ? 0 : 1) || String(due(a.t)).localeCompare(String(due(b.t))); });
+    out.last = last; out.hasSnap = hasSnap;
+    return out;
+  }
+
+  function item(r, extra){
+    return '<div style="padding:5px 0;border-bottom:1px solid #f2f2f2;font-size:12px;color:#333;cursor:pointer" onclick="window.__naigPWOpen(\'' + esc(r.id) + '\')">'
+      + '<b>' + esc(r.t.title) + '</b> <span style="color:#777">· ' + esc(owner(r.t)) + (due(r.t) ? ' · due ' + esc(due(r.t)) : '') + '</span>'
+      + (extra ? '<div style="color:#555;margin-top:2px">' + extra + '</div>' : '')
+      + (r.line ? '<div style="color:#777;margin-top:2px;font-style:italic">' + esc(r.line) + '</div>' : '')
+      + '</div>';
+  }
+  function section(title, color, rows, fn, cap){
+    if (!rows.length) return '';
+    cap = cap || 8;
+    var h = '<div style="margin-top:12px"><div style="font-size:12px;font-weight:700;color:' + color + '">' + title + ' (' + rows.length + ')</div>';
+    rows.slice(0, cap).forEach(function(r){ h += item(r, fn ? fn(r) : ''); });
+    if (rows.length > cap) h += '<div style="font-size:11px;color:#777;padding-top:4px">+' + (rows.length - cap) + ' more in Tasks</div>';
+    return h + '</div>';
+  }
+
+  function render(force){
+    if (!window._axUser || String(window._axUser.email || '').toLowerCase() !== OWNER) { var x = document.getElementById('naigPW'); if (x) x.remove(); return; }
+    var grid = document.getElementById('dashGrid'); if (!grid || !grid.offsetParent) return;
+    load(); if (pw === null || !window._tasksData) return;
+    var c = compute();
+    var sig = JSON.stringify([c.last, c.done.length, c.moved.length, c.noted.length, c.added.length, c.direction.length, Object.keys(window._tasksData || {}).length, Object.values(window._tasksData || {}).reduce(function(a,t){ return Math.max(a, ts(t && t.updated)); }, 0)]);
+    var box = document.getElementById('naigPW');
+    if (box && sig === lastSig && !force) return; lastSig = sig;
+    if (!box) { box = document.createElement('div'); box.id = 'naigPW'; box.style.cssText = 'background:#fff;border:1px solid #e0e8f0;border-radius:10px;padding:16px;margin-bottom:16px'; grid.parentNode.insertBefore(box, grid); }
+    var changes = c.done.length + c.moved.length + c.noted.length + c.added.length;
+    var h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'
+      + '<strong style="font-size:13px;color:#0B3D91">Progress Watch</strong>'
+      + '<span style="font-size:11px;color:#777">Last reviewed: ' + esc(fmt(c.last)) + '</span>'
+      + '<button onclick="window.__naigPWReview()" style="font-size:11px;padding:4px 10px;border:1px solid #0B3D91;background:#0B3D91;color:#fff;border-radius:6px;cursor:pointer">Mark reviewed</button></div>';
+    if (!c.hasSnap) h += '<div style="font-size:12px;color:#555;margin-top:8px">No baseline yet. Click Mark reviewed to start tracking team changes from now.</div>';
+    else if (!changes) h += '<div style="font-size:12px;color:#555;margin-top:8px">No team changes since your last review.</div>';
+    h += section('Completed', '#1a7f37', c.done, function(r){ return 'Was ' + esc(stLabel(r.from)) + (r.who ? ' · by ' + esc(r.who) : ''); });
+    h += section('Status changed', '#0B3D91', c.moved, function(r){ return esc(stLabel(r.from)) + ' → ' + esc(stLabel(r.t.status)) + (r.who ? ' · by ' + esc(r.who) : ''); });
+    h += section('Notes or details updated', '#555', c.noted, function(r){ return r.who ? 'By ' + esc(r.who) : ''; });
+    h += section('New tasks', '#6b4fbb', c.added, null);
+    h += section('Needs your direction', '#BF1B2A', c.direction, function(r){ return esc(r.why); }, 10);
+    var V = Object.keys(c.verticals).filter(function(k){ return c.verticals[k].total >= 3; }).sort(function(a,b){ var A = c.verticals[a], B = c.verticals[b]; return (A.done/A.total) - (B.done/B.total); });
+    if (V.length) {
+      h += '<div style="margin-top:14px"><div style="font-size:12px;font-weight:700;color:#333">Progress by vertical (live from task status)</div>';
+      V.forEach(function(k){ var b = c.verticals[k], p = Math.round(100 * b.done / b.total);
+        h += '<div style="display:flex;align-items:center;gap:8px;font-size:11px;color:#333;margin-top:5px"><span style="width:150px;flex:0 0 150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(k) + '</span>'
+          + '<span style="flex:1;height:8px;background:#eef2f7;border-radius:4px;overflow:hidden"><span style="display:block;height:8px;width:' + p + '%;background:#0B3D91"></span></span>'
+          + '<span style="width:120px;flex:0 0 120px;text-align:right">' + b.done + ' of ' + b.total + ' done' + (b.blocked ? ', ' + b.blocked + ' blocked' : '') + '</span></div>'; });
+      h += '</div>';
+    }
+    box.innerHTML = h;
+    try {
+      var dg = 'Since ' + fmt(c.last) + ' | completed ' + c.done.length + ', status changed ' + c.moved.length + ', notes updated ' + c.noted.length + ', new ' + c.added.length + ', needs direction ' + c.direction.length;
+      if (!pw || pw.digest !== dg) { if (pw) pw.digest = dg; window._dbSet(_dbRef('naig2027/progressWatch/digest'), dg); }
+    } catch (e) {}
+  }
+
+  window.__naigPWOpen = function(id){ try { if (typeof openTaskModal === 'function') openTaskModal(null, id); } catch (e) {} };
+  window.__naigPWReview = function(){
+    var T = window._tasksData || {}, snap = {};
+    Object.keys(T).forEach(function(id){ var t = T[id]; if (t && t.title) snap[id] = { s: t.status || '', d: due(t), u: ts(t.updated) }; });
+    var now = Date.now();
+    window._dbSet(_dbRef('naig2027/progressWatch/snapshot'), snap);
+    window._dbSet(_dbRef('naig2027/progressWatch/lastReview'), now);
+    pw = pw || {}; pw.snapshot = snap; pw.lastReview = now; lastSig = ''; render(true);
+  };
+  window.__naigPWCompute = compute;
+  setInterval(function(){ try { render(false); } catch (e) {} }, 2000);
+})();
+</script>
 </body>
 </html>
