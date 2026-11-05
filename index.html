@@ -15111,7 +15111,7 @@ function axRenderRequests() {
         </div>
         <select id="axReqMatch_${esc(k)}" style="font-size:11px;padding:4px 6px;max-width:230px">
           <option value="">— who is this? —</option>
-          ${unmatched.map(p => `<option value="${esc(p.id)}">${esc(p.name)} · ${esc(p.role || '')}</option>`).join('')}
+          ${unmatched.filter(p => String(p.status || '').toLowerCase() !== 'declined').map(p => `<option value="${esc(p.id)}">${esc(p.name)} · ${esc(p.role || '')}</option>`).join('')}
           <option value="__new__">+ Add as a new person</option>
         </select>
         <button onclick="axApproveRequest('${esc(k)}')" style="font-size:11px;padding:5px 12px;border-radius:6px;border:1px solid #a8d9c0;background:#e9f7ef;color:#1e7e46;font-weight:600;cursor:pointer">Approve as team</button>
