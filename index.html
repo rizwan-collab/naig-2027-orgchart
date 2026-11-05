@@ -23610,5 +23610,18 @@ function strip(R){
   setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigUX]', e); } }, 1500);
 })();
 </script>
+<script>
+/* 5 Nov 2026 (Rizwan): Recent Activity repeated Updates > Change Log. Show the latest change only, with a link to the full log. */
+(function(){
+  if (window.__naigActLink) return; window.__naigActLink = true;
+  setInterval(function(){ try {
+    var a = document.getElementById('dashActivity'); if (!a || a.offsetParent === null) return;
+    [].forEach.call(a.children, function(c, i){ if (c.id === 'naigActMore') return; c.style.display = i === 0 ? '' : 'none'; });
+    if (!document.getElementById('naigActMore')) { var b = document.createElement('button'); b.id = 'naigActMore'; b.type = 'button'; b.textContent = 'See all changes in Updates \u2192'; b.style.cssText = 'margin-top:8px;background:none;border:none;padding:0;color:#1E3A8A;font-weight:600;font-size:12px;cursor:pointer';
+      b.onclick = function(){ var t = document.getElementById('tabchangelog'); if (t) t.click(); window.scrollTo(0, 0); }; a.appendChild(b); }
+    var card = a.parentElement, h = card && card.querySelector('strong'); if (h && /recent activity/i.test(h.textContent)) h.textContent = 'Latest change';
+  } catch(e){ console.warn('[naigActLink]', e); } }, 1500);
+})();
+</script>
 </body>
 </html>
