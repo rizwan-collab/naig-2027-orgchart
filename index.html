@@ -22572,6 +22572,13 @@ var iv = setInterval(function(){
     + '#naigScopeVen .sa{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;color:#0f172a}'
     + '#naigScopeVen .sd{text-align:right;font-size:11px;color:#64748b;white-space:nowrap}'
     + '#naigScopeVen .sd.thu{color:#b45309;font-weight:700}'
+    + '#naigScopeVen .pp{display:grid;grid-template-columns:repeat(auto-fit,minmax(64px,1fr));gap:6px;padding:4px 14px 10px}'
+    + '#naigScopeVen .pp div{background:#f8fafc;border-radius:8px;padding:6px 8px;text-align:center}'
+    + '#naigScopeVen .pp div.pt{background:#0f172a}'
+    + '#naigScopeVen .pp b{display:block;font-size:15px;font-weight:800;color:#0f172a;font-variant-numeric:tabular-nums}'
+    + '#naigScopeVen .pp .pt b{color:#fff}'
+    + '#naigScopeVen .pp span{font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:700}'
+    + '#naigScopeVen .pp .pt span{color:#cbd5e1}'
     + '#sectionScope.naig-venview .naig-scopehide,#sectionScope.naig-venview #naigScopeFilterBar{display:none !important}';
   document.head.appendChild(st);
   var VIEW = 'venues'; try { VIEW = localStorage.getItem('naigScopeView') || 'venues'; } catch(e){}
@@ -22604,6 +22611,41 @@ var iv = setInterval(function(){
     }).filter(function(x){ return x && x.sport; });
   }
   var sig = '';
+/* 5 Nov 2026 (Rizwan): every person on site per venue: athletes, coaches, chaperones, volunteers, staff.
+   Athletes, volunteers and staff use NAIG.formula() rules, the same numbers as Food.
+   Coaches: 1 per youth (U18) team. Chaperones: 1 per 7 minors (U18 athletes).
+   Youth share and youth team counts per sport come from naig2027/teamModel; ratios from naig2027/headcountModel/supportRules. */
+var __TM = null, __SR = { chaperonePerMinors: 7, coachPerYouthTeam: 1 }, __tmAt = 0;
+function loadTM(){
+  if (Date.now() - __tmAt < 60000) return; __tmAt = Date.now();
+  import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js').then(function(m){
+    m.get(_dbRef('naig2027/teamModel/sports')).then(function(s){ var a = s.val(); if (a) { var o = {}; (Array.isArray(a) ? a : Object.values(a)).forEach(function(r){ if (!r || !r.sport) return; var k = key(r.sport), x = (o[k] = o[k] || { raw: 0, y: 0, yt: 0 }), raw = (Number(r.count) || 0) * (Number(r.perUnit) || 0), yo = /^U\d+/i.test(r.category || ''); x.raw += raw; if (yo) { x.y += raw; if (r.type === 'team') x.yt += Number(r.count) || 0; } }); __TM = o; sig = ''; } }).catch(function(){});
+    m.get(_dbRef('naig2027/headcountModel/supportRules')).then(function(s){ var v = s.val(); if (v) { __SR = { chaperonePerMinors: Number(v.chaperonePerMinors) || 7, coachPerYouthTeam: Number(v.coachPerYouthTeam) || 1 }; sig = ''; } }).catch(function(){});
+  }).catch(function(){});
+}
+function tmOf(sport){ if (!__TM) return null; var k = key(sport); if (__TM[k]) return __TM[k]; var hit = null; Object.keys(__TM).forEach(function(t){ if (!hit && (t.indexOf(k) === 0 || k.indexOf(t) === 0)) hit = __TM[t]; }); return hit; }
+function rules(){ var f = (window.NAIG && NAIG.formula) ? NAIG.formula() : null; return f && f.rules ? f.rules : { athletesPerVolunteer: 3, athletesPerStaff: 100 }; }
+function people(list, total){
+  var R = rules(), yth = 0, co = 0, known = !!__TM;
+  list.forEach(function(r){ var t = tmOf(r.sport.replace(/\s*·.*$/, '')); if (!t || !t.raw) return; var a = r.ath || 0; yth += a * t.y / t.raw;
+    var sa = window.naigAthSport ? naigAthSport(r.sport) : null; co += t.yt * __SR.coachPerYouthTeam * (sa ? Math.min(1, a / sa) : 1); });
+  var A = total || 0;
+  return { athletes: A, coaches: known ? Math.round(co) : null, chaperones: known ? Math.ceil(Math.round(yth) / __SR.chaperonePerMinors) : null, minors: Math.round(yth),
+    volunteers: Math.ceil(A / R.athletesPerVolunteer), staff: Math.ceil(A / R.athletesPerStaff) };
+}
+function pplRow(p, withAth){
+  var n = function(x){ return x == null ? 'N/A' : x.toLocaleString('en-US'); };
+  var tot = p.athletes + (p.coaches || 0) + (p.chaperones || 0) + p.volunteers + p.staff;
+  var L = [['Coaches', p.coaches], ['Chaperones', p.chaperones], ['Volunteers', p.volunteers], ['Staff', p.staff], ['On site', tot]];
+  if (withAth) L.unshift(['Athletes', p.athletes]);
+  return '<div class="pp">' + L.map(function(x, i){ return '<div' + (i === L.length - 1 ? ' class="pt"' : '') + '><b>' + n(x[1]) + '</b><span>' + x[0] + '</span></div>'; }).join('') + '</div>';
+}
+function strip(R){
+  var f = (window.NAIG && NAIG.formula) ? NAIG.formula() : null; if (!f) return '';
+  var p = people(R.map(function(r){ return { sport: r.sport, ath: window.naigAthSport ? (naigAthSport(r.sport) || 0) : (r.ath || 0) }; }).filter(function(r, i, a){ return a.findIndex(function(z){ return z.sport === r.sport; }) === i; }), f.athletes);
+  p.volunteers = f.volunteers; p.staff = f.staff;
+  return '<div class="vb ps" style="grid-column:1/-1;--vc:#1E3A8A"><div class="vh"><div><div class="vn">Everyone on site, all venues</div><div class="vc">Athletes, volunteers and staff match Food. Coaches: 1 per U18 team. Chaperones: 1 per ' + __SR.chaperonePerMinors + ' U18 athletes (' + p.minors.toLocaleString('en-US') + ' minors). Family not counted.</div></div></div>' + pplRow(p, true) + '</div>';
+}
   function tick(){
     var sec = document.getElementById('sectionScope'); if (!sec) return;
     var tb = [].filter.call(sec.querySelectorAll('table'), function(t){ var h = t.querySelectorAll('thead th'); return h[5] && h[5].textContent.trim() === 'Session Dates'; })[0];
@@ -22624,6 +22666,7 @@ var iv = setInterval(function(){
     box.style.display = VIEW === 'venues' ? '' : 'none';
     [].forEach.call(bar.querySelectorAll('button'), function(b){ b.classList.toggle('on', b.getAttribute('data-v') === VIEW); });
     if (VIEW !== 'venues') return;
+    loadTM();
     var R = rows(tb), BV = (window.NAIG && NAIG.byVenue) ? (NAIG.byVenue() || {}) : {}, ath = window.naigAth || function(x){ return Math.round(x); };
     var G = {};
     R.forEach(function(r){ (G[r.venue] = G[r.venue] || { name: r.venue, list: [], status: r.status }).list.push(r); });
@@ -22646,6 +22689,7 @@ var iv = setInterval(function(){
         + '<div class="vh"><div><div class="vn">' + esc(g.name) + '</div>' + (city ? '<div class="vc">' + esc(city) + '</div>' : '')
         + '<span class="vs">' + esc(g.status || 'N/A') + '</span></div>'
         + '<div class="vt"><b>' + (g.total ? g.total.toLocaleString('en-US') : 'N/A') + '</b><span>athletes</span></div></div>'
+        + pplRow(people(g.list, g.total))
         + g.list.map(function(r){ var d = days(r.dates);
             return '<div class="sr" title="' + esc(r.sport + ' · ' + r.cat + ' · ' + r.dates) + '"><div class="sn">' + esc(r.sport) + '</div>'
               + '<div class="bar"><i style="width:' + Math.max(3, Math.round(100 * (r.ath || 0) / max)) + '%"></i></div>'
@@ -22653,6 +22697,7 @@ var iv = setInterval(function(){
               + '<div class="sd' + (/^Thu/.test(d) ? ' thu' : '') + '">' + esc(d || 'N/A') + '</div></div>'; }).join('')
         + '</div>';
     }).join('');
+    html = strip(R) + html;
     if (html === sig) return; sig = html; box.innerHTML = html;
   }
   setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigScopeVen]', e); } }, 1500);
