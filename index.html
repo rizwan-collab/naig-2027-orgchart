@@ -5705,7 +5705,7 @@ const NAIG_FACTS = {
 
   regions:     '14 regions (7 US · 7 Canada)',
   get athletes(){ var f = window.NAIG && NAIG.formula && NAIG.formula(); var H = window._headcount || {}; var a = f ? f.athletes : Number(H.athletes); return (a ? a.toLocaleString('en-US') : 'N/A') + ' athletes on-site'; },
-  get spectators(){ var f = window.NAIG && NAIG.formula && NAIG.formula(); var H = window._headcount || {}; var v = f ? f.volunteers : Number(H.volunteers), s = f ? f.staff : Number(H.staff), o = f ? f.onSite : Number(H.totalFed); return o ? ('plus ' + v.toLocaleString('en-US') + ' volunteers and ' + s.toLocaleString('en-US') + ' staff, ' + o.toLocaleString('en-US') + ' on site in total (family not counted)') : 'headcount loading'; },
+  get spectators(){ var f = window.NAIG && NAIG.formula && NAIG.formula(); var H = window._headcount || {}; var v = f ? f.volunteers : Number(H.volunteers), s = f ? f.staff : Number(H.staff), o = f ? f.onSite : Number(H.totalFed); return o ? ('plus ' + v.toLocaleString('en-US') + ' volunteers, ' + s.toLocaleString('en-US') + ' staff, ' + ((f && f.coaches) || 0).toLocaleString('en-US') + ' coaches and ' + ((f && f.chaperones) || 0).toLocaleString('en-US') + ' chaperones, ' + o.toLocaleString('en-US') + ' on site in total (family not counted)') : 'headcount loading'; },
   sportsLine:  '14 sports · 100 event categories',
 
   teamSports: ['Basketball', 'Cricket (Hardball)', 'Cricket (Tapeball)', 'Dance',
@@ -19225,7 +19225,7 @@ function esc(s){ if(s===null||s===undefined) return ''; return String(s).replace
 
 var VOL_PER_ATHLETES = 3, ATHLETES_PER_STAFF = 100;
 // Team rule set by Rizwan 19 Oct 2026: 1 volunteer per 3 athletes, 1 staff (refs, security) per 100 athletes. Rounded up.
-function team(a){ a = Number(a) || 0; var f = (window.NAIG && NAIG.formula) ? NAIG.formula() : null; var pv = f ? f.rules.athletesPerVolunteer : VOL_PER_ATHLETES; var ps = f ? f.rules.athletesPerStaff : ATHLETES_PER_STAFF; return { volunteers: Math.ceil(a / pv), staff: Math.ceil(a / ps) }; }
+function team(a){ a = Number(a) || 0; var f = (window.NAIG && NAIG.formula) ? NAIG.formula() : null; var pv = f ? f.rules.athletesPerVolunteer : VOL_PER_ATHLETES; var ps = f ? f.rules.athletesPerStaff : ATHLETES_PER_STAFF; var sp = (window.NAIG && NAIG.supportFor) ? NAIG.supportFor(a) : { coaches: 0, chaperones: 0 }; return { volunteers: Math.ceil(a / pv), staff: Math.ceil(a / ps), coaches: sp.coaches, chaperones: sp.chaperones }; }
 function heads(){
   // Single source: naig2027/headcount athletes (unique people).
   var H = window._headcount || {};
@@ -19236,7 +19236,7 @@ function heads(){
     a = Number(sc.athletesLow) || 0;
   }
   var t = team(a);
-  return { athletes: a, volunteers: t.volunteers, staff: t.staff };
+  return { athletes: a, volunteers: t.volunteers, staff: t.staff, coaches: t.coaches || 0, chaperones: t.chaperones || 0 };
 }
 function hasAC(c){ return !!c && c.athleteCount !== undefined && c.athleteCount !== null && c.athleteCount !== ''; }
 function cellAthletes(c){ return hasAC(c) ? (Number(c.athleteCount) || 0) : heads().athletes; }
@@ -19281,7 +19281,7 @@ function covered(c){
   var a = cellAthletes(c);
   var t = team(a);
   var n = 0;
-  if(c.athletes) n += a;
+  if(c.athletes) n += a + (t.coaches || 0) + (t.chaperones || 0); /* 5 Nov 2026: coaches and chaperones eat with their athletes */
   if(c.volunteers) n += t.volunteers;
   if(c.staff) n += t.staff;
   return n;
@@ -19415,10 +19415,10 @@ function render(){
   s += '<div class="fg-kpi"><div class="fg-kl">Servings</div><div class="fg-kv">' + nf(t.servings) + '</div><div class="fg-ks">total plates across the Games</div></div>';
   /* 20 Oct 2026: per person = meal cost / people fed, across the whole Games (Thu partial, Sun no dinner).
      The old tile added the four meal prices and compared them to a hard-coded $60 rate. */
-  var ppl = h.athletes + h.volunteers + h.staff;
+  var ppl = h.athletes + h.volunteers + h.staff + h.coaches + h.chaperones;
   var perGames = ppl ? t.grand / ppl : 0, perPD = (ppl && ds.length) ? t.grand / (ppl * ds.length) : 0;
   s += '<div class="fg-kpi"><div class="fg-kl">Per person · whole Games</div><div class="fg-kv">$' + perGames.toFixed(2) + '</div><div class="fg-ks">meals ÷ ' + nf(ppl) + ' people · full day (all four meals) $' + perDay.toFixed(2).replace(/\.00$/,'') + ' · average $' + perPD.toFixed(2) + ' per person per day</div></div>';
-  s += '<div class="fg-kpi"><div class="fg-kl">Who eats</div><div class="fg-kv" style="font-size:15px">' + nf(h.athletes + h.volunteers + h.staff) + '</div><div class="fg-ks">' + nf(h.athletes) + ' athletes · ' + nf(h.volunteers) + ' volunteers · ' + nf(h.staff) + ' staff · per full day</div></div>';
+  s += '<div class="fg-kpi"><div class="fg-kl">Who eats</div><div class="fg-kv" style="font-size:15px">' + nf(ppl) + '</div><div class="fg-ks">' + nf(h.athletes) + ' athletes · ' + nf(h.coaches) + ' coaches · ' + nf(h.chaperones) + ' chaperones · ' + nf(h.volunteers) + ' volunteers · ' + nf(h.staff) + ' staff · per full day</div></div>';
   s += bagTile(t.bags);
   s += '</div>';
 
@@ -20895,7 +20895,36 @@ var iv = setInterval(function(){
       athletesPerStaff: num(H.athletesPerStaff) || 100
     };
   }
-  function formula(){
+  /* 5 Nov 2026 (Rizwan): coaches and chaperones are on site, fed and housed.
+   Coaches = 1 per U18 team; chaperones = 1 per 7 minors (U18 athletes). Ratios at naig2027/headcountModel/supportRules.
+   Youth share and U18 team counts per sport from naig2027/teamModel/sports; athletes per sport from the slot sheet (naigAthSport).
+   Computed on a timer and cached so the formula never calls back into itself. */
+var SUP = null, SUPC = null, supAt = 0;
+function supKey(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+function loadSup(){
+  if (Date.now() - supAt < 60000 || typeof _dbRef !== 'function') return; supAt = Date.now();
+  import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js').then(function(m){
+    return Promise.all([m.get(_dbRef('naig2027/teamModel/sports')), m.get(_dbRef('naig2027/headcountModel/supportRules'))]);
+  }).then(function(r){
+    var a = r[0].val(), v = r[1].val() || {}, o = {};
+    (Array.isArray(a) ? a : Object.values(a || {})).forEach(function(x){ if (!x || !x.sport) return; var k = supKey(x.sport), e = (o[k] = o[k] || { name: x.sport, raw: 0, y: 0, yt: 0 }), raw = num(x.count) * num(x.perUnit), yo = /^U\d+/i.test(x.category || ''); e.raw += raw; if (yo) { e.y += raw; if (x.type === 'team') e.yt += num(x.count); } });
+    SUP = { sports: o, perMinors: num(v.chaperonePerMinors) || 7, perTeam: num(v.coachPerYouthTeam) || 1 };
+  }).catch(function(e){ console.warn('[naigSupport]', e); });
+}
+function calcSup(){
+  loadSup(); if (!SUP || typeof window.naigAthSport !== 'function') return;
+  var f = formula(); if (!f) return;
+  var mn = 0, co = 0;
+  Object.keys(SUP.sports).forEach(function(k){ var e = SUP.sports[k], sa = num(window.naigAthSport(e.name)); if (!sa || !e.raw) return; mn += sa * e.y / e.raw; co += e.yt * SUP.perTeam; });
+  SUPC = { athletes: f.athletesBase, minors: Math.round(mn), coaches: Math.round(co), perMinors: SUP.perMinors, perTeam: SUP.perTeam };
+}
+function supportFor(a){
+  if (!SUPC || !SUPC.athletes) return { coaches: 0, chaperones: 0, minors: 0, ready: false };
+  var k = num(a) / SUPC.athletes, mn = Math.round(SUPC.minors * k);
+  return { coaches: Math.round(SUPC.coaches * k), chaperones: Math.ceil(mn / SUPC.perMinors), minors: mn, ready: true };
+}
+setInterval(function(){ try { calcSup(); } catch(e){ console.warn('[naigSupport]', e); } }, 3000);
+function formula(){
     var sp = window._sportsPlan;
     if (!sp || !num(sp.people)) return null;
     var r = rules();
@@ -20904,11 +20933,11 @@ var iv = setInterval(function(){
     var v = Math.ceil(a / r.athletesPerVolunteer);
     var s = Math.ceil(a / r.athletesPerStaff);
     return { events: num(sp.rows), slots: num(sp.slots), registrations: reg, athletes: a,
-             volunteers: v, staff: s, onSite: a + v + s, totalFed: a + v + s, rules: r };
+             volunteers: v, staff: s, athletesBase: a, coaches: (window.NAIG && NAIG.supportFor ? NAIG.supportFor(a) : { coaches: 0, chaperones: 0, minors: 0 }).coaches, chaperones: (window.NAIG && NAIG.supportFor ? NAIG.supportFor(a) : { coaches: 0, chaperones: 0, minors: 0 }).chaperones, minors: (window.NAIG && NAIG.supportFor ? NAIG.supportFor(a) : { coaches: 0, chaperones: 0, minors: 0 }).minors, onSite: a + v + s + (window.NAIG && NAIG.supportFor ? NAIG.supportFor(a) : { coaches: 0, chaperones: 0, minors: 0 }).coaches + (window.NAIG && NAIG.supportFor ? NAIG.supportFor(a) : { coaches: 0, chaperones: 0, minors: 0 }).chaperones, totalFed: a + v + s + (window.NAIG && NAIG.supportFor ? NAIG.supportFor(a) : { coaches: 0, chaperones: 0, minors: 0 }).coaches + (window.NAIG && NAIG.supportFor ? NAIG.supportFor(a) : { coaches: 0, chaperones: 0, minors: 0 }).chaperones, rules: r };
   }
   var F = window.NAIG || (window.NAIG = {});
   var legacy = F.headcount;
-  F.formula = formula;
+  F.formula = formula; F.supportFor = supportFor;
   F.headcount = function(){ var f = formula(); return f ? f : (legacy ? legacy() : null); };
 
   var MOD = null, last = '', busy = false;
@@ -20916,7 +20945,7 @@ var iv = setInterval(function(){
   function tick(){
     var f = formula();
     if (!f || busy || typeof _dbRef !== 'function' || !window._gUser) return;
-    var sig = [f.registrations, f.athletes, f.volunteers, f.staff, f.slots, f.events, f.rules.overlapPct, f.rules.athletesPerVolunteer, f.rules.athletesPerStaff].join('|');
+    var sig = [f.registrations, f.athletes, f.volunteers, f.staff, f.coaches, f.chaperones, f.slots, f.events, f.rules.overlapPct, f.rules.athletesPerVolunteer, f.rules.athletesPerStaff].join('|');
     if (sig === last) return;
     var H = window._headcount || {};
     if (H.formulaSig === sig) { last = sig; return; }
@@ -20929,6 +20958,8 @@ var iv = setInterval(function(){
       'headcount/volunteers': f.volunteers,
       'headcount/staff': f.staff,
       'headcount/totalFed': f.onSite,
+'headcount/coaches': f.coaches,
+'headcount/chaperones': f.chaperones,
       'headcount/slots': f.slots,
       'headcount/events': f.events,
       'headcount/overlapPct': f.rules.overlapPct,
@@ -21002,7 +21033,7 @@ var iv = setInterval(function(){
     var reg = 0, sl = 0; codesFor(f).forEach(function(k){ if (rr[k]) { reg += rr[k].reg; sl += rr[k].slots; } });
     var r = all.rules, a = Math.round(reg * (1 - r.overlapPct / 100));
     var v = Math.ceil(a / r.athletesPerVolunteer), s = Math.ceil(a / r.athletesPerStaff);
-    return { events: all.events, slots: Math.round(sl), registrations: Math.round(reg), athletes: a, volunteers: v, staff: s, onSite: a + v + s, totalFed: a + v + s, rules: r, scope: f, scopeLabel: label(f) };
+    return { events: all.events, slots: Math.round(sl), registrations: Math.round(reg), athletes: a, volunteers: v, staff: s, coaches: (window.NAIG && NAIG.supportFor ? NAIG.supportFor(a) : { coaches: 0, chaperones: 0, minors: 0 }).coaches, chaperones: (window.NAIG && NAIG.supportFor ? NAIG.supportFor(a) : { coaches: 0, chaperones: 0, minors: 0 }).chaperones, minors: (window.NAIG && NAIG.supportFor ? NAIG.supportFor(a) : { coaches: 0, chaperones: 0, minors: 0 }).minors, onSite: a + v + s + (window.NAIG && NAIG.supportFor ? NAIG.supportFor(a) : { coaches: 0, chaperones: 0, minors: 0 }).coaches + (window.NAIG && NAIG.supportFor ? NAIG.supportFor(a) : { coaches: 0, chaperones: 0, minors: 0 }).chaperones, totalFed: a + v + s + (window.NAIG && NAIG.supportFor ? NAIG.supportFor(a) : { coaches: 0, chaperones: 0, minors: 0 }).coaches + (window.NAIG && NAIG.supportFor ? NAIG.supportFor(a) : { coaches: 0, chaperones: 0, minors: 0 }).chaperones, rules: r, scope: f, scopeLabel: label(f) };
   };
   /* 19 Oct 2026: per-venue slots and registrations from the slot sheet, following the region filter.
      Same arithmetic as scopeFromSlots, so the Venue Directory and Scope always agree. */
@@ -21086,9 +21117,11 @@ var iv = setInterval(function(){
     var ppr = num(H.peoplePerRoom) || 2;
     var localA = Math.round(localReg * (1 - all.rules.overlapPct / 100)), travA = all.athletes - localA;
     var tv = Math.ceil(all.volunteers * tp / 100), ts = Math.ceil(all.staff * tp / 100);
+/* 5 Nov 2026: coaches and chaperones travel with their athletes (same travelling share). */
+var tsup = Math.ceil((num(all.coaches) + num(all.chaperones)) * (all.athletes ? travA / all.athletes : 1));
     var blocked = 0, hd = window._hotelsData || {}; Object.keys(hd).forEach(function(k){ var n = parseInt(String((hd[k] || {}).blockSize || ''), 10); if (n > 0) blocked += n; });
-    return { localAthletes: localA, travellingAthletes: travA, travellingVolunteers: tv, travellingStaff: ts, guests: travA + tv + ts,
-             athleteRooms: Math.ceil(travA / ppr), teamRooms: Math.ceil((tv + ts) / ppr), rooms: Math.ceil(travA / ppr) + Math.ceil((tv + ts) / ppr),
+    return { localAthletes: localA, travellingAthletes: travA, travellingVolunteers: tv, travellingStaff: ts, travellingSupport: tsup, guests: travA + tv + ts + tsup,
+             athleteRooms: Math.ceil(travA / ppr), teamRooms: Math.ceil((tv + ts + tsup) / ppr), rooms: Math.ceil(travA / ppr) + Math.ceil((tv + ts + tsup) / ppr),
              blocked: blocked, peoplePerRoom: ppr, teamTravelPct: tp };
   };
   function install(){
@@ -21114,7 +21147,7 @@ var iv = setInterval(function(){
     var R = regs(), opts = '<option value="ALL">All regions</option><option value="US">USA</option><option value="CA">Canada</option>';
     ['Canada','USA'].forEach(function(c){ opts += '<optgroup label="' + c + '">'; Object.keys(R).filter(function(k){ return R[k].country === c; }).sort(function(x,y){ return num(R[x].order) - num(R[y].order); }).forEach(function(k){ opts += '<option value="' + esc(k) + '">' + esc(R[k].name) + (R[k].local ? ' (local)' : '') + '</option>'; }); opts += '</optgroup>'; });
     var h1 = '<label style="font-weight:700;color:#93c5fd">Headcount view</label><select id="naigRegionSel" style="background:#1e293b;color:#f8fafc;border:1px solid #334155;border-radius:6px;padding:3px 6px;font-size:12px">' + opts + '</select>';
-    h1 += '<span><b>' + nf(s.athletes) + '</b> athletes</span><span>' + nf(s.slots) + ' slots</span><span>' + nf(s.volunteers) + ' volunteers</span><span>' + nf(s.staff) + ' staff</span><span><b>' + nf(s.onSite) + '</b> on site</span>';
+    h1 += '<span><b>' + nf(s.athletes) + '</b> athletes</span><span>' + nf(s.slots) + ' slots</span><span>' + nf(s.volunteers) + ' volunteers</span><span>' + nf(s.staff) + ' staff</span><span>' + nf(s.coaches || 0) + ' coaches</span><span>' + nf(s.chaperones || 0) + ' chaperones</span><span><b>' + nf(s.onSite) + '</b> on site</span>';
     if (h && filter === 'ALL') h1 += '<span style="color:#fbbf24">Hotels: ' + nf(h.guests) + ' guests · ' + nf(h.rooms) + ' rooms needed · ' + nf(h.blocked) + ' blocked</span>';
     if (!Object.keys(R).length) h1 += '<span style="color:#94a3b8">region split loading</span>';
     h1 += '<span style="color:#64748b">From the slot sheet. Food and Budget always use all regions.</span>';
@@ -22643,7 +22676,7 @@ function pplRow(p, withAth){
 function strip(R){
   var f = (window.NAIG && NAIG.formula) ? NAIG.formula() : null; if (!f) return '';
   var p = people(R.map(function(r){ return { sport: r.sport, ath: window.naigAthSport ? (naigAthSport(r.sport) || 0) : (r.ath || 0) }; }).filter(function(r, i, a){ return a.findIndex(function(z){ return z.sport === r.sport; }) === i; }), f.athletes);
-  p.volunteers = f.volunteers; p.staff = f.staff;
+  p.volunteers = f.volunteers; p.staff = f.staff; if (f.coaches || f.chaperones) { p.coaches = f.coaches; p.chaperones = f.chaperones; p.minors = f.minors; }
   return '<div class="vb ps" style="grid-column:1/-1;--vc:#1E3A8A"><div class="vh"><div><div class="vn">Everyone on site, all venues</div><div class="vc">Athletes, volunteers and staff match Food. Coaches: 1 per U18 team. Chaperones: 1 per ' + __SR.chaperonePerMinors + ' U18 athletes (' + p.minors.toLocaleString('en-US') + ' minors). Family not counted.</div></div></div>' + pplRow(p, true) + '</div>';
 }
   function tick(){
