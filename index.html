@@ -21147,10 +21147,10 @@ var tsup = Math.ceil((num(all.coaches) + num(all.chaperones)) * (all.athletes ? 
     var R = regs(), opts = '<option value="ALL">All regions</option><option value="US">USA</option><option value="CA">Canada</option>';
     ['Canada','USA'].forEach(function(c){ opts += '<optgroup label="' + c + '">'; Object.keys(R).filter(function(k){ return R[k].country === c; }).sort(function(x,y){ return num(R[x].order) - num(R[y].order); }).forEach(function(k){ opts += '<option value="' + esc(k) + '">' + esc(R[k].name) + (R[k].local ? ' (local)' : '') + '</option>'; }); opts += '</optgroup>'; });
     var h1 = '<label style="font-weight:700;color:#93c5fd">Headcount view</label><select id="naigRegionSel" style="background:#1e293b;color:#f8fafc;border:1px solid #334155;border-radius:6px;padding:3px 6px;font-size:12px">' + opts + '</select>';
-    h1 += '<span><b>' + nf(s.athletes) + '</b> athletes</span><span>' + nf(s.slots) + ' slots</span><span>' + nf(s.volunteers) + ' volunteers</span><span>' + nf(s.staff) + ' staff</span><span>' + nf(s.coaches || 0) + ' coaches</span><span>' + nf(s.chaperones || 0) + ' chaperones</span><span><b>' + nf(s.onSite) + '</b> on site</span>';
+    h1 += '<span><b>' + nf(s.athletes) + '</b> athletes</span><span>' + nf(s.coaches || 0) + ' coaches</span><span>' + nf(s.chaperones || 0) + ' chaperones</span><span>' + nf(s.volunteers) + ' volunteers</span><span>' + nf(s.staff) + ' staff</span><span>= <b>' + nf(s.onSite) + '</b> on site</span>';
     if (h && filter === 'ALL') h1 += '<span style="color:#fbbf24">Hotels: ' + nf(h.guests) + ' guests · ' + nf(h.rooms) + ' rooms needed · ' + nf(h.blocked) + ' blocked</span>';
     if (!Object.keys(R).length) h1 += '<span style="color:#94a3b8">region split loading</span>';
-    h1 += '<span style="color:#64748b">From the slot sheet. Food and Budget always use all regions.</span>';
+    h1 += '<span style="color:#64748b">From the slot sheet (' + nf(s.slots) + ' slots, 20% overlap rule). Food and Budget always use all regions.</span>';
     b.innerHTML = h1;
     var sel = document.getElementById('naigRegionSel'); if (sel) sel.value = filter;
     var sh = document.getElementById('naigTeams'); if (sh) { try { F.scopeFromSlots(sh); } catch(e) { console.warn('[naigRegions] scope', e); } }
@@ -23581,5 +23581,34 @@ function strip(R){
 })();
 </script>
 <style id="naigPDmobile">@media (max-width:700px){#naigPDstage{overflow-x:auto;-webkit-overflow-scrolling:touch}#naigPDstage .naigPDslide{width:760px!important;max-width:none}}#naigPDstage:fullscreen{overflow:auto}</style>
+<script>
+/* 5 Nov 2026 (Rizwan): "clean up the hub, still see repetition". */
+(function(){
+  if (window.__naigUX) return; window.__naigUX = true;
+  /* Minute by minute was left on screen under every other tab once opened. Hide it when any other tab is chosen. */
+  document.addEventListener('click', function(e){
+    var b = e.target && e.target.closest ? e.target.closest('button[id^="tab"]') : null; if (!b || b.id === 'tabm2m') return;
+    var s = document.getElementById('sectionM2M'); if (s && s.style.display !== 'none') { s.style.display = 'none'; s.classList.remove('active'); var t = document.getElementById('tabm2m'); if (t) t.classList.remove('active'); }
+  }, true);
+  function norm(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+  function tick(){
+    var d = document.getElementById('sectionDashboard'); if (!d || d.offsetParent === null) return;
+    /* Needs Attention repeated My Open Tasks. Show only what is not already listed there. */
+    var mine = document.getElementById('dashMyTasks'), att = document.getElementById('dashAttention');
+    if (mine && att) { var have = [].map.call(mine.children, function(c){ return norm(c.textContent).slice(0, 40); });
+      var shown = 0; [].forEach.call(att.children, function(c){ if (c.id === 'naigAttNone') return; var m = String(c.textContent).match(/"([^"]+)"/), k = m ? norm(m[1]).slice(0, 40) : ''; var dup = k && have.some(function(h){ return h.indexOf(k.slice(0, 30)) >= 0; }); c.style.display = dup ? 'none' : ''; if (!dup) shown++; });
+      var none = document.getElementById('naigAttNone'); if (!shown) { if (!none) { none = document.createElement('div'); none.id = 'naigAttNone'; none.style.cssText = 'font-size:12px;color:#64748b;padding:4px 0'; none.textContent = 'Nothing beyond the tasks listed under My Open Tasks.'; att.appendChild(none); } none.style.display = ''; } else if (none) none.style.display = 'none'; }
+    /* Venue Status: only venues still in play; the rest folds into one line. */
+    var vs = document.getElementById('dashVenueStatus');
+    if (vs) { var off = 0; [].forEach.call(vs.children, function(c){ if (c.id === 'naigVsOff') return; var t = String(c.textContent); if (/not selected|declined|not available|backup|fallback|identified/i.test(t)) { c.style.display = 'none'; var n = parseInt((t.match(/(\d+)\s*$/) || [])[1], 10); if (n) off += n; } });
+      var o = document.getElementById('naigVsOff'); if (!o) { o = document.createElement('div'); o.id = 'naigVsOff'; o.style.cssText = 'font-size:12px;color:#64748b;padding:6px 0 0'; vs.appendChild(o); } o.textContent = off ? (off + ' not in the plan (declined, not selected, backup) \u00b7 see Venues') : ''; }
+    /* Budget Snapshot is empty without the PIN: hide the card instead of showing a blank box. */
+    var bd = document.getElementById('dashBudget'); if (bd) { var card = bd.parentElement; if (card && card.id !== 'dashGrid') card.style.display = /\d/.test(bd.textContent) ? '' : 'none'; }
+    /* Venue tile: competition venues in the plan, not every venue ever contacted. */
+    var k = document.querySelector('#dashKpiRow .sum-chip'); if (k && window.NAIG && NAIG.byVenue) { var bv = NAIG.byVenue() || {}, n2 = Object.keys(bv).filter(function(x){ return !/^TBD/i.test(x); }).length; var sp = k.querySelector('span'), st = k.querySelector('strong'); var conf = (String(sp && sp.textContent).match(/\((\d+)/) || [])[1]; if (n2 && st && sp && !/competition/i.test(sp.textContent)) { st.textContent = n2; sp.textContent = 'Competition venues' + (conf ? ' (' + conf + ' signed)' : ''); } }
+  }
+  setInterval(function(){ try { tick(); } catch(e){ console.warn('[naigUX]', e); } }, 1500);
+})();
+</script>
 </body>
 </html>
