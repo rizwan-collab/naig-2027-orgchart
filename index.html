@@ -23629,7 +23629,7 @@ function strip(R){
    needs Rizwan's direction. Mark reviewed saves a new snapshot at naig2027/progressWatch. */
 (function(){
   if (window.__naigPW) return; window.__naigPW = 1;
-  var OWNER = 'rizwan@swagprint.com';
+  var OWNERS = ['rizwan@swagprint.com','aliriz6683@gmail.com'];
   var pw = null, pwLoaded = false, lastSig = '';
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
   function ts(v){ if (!v) return 0; if (typeof v === 'number') return v; var n = Date.parse(v); return isNaN(n) ? 0 : n; }
@@ -23694,7 +23694,7 @@ function strip(R){
   }
 
   function render(force){
-    if (!window._axUser || String(window._axUser.email || '').toLowerCase() !== OWNER) { var x = document.getElementById('naigPW'); if (x) x.remove(); return; }
+    if (!window._axUser || OWNERS.indexOf(String(window._axUser.email || '').toLowerCase()) < 0) { var x = document.getElementById('naigPW'); if (x) x.remove(); return; }
     var grid = document.getElementById('dashGrid'); if (!grid || !grid.offsetParent) return;
     load(); if (pw === null || !window._tasksData) return;
     var c = compute();
