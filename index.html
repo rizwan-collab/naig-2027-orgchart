@@ -21106,7 +21106,7 @@ function formula(){
     order.forEach(function(sp){ var b = bySport[sp]; if (b.slots <= 0) return; tot.events += b.events; tot.slots += b.slots; tot.reg += b.reg;
       h += '<tr><td>' + esc(sp) + '</td><td>' + b.events + '</td><td>' + nf(b.slots) + '</td><td>' + nf(b.reg * (1 - ov / 100)) + '</td><td>' + esc(Object.keys(b.venues).join(', ') || 'TBD') + '</td></tr>'; });
     h += '</tbody><tfoot><tr><th>Total</th><th>' + tot.events + '</th><th>' + nf(tot.slots) + '</th><th>' + nf(tot.reg * (1 - ov / 100)) + '</th><th></th></tr></tfoot></table>';
-    if (s2) h += '<p class="tm-sub"><b>' + nf(s2.athletes) + '</b> athletes on site (slot entries less ' + ov + '% for people in more than one sport) · ' + nf(s2.volunteers) + ' volunteers · ' + nf(s2.staff) + ' staff · ' + nf(s2.onSite) + ' on site.</p>';
+    if (s2) h += '<p class="tm-sub"><b>' + nf(s2.athletes) + '</b> athletes on site (slot entries less ' + ov + '% for people in more than one sport) · ' + nf(s2.coaches || 0) + ' coaches · ' + nf(s2.chaperones || 0) + ' chaperones · ' + nf(s2.volunteers) + ' volunteers · ' + nf(s2.staff) + ' staff · ' + nf(s2.onSite) + ' on site.</p>';
     if (h === lastScope && host.innerHTML) return; lastScope = h; host.innerHTML = h;
   };
   F.hotels = function(){
@@ -21986,7 +21986,8 @@ var tsup = Math.ceil((num(all.coaches) + num(all.chaperones)) * (all.athletes ? 
     var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), n, list = [];
     while ((n = w.nextNode())) if (n.nodeValue.indexOf('[[ath:') >= 0) list.push(n);
     list.forEach(function(t){
-      t.nodeValue = t.nodeValue.replace(TOK, function(m, v, sp){ var c = count(v, sp); return c == null ? m : c.toLocaleString('en-US'); });
+      var hold = false, nv = t.nodeValue.replace(/\[\[ath:([^|\]]+)\]\] athletes/g, function(m, v){ var c = count(v), sx = (window.NAIG && NAIG.splitText) ? NAIG.splitText(v) : ''; if (c == null || !sx) { hold = true; return m; } return c.toLocaleString('en-US') + ' athletes' + sx; }); if (hold) return;
+      t.nodeValue = nv.replace(TOK, function(m, v, sp){ var c = count(v, sp); return c == null ? m : c.toLocaleString('en-US'); });
     });
   }
   function foodPinTop(){
@@ -22650,7 +22651,7 @@ var tsup = Math.ceil((num(all.coaches) + num(all.chaperones)) * (all.athletes ? 
    Youth share and youth team counts per sport come from naig2027/teamModel; ratios from naig2027/headcountModel/supportRules. */
 var __TM = null, __SR = { chaperonePerMinors: 7, coachPerYouthTeam: 1 }, __tmAt = 0;
 function loadTM(){
-  if (Date.now() - __tmAt < 60000) return; __tmAt = Date.now();
+  if (__TM && Date.now() - __tmAt < 60000) return; if (!__TM && Date.now() - __tmAt < 3000) return; if (typeof _dbRef !== 'function') return; __tmAt = Date.now();
   import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js').then(function(m){
     m.get(_dbRef('naig2027/teamModel/sports')).then(function(s){ var a = s.val(); if (a) { var o = {}; (Array.isArray(a) ? a : Object.values(a)).forEach(function(r){ if (!r || !r.sport) return; var k = key(r.sport), x = (o[k] = o[k] || { raw: 0, y: 0, yt: 0 }), raw = (Number(r.count) || 0) * (Number(r.perUnit) || 0), yo = /^U\d+/i.test(r.category || ''); x.raw += raw; if (yo) { x.y += raw; if (r.type === 'team') x.yt += Number(r.count) || 0; } }); __TM = o; sig = ''; } }).catch(function(){});
     m.get(_dbRef('naig2027/headcountModel/supportRules')).then(function(s){ var v = s.val(); if (v) { __SR = { chaperonePerMinors: Number(v.chaperonePerMinors) || 7, coachPerYouthTeam: Number(v.coachPerYouthTeam) || 1 }; sig = ''; } }).catch(function(){});
@@ -22694,7 +22695,8 @@ function venueAll(){
   loadTM();
   var BV = (window.NAIG && NAIG.byVenue) ? (NAIG.byVenue() || {}) : {}, groups = [], A = window.naigAth || function(x){ return Math.round(x); };
   Object.keys(BV).forEach(function(v){ var o = BV[v] || {}, sp = o.sports || {};
-    var list = Object.keys(sp).map(function(s){ var x = sp[s], pe = typeof x === 'number' ? x : ((x && x.people) || 0); return { sport: s, ath: A(pe) }; });
+    var bases = {}; Object.keys(sp).forEach(function(s){ bases[String(s).split(' - ')[0]] = 1; });
+    var list = Object.keys(bases).map(function(b){ var n = 0; Object.keys(BV).forEach(function(v2){ var s2 = (BV[v2] || {}).sports || {}; if (Object.keys(s2).some(function(z){ return String(z).split(' - ')[0] === b; })) n++; }); var sa = window.naigAthSport ? (naigAthSport(b) || 0) : 0; return { sport: b, ath: n > 1 ? sa / n : sa }; });
     var tot = (window.naigAthVenue && naigAthVenue(v) != null) ? naigAthVenue(v) : A(o.people || 0);
     groups.push({ name: v, list: list, total: tot }); });
   __VA = alloc(groups); __VAt = Date.now(); return __VA;
