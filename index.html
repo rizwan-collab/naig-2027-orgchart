@@ -23839,7 +23839,7 @@ function strip(R){
       dflt.athletes = pp && pp.athletes != null ? pp.athletes : null;
       var onSite = pp && pp.coaches != null ? (pp.athletes + pp.coaches + pp.chaperones + pp.volunteers + pp.staff) : null;
       var r = { key: k, name: v, sports: sp, rec: rec, inp: inp, mo: mo, dflt: dflt, pp: pp,
-        courts: num(mo.courts) != null ? num(mo.courts) : (num(inp.courts) != null ? num(inp.courts) : dflt.courts),
+        courts: num(inp.courts) != null ? num(inp.courts) : (num(mo.courts) != null ? num(mo.courts) : dflt.courts),
         athletes: num(inp.athletes) != null ? num(inp.athletes) : dflt.athletes, hrs: {}, win: win, tm: {} };
       var nts = String((rec && rec.datesAvailable) || '') + '\n' + String((rec && rec.notes) || ''); r.locked = !!(rec && /SIGNED\/GUARANTEED|GUARANTEED|CONTRACT HOURS/.test(nts) && ['thu','fri','sat','sun'].every(function(d){ return win[d] && win[d].src === 'contract'; })); r.loadIn = {};
       if (r.locked && /thu[^\n]{0,30}(load-in|setup)/i.test(nts)) r.loadIn.thu = 1;
@@ -23902,7 +23902,7 @@ function strip(R){
     var h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px"><div style="font-weight:800;font-size:15px;color:#1e3a8a">Courts and hours by site</div>'
       + ($on ? '<span style="font-size:11px;font-weight:600;color:#92400e;background:#fef3c7;border-radius:999px;padding:3px 10px">Costs on · live</span>'
              : '<form id="cmPinForm" style="display:flex;gap:6px;align-items:center;font-size:12px"><input type="password" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Budget PIN" style="width:100px;padding:4px 8px;border:1px solid #cbd5e1;border-radius:999px;font-size:12px"><button type="submit" style="padding:4px 12px;border:0;border-radius:999px;background:#1e3a8a;color:#fff;font-size:12px;font-weight:600;cursor:pointer">Show costs</button><span class="er" style="color:#b91c1c"></span></form>')
-      + '</div><div style="font-size:11px;color:#64748b;margin:0 0 8px">Set play start and end for each day. Red means outside the contract. Clear both times for no play. StarCenters follow the signed contract.</div>';
+      + '</div><div style="font-size:11px;color:#64748b;margin:0 0 8px">Change courts or fields and set play start and end for each day. Red means outside the contract. Clear both times for no play. StarCenters follow the signed contract.</div>';
     h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="' + th + ';text-align:left">Site</th><th style="' + th + '">Courts</th>';
     DAYS.slice(1).forEach(function(d){ h += '<th style="' + th + ';text-align:center">' + d[1] + '</th>'; });
     h += '<th style="' + th + '">Court-hours</th><th style="' + th + '">Athletes</th>' + ($on ? '<th style="' + th + Y + '">Total cost</th><th style="' + th + Y + '">Per athlete</th><th style="' + th + Y + '">+1 hr / day</th>' : '') + '</tr></thead><tbody>';
@@ -23912,7 +23912,7 @@ function strip(R){
       T.C += c.C || 0; T.CH += c.CH || 0; T.A += r0.athletes || 0; T.O += r0.onSite || 0;
       var split = (r0.pp && r0.pp.coaches != null) ? (r0.pp.coaches + ' coaches · ' + r0.pp.chaperones + ' chaperones · ' + nf(r0.pp.volunteers, 0) + ' vol · ' + r0.pp.staff + ' staff · ' + nf(r0.onSite, 0) + ' on site') : '';
       h += '<tr style="border-top:1px solid #f1f5f9"><td style="padding:7px 8px;font-size:12px;vertical-align:middle"><b>' + esc(r0.name) + '</b>' + (r0.locked ? ' <span style="font-size:10px;font-weight:600;color:#166534;background:#dcfce7;border-radius:999px;padding:1px 7px">Signed contract</span>' : '') + '<div style="color:#94a3b8;font-size:11px">' + esc(r0.sports) + '</div></td>'
-        + '<td style="' + td + '">' + nf(r0.courts, 0) + '</td>';
+        + '<td style="' + td + '">' + (r0.locked ? nf(r0.courts, 0) : '<input type="number" min="0" step="1" data-cm="' + esc(r0.key) + '" data-f="courts" value="' + (r0.courts == null ? '' : r0.courts) + '" placeholder="' + (r0.dflt.courts == null ? 'N/A' : r0.dflt.courts) + '" title="Venue record: ' + (r0.dflt.courts == null ? 'N/A' : r0.dflt.courts) + '. Clear to go back to it." style="width:54px;padding:2px 4px;border:1px solid ' + (r0.inp.courts != null && r0.inp.courts !== r0.dflt.courts ? '#1e3a8a' : '#e2e8f0') + ';border-radius:6px;font-size:12px;text-align:right">' + (r0.inp.courts != null && r0.dflt.courts != null && r0.inp.courts !== r0.dflt.courts ? '<div style="font-size:10px;color:#94a3b8">record ' + r0.dflt.courts + '</div>' : '')) + '</td>';
       DAYS.slice(1).forEach(function(d){ var dd = d[0], tm = r0.tm[dd] || { s: '', e: '' }, w = r0.win[dd], hr = r0.hrs[dd], a = fromHM(tm.s), b = fromHM(tm.e); if (b != null && a != null && b <= a) b += 24;
         var out = w && a != null && b != null && (a < w.a - 0.01 || b > w.b + 0.01), cs = 'padding:5px 6px;text-align:center;white-space:nowrap;vertical-align:middle';
         if (r0.locked) { h += '<td style="' + cs + '">' + (r0.loadIn[dd] ? '<span style="font-size:11px;color:#94a3b8">Load-in</span>' : '<div style="font-size:12px">' + t12(w.a) + ' – ' + t12(w.b) + '</div><div style="font-size:10px;color:#94a3b8">' + nf(hr, 2) + ' h</div>') + '</td>'; return; }
