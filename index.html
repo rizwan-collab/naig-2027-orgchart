@@ -23805,7 +23805,7 @@ function strip(R){
   }
   function dayWin(rec, d){
     if (!rec) return null;
-    var notes = String(rec.notes || ''), sig = (notes.match(/(SIGNED|GUARANTEED|CONTRACT HOURS)[^\n|]*/i) || [''])[0];
+    var notes = String(rec.datesAvailable || '') + '\n' + String(rec.notes || ''), sig = (notes.match(/(SIGNED\/GUARANTEED|GUARANTEED|CONTRACT HOURS)[^\n|]*/) || [''])[0];
     var srcs = [[sig, 'contract'], [String(rec.hoursWeekday || '') + ' · ' + String(rec.hoursWeekend || ''), 'venue record']], rx = new RegExp('\\b' + d, 'i'), hit = null;
     srcs.forEach(function(S){ if (hit || !S[0]) return; S[0].split(/·|;|\|/).forEach(function(seg){ if (hit || !rx.test(seg)) return;
       var w = winFrom(seg.replace(/\b(mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?(\s+\d{1,2}(?![:\d]|\s*[ap]\.?m))?(\s+mar[a-z]*)?/gi, ' ').replace(/\band\b/gi, ' ').replace(/^[^0-9]*/, ''));
@@ -23841,7 +23841,7 @@ function strip(R){
       var r = { key: k, name: v, sports: sp, rec: rec, inp: inp, mo: mo, dflt: dflt, pp: pp,
         courts: num(mo.courts) != null ? num(mo.courts) : (num(inp.courts) != null ? num(inp.courts) : dflt.courts),
         athletes: num(inp.athletes) != null ? num(inp.athletes) : dflt.athletes, hrs: {}, win: win, tm: {} };
-      var nts = String((rec && rec.notes) || ''); r.locked = !!(rec && /SIGNED|GUARANTEED/i.test(nts) && ['thu','fri','sat','sun'].every(function(d){ return win[d] && win[d].src === 'contract'; })); r.loadIn = {};
+      var nts = String((rec && rec.datesAvailable) || '') + '\n' + String((rec && rec.notes) || ''); r.locked = !!(rec && /SIGNED\/GUARANTEED|GUARANTEED|CONTRACT HOURS/.test(nts) && ['thu','fri','sat','sun'].every(function(d){ return win[d] && win[d].src === 'contract'; })); r.loadIn = {};
       if (r.locked && /thu[^\n]{0,30}(load-in|setup)/i.test(nts)) r.loadIn.thu = 1;
       DAYS.forEach(function(d){ var dd = d[0], w = win[dd], T0 = inp.times && inp.times[dd], x = inp.hrs ? num(inp.hrs[dd]) : null;
         if (r.locked && dd !== 'wed') { r.tm[dd] = r.loadIn[dd] ? { s: '', e: '' } : { s: toHM(w.a), e: toHM(w.b) }; r.hrs[dd] = r.loadIn[dd] ? 0 : Math.round((w.b - w.a) * 4) / 4; return; }
