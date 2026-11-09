@@ -23764,6 +23764,12 @@ function strip(R){
   function nf(n, d){ return n == null || !isFinite(n) ? 'N/A' : Number(n).toLocaleString('en-US', { maximumFractionDigits: d == null ? 1 : d }); }
   function money(n){ return n == null || !isFinite(n) ? 'N/A' : '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: Math.abs(n) < 100 ? 2 : 0 }); }
   function unlocked(){ try { return sessionStorage.getItem('naigBudgetUnlocked') === '1'; } catch(e){ return false; } }
+  function m$(n){ return n == null || !isFinite(n) ? 'N/A' : '<span>$</span>' + Number(n).toLocaleString('en-US', { maximumFractionDigits: Math.abs(n) < 100 ? 2 : 0 }); }
+  var PH = 'd695cad55cbc649d02b9b0ec3104fc89c39f178a04d438b8873b22d0eb71514f';
+  async function pinHash(p){ var b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('naig2027-budget-v1:' + p)); return [].map.call(new Uint8Array(b), function(x){ return x.toString(16).padStart(2, '0'); }).join(''); }
+  document.addEventListener('submit', async function(e){ if (!e.target || e.target.id !== 'cmPinForm') return; e.preventDefault(); var f = e.target, i = f.querySelector('input'), er = f.querySelector('.er');
+    try { var d = await db(); var v = (await d.get(_dbRef('naig2027/access/budgetPinHash'))).val(); if (v && /^[0-9a-f]{64}$/.test(v)) PH = v; } catch(x){}
+    if ((await pinHash(i.value.trim())) === PH) { try { sessionStorage.setItem('naigBudgetUnlocked', '1'); } catch(x){} i.value = ''; lastS = ''; paintSports(); } else { er.textContent = 'Wrong PIN.'; i.value = ''; } }, true);
   function who(){ var u = window._axUser || {}; return u.name || u.email || 'unknown'; }
   function db(){ return MOD ? Promise.resolve(MOD) : import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js').then(function(m){ MOD = m; return m; }); }
 
@@ -23789,6 +23795,28 @@ function strip(R){
     segs.forEach(function(s){ if (hit == null && rx.test(s)) hit = hoursFrom(s.replace(rx, '').replace(/^[a-z]*\s*/i, '')); });
     return hit;
   }
+  function winFrom(s){
+    var m = String(s || '').replace(/noon/i, '12pm').match(/(\d{1,2})(?::(\d\d))?\s*(a\.?m\.?|p\.?m\.?)?\s*(?:-|–|—|to)\s*(\d{1,2})(?::(\d\d))?\s*(a\.?m\.?|p\.?m\.?)?/i);
+    if (!m) return null;
+    function t(h, mi, ap){ h = Number(h); mi = Number(mi || 0); ap = String(ap || '').toLowerCase(); if (/p/.test(ap) && h < 12) h += 12; if (/a/.test(ap) && h === 12) h = 0; return h + mi / 60; }
+    var a = t(m[1], m[2], m[3] || (m[6] && /a/i.test(m[6]) ? 'am' : '')), b = t(m[4], m[5], m[6]);
+    if (!m[6] && !m[3] && b <= a) b += 12; if (b <= a) b += 24;
+    return (b - a) > 0 && (b - a) <= 24 ? { a: a, b: b } : null;
+  }
+  function dayWin(rec, d){
+    if (!rec) return null;
+    var notes = String(rec.notes || ''), sig = (notes.match(/(SIGNED|GUARANTEED|CONTRACT HOURS)[^\n|]*/i) || [''])[0];
+    var srcs = [[sig, 'contract'], [String(rec.hoursWeekday || '') + ' · ' + String(rec.hoursWeekend || ''), 'venue record']], rx = new RegExp('\\b' + d, 'i'), hit = null;
+    srcs.forEach(function(S){ if (hit || !S[0]) return; S[0].split(/·|;|\|/).forEach(function(seg){ if (hit || !rx.test(seg)) return;
+      var w = winFrom(seg.replace(/\b(mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?(\s+\d{1,2}(?![:\d]|\s*[ap]\.?m))?(\s+mar[a-z]*)?/gi, ' ').replace(/\band\b/gi, ' ').replace(/^[^0-9]*/, ''));
+      if (w) hit = { a: w.a, b: w.b, src: S[1] }; }); });
+    if (!hit) { var f = /sat|sun/.test(d) ? rec.hoursWeekend : rec.hoursWeekday; if (f && !/\b(mon|tue|wed|thu|fri|sat|sun)/i.test(f)) { var w2 = winFrom(f); if (w2) hit = { a: w2.a, b: w2.b, src: 'venue record' }; } }
+    return hit;
+  }
+  function toHM(h){ if (h == null) return ''; h = ((h % 24) + 24) % 24; var H = Math.floor(h), M = Math.round((h - H) * 60); if (M === 60) { H = (H + 1) % 24; M = 0; } return String(H).padStart(2, '0') + ':' + String(M).padStart(2, '0'); }
+  function fromHM(s){ var m = String(s || '').match(/^(\d{1,2}):(\d{2})/); return m ? Number(m[1]) + Number(m[2]) / 60 : null; }
+  function t12(h){ if (h == null) return 'N/A'; h = ((h % 24) + 24) % 24; var H = Math.floor(h), M = Math.round((h - H) * 60), ap = H >= 12 ? 'PM' : 'AM'; H = H % 12 || 12; return H + ':' + String(M).padStart(2, '0') + ' ' + ap; }
+  function span(s, e){ var a = fromHM(s), b = fromHM(e); if (a == null || b == null) return 0; if (b <= a) b += 24; return Math.round((b - a) * 4) / 4; }
   function hoursFrom(s){
     var m = String(s || '').replace(/noon/i, '12pm').match(/(\d{1,2})(?::(\d\d))?\s*(a\.?m\.?|p\.?m\.?)?\s*(?:-|–|—|to)\s*(\d{1,2})(?::(\d\d))?\s*(a\.?m\.?|p\.?m\.?)?/i);
     if (!m) return null;
@@ -23804,14 +23832,22 @@ function strip(R){
       var rec = venueRec(v), k = slug(v), inp = (IN && IN[k]) || {}, mo = (MO && MO[k]) || {};
       var wd = rec ? hoursFrom(rec.hoursWeekday) : null, we = rec ? hoursFrom(rec.hoursWeekend) : null;
       function dh(d, f){ var x = rec ? dayHrs(rec, d) : null; return x != null ? x : f; }
-      var dflt = { courts: courtsDefault(rec, sp), hrs: { wed: 0, thu: dh('thu', wd), fri: dh('fri', wd), sat: dh('sat', we), sun: dh('sun', we) } };
+      var win = {}; ['thu','fri','sat','sun'].forEach(function(d){ win[d] = dayWin(rec, d); });
+      function wh(d, f){ return win[d] ? Math.round((win[d].b - win[d].a) * 4) / 4 : dh(d, f); }
+      var dflt = { courts: courtsDefault(rec, sp), hrs: { wed: 0, thu: wh('thu', wd), fri: wh('fri', wd), sat: wh('sat', we), sun: wh('sun', we) } };
       var pp = (window.NAIG && NAIG.venuePeople) ? NAIG.venuePeople(v) : null;
       dflt.athletes = pp && pp.athletes != null ? pp.athletes : null;
       var onSite = pp && pp.coaches != null ? (pp.athletes + pp.coaches + pp.chaperones + pp.volunteers + pp.staff) : null;
       var r = { key: k, name: v, sports: sp, rec: rec, inp: inp, mo: mo, dflt: dflt, pp: pp,
         courts: num(mo.courts) != null ? num(mo.courts) : (num(inp.courts) != null ? num(inp.courts) : dflt.courts),
-        athletes: num(inp.athletes) != null ? num(inp.athletes) : dflt.athletes, hrs: {} };
-      DAYS.forEach(function(d){ var x = inp.hrs ? num(inp.hrs[d[0]]) : null; r.hrs[d[0]] = x != null ? x : dflt.hrs[d[0]]; }); r.hrs.wed = num(mo.setupHrs) || 0;
+        athletes: num(inp.athletes) != null ? num(inp.athletes) : dflt.athletes, hrs: {}, win: win, tm: {} };
+      var nts = String((rec && rec.notes) || ''); r.locked = !!(rec && /SIGNED|GUARANTEED/i.test(nts) && ['thu','fri','sat','sun'].every(function(d){ return win[d] && win[d].src === 'contract'; })); r.loadIn = {};
+      if (r.locked && /thu[^\n]{0,30}(load-in|setup)/i.test(nts)) r.loadIn.thu = 1;
+      DAYS.forEach(function(d){ var dd = d[0], w = win[dd], T0 = inp.times && inp.times[dd], x = inp.hrs ? num(inp.hrs[dd]) : null;
+        if (r.locked && dd !== 'wed') { r.tm[dd] = r.loadIn[dd] ? { s: '', e: '' } : { s: toHM(w.a), e: toHM(w.b) }; r.hrs[dd] = r.loadIn[dd] ? 0 : Math.round((w.b - w.a) * 4) / 4; return; }
+        if (T0) { r.tm[dd] = { s: T0.s || '', e: T0.e || '' }; r.hrs[dd] = span(T0.s, T0.e); }
+        else if (x != null) { r.hrs[dd] = x; r.tm[dd] = x === 0 ? { s: '', e: '' } : (w ? { s: toHM(w.a), e: toHM(w.b) } : { s: '', e: '' }); }
+        else { r.hrs[dd] = dflt.hrs[dd]; r.tm[dd] = w ? { s: toHM(w.a), e: toHM(w.b) } : { s: '', e: '' }; } }); r.hrs.wed = num(mo.setupHrs) || 0;
       r.onSite = (onSite != null && r.athletes != null && dflt.athletes) ? Math.round(onSite * r.athletes / dflt.athletes) : onSite;
       if (!mo.model && rec) { var fee = String(rec.rentalFee || '').match(/\$\s?([\d,]+(?:\.\d+)?)(\s?[kK])?/); if (fee) { r.mo = { model: 'flat', rate: Number(fee[1].replace(/,/g, '')) * (fee[2] ? 1000 : 1), src: 'venue record' }; } }
       out.push(r);
@@ -23846,7 +23882,7 @@ function strip(R){
     var box = document.getElementById('naigCMs');
     if (box && box.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;
     var R = rows(); if (!R.length) return;
-    var sig = JSON.stringify([IN, R.map(function(r){ return [r.key, r.courts, r.athletes, r.hrs, r.onSite]; })]);
+    var $on = unlocked(); var sig = JSON.stringify([IN, $on, $on ? MO : 0, R.map(function(r){ return [r.key, r.courts, r.athletes, r.hrs, r.onSite]; })]);
     if (box) { var fr0 = document.getElementById('naigSportsFrame'); box.classList.add('naig-sf'); if (fr0 && fr0.parentNode === sec && box.nextSibling !== fr0) sec.insertBefore(box, fr0); }
     if (box && sig === lastS) return; lastS = sig;
     var fr = document.getElementById('naigSportsFrame');
@@ -23854,24 +23890,30 @@ function strip(R){
     box.classList.add('naig-sf'); if (fr && fr.parentNode === sec && box.nextSibling !== fr) sec.insertBefore(box, fr); else if (!fr && box.parentNode !== sec) sec.insertBefore(box, sec.firstChild);
     var th = 'padding:6px;font-size:11px;color:#475569;text-align:right;white-space:nowrap;border-bottom:2px solid #e2e8f0';
     var h = '<div style="font-weight:800;font-size:16px;color:#1e3a8a">Courts and hours by site</div>'
-      + '<div style="font-size:12px;color:#64748b;margin:3px 0 10px;line-height:1.5">Sports: enter play hours only (Thu 25 to Sun 28) for each site. Leave a box blank to use the venue record hours (the grey number). Courts come from the venue record and athletes from the slot sheet. Setup hours are handled by Logistics. Changes save as you type and feed the cost matrix on the Budget tab.</div>'
+      + '<div style="font-size:12px;color:#64748b;margin:3px 0 10px;line-height:1.5">Sports: set the play start and end time for each day (Thu 25 to Sun 28). Each box starts at the contract or venue window shown under it; a red box means the time is outside the contract. Clear both times to mark no play that day. Sites with a signed contract (StarCenters) show the contract hours and are locked. Courts come from the venue record and athletes from the slot sheet. Setup hours are handled by Logistics. Changes save as you type and feed the cost matrix on the Budget tab.</div>' + ($on ? '<div style="font-size:11px;color:#854d0e;background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:5px 8px;margin:0 0 8px">Costs shown (PIN entered). Rates are set on the Budget tab; costs update live as hours change here. Leaving the tab locks them again.</div>' : '<form id="cmPinForm" style="display:flex;gap:6px;align-items:center;font-size:12px;color:#475569;margin:0 0 8px"><span>Show costs here:</span><input type="password" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Budget PIN" style="width:110px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px"><button type="submit" style="padding:4px 10px;border:0;border-radius:6px;background:#1e3a8a;color:#fff;cursor:pointer">Show $</button><span class="er" style="color:#b91c1c"></span></form>')
       + '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:860px"><thead><tr>'
       + '<th style="' + th + ';text-align:left">Site</th><th style="' + th + '">Courts / fields</th>';
-    DAYS.slice(1).forEach(function(d){ h += '<th style="' + th + '">' + d[1] + '<br><span style="font-weight:400">play hours</span></th>'; });
-    h += '<th style="' + th + '">Play days</th><th style="' + th + '">Court-hours</th><th style="' + th + '">Athletes</th><th style="' + th + '">Athletes per court</th><th style="' + th + '">Court-hours per athlete</th></tr></thead><tbody>';
-    var T = { C: 0, CH: 0, A: 0, O: 0 };
+    DAYS.slice(1).forEach(function(d){ h += '<th style="' + th + '">' + d[1] + '<br><span style="font-weight:400">play start – end</span></th>'; });
+    h += '<th style="' + th + '">Play days</th><th style="' + th + '">Court-hours</th><th style="' + th + '">Athletes</th><th style="' + th + '">Athletes per court</th><th style="' + th + '">Court-hours per athlete</th>' + ($on ? ['Total cost','Per day','Per court','Per court-hour','Per athlete','+1 hr/day'].map(function(x){ return '<th style="' + th + ';background:#fefce8">' + x + '</th>'; }).join('') : '') + '</tr></thead><tbody>';
+    var T = { C: 0, CH: 0, A: 0, O: 0, $: 0, $na: 0 };
     R.forEach(function(r){
       var r0 = r; r = Object.assign({}, r0, { hrs: Object.assign({}, r0.hrs, { wed: 0 }) }); var c = calc(r); T.C += c.C || 0; T.CH += c.CH || 0; T.A += r.athletes || 0; T.O += r.onSite || 0;
       var split = (r.pp && r.pp.coaches != null && r.athletes != null) ? (r.pp.coaches + ' coaches · ' + r.pp.chaperones + ' chaperones · ' + nf(r.pp.volunteers, 0) + ' volunteers · ' + r.pp.staff + ' staff · ' + nf(r.onSite, 0) + ' on site') : '';
       h += '<tr style="border-top:1px solid #eef2f7"><td style="padding:6px;font-size:12px"><b>' + esc(r.name) + '</b><div style="color:#64748b;font-size:11px">' + esc(r.sports) + (r.rec ? '' : ' · no venue record match') + '</div></td>'
         + '<td style="padding:6px;text-align:right;font-size:12px">' + nf(r.courts, 0) + '</td>';
-      DAYS.slice(1).forEach(function(d){ h += '<td style="padding:6px;text-align:right">' + cell(r, 'hrs.' + d[0], r.inp.hrs ? r.inp.hrs[d[0]] : '', r.dflt.hrs[d[0]], 46) + '</td>'; });
+      DAYS.slice(1).forEach(function(d){ var dd = d[0], tm = r0.tm[dd] || { s: '', e: '' }, w = r0.win[dd], hr = r0.hrs[dd], a = fromHM(tm.s), b = fromHM(tm.e); if (b != null && a != null && b <= a) b += 24;
+        var out = w && a != null && b != null && (a < w.a - 0.01 || b > w.b + 0.01);
+        function ti(p, v){ return '<input type="time" step="900" data-cm="' + esc(r0.key) + '" data-f="times.' + dd + '.' + p + '" value="' + esc(v) + '" style="width:92px;padding:3px 4px;border:1px solid ' + (out ? '#dc2626' : '#cbd5e1') + ';border-radius:6px;font-size:12px">'; }
+        if (r0.locked) { h += '<td style="padding:6px;text-align:center;white-space:nowrap;vertical-align:top;background:#f8fafc">' + (r0.loadIn[dd] ? '<div style="font-size:12px;font-weight:700;color:#475569">Load-in</div><div style="font-size:11px">' + t12(w.a) + '–' + t12(w.b) + '</div><div style="font-size:11px;font-weight:700;margin-top:2px">no play</div>' : '<div style="font-size:12px;font-weight:700">' + t12(w.a) + '</div><div style="font-size:10px;color:#94a3b8;line-height:1">to</div><div style="font-size:12px;font-weight:700">' + t12(w.b) + '</div><div style="font-size:11px;font-weight:700;margin-top:2px">' + nf(hr, 2) + ' h</div>') + '<div style="font-size:10px;color:#166534">Signed contract (locked)</div></td>'; return; }
+        h += '<td style="padding:6px;text-align:center;white-space:nowrap;vertical-align:top">' + ti('s', tm.s) + '<div style="font-size:10px;color:#94a3b8;line-height:1">to</div>' + ti('e', tm.e)
+          + '<div style="font-size:11px;font-weight:700;margin-top:2px">' + (hr ? nf(hr, 2) + ' h' : 'no play') + '</div>'
+          + '<div style="font-size:10px;color:' + (out ? '#dc2626' : '#64748b') + '">' + (w ? (w.src === 'contract' ? 'Contract ' : 'Venue ') + t12(w.a) + '–' + t12(w.b) : 'No contract hours on file') + (out ? '<br><b>Outside contract</b>' : '') + '</div></td>'; });
       h += '<td style="padding:6px;text-align:right;font-size:12px">' + c.days + '</td><td style="padding:6px;text-align:right;font-size:12px"><b>' + nf(c.CH, 1) + '</b>' + (c.missing ? '<div style="color:#b45309;font-size:10px">hours N/A</div>' : '') + '</td>'
         + '<td style="padding:6px;text-align:right;font-size:12px"><b>' + nf(r.athletes, 0) + '</b>' + (split ? '<div style="color:#64748b;font-size:10px;max-width:190px;margin-left:auto">' + esc(split) + '</div>' : '') + '</td>'
         + '<td style="padding:6px;text-align:right;font-size:12px">' + (c.C && r.athletes != null ? nf(r.athletes / c.C, 1) : 'N/A') + '</td>'
-        + '<td style="padding:6px;text-align:right;font-size:12px">' + (c.CH && r.athletes ? nf(c.CH / r.athletes, 2) : 'N/A') + '</td></tr>';
+        + '<td style="padding:6px;text-align:right;font-size:12px">' + (c.CH && r.athletes ? nf(c.CH / r.athletes, 2) : 'N/A') + '</td>' + ($on ? (function(){ var m0 = calc(r0), m1 = calc(r0, 1, 0); if (m0.total != null) T.$ += m0.total; else T.$na++; var tdm = 'padding:6px;text-align:right;font-size:12px;white-space:nowrap;background:#fefce8'; var dd = (m0.total != null && m1.total != null) ? ((m1.total - m0.total >= 0 ? '+' : '−') + m$(Math.abs(m1.total - m0.total))) : 'N/A'; return '<td style="' + tdm + '"><b>' + m$(m0.total) + '</b>' + (r0.mo && r0.mo.model ? '<div style="font-size:10px;color:#64748b">' + esc(({flat:'flat total',courtHour:'per court-hour',courtDay:'per court-day',venueHour:'per venue hour',venueDay:'per venue day'})[r0.mo.model] || '') + (r0.mo.src ? ', check' : '') + '</div>' : '<div style="font-size:10px;color:#b45309">no rate yet</div>') + '</td><td style="' + tdm + '">' + m$(m0.perDay) + '</td><td style="' + tdm + '">' + m$(m0.perCourt) + '</td><td style="' + tdm + '">' + m$(m0.perCourtHour) + '</td><td style="' + tdm + '"><b>' + m$(m0.perAth) + '</b></td><td style="' + tdm + '">' + dd + '</td>'; })() : '') + '</tr>';
     });
-    h += '<tr style="border-top:2px solid #e2e8f0;font-weight:800;font-size:12px"><td style="padding:6px">All sites</td><td style="padding:6px;text-align:right">' + nf(T.C, 0) + '</td><td colspan="5"></td><td style="padding:6px;text-align:right">' + nf(T.CH, 1) + '</td><td style="padding:6px;text-align:right">' + nf(T.A, 0) + '<div style="font-weight:400;color:#64748b;font-size:10px">' + nf(T.O, 0) + ' on site</div></td><td colspan="2"></td></tr>';
+    h += '<tr style="border-top:2px solid #e2e8f0;font-weight:800;font-size:12px"><td style="padding:6px">All sites</td><td style="padding:6px;text-align:right">' + nf(T.C, 0) + '</td><td colspan="5"></td><td style="padding:6px;text-align:right">' + nf(T.CH, 1) + '</td><td style="padding:6px;text-align:right">' + nf(T.A, 0) + '<div style="font-weight:400;color:#64748b;font-size:10px">' + nf(T.O, 0) + ' on site</div></td><td colspan="2"></td>' + ($on ? '<td style="padding:6px;text-align:right;background:#fefce8">' + m$(T.$) + (T.$na ? '<div style="font-weight:400;color:#b45309;font-size:10px">' + T.$na + ' site' + (T.$na > 1 ? 's' : '') + ' N/A</div>' : '') + '</td><td colspan="3" style="background:#fefce8"></td><td style="padding:6px;text-align:right;background:#fefce8">' + (T.A ? m$(T.$ / T.A) : 'N/A') + '</td><td style="background:#fefce8"></td>' : '') + '</tr>';
     h += '</tbody></table></div>';
     var lastBy = ''; if (IN) { var mx = 0; Object.keys(IN).forEach(function(k){ var x = IN[k] || {}; if ((x.at || 0) > mx) { mx = x.at; lastBy = (x.by || '') + ', ' + new Date(x.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } }); }
     if (lastBy) h += '<div style="font-size:11px;color:#64748b;margin-top:6px">Last change: ' + esc(lastBy) + '</div>';
@@ -23880,8 +23922,9 @@ function strip(R){
   document.addEventListener('change', function(e){
     var t = e.target; if (!t || !t.getAttribute || !t.getAttribute('data-cm')) return;
     var k = t.getAttribute('data-cm'), f = t.getAttribute('data-f'), v = t.value === '' ? null : Number(t.value);
-    var path = 'naig2027/costMatrix/inputs/' + k + '/' + f.replace('.', '/');
-    window._dbSet(_dbRef(path), v);
+    if (/^times\./.test(f)) { var dd = f.split('.')[1], q = function(p){ var el = document.querySelector('input[data-cm="' + k + '"][data-f="times.' + dd + '.' + p + '"]'); return el ? el.value : ''; }; v = { s: q('s'), e: q('e') };
+      window._dbSet(_dbRef('naig2027/costMatrix/inputs/' + k + '/times/' + dd), v); window._dbSet(_dbRef('naig2027/costMatrix/inputs/' + k + '/hrs/' + dd), null); v = (v.s || '–') + ' to ' + (v.e || '–'); }
+    else window._dbSet(_dbRef('naig2027/costMatrix/inputs/' + k + '/' + f.split('.').join('/')), v);
     window._dbSet(_dbRef('naig2027/costMatrix/inputs/' + k + '/by'), who());
     window._dbSet(_dbRef('naig2027/costMatrix/inputs/' + k + '/at'), Date.now());
     try { if (typeof logActivity === 'function') logActivity('sports', 'Courts and hours: ' + k + ' ' + f + ' set to ' + (v == null ? 'default' : v), { action: 'update', entityKey: 'costMatrix/' + k, entityName: k, newValue: v == null ? 'default' : v }); } catch(x){}
