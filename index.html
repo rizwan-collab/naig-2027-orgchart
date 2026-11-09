@@ -23852,14 +23852,18 @@ function strip(R){
       if (!mo.model && rec) { var fs = String(rec.rentalFee || ''), pd = fs.match(/\$\s?([\d,.]+)\s?([kK])?\s*\/\s*day/), su = fs.match(/\$\s?([\d,.]+)\s?([kK])?\s*(?:Thu\s+)?setup/i), fee = fs.match(/\$\s?([\d,]+(?:\.\d+)?)(\s?[kK])?/);
         function amt(m){ return Number(String(m[1]).replace(/,/g, '')) * (m[2] ? 1000 : 1); }
         if (/included in combined package/i.test(fs)) r.mo = { pkgOf: 'starcenter-farmers-branch', src: 'StarCenter package' };
-        else if (pd) r.mo = { model: 'venueDay', rate: amt(pd), extras: su ? amt(su) : 0, src: 'from venue record' + (su ? ', incl. setup' : '') };
-        else if (fee) r.mo = { model: 'flat', rate: amt(fee), src: /combined .*package/i.test(fs) ? 'StarCenter package' : 'from venue record' };
+        else if (pd) r.mo = { model: 'venueDay', rate: amt(pd), extras: su ? amt(su) : 0, days: Number((fs.match(/day\s*[×x]\s*(\d+)/i) || [0, 3])[1]), auto: 1, src: 'venue record' + (su ? ', setup fixed' : '') };
+        else if (fee) { var rm = fs.match(/upstairs room\s*\$\s?([\d,]+)/i); r.mo = { model: 'flat', rate: amt(fee), room: rm ? Number(rm[1].replace(/,/g, '')) : 0, auto: 1, src: /combined .*package/i.test(fs) ? 'StarCenter package' : 'venue record' + (rm ? ', room fixed' : '') }; }
         else if (/placeholder|estimate|re-?quote/i.test(fs)) r.mo = { na: /re-?quote/i.test(fs) ? 'awaiting re-quote' : 'placeholder, no rate' }; }
+      r.baseH = 0; ['fri','sat','sun'].forEach(function(d){ r.baseH += win[d] ? (win[d].b - win[d].a) : (dflt.hrs[d] || 0); });
       out.push(r);
     });
     out.forEach(function(r){ if (!(r.mo && r.mo.pkgOf)) return; var p = out.filter(function(x){ return x.key === r.mo.pkgOf; })[0]; if (!p || !p.mo || p.mo.model !== 'flat' || p.mo.src !== 'StarCenter package' || p.mo.split) return;
       var tot = num(p.mo.rate), A = (p.athletes || 0) + (r.athletes || 0); if (tot == null || !A) return;
-      p.mo = Object.assign({}, p.mo, { rate: tot * (p.athletes || 0) / A, split: 1, src: 'package split by athletes' }); r.mo = { model: 'flat', rate: tot * (r.athletes || 0) / A, src: 'package split by athletes' }; });
+      p.mo = Object.assign({}, p.mo, { rate: tot * (p.athletes || 0) / A, split: 1, src: 'package split by athletes' }); r.mo = { model: 'flat', rate: tot * (r.athletes || 0) / A, auto: 1, src: 'package split by athletes' }; });
+    out.forEach(function(r){ var m = r.mo; if (!m || !m.auto || m.conv) return; var C = r.dflt.courts, H = r.baseH, play, ex = 0, contract; if (!C || !H) return;
+      if (m.model === 'flat') { ex = m.room || 0; contract = m.rate; play = m.rate - ex; } else if (m.model === 'venueDay') { ex = m.extras || 0; play = m.rate * (m.days || 3); contract = play + ex; } else return;
+      r.mo = { model: 'courtHour', rate: play / (C * H), extras: ex, contract: contract, conv: 1, auto: 1, src: m.src }; });
     return out;
   }
   function calc(r, dh, dc){
@@ -23920,7 +23924,7 @@ function strip(R){
         h += '<td style="' + cs + '">' + ti('s', tm.s) + ' ' + ti('e', tm.e) + '<div style="font-size:10px;color:' + (out ? '#dc2626' : '#94a3b8') + '">' + (out ? 'Outside contract (' + t12(w.a) + ' – ' + t12(w.b) + ')' : (hr ? nf(hr, 2) + ' h' : 'no play')) + '</div></td>'; });
       h += '<td style="' + td + '"><b>' + nf(c.CH, 1) + '</b></td><td style="' + td + '"><b>' + nf(r0.athletes, 0) + '</b>' + (split ? '<div style="color:#94a3b8;font-size:10px">' + esc(split) + '</div>' : '') + '</td>';
       if ($on) { var m0 = calc(r0), m1 = calc(r0, 1, 0); if (m0.total != null) T.$ += m0.total; else T.$na++;
-        var lbl = r0.mo && r0.mo.model && m0.total != null ? (({flat:'flat',courtHour:'per court-hour',courtDay:'per court-day',venueHour:'per hour',venueDay:'per day'})[r0.mo.model] || '') + (r0.mo.src ? ' · ' + esc(r0.mo.src) : '') : (r0.mo && r0.mo.na ? esc(r0.mo.na) : 'no rate yet');
+        var lbl = r0.mo && r0.mo.model && m0.total != null ? (({flat:'flat',courtHour:'per court-hour',courtDay:'per court-day',venueHour:'per hour',venueDay:'per day'})[r0.mo.model] || '') + (r0.mo.src ? ' · ' + esc(r0.mo.src) : '') + (r0.mo.contract ? ' · contract ' + m$(r0.mo.contract) : '') : (r0.mo && r0.mo.na ? esc(r0.mo.na) : 'no rate yet');
         var dd2 = (m0.total != null && m1.total != null) ? (Math.abs(m1.total - m0.total) < 0.5 ? '<span style="color:#94a3b8">no change</span>' : '+' + m$(m1.total - m0.total)) : '–';
         h += '<td style="' + td + Y + '"><b>' + m$(m0.total) + '</b><div style="font-size:10px;color:#a16207">' + lbl + '</div></td><td style="' + td + Y + '"><b>' + m$(m0.perAth) + '</b></td><td style="' + td + Y + '">' + dd2 + '</td>'; }
       h += '</tr>';
