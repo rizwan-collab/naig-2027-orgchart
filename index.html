@@ -23763,6 +23763,7 @@ function strip(R){
   function num(v){ if (v === '' || v == null) return null; var n = Number(v); return isFinite(n) ? n : null; }
   function fromHM(s){ var m = String(s || '').match(/^(\d{1,2}):(\d{2})/); return m ? Number(m[1]) + Number(m[2]) / 60 : null; }
   function t12(s){ var h = fromHM(s); if (h == null) return ''; var H = Math.floor(h), M = Math.round((h - H) * 60), ap = H >= 12 ? 'PM' : 'AM'; H = H % 12 || 12; return H + ':' + String(M).padStart(2, '0') + ' ' + ap; }
+  function st(s){ var h = fromHM(s); if (h == null) return ''; var H = Math.floor(h), M = Math.round((h - H) * 60), ap = H >= 12 ? 'p' : 'a'; H = H % 12 || 12; return H + (M ? ':' + String(M).padStart(2, '0') : '') + ap; }
   function span(s, e){ var a = fromHM(s), b = fromHM(e); if (a == null || b == null) return 0; if (b <= a) b += 24; return Math.round((b - a) * 4) / 4; }
   function unlocked(){ try { return sessionStorage.getItem('naigBudgetUnlocked') === '1'; } catch(e){ return false; } }
   function who(){ var u = window._axUser || {}; return u.name || u.email || 'unknown'; }
@@ -23824,9 +23825,9 @@ function strip(R){
     var h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px"><div style="font-weight:800;font-size:15px;color:#1e3a8a">Courts and hours by site</div>'
       + ($on ? '<span style="font-size:11px;font-weight:600;color:#92400e;background:#fef3c7;border-radius:999px;padding:3px 10px">Costs on · live</span>'
              : '<form class="cmPinForm" style="display:flex;gap:6px;align-items:center;font-size:12px"><input type="password" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Budget PIN" style="width:100px;padding:4px 8px;border:1px solid #cbd5e1;border-radius:999px;font-size:12px"><button type="submit" style="padding:4px 12px;border:0;border-radius:999px;background:#1e3a8a;color:#fff;font-size:12px;font-weight:600;cursor:pointer">Show costs</button><span class="er" style="color:#b91c1c"></span></form>')
-      + '</div><div style="font-size:11px;color:#64748b;margin:0 0 8px">For each day set the courts or fields in use and the play start and end. Red means outside the contract window. Set courts to 0 or clear the times for no play. StarCenters follow the signed contract.</div>';
+      + '</div><div style="font-size:11px;color:#64748b;margin:0 0 8px">Click any day to change courts or times. Red is outside the contract. StarCenters are fixed by contract.</div>';
     h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="' + th + ';text-align:left">Site / line</th>';
-    DAYS.forEach(function(D){ h += '<th style="' + th + ';text-align:center">' + D[1] + '<div style="font-weight:400">courts × start – end</div></th>'; });
+    DAYS.forEach(function(D){ h += '<th style="' + th + ';text-align:center">' + D[1] + '</th>'; });
     h += '<th style="' + th + '">Court-hours</th>' + ($on ? '<th style="' + th + Y + '">Cost</th><th style="' + th + Y + '">Per court-hour</th><th style="' + th + Y + '">Per athlete</th>' : '') + '</tr></thead><tbody>';
     var T = { CH: 0, cost: 0, na: 0, ath: 0, on: 0 };
     M.forEach(function(S){
@@ -23838,17 +23839,14 @@ function strip(R){
         + ($on ? '<td style="' + td + Y + '"><b>' + (S.na ? 'N/A' : m$(S.cost)) + '</b></td><td style="' + td + Y + '">' + (!S.na && S.CH ? m$(S.cost / S.CH) : '–') + '</td><td style="' + td + Y + '"><b>' + (!S.na && S.ath ? m$(S.cost / S.ath) : '–') + '</b></td>' : '') + '</tr>';
       S.lines.forEach(function(r){
         var L = r.L, R = r.R, unit = L.unit || 'court';
-        h += '<tr style="border-top:1px solid #f1f5f9"><td style="padding:6px 8px 6px 18px;font-size:12px;vertical-align:middle">' + esc(L.label) + '<div style="color:#94a3b8;font-size:10px">' + esc(L.sport || '') + ($on && R ? ' · ' + esc(rateText(R, unit)) : '') + '</div></td>';
+        h += '<tr style="border-top:1px solid #f1f5f9"><td style="padding:6px 8px 6px 18px;font-size:12px;vertical-align:middle">' + esc(L.label) + ($on && R ? '<div style="color:#a16207;font-size:10px">' + esc(rateText(R, unit)) + '</div>' : '') + '</td>';
         DAYS.forEach(function(D){ var d = D[0], v = r.days[d], df = v.def, a = fromHM(v.s), b = fromHM(v.e), da = fromHM(df.s), db2 = fromHM(df.e);
           var out = !L.locked && a != null && b != null && da != null && db2 != null && (a < da - 0.01 || (b < a ? b + 24 : b) > (db2 < da ? db2 + 24 : db2) + 0.01);
           var cs = 'padding:4px 6px;text-align:center;white-space:nowrap;vertical-align:middle';
-          var foot = (v.h && v.c ? nf(v.c, 0) + ' × ' + nf(v.h, 2) + ' h' : 'no play') + ($on && v.cost != null && v.h && v.c ? ' · ' + m$(v.cost) : '');
-          if (L.locked) { h += '<td style="' + cs + '">' + (v.h && v.c ? '<div style="font-size:12px">' + v.c + ' × ' + t12(v.s) + ' – ' + t12(v.e) + '</div>' : '<span style="font-size:11px;color:#94a3b8">' + esc(df.note || 'no play') + '</span>') + '<div style="font-size:10px;color:#94a3b8">' + (v.h && v.c ? foot : '') + '</div></td>'; return; }
-          var bd = out ? '#dc2626' : '#e2e8f0', bg = out ? '#fef2f2' : '#fff';
-          h += '<td style="' + cs + '"><input type="number" min="0" step="1" data-ln="' + esc(r.key) + '" data-d="' + d + '" data-f="c" value="' + v.c + '" title="' + esc(unit) + 's in use (contract ' + (df.c || 0) + ')" style="width:42px;padding:2px 3px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;text-align:right"> '
-            + '<input type="time" step="900" data-ln="' + esc(r.key) + '" data-d="' + d + '" data-f="s" value="' + esc(v.s) + '" style="width:100px;padding:2px 3px;border:1px solid ' + bd + ';border-radius:6px;font-size:12px;background:' + bg + '"> '
-            + '<input type="time" step="900" data-ln="' + esc(r.key) + '" data-d="' + d + '" data-f="e" value="' + esc(v.e) + '" style="width:100px;padding:2px 3px;border:1px solid ' + bd + ';border-radius:6px;font-size:12px;background:' + bg + '">'
-            + '<div style="font-size:10px;color:' + (out ? '#dc2626' : '#94a3b8') + '">' + (out ? 'Outside contract (' + t12(df.s) + ' – ' + t12(df.e) + ') · ' : '') + foot + '</div></td>'; });
+          var foot = (v.h && v.c ? nf(v.h, 2) + ' h' : '') + ($on && v.cost != null && v.h && v.c ? ' · ' + m$(v.cost) : '');
+          if (L.locked) { h += '<td style="' + cs + '">' + (v.h && v.c ? '<div style="font-size:12px">' + v.c + ' × ' + st(v.s) + '–' + st(v.e) + '</div>' : '<span style="font-size:11px;color:#94a3b8">' + esc(df.note ? 'Load-in' : '—') + '</span>') + '<div style="font-size:10px;color:#94a3b8">' + (v.h && v.c ? foot : '') + '</div></td>'; return; }
+          h += '<td class="cmEd" data-ln="' + esc(r.key) + '" data-d="' + d + '" data-c="' + v.c + '" data-s="' + esc(v.s) + '" data-e="' + esc(v.e) + '" data-u="' + esc(unit) + '" style="' + cs + ';cursor:pointer" title="Click to edit' + (df.s ? ' · contract ' + t12(df.s) + ' – ' + t12(df.e) : '') + '">'
+            + (v.h && v.c ? '<div style="font-size:12px;color:' + (out ? '#dc2626' : '#0f172a') + '">' + v.c + ' × ' + st(v.s) + '–' + st(v.e) + '</div><div style="font-size:10px;color:' + (out ? '#dc2626' : '#94a3b8') + '">' + (out ? 'outside contract · ' : '') + foot + '</div>' : '<span style="font-size:12px;color:#cbd5e1">—</span>') + '</td>'; });
         h += '<td style="' + td + '">' + nf(r.CH, 1) + '</td>' + ($on ? '<td style="' + td + Y + '">' + m$(r.cost) + (R && R.fixed ? '<div style="font-size:10px;color:#a16207">incl. ' + esc(R.fixedLabel || 'fixed') + ' ' + m$(R.fixed) + '</div>' : '') + '</td><td style="' + td + Y + '">' + m$(r.perCH) + '</td><td style="' + td + Y + '"></td>' : '') + '</tr>';
       });
     });
@@ -23883,6 +23881,14 @@ function strip(R){
     if ((await pinHash(i.value.trim())) === PH) { try { sessionStorage.setItem('naigBudgetUnlocked', '1'); } catch(x){} i.value = ''; sigS = ''; sigB = ''; tick(); } else { er.textContent = 'Wrong PIN.'; i.value = ''; }
   }, true);
 
+  document.addEventListener('click', function(e){
+    var td = e.target && e.target.closest ? e.target.closest('td.cmEd') : null; if (!td || td.querySelector('input')) return;
+    var k = td.getAttribute('data-ln'), d = td.getAttribute('data-d'), u = td.getAttribute('data-u') || 'court', I = 'border:1px solid #cbd5e1;border-radius:6px;font-size:12px;padding:2px 3px';
+    td.innerHTML = '<input type="number" min="0" step="1" data-ln="' + k + '" data-d="' + d + '" data-f="c" value="' + td.getAttribute('data-c') + '" title="' + u + 's" style="width:40px;text-align:right;' + I + '"> '
+      + '<input type="time" step="900" data-ln="' + k + '" data-d="' + d + '" data-f="s" value="' + td.getAttribute('data-s') + '" style="width:96px;' + I + '"> '
+      + '<input type="time" step="900" data-ln="' + k + '" data-d="' + d + '" data-f="e" value="' + td.getAttribute('data-e') + '" style="width:96px;' + I + '">';
+    td.querySelector('input').focus();
+  }, true);
   function tick(){
     var sec = document.getElementById('sectionSports'); if (sec) render(sec, 'naigCMs', document.getElementById('naigSportsFrame'));
     var bh = document.getElementById('naigBudget2'); if (bh && unlocked()) render(bh, 'naigCMb', null);
