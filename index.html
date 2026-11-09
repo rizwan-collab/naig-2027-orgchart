@@ -23849,9 +23849,17 @@ function strip(R){
         else if (x != null) { r.hrs[dd] = x; r.tm[dd] = x === 0 ? { s: '', e: '' } : (w ? { s: toHM(w.a), e: toHM(w.b) } : { s: '', e: '' }); }
         else { r.hrs[dd] = dflt.hrs[dd]; r.tm[dd] = w ? { s: toHM(w.a), e: toHM(w.b) } : { s: '', e: '' }; } }); r.hrs.wed = num(mo.setupHrs) || 0;
       r.onSite = (onSite != null && r.athletes != null && dflt.athletes) ? Math.round(onSite * r.athletes / dflt.athletes) : onSite;
-      if (!mo.model && rec) { var fee = String(rec.rentalFee || '').match(/\$\s?([\d,]+(?:\.\d+)?)(\s?[kK])?/); if (fee) { r.mo = { model: 'flat', rate: Number(fee[1].replace(/,/g, '')) * (fee[2] ? 1000 : 1), src: 'venue record' }; } }
+      if (!mo.model && rec) { var fs = String(rec.rentalFee || ''), pd = fs.match(/\$\s?([\d,.]+)\s?([kK])?\s*\/\s*day/), su = fs.match(/\$\s?([\d,.]+)\s?([kK])?\s*(?:Thu\s+)?setup/i), fee = fs.match(/\$\s?([\d,]+(?:\.\d+)?)(\s?[kK])?/);
+        function amt(m){ return Number(String(m[1]).replace(/,/g, '')) * (m[2] ? 1000 : 1); }
+        if (/included in combined package/i.test(fs)) r.mo = { pkgOf: 'starcenter-farmers-branch', src: 'StarCenter package' };
+        else if (pd) r.mo = { model: 'venueDay', rate: amt(pd), extras: su ? amt(su) : 0, src: 'from venue record' + (su ? ', incl. setup' : '') };
+        else if (fee) r.mo = { model: 'flat', rate: amt(fee), src: /combined .*package/i.test(fs) ? 'StarCenter package' : 'from venue record' };
+        else if (/placeholder|estimate|re-?quote/i.test(fs)) r.mo = { na: /re-?quote/i.test(fs) ? 'awaiting re-quote' : 'placeholder, no rate' }; }
       out.push(r);
     });
+    out.forEach(function(r){ if (!(r.mo && r.mo.pkgOf)) return; var p = out.filter(function(x){ return x.key === r.mo.pkgOf; })[0]; if (!p || !p.mo || p.mo.model !== 'flat' || p.mo.src !== 'StarCenter package' || p.mo.split) return;
+      var tot = num(p.mo.rate), A = (p.athletes || 0) + (r.athletes || 0); if (tot == null || !A) return;
+      p.mo = Object.assign({}, p.mo, { rate: tot * (p.athletes || 0) / A, split: 1, src: 'package split by athletes' }); r.mo = { model: 'flat', rate: tot * (r.athletes || 0) / A, src: 'package split by athletes' }; });
     return out;
   }
   function calc(r, dh, dc){
@@ -23877,48 +23885,53 @@ function strip(R){
   function cell(r, field, val, dflt, w){
     return '<input data-cm="' + esc(r.key) + '" data-f="' + field + '" type="number" min="0" step="' + (field === 'courts' || field === 'athletes' ? '1' : '0.5') + '" value="' + (val == null ? '' : esc(val)) + '" placeholder="' + (dflt == null ? 'N/A' : esc(dflt)) + '" title="Blank uses ' + (dflt == null ? 'nothing yet (N/A)' : esc(dflt) + ' from the ' + (field === 'athletes' ? 'slot sheet' : 'venue record')) + '" style="width:' + (w || 52) + 'px;padding:4px 5px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;text-align:right">';
   }
-  function paintSports(){
+  function paintSports(force){
     var sec = document.getElementById('sectionSports'); if (!sec || !sec.offsetParent || IN === null) return;
     var box = document.getElementById('naigCMs');
-    if (box && box.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;
+    if (!force && box && box.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;
     var R = rows(); if (!R.length) return;
-    var $on = unlocked(); var sig = JSON.stringify([IN, $on, $on ? MO : 0, R.map(function(r){ return [r.key, r.courts, r.athletes, r.hrs, r.onSite]; })]);
-    if (box) { var fr0 = document.getElementById('naigSportsFrame'); box.classList.add('naig-sf'); if (fr0 && fr0.parentNode === sec && box.nextSibling !== fr0) sec.insertBefore(box, fr0); }
-    if (box && sig === lastS) return; lastS = sig;
+    var $on = unlocked(); var sig = JSON.stringify([IN, $on, $on ? MO : 0, R.map(function(r){ return [r.key, r.courts, r.athletes, r.hrs, r.tm, r.onSite, $on ? r.mo : 0]; })]);
     var fr = document.getElementById('naigSportsFrame');
-    if (!box) { box = document.createElement('div'); box.id = 'naigCMs'; box.style.cssText = 'background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin:0 0 14px;color:#0f172a'; }
+    if (box) { box.classList.add('naig-sf'); if (fr && fr.parentNode === sec && box.nextSibling !== fr) sec.insertBefore(box, fr); }
+    if (box && sig === lastS) return; lastS = sig;
+    if (!box) { box = document.createElement('div'); box.id = 'naigCMs'; box.style.cssText = 'background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin:0 0 14px;color:#0f172a'; }
     box.classList.add('naig-sf'); if (fr && fr.parentNode === sec && box.nextSibling !== fr) sec.insertBefore(box, fr); else if (!fr && box.parentNode !== sec) sec.insertBefore(box, sec.firstChild);
-    var th = 'padding:6px;font-size:11px;color:#475569;text-align:right;white-space:nowrap;border-bottom:2px solid #e2e8f0';
-    var h = '<div style="font-weight:800;font-size:16px;color:#1e3a8a">Courts and hours by site</div>'
-      + '<div style="font-size:12px;color:#64748b;margin:3px 0 10px;line-height:1.5">Sports: set the play start and end time for each day (Thu 25 to Sun 28). Each box starts at the contract or venue window shown under it; a red box means the time is outside the contract. Clear both times to mark no play that day. Sites with a signed contract (StarCenters) show the contract hours and are locked. Courts come from the venue record and athletes from the slot sheet. Setup hours are handled by Logistics. Changes save as you type and feed the cost matrix on the Budget tab.</div>' + ($on ? '<div style="font-size:11px;color:#854d0e;background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:5px 8px;margin:0 0 8px">Costs shown (PIN entered). Rates are set on the Budget tab; costs update live as hours change here. Leaving the tab locks them again.</div>' : '<form id="cmPinForm" style="display:flex;gap:6px;align-items:center;font-size:12px;color:#475569;margin:0 0 8px"><span>Show costs here:</span><input type="password" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Budget PIN" style="width:110px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px"><button type="submit" style="padding:4px 10px;border:0;border-radius:6px;background:#1e3a8a;color:#fff;cursor:pointer">Show $</button><span class="er" style="color:#b91c1c"></span></form>')
-      + '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:860px"><thead><tr>'
-      + '<th style="' + th + ';text-align:left">Site</th><th style="' + th + '">Courts / fields</th>';
-    DAYS.slice(1).forEach(function(d){ h += '<th style="' + th + '">' + d[1] + '<br><span style="font-weight:400">play start – end</span></th>'; });
-    h += '<th style="' + th + '">Play days</th><th style="' + th + '">Court-hours</th><th style="' + th + '">Athletes</th><th style="' + th + '">Athletes per court</th><th style="' + th + '">Court-hours per athlete</th>' + ($on ? ['Total cost','Per day','Per court','Per court-hour','Per athlete','+1 hr/day'].map(function(x){ return '<th style="' + th + ';background:#fefce8">' + x + '</th>'; }).join('') : '') + '</tr></thead><tbody>';
+    var th = 'padding:6px 8px;font-size:11px;font-weight:600;color:#64748b;text-align:right;white-space:nowrap;border-bottom:1px solid #e2e8f0';
+    var td = 'padding:7px 8px;font-size:12px;text-align:right;white-space:nowrap;vertical-align:middle';
+    var Y = ';background:#fffbeb';
+    var h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px"><div style="font-weight:800;font-size:15px;color:#1e3a8a">Courts and hours by site</div>'
+      + ($on ? '<span style="font-size:11px;font-weight:600;color:#92400e;background:#fef3c7;border-radius:999px;padding:3px 10px">Costs on · live</span>'
+             : '<form id="cmPinForm" style="display:flex;gap:6px;align-items:center;font-size:12px"><input type="password" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Budget PIN" style="width:100px;padding:4px 8px;border:1px solid #cbd5e1;border-radius:999px;font-size:12px"><button type="submit" style="padding:4px 12px;border:0;border-radius:999px;background:#1e3a8a;color:#fff;font-size:12px;font-weight:600;cursor:pointer">Show costs</button><span class="er" style="color:#b91c1c"></span></form>')
+      + '</div><div style="font-size:11px;color:#64748b;margin:0 0 8px">Set play start and end for each day. Red means outside the contract. Clear both times for no play. StarCenters follow the signed contract.</div>';
+    h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="' + th + ';text-align:left">Site</th><th style="' + th + '">Courts</th>';
+    DAYS.slice(1).forEach(function(d){ h += '<th style="' + th + ';text-align:center">' + d[1] + '</th>'; });
+    h += '<th style="' + th + '">Court-hours</th><th style="' + th + '">Athletes</th>' + ($on ? '<th style="' + th + Y + '">Total cost</th><th style="' + th + Y + '">Per athlete</th><th style="' + th + Y + '">+1 hr / day</th>' : '') + '</tr></thead><tbody>';
     var T = { C: 0, CH: 0, A: 0, O: 0, $: 0, $na: 0 };
-    R.forEach(function(r){
-      var r0 = r; r = Object.assign({}, r0, { hrs: Object.assign({}, r0.hrs, { wed: 0 }) }); var c = calc(r); T.C += c.C || 0; T.CH += c.CH || 0; T.A += r.athletes || 0; T.O += r.onSite || 0;
-      var split = (r.pp && r.pp.coaches != null && r.athletes != null) ? (r.pp.coaches + ' coaches · ' + r.pp.chaperones + ' chaperones · ' + nf(r.pp.volunteers, 0) + ' volunteers · ' + r.pp.staff + ' staff · ' + nf(r.onSite, 0) + ' on site') : '';
-      h += '<tr style="border-top:1px solid #eef2f7"><td style="padding:6px;font-size:12px"><b>' + esc(r.name) + '</b><div style="color:#64748b;font-size:11px">' + esc(r.sports) + (r.rec ? '' : ' · no venue record match') + '</div></td>'
-        + '<td style="padding:6px;text-align:right;font-size:12px">' + nf(r.courts, 0) + '</td>';
+    R.forEach(function(r0){
+      var r = Object.assign({}, r0, { hrs: Object.assign({}, r0.hrs, { wed: 0 }) }), c = calc(r);
+      T.C += c.C || 0; T.CH += c.CH || 0; T.A += r0.athletes || 0; T.O += r0.onSite || 0;
+      var split = (r0.pp && r0.pp.coaches != null) ? (r0.pp.coaches + ' coaches · ' + r0.pp.chaperones + ' chaperones · ' + nf(r0.pp.volunteers, 0) + ' vol · ' + r0.pp.staff + ' staff · ' + nf(r0.onSite, 0) + ' on site') : '';
+      h += '<tr style="border-top:1px solid #f1f5f9"><td style="padding:7px 8px;font-size:12px;vertical-align:middle"><b>' + esc(r0.name) + '</b>' + (r0.locked ? ' <span style="font-size:10px;font-weight:600;color:#166534;background:#dcfce7;border-radius:999px;padding:1px 7px">Signed contract</span>' : '') + '<div style="color:#94a3b8;font-size:11px">' + esc(r0.sports) + '</div></td>'
+        + '<td style="' + td + '">' + nf(r0.courts, 0) + '</td>';
       DAYS.slice(1).forEach(function(d){ var dd = d[0], tm = r0.tm[dd] || { s: '', e: '' }, w = r0.win[dd], hr = r0.hrs[dd], a = fromHM(tm.s), b = fromHM(tm.e); if (b != null && a != null && b <= a) b += 24;
-        var out = w && a != null && b != null && (a < w.a - 0.01 || b > w.b + 0.01);
-        function ti(p, v){ return '<input type="time" step="900" data-cm="' + esc(r0.key) + '" data-f="times.' + dd + '.' + p + '" value="' + esc(v) + '" style="width:92px;padding:3px 4px;border:1px solid ' + (out ? '#dc2626' : '#cbd5e1') + ';border-radius:6px;font-size:12px">'; }
-        if (r0.locked) { h += '<td style="padding:6px;text-align:center;white-space:nowrap;vertical-align:top;background:#f8fafc">' + (r0.loadIn[dd] ? '<div style="font-size:12px;font-weight:700;color:#475569">Load-in</div><div style="font-size:11px">' + t12(w.a) + '–' + t12(w.b) + '</div><div style="font-size:11px;font-weight:700;margin-top:2px">no play</div>' : '<div style="font-size:12px;font-weight:700">' + t12(w.a) + '</div><div style="font-size:10px;color:#94a3b8;line-height:1">to</div><div style="font-size:12px;font-weight:700">' + t12(w.b) + '</div><div style="font-size:11px;font-weight:700;margin-top:2px">' + nf(hr, 2) + ' h</div>') + '<div style="font-size:10px;color:#166534">Signed contract (locked)</div></td>'; return; }
-        h += '<td style="padding:6px;text-align:center;white-space:nowrap;vertical-align:top">' + ti('s', tm.s) + '<div style="font-size:10px;color:#94a3b8;line-height:1">to</div>' + ti('e', tm.e)
-          + '<div style="font-size:11px;font-weight:700;margin-top:2px">' + (hr ? nf(hr, 2) + ' h' : 'no play') + '</div>'
-          + '<div style="font-size:10px;color:' + (out ? '#dc2626' : '#64748b') + '">' + (w ? (w.src === 'contract' ? 'Contract ' : 'Venue ') + t12(w.a) + '–' + t12(w.b) : 'No contract hours on file') + (out ? '<br><b>Outside contract</b>' : '') + '</div></td>'; });
-      h += '<td style="padding:6px;text-align:right;font-size:12px">' + c.days + '</td><td style="padding:6px;text-align:right;font-size:12px"><b>' + nf(c.CH, 1) + '</b>' + (c.missing ? '<div style="color:#b45309;font-size:10px">hours N/A</div>' : '') + '</td>'
-        + '<td style="padding:6px;text-align:right;font-size:12px"><b>' + nf(r.athletes, 0) + '</b>' + (split ? '<div style="color:#64748b;font-size:10px;max-width:190px;margin-left:auto">' + esc(split) + '</div>' : '') + '</td>'
-        + '<td style="padding:6px;text-align:right;font-size:12px">' + (c.C && r.athletes != null ? nf(r.athletes / c.C, 1) : 'N/A') + '</td>'
-        + '<td style="padding:6px;text-align:right;font-size:12px">' + (c.CH && r.athletes ? nf(c.CH / r.athletes, 2) : 'N/A') + '</td>' + ($on ? (function(){ var m0 = calc(r0), m1 = calc(r0, 1, 0); if (m0.total != null) T.$ += m0.total; else T.$na++; var tdm = 'padding:6px;text-align:right;font-size:12px;white-space:nowrap;background:#fefce8'; var dd = (m0.total != null && m1.total != null) ? ((m1.total - m0.total >= 0 ? '+' : '−') + m$(Math.abs(m1.total - m0.total))) : 'N/A'; return '<td style="' + tdm + '"><b>' + m$(m0.total) + '</b>' + (r0.mo && r0.mo.model ? '<div style="font-size:10px;color:#64748b">' + esc(({flat:'flat total',courtHour:'per court-hour',courtDay:'per court-day',venueHour:'per venue hour',venueDay:'per venue day'})[r0.mo.model] || '') + (r0.mo.src ? ', check' : '') + '</div>' : '<div style="font-size:10px;color:#b45309">no rate yet</div>') + '</td><td style="' + tdm + '">' + m$(m0.perDay) + '</td><td style="' + tdm + '">' + m$(m0.perCourt) + '</td><td style="' + tdm + '">' + m$(m0.perCourtHour) + '</td><td style="' + tdm + '"><b>' + m$(m0.perAth) + '</b></td><td style="' + tdm + '">' + dd + '</td>'; })() : '') + '</tr>';
+        var out = w && a != null && b != null && (a < w.a - 0.01 || b > w.b + 0.01), cs = 'padding:5px 6px;text-align:center;white-space:nowrap;vertical-align:middle';
+        if (r0.locked) { h += '<td style="' + cs + '">' + (r0.loadIn[dd] ? '<span style="font-size:11px;color:#94a3b8">Load-in</span>' : '<div style="font-size:12px">' + t12(w.a) + ' – ' + t12(w.b) + '</div><div style="font-size:10px;color:#94a3b8">' + nf(hr, 2) + ' h</div>') + '</td>'; return; }
+        function ti(p, v){ return '<input type="time" step="900" data-cm="' + esc(r0.key) + '" data-f="times.' + dd + '.' + p + '" value="' + esc(v) + '" title="' + (w ? 'Contract window ' + t12(w.a) + ' – ' + t12(w.b) : 'No contract hours on file') + '" style="width:86px;padding:2px 3px;border:1px solid ' + (out ? '#dc2626' : '#e2e8f0') + ';border-radius:6px;font-size:12px;background:' + (out ? '#fef2f2' : '#fff') + '">'; }
+        h += '<td style="' + cs + '">' + ti('s', tm.s) + ' ' + ti('e', tm.e) + '<div style="font-size:10px;color:' + (out ? '#dc2626' : '#94a3b8') + '">' + (out ? 'Outside contract (' + t12(w.a) + ' – ' + t12(w.b) + ')' : (hr ? nf(hr, 2) + ' h' : 'no play')) + '</div></td>'; });
+      h += '<td style="' + td + '"><b>' + nf(c.CH, 1) + '</b></td><td style="' + td + '"><b>' + nf(r0.athletes, 0) + '</b>' + (split ? '<div style="color:#94a3b8;font-size:10px">' + esc(split) + '</div>' : '') + '</td>';
+      if ($on) { var m0 = calc(r0), m1 = calc(r0, 1, 0); if (m0.total != null) T.$ += m0.total; else T.$na++;
+        var lbl = r0.mo && r0.mo.model && m0.total != null ? (({flat:'flat',courtHour:'per court-hour',courtDay:'per court-day',venueHour:'per hour',venueDay:'per day'})[r0.mo.model] || '') + (r0.mo.src ? ' · ' + esc(r0.mo.src) : '') : (r0.mo && r0.mo.na ? esc(r0.mo.na) : 'no rate yet');
+        var dd2 = (m0.total != null && m1.total != null) ? (Math.abs(m1.total - m0.total) < 0.5 ? '<span style="color:#94a3b8">no change</span>' : '+' + m$(m1.total - m0.total)) : '–';
+        h += '<td style="' + td + Y + '"><b>' + m$(m0.total) + '</b><div style="font-size:10px;color:#a16207">' + lbl + '</div></td><td style="' + td + Y + '"><b>' + m$(m0.perAth) + '</b></td><td style="' + td + Y + '">' + dd2 + '</td>'; }
+      h += '</tr>';
     });
-    h += '<tr style="border-top:2px solid #e2e8f0;font-weight:800;font-size:12px"><td style="padding:6px">All sites</td><td style="padding:6px;text-align:right">' + nf(T.C, 0) + '</td><td colspan="5"></td><td style="padding:6px;text-align:right">' + nf(T.CH, 1) + '</td><td style="padding:6px;text-align:right">' + nf(T.A, 0) + '<div style="font-weight:400;color:#64748b;font-size:10px">' + nf(T.O, 0) + ' on site</div></td><td colspan="2"></td>' + ($on ? '<td style="padding:6px;text-align:right;background:#fefce8">' + m$(T.$) + (T.$na ? '<div style="font-weight:400;color:#b45309;font-size:10px">' + T.$na + ' site' + (T.$na > 1 ? 's' : '') + ' N/A</div>' : '') + '</td><td colspan="3" style="background:#fefce8"></td><td style="padding:6px;text-align:right;background:#fefce8">' + (T.A ? m$(T.$ / T.A) : 'N/A') + '</td><td style="background:#fefce8"></td>' : '') + '</tr>';
-    h += '</tbody></table></div>';
+    h += '<tr style="border-top:2px solid #e2e8f0;font-weight:800;font-size:12px"><td style="padding:7px 8px">All sites</td><td style="' + td + '">' + nf(T.C, 0) + '</td><td colspan="4"></td><td style="' + td + '">' + nf(T.CH, 1) + '</td><td style="' + td + '">' + nf(T.A, 0) + '<div style="font-weight:400;color:#94a3b8;font-size:10px">' + nf(T.O, 0) + ' on site</div></td>'
+      + ($on ? '<td style="' + td + Y + '">' + m$(T.$) + (T.$na ? '<div style="font-weight:400;color:#a16207;font-size:10px">+ ' + T.$na + ' site' + (T.$na > 1 ? 's' : '') + ' without a rate</div>' : '') + '</td><td style="' + td + Y + '">' + (T.A ? m$(T.$ / T.A) : '–') + '</td><td style="' + td + Y + '"></td>' : '') + '</tr></tbody></table></div>';
     var lastBy = ''; if (IN) { var mx = 0; Object.keys(IN).forEach(function(k){ var x = IN[k] || {}; if ((x.at || 0) > mx) { mx = x.at; lastBy = (x.by || '') + ', ' + new Date(x.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } }); }
-    if (lastBy) h += '<div style="font-size:11px;color:#64748b;margin-top:6px">Last change: ' + esc(lastBy) + '</div>';
+    if (lastBy) h += '<div style="font-size:10px;color:#94a3b8;margin-top:6px">Last change: ' + esc(lastBy) + (($on) ? ' · Rates are set on the Budget tab' : '') + '</div>';
     box.innerHTML = h;
   }
+  document.addEventListener('focusout', function(e){ var t = e.target; if (t && t.getAttribute && t.getAttribute('data-cm')) setTimeout(function(){ var a = document.activeElement; if (!(a && a.getAttribute && a.getAttribute('data-cm'))) { lastS = ''; paintSports(); } }, 60); }, true);
   document.addEventListener('change', function(e){
     var t = e.target; if (!t || !t.getAttribute || !t.getAttribute('data-cm')) return;
     var k = t.getAttribute('data-cm'), f = t.getAttribute('data-f'), v = t.value === '' ? null : Number(t.value);
