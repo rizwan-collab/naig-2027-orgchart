@@ -23781,7 +23781,13 @@ function strip(R){
     if (/tennis/.test(sp) && firstInt(rec.courtsTennis)) return firstInt(rec.courtsTennis);
     if (/pickle/.test(sp) && firstInt(rec.courtsPickleball)) return firstInt(rec.courtsPickleball);
     var fc = String(rec.fieldCount || ''), m = fc.match(/(\d+)\s*(courts?|fields?|pitch|grounds?)/i);
-    return m ? Number(m[1]) : firstInt(fc);
+    if (m) return Number(m[1]); if (firstInt(fc)) return firstInt(fc);
+    var cp = String(rec.capacity || ''), m2 = cp.match(/(\d+)\s*(?:indoor\s+|outdoor\s+)?(basketball|volleyball|courts?|fields?)/i); return m2 ? Number(m2[1]) : null;
+  }
+  function dayHrs(rec, d){
+    var segs = (String(rec.hoursWeekday || '') + ' · ' + String(rec.hoursWeekend || '')).split(/·|;|\|/), rx = new RegExp('\\b' + d, 'i'), hit = null;
+    segs.forEach(function(s){ if (hit == null && rx.test(s)) hit = hoursFrom(s.replace(rx, '').replace(/^[a-z]*\s*/i, '')); });
+    return hit;
   }
   function hoursFrom(s){
     var m = String(s || '').replace(/noon/i, '12pm').match(/(\d{1,2})(?::(\d\d))?\s*(a\.?m\.?|p\.?m\.?)?\s*(?:-|–|—|to)\s*(\d{1,2})(?::(\d\d))?\s*(a\.?m\.?|p\.?m\.?)?/i);
@@ -23797,7 +23803,8 @@ function strip(R){
       var o = BV[v] || {}, sp = Object.keys(o.sports || {}).map(function(s){ return String(s).split(' - ')[0]; }).filter(function(s, i, a){ return a.indexOf(s) === i; }).join(', ');
       var rec = venueRec(v), k = slug(v), inp = (IN && IN[k]) || {}, mo = (MO && MO[k]) || {};
       var wd = rec ? hoursFrom(rec.hoursWeekday) : null, we = rec ? hoursFrom(rec.hoursWeekend) : null;
-      var dflt = { courts: courtsDefault(rec, sp), hrs: { wed: 0, thu: wd, fri: wd, sat: we, sun: we } };
+      function dh(d, f){ var x = rec ? dayHrs(rec, d) : null; return x != null ? x : f; }
+      var dflt = { courts: courtsDefault(rec, sp), hrs: { wed: 0, thu: dh('thu', wd), fri: dh('fri', wd), sat: dh('sat', we), sun: dh('sun', we) } };
       var pp = (window.NAIG && NAIG.venuePeople) ? NAIG.venuePeople(v) : null;
       dflt.athletes = pp && pp.athletes != null ? pp.athletes : null;
       var onSite = pp && pp.coaches != null ? (pp.athletes + pp.coaches + pp.chaperones + pp.volunteers + pp.staff) : null;
