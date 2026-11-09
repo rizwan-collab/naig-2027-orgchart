@@ -23702,18 +23702,19 @@ function strip(R){
     var box = document.getElementById('naigPW');
     if (box && sig === lastSig && !force) return; lastSig = sig;
     if (!box) { box = document.createElement('div'); box.id = 'naigPW'; box.style.cssText = 'background:#fff;border:1px solid #e0e8f0;border-radius:10px;padding:16px;margin-bottom:16px'; grid.parentNode.insertBefore(box, grid); }
-    var changes = c.done.length + c.moved.length + c.noted.length + c.added.length;
+    var changes = c.done.length + c.moved.length + c.noted.length + c.added.length, open = false; try { open = localStorage.getItem('naigPWOpen') === '1'; } catch(e){}
+    box.style.padding = open ? '16px' : '10px 16px';
     var h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'
       + '<strong style="font-size:13px;color:#0B3D91">Progress Watch</strong>'
       + '<span style="font-size:11px;color:#777">Last reviewed: ' + esc(fmt(c.last)) + '</span>'
-      + '<button onclick="window.__naigPWReview()" style="font-size:11px;padding:4px 10px;border:1px solid #0B3D91;background:#0B3D91;color:#fff;border-radius:6px;cursor:pointer">Mark reviewed</button></div>';
+      + '<span style="display:flex;gap:6px">' + (c.hasSnap && changes ? '<button onclick="window.__naigPWToggle()" style="font-size:11px;padding:4px 10px;border:1px solid #cbd5e1;background:#fff;color:#0B3D91;border-radius:6px;cursor:pointer">' + (open ? 'Hide' : 'Show') + ' changes</button>' : '') + '<button onclick="window.__naigPWReview()" style="font-size:11px;padding:4px 10px;border:1px solid #0B3D91;background:#0B3D91;color:#fff;border-radius:6px;cursor:pointer">Mark reviewed</button></span></div>';
+    if (!open) { var bits = []; if (c.done.length) bits.push('<b style="color:#1a7f37">' + c.done.length + '</b> completed'); if (c.moved.length) bits.push('<b>' + c.moved.length + '</b> status changes'); if (c.noted.length) bits.push('<b>' + c.noted.length + '</b> notes updated'); if (c.added.length) bits.push('<b>' + c.added.length + '</b> new'); h = h.replace('<strong style="font-size:13px;color:#0B3D91">Progress Watch</strong>', '<span style="font-size:13px"><strong style="color:#0B3D91">Since your last review</strong> <span style="color:#475569;margin-left:6px">' + (!c.hasSnap ? 'no baseline yet' : (bits.length ? bits.join(' · ') : 'no team changes')) + '</span></span>'); box.innerHTML = h; return; }
     if (!c.hasSnap) h += '<div style="font-size:12px;color:#555;margin-top:8px">No baseline yet. Click Mark reviewed to start tracking team changes from now.</div>';
     else if (!changes) h += '<div style="font-size:12px;color:#555;margin-top:8px">No team changes since your last review.</div>';
     h += section('Completed', '#1a7f37', c.done, function(r){ return 'Was ' + esc(stLabel(r.from)) + (r.who ? ' · by ' + esc(r.who) : ''); });
     h += section('Status changed', '#0B3D91', c.moved, function(r){ return esc(stLabel(r.from)) + ' → ' + esc(stLabel(r.t.status)) + (r.who ? ' · by ' + esc(r.who) : ''); });
     h += section('Notes or details updated', '#555', c.noted, function(r){ return r.who ? 'By ' + esc(r.who) : ''; });
     h += section('New tasks', '#6b4fbb', c.added, null);
-    h += section('Needs your direction', '#BF1B2A', c.direction, function(r){ return esc(r.why); }, 10);
     var V = Object.keys(c.verticals).filter(function(k){ return c.verticals[k].total >= 3; }).sort(function(a,b){ var A = c.verticals[a], B = c.verticals[b]; return (A.done/A.total) - (B.done/B.total); });
     if (V.length) {
       h += '<div style="margin-top:14px"><div style="font-size:12px;font-weight:700;color:#333">Progress by vertical (live from task status)</div>';
@@ -23739,6 +23740,7 @@ function strip(R){
     window._dbSet(_dbRef('naig2027/progressWatch/lastReview'), now);
     pw = pw || {}; pw.snapshot = snap; pw.lastReview = now; lastSig = ''; render(true);
   };
+  window.__naigPWToggle = function(){ try { localStorage.setItem('naigPWOpen', localStorage.getItem('naigPWOpen') === '1' ? '0' : '1'); } catch(e){} lastSig = ''; render(true); };
   window.__naigPWCompute = compute;
   setInterval(function(){ try { render(false); } catch (e) {} }, 2000);
 })();
