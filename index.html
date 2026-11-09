@@ -23847,8 +23847,11 @@ function strip(R){
     if (box && box.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;
     var R = rows(); if (!R.length) return;
     var sig = JSON.stringify([IN, R.map(function(r){ return [r.key, r.courts, r.athletes, r.hrs, r.onSite]; })]);
+    if (box) { var fr0 = document.getElementById('naigSportsFrame'); box.classList.add('naig-sf'); if (fr0 && fr0.parentNode === sec && box.nextSibling !== fr0) sec.insertBefore(box, fr0); }
     if (box && sig === lastS) return; lastS = sig;
-    if (!box) { box = document.createElement('div'); box.id = 'naigCMs'; box.style.cssText = 'background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin:0 0 14px;color:#0f172a'; sec.insertBefore(box, sec.firstChild); }
+    var fr = document.getElementById('naigSportsFrame');
+    if (!box) { box = document.createElement('div'); box.id = 'naigCMs'; box.style.cssText = 'background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin:0 0 14px;color:#0f172a'; }
+    box.classList.add('naig-sf'); if (fr && fr.parentNode === sec && box.nextSibling !== fr) sec.insertBefore(box, fr); else if (!fr && box.parentNode !== sec) sec.insertBefore(box, sec.firstChild);
     var th = 'padding:6px;font-size:11px;color:#475569;text-align:right;white-space:nowrap;border-bottom:2px solid #e2e8f0';
     var h = '<div style="font-weight:800;font-size:16px;color:#1e3a8a">Courts and hours by site</div>'
       + '<div style="font-size:12px;color:#64748b;margin:3px 0 10px;line-height:1.5">Sports: enter play hours only (Thu 25 to Sun 28) for each site. Leave a box blank to use the venue record hours (the grey number). Courts come from the venue record and athletes from the slot sheet. Setup hours are handled by Logistics. Changes save as you type and feed the cost matrix on the Budget tab.</div>'
@@ -23896,14 +23899,14 @@ function strip(R){
     if (!box || box.parentNode !== host) { if (box) box.remove(); box = document.createElement('div'); box.id = 'naigCMb'; box.style.cssText = 'background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin:0 0 14px;color:#0f172a'; var after = document.getElementById('naigStartScen'); host.insertBefore(box, after && after.parentNode === host ? after.nextSibling : host.firstChild); }
     var th = 'padding:6px;font-size:11px;color:#475569;text-align:right;white-space:nowrap;border-bottom:2px solid #e2e8f0';
     var h = '<div style="font-weight:800;font-size:16px;color:#1e3a8a">Site cost matrix: per court, per day, per athlete</div>'
-      + '<div style="font-size:12px;color:#64748b;margin:3px 0 10px;line-height:1.5">Play hours come live from the Sports tab (blank there = venue record hours); athletes from the slot sheet. Courts default to the venue record and can be overridden here; add setup hours on Wed 24 where the venue charges for setup. Pick how each site charges and enter the rate. A flat total does not change with hours or courts unless the contract changes; per-hour and per-court rates do. Rates read from a venue record are marked; check them against the contract.</div>';
+      + '<div style="font-size:12px;color:#64748b;margin:3px 0 10px;line-height:1.5">Play hours come live from the Sports tab (blank there = venue record hours); athletes from the slot sheet. Courts default to the venue record and can be overridden here; add setup hours (Wed 24, or Thu 25 load-in at the StarCenters) where the venue charges for setup. Pick how each site charges and enter the rate. A flat total does not change with hours or courts unless the contract changes; per-hour and per-court rates do. Rates read from a venue record are marked; check them against the contract.</div>';
     h += '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;margin-bottom:10px"><b>What if</b>'
       + '<label>Hours per play day <input id="cmWIh" type="number" step="0.5" value="' + WI.dh + '" style="width:60px;padding:3px 5px;border:1px solid #cbd5e1;border-radius:6px"></label>'
       + '<label>Courts <input id="cmWIc" type="number" step="1" value="' + WI.dc + '" style="width:60px;padding:3px 5px;border:1px solid #cbd5e1;border-radius:6px"></label>'
       + '<label>Apply to <select id="cmWIo" style="padding:3px 5px;border:1px solid #cbd5e1;border-radius:6px"><option value="">All sites</option>' + R.map(function(r){ return '<option value="' + esc(r.key) + '"' + (WI.only === r.key ? ' selected' : '') + '>' + esc(r.name) + '</option>'; }).join('') + '</select></label>'
       + '<button id="cmWIr" type="button" style="padding:3px 10px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;cursor:pointer">Reset</button></div>';
     h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:1180px"><thead><tr>'
-      + ['Site','How it charges','Rate','Crew $/hr','Extras','Courts','Setup h (Wed)','Courts × hours','Total','Per day','Per court','Per court-day','Per court-hour','Per athlete','Per person on site','+1 hr/day','+1 court'].map(function(x, i){ return '<th style="' + th + (i < 2 ? ';text-align:left' : '') + '">' + x + '</th>'; }).join('') + '</tr></thead><tbody>';
+      + ['Site','How it charges','Rate','Crew $/hr','Extras','Courts','Setup hours','Courts × hours','Total','Per day','Per court','Per court-day','Per court-hour','Per athlete','Per person on site','+1 hr/day','+1 court'].map(function(x, i){ return '<th style="' + th + (i < 2 ? ';text-align:left' : '') + '">' + x + '</th>'; }).join('') + '</tr></thead><tbody>';
     var T = { now: 0, wi: 0, ath: 0, ons: 0, na: 0 }, wiOn = WI.dh || WI.dc;
     R.forEach(function(r){
       var c = calc(r), w = (!WI.only || WI.only === r.key) ? calc(r, WI.dh, WI.dc) : c, p1h = calc(r, 1, 0), p1c = calc(r, 0, 1), m = r.mo || {};
