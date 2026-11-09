@@ -23743,5 +23743,268 @@ function strip(R){
   setInterval(function(){ try { render(false); } catch (e) {} }, 2000);
 })();
 </script>
+<script>
+/* __naigCM: Site cost matrix (v143, 8 Nov 2026, Rizwan: "per court, per day and per athlete ... if hours change
+   what impact ... a full matrix where sports can enter and it does a live matrix").
+   Rows = venues in the slot sheet (NAIG.byVenue), the single source of truth.
+   - Sports tab: courts, hours per day (Wed-Sun) and athletes per site. No money. Saved at naig2027/costMatrix/inputs.
+     Blank = default from the venue record (courts, hours) and the slot sheet (athletes).
+   - Budget tab (behind the PIN): rate model + rate + crew $/hr + extras per site, saved at naig2027/budget/costMatrix.
+     Live outputs: total, per day, per court, per court-day, per court-hour, per athlete, per person on site,
+     plus +1 hour/day and +1 court impact and a what-if bar for hours and courts. */
+(function(){
+  'use strict';
+  if (window.__naigCM) return; window.__naigCM = 1;
+  var DAYS = [['wed','Wed 24'],['thu','Thu 25'],['fri','Fri 26'],['sat','Sat 27'],['sun','Sun 28']];
+  var MODELS = [['flat','Flat total (whole window)'],['courtHour','Per court per hour'],['courtDay','Per court per day'],['venueHour','Per venue hour'],['venueDay','Per venue day']];
+  var IN = null, MO = null, MOD = null, lastS = '', lastB = '', WI = { dh: 0, dc: 0, only: '' };
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function slug(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'site'; }
+  function num(v){ if (v === '' || v == null) return null; var n = Number(String(v).replace(/[^0-9.\-]/g, '')); return isFinite(n) ? n : null; }
+  function nf(n, d){ return n == null || !isFinite(n) ? 'N/A' : Number(n).toLocaleString('en-US', { maximumFractionDigits: d == null ? 1 : d }); }
+  function money(n){ return n == null || !isFinite(n) ? 'N/A' : '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: Math.abs(n) < 100 ? 2 : 0 }); }
+  function unlocked(){ try { return sessionStorage.getItem('naigBudgetUnlocked') === '1'; } catch(e){ return false; } }
+  function who(){ var u = window._axUser || {}; return u.name || u.email || 'unknown'; }
+  function db(){ return MOD ? Promise.resolve(MOD) : import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js').then(function(m){ MOD = m; return m; }); }
+
+  /* ---------- defaults from the venue record and slot sheet ---------- */
+  function key(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+  function venueRec(name){
+    var V = window._venuesData || {}, k = key(name), hit = null;
+    Object.keys(V).forEach(function(id){ var v = V[id]; if (!v || hit) return; var nk = key(v.name); if (nk && (nk === k)) hit = v; });
+    if (!hit) Object.keys(V).forEach(function(id){ var v = V[id]; if (!v || hit) return; if (/dropped|closed|cancel|not available|not selected|declined/i.test(v.status || '')) return; var nk = key(v.name); if (nk && k && (nk.indexOf(k) >= 0 || k.indexOf(nk) >= 0)) hit = v; });
+    return hit;
+  }
+  function firstInt(s){ var m = String(s || '').match(/\d+/); return m ? Number(m[0]) : null; }
+  function courtsDefault(rec, sports){
+    if (!rec) return null; var sp = String(sports || '').toLowerCase();
+    if (/tennis/.test(sp) && firstInt(rec.courtsTennis)) return firstInt(rec.courtsTennis);
+    if (/pickle/.test(sp) && firstInt(rec.courtsPickleball)) return firstInt(rec.courtsPickleball);
+    var fc = String(rec.fieldCount || ''), m = fc.match(/(\d+)\s*(courts?|fields?|pitch|grounds?)/i);
+    return m ? Number(m[1]) : firstInt(fc);
+  }
+  function hoursFrom(s){
+    var m = String(s || '').replace(/noon/i, '12pm').match(/(\d{1,2})(?::(\d\d))?\s*(a\.?m\.?|p\.?m\.?)?\s*(?:-|–|—|to)\s*(\d{1,2})(?::(\d\d))?\s*(a\.?m\.?|p\.?m\.?)?/i);
+    if (!m) return null;
+    function t(h, mi, ap){ h = Number(h); mi = Number(mi || 0); ap = String(ap || '').toLowerCase(); if (/p/.test(ap) && h < 12) h += 12; if (/a/.test(ap) && h === 12) h = 0; return h + mi / 60; }
+    var a = t(m[1], m[2], m[3] || (m[6] && /a/i.test(m[6]) ? 'am' : '')), b = t(m[4], m[5], m[6]);
+    if (!m[6] && !m[3] && b <= a) b += 12; if (b <= a) b += 24;
+    var h = Math.round((b - a) * 4) / 4; return h > 0 && h <= 24 ? h : null;
+  }
+  function rows(){
+    var BV = (window.NAIG && NAIG.byVenue) ? (NAIG.byVenue() || {}) : {}, out = [];
+    Object.keys(BV).filter(function(n){ return n && n !== 'TBD'; }).sort().forEach(function(v){
+      var o = BV[v] || {}, sp = Object.keys(o.sports || {}).map(function(s){ return String(s).split(' - ')[0]; }).filter(function(s, i, a){ return a.indexOf(s) === i; }).join(', ');
+      var rec = venueRec(v), k = slug(v), inp = (IN && IN[k]) || {}, mo = (MO && MO[k]) || {};
+      var wd = rec ? hoursFrom(rec.hoursWeekday) : null, we = rec ? hoursFrom(rec.hoursWeekend) : null;
+      var dflt = { courts: courtsDefault(rec, sp), hrs: { wed: 0, thu: wd, fri: wd, sat: we, sun: we } };
+      var pp = (window.NAIG && NAIG.venuePeople) ? NAIG.venuePeople(v) : null;
+      dflt.athletes = pp && pp.athletes != null ? pp.athletes : null;
+      var onSite = pp && pp.coaches != null ? (pp.athletes + pp.coaches + pp.chaperones + pp.volunteers + pp.staff) : null;
+      var r = { key: k, name: v, sports: sp, rec: rec, inp: inp, mo: mo, dflt: dflt, pp: pp,
+        courts: num(mo.courts) != null ? num(mo.courts) : (num(inp.courts) != null ? num(inp.courts) : dflt.courts),
+        athletes: num(inp.athletes) != null ? num(inp.athletes) : dflt.athletes, hrs: {} };
+      DAYS.forEach(function(d){ var x = inp.hrs ? num(inp.hrs[d[0]]) : null; r.hrs[d[0]] = x != null ? x : dflt.hrs[d[0]]; }); r.hrs.wed = num(mo.setupHrs) || 0;
+      r.onSite = (onSite != null && r.athletes != null && dflt.athletes) ? Math.round(onSite * r.athletes / dflt.athletes) : onSite;
+      if (!mo.model && rec) { var fee = String(rec.rentalFee || '').match(/\$\s?([\d,]+(?:\.\d+)?)(\s?[kK])?/); if (fee) { r.mo = { model: 'flat', rate: Number(fee[1].replace(/,/g, '')) * (fee[2] ? 1000 : 1), src: 'venue record' }; } }
+      out.push(r);
+    });
+    return out;
+  }
+  function calc(r, dh, dc){
+    dh = dh || 0; dc = dc || 0;
+    var days = 0, H = 0, missing = false;
+    DAYS.forEach(function(d){ var h = r.hrs[d[0]]; if (h == null) { if (d[0] !== 'wed') missing = true; return; } if (h > 0) { days++; H += Math.max(0, h + dh); } });
+    var C = r.courts == null ? null : Math.max(0, r.courts + dc), CH = C == null ? null : C * H, CD = C == null ? null : C * days;
+    var m = r.mo || {}, rate = num(m.rate), crew = num(m.crewRate) || 0, extras = num(m.extras) || 0, base = null;
+    if (rate != null) {
+      if (m.model === 'courtHour') base = CH == null ? null : rate * CH;
+      else if (m.model === 'courtDay') base = CD == null ? null : rate * CD;
+      else if (m.model === 'venueHour') base = rate * H;
+      else if (m.model === 'venueDay') base = rate * days;
+      else base = rate;
+    }
+    var total = base == null ? null : base + crew * H + extras;
+    function per(d){ return total == null || !d ? null : total / d; }
+    return { days: days, H: H, C: C, CH: CH, CD: CD, total: total, missing: missing,
+      perDay: per(days), perCourt: per(C), perCourtDay: per(CD), perCourtHour: per(CH), perAth: per(r.athletes), perPerson: per(r.onSite) };
+  }
+
+  /* ---------- Sports tab: inputs, no money ---------- */
+  function cell(r, field, val, dflt, w){
+    return '<input data-cm="' + esc(r.key) + '" data-f="' + field + '" type="number" min="0" step="' + (field === 'courts' || field === 'athletes' ? '1' : '0.5') + '" value="' + (val == null ? '' : esc(val)) + '" placeholder="' + (dflt == null ? 'N/A' : esc(dflt)) + '" title="Blank uses ' + (dflt == null ? 'nothing yet (N/A)' : esc(dflt) + ' from the ' + (field === 'athletes' ? 'slot sheet' : 'venue record')) + '" style="width:' + (w || 52) + 'px;padding:4px 5px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;text-align:right">';
+  }
+  function paintSports(){
+    var sec = document.getElementById('sectionSports'); if (!sec || !sec.offsetParent || IN === null) return;
+    var box = document.getElementById('naigCMs');
+    if (box && box.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;
+    var R = rows(); if (!R.length) return;
+    var sig = JSON.stringify([IN, R.map(function(r){ return [r.key, r.courts, r.athletes, r.hrs, r.onSite]; })]);
+    if (box && sig === lastS) return; lastS = sig;
+    if (!box) { box = document.createElement('div'); box.id = 'naigCMs'; box.style.cssText = 'background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin:0 0 14px;color:#0f172a'; sec.insertBefore(box, sec.firstChild); }
+    var th = 'padding:6px;font-size:11px;color:#475569;text-align:right;white-space:nowrap;border-bottom:2px solid #e2e8f0';
+    var h = '<div style="font-weight:800;font-size:16px;color:#1e3a8a">Courts and hours by site</div>'
+      + '<div style="font-size:12px;color:#64748b;margin:3px 0 10px;line-height:1.5">Sports: enter play hours only (Thu 25 to Sun 28) for each site. Leave a box blank to use the venue record hours (the grey number). Courts come from the venue record and athletes from the slot sheet. Setup hours are handled by Logistics. Changes save as you type and feed the cost matrix on the Budget tab.</div>'
+      + '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:860px"><thead><tr>'
+      + '<th style="' + th + ';text-align:left">Site</th><th style="' + th + '">Courts / fields</th>';
+    DAYS.slice(1).forEach(function(d){ h += '<th style="' + th + '">' + d[1] + '<br><span style="font-weight:400">play hours</span></th>'; });
+    h += '<th style="' + th + '">Play days</th><th style="' + th + '">Court-hours</th><th style="' + th + '">Athletes</th><th style="' + th + '">Athletes per court</th><th style="' + th + '">Court-hours per athlete</th></tr></thead><tbody>';
+    var T = { C: 0, CH: 0, A: 0, O: 0 };
+    R.forEach(function(r){
+      var r0 = r; r = Object.assign({}, r0, { hrs: Object.assign({}, r0.hrs, { wed: 0 }) }); var c = calc(r); T.C += c.C || 0; T.CH += c.CH || 0; T.A += r.athletes || 0; T.O += r.onSite || 0;
+      var split = (r.pp && r.pp.coaches != null && r.athletes != null) ? (r.pp.coaches + ' coaches · ' + r.pp.chaperones + ' chaperones · ' + nf(r.pp.volunteers, 0) + ' volunteers · ' + r.pp.staff + ' staff · ' + nf(r.onSite, 0) + ' on site') : '';
+      h += '<tr style="border-top:1px solid #eef2f7"><td style="padding:6px;font-size:12px"><b>' + esc(r.name) + '</b><div style="color:#64748b;font-size:11px">' + esc(r.sports) + (r.rec ? '' : ' · no venue record match') + '</div></td>'
+        + '<td style="padding:6px;text-align:right;font-size:12px">' + nf(r.courts, 0) + '</td>';
+      DAYS.slice(1).forEach(function(d){ h += '<td style="padding:6px;text-align:right">' + cell(r, 'hrs.' + d[0], r.inp.hrs ? r.inp.hrs[d[0]] : '', r.dflt.hrs[d[0]], 46) + '</td>'; });
+      h += '<td style="padding:6px;text-align:right;font-size:12px">' + c.days + '</td><td style="padding:6px;text-align:right;font-size:12px"><b>' + nf(c.CH, 1) + '</b>' + (c.missing ? '<div style="color:#b45309;font-size:10px">hours N/A</div>' : '') + '</td>'
+        + '<td style="padding:6px;text-align:right;font-size:12px"><b>' + nf(r.athletes, 0) + '</b>' + (split ? '<div style="color:#64748b;font-size:10px;max-width:190px;margin-left:auto">' + esc(split) + '</div>' : '') + '</td>'
+        + '<td style="padding:6px;text-align:right;font-size:12px">' + (c.C && r.athletes != null ? nf(r.athletes / c.C, 1) : 'N/A') + '</td>'
+        + '<td style="padding:6px;text-align:right;font-size:12px">' + (c.CH && r.athletes ? nf(c.CH / r.athletes, 2) : 'N/A') + '</td></tr>';
+    });
+    h += '<tr style="border-top:2px solid #e2e8f0;font-weight:800;font-size:12px"><td style="padding:6px">All sites</td><td style="padding:6px;text-align:right">' + nf(T.C, 0) + '</td><td colspan="5"></td><td style="padding:6px;text-align:right">' + nf(T.CH, 1) + '</td><td style="padding:6px;text-align:right">' + nf(T.A, 0) + '<div style="font-weight:400;color:#64748b;font-size:10px">' + nf(T.O, 0) + ' on site</div></td><td colspan="2"></td></tr>';
+    h += '</tbody></table></div>';
+    var lastBy = ''; if (IN) { var mx = 0; Object.keys(IN).forEach(function(k){ var x = IN[k] || {}; if ((x.at || 0) > mx) { mx = x.at; lastBy = (x.by || '') + ', ' + new Date(x.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } }); }
+    if (lastBy) h += '<div style="font-size:11px;color:#64748b;margin-top:6px">Last change: ' + esc(lastBy) + '</div>';
+    box.innerHTML = h;
+  }
+  document.addEventListener('change', function(e){
+    var t = e.target; if (!t || !t.getAttribute || !t.getAttribute('data-cm')) return;
+    var k = t.getAttribute('data-cm'), f = t.getAttribute('data-f'), v = t.value === '' ? null : Number(t.value);
+    var path = 'naig2027/costMatrix/inputs/' + k + '/' + f.replace('.', '/');
+    window._dbSet(_dbRef(path), v);
+    window._dbSet(_dbRef('naig2027/costMatrix/inputs/' + k + '/by'), who());
+    window._dbSet(_dbRef('naig2027/costMatrix/inputs/' + k + '/at'), Date.now());
+    try { if (typeof logActivity === 'function') logActivity('sports', 'Courts and hours: ' + k + ' ' + f + ' set to ' + (v == null ? 'default' : v), { action: 'update', entityKey: 'costMatrix/' + k, entityName: k, newValue: v == null ? 'default' : v }); } catch(x){}
+    lastS = ''; lastB = '';
+  }, true);
+
+  /* ---------- Budget tab: money, behind the PIN ---------- */
+  function paintBudget(){
+    var host = document.getElementById('naigBudget2'); if (!host || !host.offsetParent || !unlocked() || IN === null || MO === null) return;
+    var box = document.getElementById('naigCMb');
+    if (box && box.contains(document.activeElement) && /INPUT|SELECT/.test(document.activeElement.tagName)) return;
+    var R = rows(); if (!R.length) return;
+    var sig = JSON.stringify([IN, MO, WI, R.map(function(r){ return [r.key, r.courts, r.athletes, r.hrs, r.onSite, r.mo]; })]);
+    if (box && box.parentNode === host && sig === lastB) return; lastB = sig;
+    if (!box || box.parentNode !== host) { if (box) box.remove(); box = document.createElement('div'); box.id = 'naigCMb'; box.style.cssText = 'background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin:0 0 14px;color:#0f172a'; var after = document.getElementById('naigStartScen'); host.insertBefore(box, after && after.parentNode === host ? after.nextSibling : host.firstChild); }
+    var th = 'padding:6px;font-size:11px;color:#475569;text-align:right;white-space:nowrap;border-bottom:2px solid #e2e8f0';
+    var h = '<div style="font-weight:800;font-size:16px;color:#1e3a8a">Site cost matrix: per court, per day, per athlete</div>'
+      + '<div style="font-size:12px;color:#64748b;margin:3px 0 10px;line-height:1.5">Play hours come live from the Sports tab (blank there = venue record hours); athletes from the slot sheet. Courts default to the venue record and can be overridden here; add setup hours on Wed 24 where the venue charges for setup. Pick how each site charges and enter the rate. A flat total does not change with hours or courts unless the contract changes; per-hour and per-court rates do. Rates read from a venue record are marked; check them against the contract.</div>';
+    h += '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;margin-bottom:10px"><b>What if</b>'
+      + '<label>Hours per play day <input id="cmWIh" type="number" step="0.5" value="' + WI.dh + '" style="width:60px;padding:3px 5px;border:1px solid #cbd5e1;border-radius:6px"></label>'
+      + '<label>Courts <input id="cmWIc" type="number" step="1" value="' + WI.dc + '" style="width:60px;padding:3px 5px;border:1px solid #cbd5e1;border-radius:6px"></label>'
+      + '<label>Apply to <select id="cmWIo" style="padding:3px 5px;border:1px solid #cbd5e1;border-radius:6px"><option value="">All sites</option>' + R.map(function(r){ return '<option value="' + esc(r.key) + '"' + (WI.only === r.key ? ' selected' : '') + '>' + esc(r.name) + '</option>'; }).join('') + '</select></label>'
+      + '<button id="cmWIr" type="button" style="padding:3px 10px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;cursor:pointer">Reset</button></div>';
+    h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:1180px"><thead><tr>'
+      + ['Site','How it charges','Rate','Crew $/hr','Extras','Courts','Setup h (Wed)','Courts × hours','Total','Per day','Per court','Per court-day','Per court-hour','Per athlete','Per person on site','+1 hr/day','+1 court'].map(function(x, i){ return '<th style="' + th + (i < 2 ? ';text-align:left' : '') + '">' + x + '</th>'; }).join('') + '</tr></thead><tbody>';
+    var T = { now: 0, wi: 0, ath: 0, ons: 0, na: 0 }, wiOn = WI.dh || WI.dc;
+    R.forEach(function(r){
+      var c = calc(r), w = (!WI.only || WI.only === r.key) ? calc(r, WI.dh, WI.dc) : c, p1h = calc(r, 1, 0), p1c = calc(r, 0, 1), m = r.mo || {};
+      if (c.total != null) T.now += c.total; else T.na++; if (w.total != null) T.wi += w.total; T.ath += r.athletes || 0; T.ons += r.onSite || 0;
+      function inp(f, v, wpx){ return '<input data-cmb="' + esc(r.key) + '" data-f="' + f + '" type="number" min="0" step="any" value="' + (v == null ? '' : esc(v)) + '" placeholder="N/A" style="width:' + (wpx || 80) + 'px;padding:4px 5px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;text-align:right">'; }
+      var td = 'padding:6px;font-size:12px;text-align:right;white-space:nowrap';
+      function d(a, b){ if (a == null || b == null) return 'N/A'; var x = b - a; return (x >= 0 ? '+' : '−') + money(Math.abs(x)); }
+      h += '<tr style="border-top:1px solid #eef2f7"><td style="padding:6px;font-size:12px"><b>' + esc(r.name) + '</b><div style="color:#64748b;font-size:11px">' + esc(r.sports) + '</div></td>'
+        + '<td style="padding:6px"><select data-cmb="' + esc(r.key) + '" data-f="model" style="font-size:12px;padding:3px;border:1px solid #cbd5e1;border-radius:6px">' + MODELS.map(function(x){ return '<option value="' + x[0] + '"' + ((m.model || 'flat') === x[0] ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') + '</select>' + (m.src ? '<div style="font-size:10px;color:#b45309">from ' + esc(m.src) + ', check</div>' : '') + '</td>'
+        + '<td style="' + td + '">' + inp('rate', m.rate) + '</td><td style="' + td + '">' + inp('crewRate', m.crewRate, 64) + '</td><td style="' + td + '">' + inp('extras', m.extras, 72) + '</td><td style="' + td + '">' + inp('courts', m.courts, 52).replace('placeholder="N/A"', 'placeholder="' + (r.dflt.courts == null ? 'N/A' : r.dflt.courts) + '" title="Blank uses the venue record"') + '</td><td style="' + td + '">' + inp('setupHrs', m.setupHrs, 52) + '</td>'
+        + '<td style="' + td + '">' + nf(c.C, 0) + ' × ' + nf(c.H, 1) + ' h<div style="color:#64748b;font-size:10px">' + c.days + ' days · ' + nf(c.CH, 1) + ' court-h</div></td>'
+        + '<td style="' + td + '"><b>' + money(c.total) + '</b>' + (wiOn && w !== c ? '<div style="font-size:10px;color:#1e3a8a">what-if ' + money(w.total) + '</div>' : '') + '</td>'
+        + '<td style="' + td + '">' + money(c.perDay) + '</td><td style="' + td + '">' + money(c.perCourt) + '</td><td style="' + td + '">' + money(c.perCourtDay) + '</td><td style="' + td + '">' + money(c.perCourtHour) + '</td>'
+        + '<td style="' + td + '"><b>' + money(c.perAth) + '</b>' + (wiOn && w !== c ? '<div style="font-size:10px;color:#1e3a8a">what-if ' + money(w.perAth) + '</div>' : '') + '<div style="color:#64748b;font-size:10px">' + nf(r.athletes, 0) + ' athletes</div></td>'
+        + '<td style="' + td + '">' + money(c.perPerson) + '<div style="color:#64748b;font-size:10px">' + nf(r.onSite, 0) + ' on site</div></td>'
+        + '<td style="' + td + '">' + d(c.total, p1h.total) + '</td><td style="' + td + '">' + d(c.total, p1c.total) + '</td></tr>';
+    });
+    h += '<tr style="border-top:2px solid #e2e8f0;font-weight:800;font-size:13px"><td style="padding:6px" colspan="8">All sites' + (T.na ? ' <span style="font-weight:400;color:#b45309;font-size:11px">(' + T.na + ' site' + (T.na > 1 ? 's' : '') + ' N/A: no rate yet)</span>' : '') + '</td><td style="padding:6px;text-align:right">' + money(T.now) + '</td><td colspan="4"></td><td style="padding:6px;text-align:right">' + (T.ath ? money(T.now / T.ath) : 'N/A') + '</td><td style="padding:6px;text-align:right">' + (T.ons ? money(T.now / T.ons) : 'N/A') + '</td><td colspan="2"></td></tr>';
+    h += '</tbody></table></div>';
+    if (wiOn) h += '<div style="margin-top:10px;padding:8px 11px;background:#eff6ff;border-left:3px solid #1e3a8a;font-size:13px">What if ' + (WI.dh ? (WI.dh > 0 ? '+' : '') + WI.dh + ' h per play day' : '') + (WI.dh && WI.dc ? ' and ' : '') + (WI.dc ? (WI.dc > 0 ? '+' : '') + WI.dc + ' court' + (Math.abs(WI.dc) === 1 ? '' : 's') : '') + (WI.only ? ' at ' + esc((R.filter(function(r){ return r.key === WI.only; })[0] || {}).name) : ' at every site') + ': total <b>' + money(T.wi) + '</b> (' + (T.wi - T.now >= 0 ? '+' : '−') + money(Math.abs(T.wi - T.now)) + '), per athlete ' + (T.ath ? money(T.wi / T.ath) : 'N/A') + '. What-if is not saved.</div>';
+    box.innerHTML = h;
+  }
+  document.addEventListener('change', function(e){
+    var t = e.target; if (!t || !t.getAttribute) return;
+    if (t.getAttribute('data-cmb')) {
+      var k = t.getAttribute('data-cmb'), f = t.getAttribute('data-f'), v = f === 'model' ? t.value : (t.value === '' ? null : Number(t.value));
+      window._dbSet(_dbRef('naig2027/budget/costMatrix/' + k + '/' + f), v);
+      if (MO && MO[k] && MO[k].src) window._dbSet(_dbRef('naig2027/budget/costMatrix/' + k + '/src'), null);
+      if (f !== 'model' && !(MO && MO[k] && MO[k].model)) { var sel = document.querySelector('select[data-cmb="' + k + '"]'); window._dbSet(_dbRef('naig2027/budget/costMatrix/' + k + '/model'), sel ? sel.value : 'flat'); }
+      window._dbSet(_dbRef('naig2027/budget/costMatrix/' + k + '/by'), who());
+      window._dbSet(_dbRef('naig2027/budget/costMatrix/' + k + '/at'), Date.now());
+      lastB = ''; return;
+    }
+    if (t.id === 'cmWIh') { WI.dh = Number(t.value) || 0; lastB = ''; paintBudget(); }
+    if (t.id === 'cmWIc') { WI.dc = Number(t.value) || 0; lastB = ''; paintBudget(); }
+    if (t.id === 'cmWIo') { WI.only = t.value; lastB = ''; paintBudget(); }
+  }, true);
+  document.addEventListener('click', function(e){ if (e.target && e.target.id === 'cmWIr') { WI = { dh: 0, dc: 0, only: '' }; lastB = ''; paintBudget(); } }, true);
+
+  function boot(){
+    if (typeof window._dbRef !== 'function' || !window._fb) { setTimeout(boot, 1500); return; }
+    db().then(function(m){
+      m.onValue(_dbRef('naig2027/costMatrix/inputs'), function(s){ IN = s.val() || {}; lastS = ''; lastB = ''; });
+      m.onValue(_dbRef('naig2027/budget/costMatrix'), function(s){ MO = s.val() || {}; lastB = ''; });
+    }).catch(function(){ setTimeout(boot, 3000); });
+    setInterval(function(){ try { paintSports(); } catch(e){} try { paintBudget(); } catch(e){} }, 1500);
+  }
+  window.__naigCMRows = function(){ return rows().map(function(r){ var c = calc(r); return { site: r.name, courts: c.C, hours: c.H, days: c.days, courtHours: c.CH, athletes: r.athletes }; }); };
+  boot();
+})();
+</script>
+<script>
+/* __naigTRV1109: one-time task update from Rizwan's travel message (8 Nov 2026; away Mon 9 to Thu 19 Nov).
+   Runs once, the first time Rizwan opens the hub signed in. Flag: naig2027/migrations/trv1109. */
+(function(){
+  'use strict';
+  if (window.__naigTRV1109) return; window.__naigTRV1109 = 1;
+  var OWNERS = ['rizwan@swagprint.com', 'aliriz6683@gmail.com'], done = false;
+  var STAMP = '8 Nov 2026 (Rizwan, travelling 9 to 19 Nov)';
+  function findOpen(rx){ var T = window._tasksData || {}, hit = null; Object.keys(T).forEach(function(k){ var t = T[k]; if (!hit && t && t.status !== 'done' && rx.test(t.title || '')) hit = k; }); return hit; }
+  function person(rx, fb){ var T = window._tasksData || {}, hit = ''; Object.keys(T).forEach(function(k){ var t = T[k] || {}; [t.owner].concat(t.owners || []).forEach(function(o){ if (!hit && o && rx.test(o)) hit = o; }); }); return hit || fb; }
+  function addTag(t, tag){ var g = String(t.tags || ''); if (g.indexOf(tag) < 0) t.tags = (g ? g + ', ' : '') + tag; }
+  function addOwners(t, list){ var o = Array.isArray(t.owners) ? t.owners.slice() : (t.owner ? [t.owner] : []); list.forEach(function(p){ if (p && o.indexOf(p) < 0) o.push(p); }); t.owners = o; if (!t.owner) t.owner = o[0]; }
+  function save(id, t){ t.updated = new Date().toISOString(); window._tasksData[id] = t; window._dbSet(_dbRef('naig2027/tasks/' + id), t); }
+  function upd(id, due, owners, note, tags){
+    if (!id || !window._tasksData[id]) return false; var t = JSON.parse(JSON.stringify(window._tasksData[id]));
+    if (due) t.due = due; if (owners) addOwners(t, owners); (tags || []).forEach(function(g){ addTag(t, g); }); addTag(t, 'priority-nov9');
+    t.notes = String(t.notes || '') + '\n\nUPDATE ' + STAMP + ': ' + note; if (t.status === 'todo') t.status = 'inprogress'; save(id, t); return true;
+  }
+  function add(id, o){
+    if (window._tasksData[id]) return; var now = new Date().toISOString();
+    save(id, { title: o.title, owner: o.owners[0], owners: o.owners, due: o.due, status: 'todo', priority: 'high', vertical: o.vertical, department: o.vertical,
+      tags: (o.tags || []).concat(['priority-nov9']).join(', '), created: now, createdBy: 'Rizwan Ali',
+      notes: 'WHAT: ' + o.what + '\n\nWHY: ' + o.why + '\n\nDONE WHEN: ' + o.doneWhen + '\n\nDELIVERABLE: ' + o.deliverable + '\n\nDEPENDS ON: ' + (o.depends || 'Nothing.') + '\n\n--- HISTORY ---\nAdded ' + STAMP + ' from the team priorities message.' });
+  }
+  function run(){
+    var KS = 'Kiran Surani', MS = 'Malekah Surani', SA = 'Sohail Ali', AH = 'Azmina Hashim', SK = 'Shan Karowadiya', RC = 'Ruhee Charanya';
+    var AHM = person(/^Ahm|^Aham/i, 'Ahamed'), RAM = person(/^Rami[sz]/i, 'Ramiz');
+    var log = [];
+    if (upd('hotel-airport-cluster-property', '2026-11-13', [KS, MS], 'Priority while Rizwan travels. Kiran and Malekah close out the 4 hotel options (Silverlake, HGI Lewisville, Embassy Suites, Le Méridien): rooms per night, connected or nearby, rate on the Budget tab.', ['kiran-action'])) log.push('hotels');
+    if (upd(findOpen(/track/i), '2026-11-13', [KS], 'Priority while Rizwan travels: lock a track venue (Hawk Stadium site check is with Ruhee; UTA is a possible option).', ['kiran-action'])) log.push('track');
+    if (upd('-P23kqfUMLIGsHOoBHNi', '2026-11-09', [KS], 'Priority: finalize the tennis schedule with Sports by Mon 9 Nov so a proper contract can be shown to Dawn, or the best possible version; Dawn will adjust on the 2nd invoice. Courts and hours go in the Sports tab grid so the Budget cost matrix updates.', ['kiran-action'])) log.push('tennis');
+    if (upd('venue-pickler-open-questions', '2026-11-09', [KS], 'Priority: finalize pickleball the same way as tennis: Sports confirms courts, days and hours by Mon 9 Nov so the contract can be shown or adjusted. Enter courts and hours in the Sports tab grid.', ['kiran-action'])) log.push('pickleball');
+    if (upd(findOpen(/dance/i), '2026-11-13', [RC, KS, SK], 'Ruhee is pursuing. DELIVERABLE: a one-page comparison of dance venue options: pricing (see Budget tab), availability for 25 to 28 Mar 2027, capacity, pros and cons. Kiran and Shan to work with Ruhee on it.', ['ruhee-action'])) log.push('dance');
+    upd(findOpen(/route plan|transport.*plan/i), null, null, 'Linked: bus and van sourcing through the local PDT is now its own task (Ahmed and Ramiz lead).', []);
+    add('trv1109-fb-cleanup', { title: 'F&B — clean up the food doc and load updates and open questions into the hub (tagged by who supports)', owners: [SA, AH], due: '2026-11-13', vertical: 'Food & Beverage', tags: ['food', 'sohail-action', 'azmina-action'],
+      what: 'Clean up the F&B doc, make the updates agreed in the last discussion, and put the updated questions into the hub as tasks, each tagged with who is supporting.', why: 'The food plan needs one clean source in the hub before it goes to Health and Wellness.', doneWhen: 'Clean doc is in Documents, every open question is a hub task with an owner and supporter tag.', deliverable: 'Clean F&B doc + tagged question tasks.', depends: 'Humera (Round 1 menu).' });
+    add('trv1109-fb-hw-vetting', { title: 'F&B — Health and Wellness team vets the cleaned-up food list', owners: [SA, AH], due: '2026-11-20', vertical: 'Food & Beverage', tags: ['food', 'health-wellness'],
+      what: 'Send the cleaned-up food list to the Health and Wellness team and log their changes.', why: 'Menus must be vetted for health, allergens and dietary needs before vendors are booked.', doneWhen: 'Health and Wellness has signed off or returned changes, logged on the task.', deliverable: 'Vetted food list.', depends: 'trv1109-fb-cleanup.' });
+    add('trv1109-transport-buses', { title: 'Transportation — start the bus and van search (various capacities) through the local PDT', owners: [AHM, RAM, SA, AH], due: '2026-11-20', vertical: 'Transportation', tags: ['transport'],
+      what: 'Start sourcing buses and vans of various capacities through the local PDT. Ahmed and Ramiz lead; Farhan joins once IVS is final. Sohail and Azmina oversee.', why: 'Athlete movement between hotels and venues needs vehicles locked early.', doneWhen: 'At least two providers per vehicle size with availability for 24 to 28 Mar 2027 and a quote (amounts on the Budget tab).', deliverable: 'Provider shortlist by vehicle size.', depends: 'Local PDT contacts; IVS final (for Farhan).' });
+    add('trv1109-azmina-sitevisits', { title: 'Site visit — send Rizwan the final plan of visits', owners: [AH], due: '2026-11-10', vertical: 'Venues', tags: ['venue', 'azmina-action'],
+      what: 'Share the final site visit plan (venues, dates, times, who attends) with Rizwan.', why: 'So Rizwan can answer venues while travelling and update the venue records.', doneWhen: 'Plan sent to Rizwan and attached here.', deliverable: 'Site visit plan.' });
+    add('trv1109-meeting-schedule', { title: 'Send teams the Dec, Jan, Feb and Mar meeting schedule (placeholders) and start the discussion with the local PDT (Nazia)', owners: [SK], due: '2026-11-13', vertical: 'Leadership & PMO', tags: ['meetings', 'shan-action'],
+      what: 'Send the teams placeholder dates for the December, January, February and March meetings this week, and open the conversation with the local PDT through Nazia.', why: 'Teams need the dates held now; the local PDT supports the meetings.', doneWhen: 'Placeholders sent to all teams and the first conversation with Nazia logged.', deliverable: 'Meeting schedule sent; PDT contact started.', depends: 'Nazia (local PDT).' });
+    try { if (typeof logActivity === 'function') logActivity('task', 'Travel priorities applied (Rizwan away 9 to 19 Nov): updated ' + log.join(', ') + '; 5 new tasks', { action: 'update' }); } catch(e){}
+    return log;
+  }
+  function tick(){
+    if (done) return; var u = window._axUser; if (!u || OWNERS.indexOf(String(u.email || '').toLowerCase()) < 0) return;
+    if (!window._tasksData || Object.keys(window._tasksData).length < 50 || typeof window._dbRef !== 'function') return;
+    done = true;
+    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js').then(function(m){
+      return m.get(_dbRef('naig2027/migrations/trv1109')).then(function(s){ if (s.val()) return; var log = run(); window._dbSet(_dbRef('naig2027/migrations/trv1109'), { at: Date.now(), by: u.email, updated: log }); });
+    }).catch(function(){ done = false; });
+  }
+  setInterval(tick, 3000);
+})();
+</script>
 </body>
 </html>
