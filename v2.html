@@ -560,10 +560,12 @@ function renderClassic(p){
  $('#view').innerHTML = '<iframe class="frame" id="cf" title="' + esc(p.title) + '" src="' + CLASSIC + '?tab=' + p.classic + '&embed=1"></iframe>';
  const f = $('#cf');
  f.onload = () => { try { const d = f.contentDocument; const st = d.createElement('style');
-  st.textContent = 'body{padding-top:0!important}.hub-header,.top-header,header.app-header,#hubTabs,.tab-bar,.tabs-bar,nav.tabs,.hub-nav,#axWhoami,#naigPW{display:none!important}';
+  st.textContent = '#mainHub > .header, #mainHub > .tab-nav{display:none!important}';
   d.head.appendChild(st);
   const hide = () => { [...d.querySelectorAll('body > *')].forEach(el => { if (el.querySelector && el.querySelector('[onclick^="switchTab("]') && !el.querySelector('[id^="section"]')) el.style.display = 'none'; }); };
-  hide(); setTimeout(hide, 1500); } catch(e) {} };
+  hide(); setTimeout(hide, 1500);
+  const w = f.contentWindow, want = p.classic; let n = 0;
+  const sw = () => { try { if (w.switchTab && (w._axCurrentTab !== want)) w.switchTab(want); } catch(e) {} if (++n < 6) setTimeout(sw, 800); }; sw(); } catch(e) {} };
 }
 
 /* ───────── theme ───────── */
