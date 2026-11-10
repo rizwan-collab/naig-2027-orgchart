@@ -229,9 +229,10 @@ const ownersOf = t => { const a = []; if (t.owner) a.push(t.owner); (Array.isArr
 const area = t => t.vertical || t.department || t.scopeArea || 'Other';
 const isOpen = t => t.status !== 'done';
 const isMine = t => S.user && ownersOf(t).some(o => String(o).toLowerCase() === String(S.user.name||'').toLowerCase());
-function bucket(t){ const d = due(t), td = today(); if (t.status === 'done') return 'done'; if (t.status === 'blocked') return 'blocked';
+const onHold = t => t.status === 'onhold' || /^\s*(ON HOLD|PARKED)\b/i.test(t.title || '');
+function bucket(t){ const d = due(t), td = today(); if (t.status === 'done') return 'done'; if (onHold(t)) return 'onhold'; if (t.status === 'blocked') return 'blocked';
  if (!d) return 'nodate'; if (d < td) return 'overdue'; if (d <= addDays(td, 7)) return 'week'; return 'later'; }
-const BK = { blocked:['Blocked','bad'], overdue:['Overdue','bad'], week:['Due in the next 7 days','warn'], later:['Later',''], nodate:['No due date',''], done:['Done','good'] };
+const BK = { onhold:['On hold or parked',''], blocked:['Blocked','bad'], overdue:['Overdue','bad'], week:['Due in the next 7 days','warn'], later:['Later',''], nodate:['No due date',''], done:['Done','good'] };
 const norm = s => String(s||'').toLowerCase().replace(/[^a-z0-9 ]+/g,' ').replace(/\b(the|a|and|to|for|of|with|on|in|confirm|send|get)\b/g,' ').replace(/\s+/g,' ').trim();
 function dupes(){ const open = taskList().filter(isOpen); const seen = {}, out = [];
  open.forEach(t => { const k = norm(t.title).split(' ').slice(0,6).join(' '); if (k.length < 12) return; (seen[k] = seen[k] || []).push(t); });
@@ -269,7 +270,7 @@ const PAGES = [
  { k:'log', label:'Change log', tab:'changelog', title:'Change log', sub:() => 'Latest edits across the hub.' }
 ];
 const pageOf = k => PAGES.find(p => p.k === k);
-function allowed(p){ return !p.tab || !S.perms || S.perms.tabs.has(p.tab); }
+function allowed(p){ if (!p.tab || !S.perms) return true; const t = S.perms.tabs; return t.has(p.tab) || (p.tab === 'sports' && t.has('venues')); }
 function buildNav(){
  let h = '', pendingG = null;
  PAGES.forEach(p => { if (p.g) { pendingG = p.g; return; } if (!allowed(p)) return;
@@ -324,7 +325,7 @@ function renderHome(){
   + grp('Blocked', 'bad', open.filter(t => bucket(t) === 'blocked'), true)
   + grp('Overdue', 'bad', open.filter(t => bucket(t) === 'overdue').sort(byDue))
   + grp('Due in the next 7 days', 'warn', open.filter(t => bucket(t) === 'week').sort(byDue))
-  + grp('No owner', 'info', open.filter(t => !ownersOf(t).length))
+  + grp('No owner', 'info', open.filter(t => !ownersOf(t).length && !onHold(t)))
   + (() => { const d = dupes(); return d.length ? '<details class="al info"><summary><b>Possible duplicates</b><span class="pill info">' + d.length + '</span></summary><div class="list">' + d.map(g => '<div class="grp-h">Same topic</div>' + g.map(taskRow).join('')).join('') + '</div></details>' : ''; })()
   + (!c.blocked && !c.overdue && !c.week ? '<div class="empty">All clear.</div>' : '') + '</div></div>';
  // Progress + recent
@@ -358,7 +359,7 @@ function renderTasks(){
   + '<select id="to">' + opt(owners, TF.owner, 'All owners') + '</select>'
   + '<select id="ta">' + opt(areas, TF.area, 'All areas') + '</select>'
   + '<select id="ts"><option value="">Any status</option>' + Object.entries(ST).filter(([k]) => k !== 'done').map(([k,v]) => '<option value="' + k + '"' + (TF.status === k ? ' selected' : '') + '>' + v[0] + '</option>').join('') + '</select>'
-  + '<select id="tw"><option value="">Any due date</option>' + ['blocked','overdue','week','later','nodate'].map(k => '<option value="' + k + '"' + (TF.when === k ? ' selected' : '') + '>' + BK[k][0] + '</option>').join('') + '</select>'
+  + '<select id="tw"><option value="">Any due date</option>' + ['blocked','overdue','week','later','nodate','onhold'].map(k => '<option value="' + k + '"' + (TF.when === k ? ' selected' : '') + '>' + BK[k][0] + '</option>').join('') + '</select>'
   + '<label class="chk"><input type="checkbox" id="tm"' + (TF.mine ? ' checked' : '') + '> Mine</label>'
   + '<label class="chk"><input type="checkbox" id="td"' + (TF.done ? ' checked' : '') + '> Show done</label>'
   + '</div></div>';
@@ -367,7 +368,7 @@ function renderTasks(){
   && (!q || (t.title + ' ' + (t.notes||'') + ' ' + ownersOf(t).join(' ')).toLowerCase().includes(q))
   && (!TF.owner || ownersOf(t).includes(TF.owner)) && (!TF.area || area(t) === TF.area)
   && (!TF.status || t.status === TF.status) && (!TF.when || bucket(t) === TF.when) && (!TF.mine || isMine(t)));
- const order = ['blocked','overdue','week','later','nodate','done'], groups = {};
+ const order = ['blocked','overdue','week','later','nodate','onhold','done'], groups = {};
  rows.forEach(t => (groups[bucket(t)] = groups[bucket(t)] || []).push(t));
  let body = '';
  order.forEach(b => { const g = groups[b]; if (!g) return; g.sort((x,y) => (due(x)||'9').localeCompare(due(y)||'9'));
