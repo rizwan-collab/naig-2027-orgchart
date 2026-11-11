@@ -29,7 +29,7 @@ a{color:var(--info)}
 #nav a:hover{background:rgba(255,255,255,.07)}
 #nav a.on{background:rgba(199,154,59,.18);color:#fff;box-shadow:inset 3px 0 0 var(--gold);font-weight:600}
 #nav .bd{font-size:11px;min-width:20px;text-align:center;padding:1px 7px;border-radius:99px;background:rgba(255,255,255,.12);font-weight:600}
-#nav .bd.bad{background:#b3261e;color:#fff}
+#nav .bd.bad{background:#b3261e;color:#fff}#nav .bd.warn{background:#b07a1a;color:#fff}
 .side-foot{margin-top:auto;display:flex;flex-direction:column;gap:8px;font-size:12px;color:#a9b6c9;padding:0 6px}
 .side-foot button{background:rgba(255,255,255,.08);border:0;color:#e9edf3;border-radius:8px;padding:7px 10px;cursor:pointer;text-align:left}
 .hc{background:rgba(255,255,255,.06);border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.55}
@@ -210,6 +210,14 @@ td small,.sm{color:var(--mute);font-size:12px}
 .row3{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
 .vc .split{display:none}.vc .ppl{font-size:13px;color:var(--mute)}.vc .ppl b{color:var(--ink);font-size:15px;font-family:Georgia,serif}
 @media (max-width:900px){.att{grid-template-columns:repeat(2,1fr)}.fxm.wide{position:fixed;left:16px;right:16px;top:90px;max-height:70vh;overflow:auto}}
+.tog{cursor:pointer;user-select:none}.tog .car{display:inline-block;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid var(--mute);transition:transform .15s;flex:none}
+.card.col>.tog .car,.grp-h.closed .car,tr.tot.closed .car{transform:rotate(-90deg)}
+.card.col>:not(.tog){display:none!important}.card.col{padding-bottom:14px}
+.fk{display:inline-block;font:700 10px/1 "Lato",system-ui,sans-serif;text-transform:uppercase;letter-spacing:.05em;padding:3px 6px;border-radius:4px;margin-right:8px;vertical-align:1px;background:var(--line);color:var(--ink)}
+.fk-deck{background:#f6e7c8;color:#7a4e00}.fk-pdf{background:#f9dcd9;color:#8a1c12}.fk-doc{background:#dbe7f7;color:#1c4f8a}
+a.it{text-decoration:none;color:inherit;display:block}
+.chips .dot{margin-right:6px}
+.leaflet-container{font:inherit}
 </style>
 </head>
 <body>
@@ -256,7 +264,7 @@ const PATHS = { tasks:'tasks', venues:'venues', hotels:'hotels', prospects:'pros
  emailLog:'progressWatch/emailLog', pw:'progressWatch', lines:'costMatrix/lines', days:'costMatrix/days', rates:'budget/costLines', budget:'budget',
  plan:'plan', sportsPlan:'sportsPlan', slotRegions:'slotRegions', headcount:'headcount', teamModel:'teamModel/sports', supportRules:'headcountModel/supportRules',
  scope:'scope', loops:'loops', flights:'flights', jk:'jamatkhanas', transportation:'transportation', transportModel:'transportModel', drivers:'drivers',
- food:'food', intake:'intake', rnr:'rnr', vendors:'vendors', docs:'docs', publicRef:'public/venueRef/venues' };
+ food:'food', intake:'intake', rnr:'rnr', vendors:'vendors', docs:'docs', driveIndex:'settings/driveIndex', arrivals:'arrivals', publicRef:'public/venueRef/venues' };
 const S = { m2m:{}, loaded:new Set(), user:null, perms:null, gUser:null };
 Object.keys(PATHS).forEach(k => S[k] = {});
 window._tasksData = S.tasks; window._venuesData = S.venues;
@@ -569,12 +577,15 @@ const PAGES = [
  { g:'Logistics' },
  { k:'hotels', label:'Hotels', tab:'hotels', title:'Hotels', sub:() => 'Room blocks against what we need. Rates are on Budget.' },
  { k:'transport', label:'Transportation', tab:'transport', title:'Transportation', sub:() => 'Transport plan, shuttle loops, flights and jamatkhanas.' },
+ { k:'map', label:'Map and travel', tab:'transport', title:'Map and travel', sub:() => 'Venues, hotels, jamatkhanas and airports, with drive times.' },
+ { k:'flights', label:'Flights and pickups', tab:'transport', title:'Flights and pickups', sub:() => 'Athlete arrivals and everyone we pick up, with live flight status.', badge:() => { const n = arr(S.arrivals).filter(a => a.pickup === 'Yes' && !a.assigned && a.status !== 'Cancelled').length; return n ? [n, 'warn'] : null; } },
  { k:'food', label:'Food', tab:'budget', alt:'venues', title:'Food', sub:() => 'What we serve, day by meal. Costs need the Budget PIN.' },
  { k:'intake', label:'Rentals and signage', tab:'vendors', title:'Rentals and signage', sub:() => 'Requests and trackers. No prices here.' },
  { g:'Money' },
  { k:'budget', label:'Budget', tab:'budget', title:'Budget', sub:() => 'PIN protected. Categories, venue costs and vendors.' },
  { g:'Reference' },
  { k:'docs', label:'Documents', tab:'docs', title:'Documents', sub:() => 'Contracts, proposals and plans, linked to Drive.' },
+ { k:'drive', label:'Decks and Drive', tab:'docs', title:'Decks and Drive', sub:() => 'Decks, rules, plans and notes from the team Drive. Click to open in Drive.' },
  { k:'people', label:'People and org chart', tab:'orgchart', title:'People and org chart', sub:() => 'The directory and who reports to whom.' },
  { k:'rnr', label:'Roles and duties', tab:'orgchart', title:'Roles and duties', sub:() => 'What each role owns in every vertical, who it escalates to, and time needed.' },
  { k:'access', label:'Access', tab:'orgchart', manage:true, title:'Access', sub:() => 'Who can see and edit what, and pending requests.', badge:() => { const n = arr(S.accessRequests).filter(r => r.status === 'pending').length; return n ? [n,'bad'] : null; } },
@@ -604,8 +615,27 @@ function route(soft){
  const y = window.scrollY; $('#topR').innerHTML = '';
  try { RENDER[k]();
  } catch(e) { console.error(e); $('#view').innerHTML = '<div class="empty">This page hit an error: ' + esc(e.message) + '</div>'; }
- fbind(); if (soft) window.scrollTo(0, y);
+ fbind(); collapsers(k); if (soft) window.scrollTo(0, y);
  if (q.get('task') && !$('#drawer').classList.contains('open')) openTask(q.get('task'));
+}
+/* expand / collapse on every card and list group, remembered per browser */
+let COL = {}; try { COL = JSON.parse(localStorage.getItem('naigCol') || '{}'); } catch(e) {}
+const colSave = () => { try { localStorage.setItem('naigCol', JSON.stringify(COL)); } catch(e) {} };
+const colKey = (k, el) => k + '|' + (el.textContent || '').replace(/[\d,]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 60);
+function grpApply(h, closed){ let n = h.nextElementSibling; while (n && !n.classList.contains('grp-h') && !n.classList.contains('tot')) { n.style.display = closed ? 'none' : ''; n = n.nextElementSibling; } h.classList.toggle('closed', closed); }
+function collapsers(k){
+ $$('#view .card').forEach(c => { const h = c.querySelector(':scope > .ch, :scope > h2'); if (!h || c.children.length < 2) return; const key = colKey(k, h);
+  h.classList.add('tog'); if (!h.querySelector('.car')) h.insertAdjacentHTML('afterbegin', '<span class="car" aria-hidden="true"></span>');
+  c.classList.toggle('col', !!COL[key]);
+  h.onclick = e => { if (e.target.closest('button,a,input,select,label')) return; COL[key] = !COL[key]; if (!COL[key]) delete COL[key]; colSave(); c.classList.toggle('col', !!COL[key]); }; });
+ $$('#view .grp-h, #view tr.tot').forEach(h => { const key = colKey(k, h); h.classList.add('tog'); const tgt = h.tagName === 'TR' ? h.firstElementChild : h; if (!tgt.querySelector('.car')) tgt.insertAdjacentHTML('afterbegin', '<span class="car" aria-hidden="true" style="margin-right:6px"></span>');
+  if (COL[key]) grpApply(h, true);
+  h.onclick = () => { COL[key] = !COL[key]; if (!COL[key]) delete COL[key]; colSave(); grpApply(h, !!COL[key]); }; });
+ const any = $$('#view .card > .tog, #view .grp-h, #view tr.tot').length;
+ if (any > 1) { const b = document.createElement('button'); b.className = 'btn sm'; b.type = 'button'; const allClosed = () => $$('#view .card > .tog').every(h => h.parentElement.classList.contains('col')) && $$('#view .grp-h, #view tr.tot').every(h => h.classList.contains('closed'));
+  b.textContent = allClosed() ? 'Expand all' : 'Collapse all';
+  b.onclick = () => { const close = !allClosed(); $$('#view .card > .tog').forEach(h => { const key = colKey(k, h); if (close) COL[key] = 1; else delete COL[key]; h.parentElement.classList.toggle('col', close); }); $$('#view .grp-h, #view tr.tot').forEach(h => { const key = colKey(k, h); if (close) COL[key] = 1; else delete COL[key]; grpApply(h, close); }); colSave(); b.textContent = close ? 'Expand all' : 'Collapse all'; };
+  $('#topR').prepend(b); }
 }
 function daysTo(){ const n = Math.ceil((GAMES - new Date()) / 864e5); return n + ' days to the Games · ' + new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', timeZone:'America/Chicago' }); }
 $('#view').addEventListener('click', e => {
@@ -1119,6 +1149,131 @@ function pinChangeHTML(){ return (S.perms && S.perms.manage && unlocked()) ? '<d
 function pinChangeBind(){ const b = $('#npSave'); if (!b) return; b.onclick = async () => { const a = $('#np1').value, c = $('#np2').value; if (a.length < 4 || a !== c) { toast('PINs must match and be 4+ digits.'); return; }
  const h = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('naig2027-budget-v1:' + a)))].map(x => x.toString(16).padStart(2,'0')).join(''); $('#np1').value = $('#np2').value = '';
  await save('access', { budgetPinHash:h }, 'access', 'budget PIN', 'Budget PIN changed'); }; }
+
+/* ══════════ DECKS AND DRIVE ══════════ */
+const DRV = () => ents((S.driveIndex || {}).files).map(([k, f]) => Object.assign({ _id:k }, f));
+const DRCFG = { placeholder:'Search decks and documents', def:{ sort:'modified', dir:-1, group:'area', view:'list' }, text:f => [f.name, f.area, f.kind].join(' '),
+ facets:[ { k:'kind', label:'Type', get:f => f.kind || '' }, { k:'area', label:'Area', get:f => f.area || '' } ],
+ sorts:[ { k:'modified', label:'Last changed', get:f => String(f.modified || '') }, { k:'name', label:'Name', get:f => f.name } ],
+ groups:[ { k:'area', label:'Area', get:f => f.area || 'Other' }, { k:'kind', label:'Type', get:f => f.kind || 'Other' }, { k:'none', label:'None', get:() => '' } ] };
+const kIcon = k => '<span class="fk fk-' + esc(String(k || 'doc').toLowerCase()) + '">' + esc(k === 'Deck' ? 'Slides' : (k || 'Doc')) + '</span>';
+RENDER.drive = () => {
+ const all = DRV(), D = S.driveIndex || {}, folder = D.folder || '1Twb2E87ED4bDF9-JX_0cx1bUhVOGNZF8';
+ $('#topR').innerHTML = '<a class="btn" href="https://drive.google.com/drive/folders/' + esc(folder) + '" target="_blank" rel="noopener">Open team Drive ↗</a>';
+ if (!all.length) { $('#view').innerHTML = '<div class="empty">The Drive index has not loaded yet.</div>'; return; }
+ const { bar, groups } = filtered('drive', all, DRCFG), wk = all.filter(f => Date.parse(f.modified || '') > Date.now() - 7 * 864e5);
+ $('#view').innerHTML = '<div class="kpis"><div class="kpi"><span>Files</span><b>' + all.length + '</b><small>decks, PDFs and docs</small></div><button class="kpi" data-go="drive|kind|Deck" type="button"><span>Decks</span><b>' + all.filter(f => f.kind === 'Deck').length + '</b><small>slides and presentations</small></button><div class="kpi"><span>Changed this week</span><b>' + wk.length + '</b><small>index updated ' + esc(fmtTs(D.updatedAt) || '') + '</small></div></div>'
+  + bar + groups.map(([g, rs]) => '<div class="card">' + (g ? '<div class="ch">' + esc(g) + '<span class="sp sm">' + rs.length + '</span></div>' : '') + '<div class="list">'
+  + rs.map(f => '<a class="it" href="' + esc(f.url) + '" target="_blank" rel="noopener"><div class="t">' + kIcon(f.kind) + esc(f.name.replace(/\.(pptx|pdf|docx|md)$/i, '')) + '</div><div class="m" style="padding-left:0">' + esc(f.area || '') + '</div><div class="r"><span>' + fmtD(f.modified) + '</span><span class="lnk">Open ↗</span></div></a>').join('') + '</div></div>').join('');
+};
+
+/* ══════════ MAP AND TRAVEL ══════════ */
+const AIRPORTS = [ { _id:'apt-dfw', name:'DFW International Airport', kind:'Airport', lat:32.8998, lng:-97.0403, address:'2400 Aviation Dr, DFW Airport, TX 75261' }, { _id:'apt-dal', name:'Dallas Love Field', kind:'Airport', lat:32.8471, lng:-96.8518, address:'8008 Herb Kelleher Way, Dallas, TX 75235' } ];
+const PKIND = { Venue:'#1f6f5c', Hotel:'#b07a1a', Jamatkhana:'#5b4aa0', Airport:'#b42318', Hub:'#0b1f3a' };
+function placesAll(){
+ const out = [], ll = x => isFinite(parseFloat(x.lat)) && isFinite(parseFloat(x.lng));
+ ents(S.venues).forEach(([k, v]) => { if (!v || !v.name || v.archived) return; const hub = /command centre|hub hotel/i.test(v.name); out.push({ _id:'v|' + k, src:'venues/' + k, name:v.name, kind:hub ? 'Hub' : 'Venue', lat:v.lat, lng:v.lng, address:v.address || v.location || '', has:ll(v), sub:vStage(v) }); });
+ ents(S.hotels).forEach(([k, h]) => { if (!h || !h.name || h.archived || /^(CLOSED|ON HOLD)/i.test(h.name)) return; out.push({ _id:'h|' + k, src:'hotels/' + k, name:h.name, kind:'Hotel', lat:h.lat, lng:h.lng, address:h.address || '', has:ll(h), sub:(h.blockSize ? h.blockSize + ' rooms' : '') + (h.cluster ? ' · ' + h.cluster : '') }); });
+ ents(S.jk).forEach(([k, j]) => { if (!j || !j.name) return; out.push({ _id:'j|' + k, src:'jamatkhanas/' + k, name:j.name, kind:'Jamatkhana', lat:j.lat, lng:j.lng, address:j.address || j.city || '', has:ll(j), sub:j.confirmed === 'Yes' ? 'Confirmed' : 'Not confirmed' }); });
+ AIRPORTS.forEach(a => out.push(Object.assign({ has:true, sub:'Arrivals' }, a)));
+ return out;
+}
+let MAPO = 'hub', MAPK = null, LMAP = null, LLAYER = null; const DT = {};
+function loadLeaflet(){ if (window.L) return Promise.resolve(); if (window.__lf) return window.__lf;
+ window.__lf = new Promise((ok, bad) => { const c = document.createElement('link'); c.rel = 'stylesheet'; c.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'; document.head.appendChild(c);
+  const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'; s.onload = ok; s.onerror = bad; document.head.appendChild(s); }); return window.__lf; }
+const gmDir = (a, b) => 'https://www.google.com/maps/dir/?api=1&origin=' + encodeURIComponent(a.lat + ',' + a.lng) + '&destination=' + encodeURIComponent(b.lat + ',' + b.lng) + '&travelmode=driving';
+const gmPlace = p => 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(p.has ? p.lat + ',' + p.lng : (p.name + ' ' + p.address));
+const crow = (a, b) => { const R = 3958.8, t = x => x * Math.PI / 180, dLa = t(b.lat - a.lat), dLo = t(b.lng - a.lng), h = Math.sin(dLa/2) ** 2 + Math.cos(t(a.lat)) * Math.cos(t(b.lat)) * Math.sin(dLo/2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
+async function driveTimes(o, list){ const key = o._id; if (DT[key]) return DT[key];
+ try { const pts = [o].concat(list).map(p => num(p.lng).toFixed(5) + ',' + num(p.lat).toFixed(5)).join(';');
+  const r = await fetch('https://router.project-osrm.org/table/v1/driving/' + pts + '?sources=0&annotations=duration,distance'); const j = await r.json(); if (j.code !== 'Ok') throw 0;
+  const m = {}; list.forEach((p, i) => m[p._id] = { min:Math.round(j.durations[0][i+1] / 60), mi:Math.round(j.distances[0][i+1] / 1609.34), est:false }); DT[key] = m; }
+ catch(e) { const m = {}; list.forEach(p => { const mi = crow(o, p) * 1.25; m[p._id] = { min:Math.round(mi / 38 * 60), mi:Math.round(mi), est:true }; }); DT[key] = m; }
+ return DT[key]; }
+RENDER.map = () => {
+ const all = placesAll(), located = all.filter(p => p.has), missing = all.filter(p => !p.has && p.address && !/^(N\/A|TBD)/i.test(p.address));
+ fstate('map', {}); const shown = FS.map.kinds || Object.keys(PKIND); const vis = located.filter(p => shown.includes(p.kind));
+ const origin = located.find(p => p._id === MAPO) || located.find(p => p.kind === 'Hub') || located.find(p => p.kind === 'Hotel') || located[0];
+ if (canEdit() && missing.length) $('#topR').innerHTML = '<button class="btn" id="geoBtn" type="button">Locate ' + missing.length + ' missing</button>';
+ $('#view').innerHTML = '<div class="seg chips" style="margin-bottom:12px">' + Object.keys(PKIND).map(k => '<button type="button" class="' + (shown.includes(k) ? 'on' : '') + '" data-mk="' + k + '"><span class="dot" style="background:' + PKIND[k] + '"></span>' + k + ' · ' + located.filter(p => p.kind === k).length + '</button>').join('') + '</div>'
+  + '<div class="card" style="padding:0;overflow:hidden"><div id="lmap" style="height:460px"></div></div>'
+  + '<div class="card"><div class="ch">Travel times<span class="sp sm" id="dtNote">Driving, from the selected place</span></div><p class="hint">From <select id="dtFrom">' + located.map(p => '<option value="' + esc(p._id) + '"' + (origin && p._id === origin._id ? ' selected' : '') + '>' + esc(p.kind + ' · ' + p.name) + '</option>').join('') + '</select></p><div class="tw"><table><thead><tr><th>To</th><th>Type</th><th class="n">Drive</th><th class="n">Miles</th><th></th></tr></thead><tbody id="dtBody"><tr><td colspan="5" class="sm">Working out drive times…</td></tr></tbody></table></div></div>'
+  + (missing.length ? '<div class="card"><div class="ch">Not on the map yet<span class="sp sm">' + missing.length + '</span></div><div class="list">' + missing.map(p => '<a class="it" href="' + gmPlace(p) + '" target="_blank" rel="noopener"><div class="t">' + esc(p.name) + '</div><div class="m" style="padding-left:0">' + esc(p.kind + ' · ' + p.address) + '</div></a>').join('') + '</div></div>' : '');
+ $$('#view [data-mk]').forEach(b => b.onclick = () => { const k = b.dataset.mk, s = new Set(shown); s.has(k) ? s.delete(k) : s.add(k); FS.map.kinds = [...s]; fsave('map'); route(true); });
+ const gb = $('#geoBtn'); if (gb) gb.onclick = async () => { gb.disabled = true; let n = 0;
+  for (const p of missing) { gb.textContent = 'Locating ' + (++n) + ' of ' + missing.length + '…';
+   try { const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q=' + encodeURIComponent(p.address.replace(/\(.*?\)/g, ''))); const j = await r.json();
+    if (j[0]) await update(R(p.src), { lat:parseFloat(j[0].lat), lng:parseFloat(j[0].lon), geoSource:'OpenStreetMap Nominatim, ' + today(), geoApprox:/^[^,]*\d/.test(p.address) ? 'street-level match' : 'approximate, city level' }); } catch(e) {}
+   await new Promise(r => setTimeout(r, 1100)); }
+  toast('Locations updated'); };
+ const fill = async o => { if (!o) return; const list = located.filter(p => p._id !== o._id); const t = await driveTimes(o, list); if (!$('#dtBody')) return;
+  const rows = list.map(p => Object.assign({ t:t[p._id] || {} }, p)).sort((a, b) => num(a.t.min) - num(b.t.min));
+  $('#dtNote').textContent = rows.some(r => r.t.est) ? 'Estimated (routing service unavailable)' : 'Driving, typical traffic-free time';
+  $('#dtBody').innerHTML = rows.map(p => '<tr><td><b>' + esc(p.name) + '</b><br><small>' + esc(p.sub || '') + '</small></td><td><span class="dot" style="background:' + PKIND[p.kind] + '"></span> ' + p.kind + '</td><td class="n">' + (p.t.min != null ? (p.t.est ? '~' : '') + p.t.min + ' min' : 'N/A') + '</td><td class="n">' + (p.t.mi != null ? p.t.mi : 'N/A') + '</td><td><a class="lnk" href="' + gmDir(o, p) + '" target="_blank" rel="noopener">Directions ↗</a></td></tr>').join(''); };
+ $('#dtFrom').onchange = e => { MAPO = e.target.value; fill(located.find(p => p._id === MAPO)); };
+ fill(origin);
+ loadLeaflet().then(() => { const el = $('#lmap'); if (!el) return; if (LMAP) { LMAP.remove(); LMAP = null; }
+  LMAP = L.map(el, { scrollWheelZoom:false }); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:18, attribution:'© OpenStreetMap' }).addTo(LMAP);
+  const pts = []; vis.forEach(p => { const ll = [parseFloat(p.lat), parseFloat(p.lng)]; pts.push(ll);
+   L.circleMarker(ll, { radius:p.kind === 'Venue' || p.kind === 'Hub' ? 8 : 6, color:'#fff', weight:2, fillColor:PKIND[p.kind], fillOpacity:.95 }).addTo(LMAP)
+    .bindPopup('<b>' + esc(p.name) + '</b><br>' + esc(p.kind) + (p.sub ? ' · ' + esc(p.sub) : '') + '<br><small>' + esc(p.address) + '</small><br><a href="' + gmPlace(p) + '" target="_blank" rel="noopener">Open in Maps ↗</a>' + (origin && origin._id !== p._id ? ' · <a href="' + gmDir(origin, p) + '" target="_blank" rel="noopener">Directions from ' + esc(origin.name.split(/[—(]/)[0].trim()) + ' ↗</a>' : '')); });
+  if (pts.length) LMAP.fitBounds(pts, { padding:[30, 30], maxZoom:11 }); else LMAP.setView([32.9, -97.0], 9);
+ }).catch(() => { const el = $('#lmap'); if (el) el.innerHTML = '<div class="empty">The map could not load. Check your connection.</div>'; });
+};
+
+/* ══════════ FLIGHTS AND PICKUPS ══════════ */
+const AFIELDS = [['kind','Type','sel',['Athlete group','Individual pickup']],['name','Name or group'],['region','Region'],['people','People','number'],['airline','Airline'],['flight','Flight number'],['from','Flying from'],['airport','Arrival airport','sel',['DFW','DAL','Other']],['arrDate','Arrival date','date'],['arrTime','Arrival time','time'],['depDate','Departure date','date'],['depTime','Departure time','time'],['pickup','Pickup needed','sel',['Yes','No']],['assigned','Pickup assigned to (loop, driver or vehicle)'],['dropTo','Going to (hotel or venue)'],['status','Status','sel',['Planned','Booked','Landed','Picked up','Departed','Cancelled']],['notes','Notes','ta']];
+const AList = () => ents(S.arrivals).map(([k, a]) => Object.assign({ _id:k }, a));
+const fNo = f => String(f || '').replace(/\s+/g, '').toUpperCase();
+const ACFG = { placeholder:'Search names, flights, regions', def:{ sort:'arr', group:'day', view:'list' }, text:a => [a.name, a.flight, a.airline, a.region, a.from, a.assigned, a.dropTo, a.notes].join(' '),
+ facets:[ { k:'kind', label:'Type', get:a => a.kind || '' }, { k:'airport', label:'Airport', get:a => a.airport || '' }, { k:'status', label:'Status', get:a => a.status || 'Planned' }, { k:'region', label:'Region', get:a => a.region || '' }, { k:'pickup', label:'Pickup', get:a => a.pickup === 'Yes' ? (a.assigned ? 'Assigned' : 'Needs a pickup') : 'No pickup' } ],
+ toggles:[ { k:'cx', label:'Show cancelled', test:(a, on) => on || a.status !== 'Cancelled' } ],
+ sorts:[ { k:'arr', label:'Arrival time', get:a => (a.arrDate || '9999') + (a.arrTime || '') }, { k:'name', label:'Name', get:a => a.name || '' }, { k:'people', label:'Group size', get:a => -num(a.people) } ],
+ groups:[ { k:'day', label:'Arrival day', get:a => a.arrDate ? fmtD(a.arrDate) + ' · ' + new Date(a.arrDate + 'T12:00:00').toLocaleDateString('en-US', { weekday:'long' }) : 'No date yet' }, { k:'airport', label:'Airport', get:a => a.airport || 'No airport' }, { k:'kind', label:'Type', get:a => a.kind || 'Other' }, { k:'none', label:'None', get:() => '' } ],
+ views:[['list','List'],['waves','Arrival waves']] };
+RENDER.flights = () => {
+ const all = AList(), live = all.filter(a => a.status !== 'Cancelled'), ppl = live.reduce((s, a) => s + (num(a.people) || 1), 0), need = live.filter(a => a.pickup === 'Yes' && !a.assigned);
+ if (canEdit()) $('#topR').innerHTML = '<button class="btn" data-open="aimp|" type="button">Import from sheet</button><button class="btn pri" data-open="arr|" type="button">Add flight</button>';
+ const { st, bar, groups, out } = filtered('flights', all, ACFG);
+ let h = '<div class="kpis"><div class="kpi"><span>People arriving</span><b>' + nf(ppl) + '</b><small>' + live.length + ' flights logged</small></div>'
+  + ['DFW','DAL'].map(ap => '<button class="kpi" data-go="flights|airport|' + ap + '" type="button"><span>' + ap + '</span><b>' + nf(live.filter(a => a.airport === ap).reduce((s, a) => s + (num(a.people) || 1), 0)) + '</b><small>people</small></button>').join('')
+  + '<button class="kpi ' + (need.length ? 'warn' : 'good') + '" data-go="flights|pickup|Needs a pickup" type="button"><span>Pickups to assign</span><b>' + need.length + '</b><small>' + (n => nf(n) + (n === 1 ? ' person' : ' people'))(need.reduce((s, a) => s + (num(a.people) || 1), 0)) + '</small></button></div>' + bar;
+ if (!all.length) h += '<div class="card"><div class="empty">No flights yet. Add them one at a time, or paste a sheet with <b>Import from sheet</b> once registration sends travel details.</div></div>';
+ else if (st.view === 'waves') {
+  const days = [...new Set(out.map(a => a.arrDate).filter(Boolean))].sort();
+  h += days.map(d => { const rows = out.filter(a => a.arrDate === d), hrs = {}; rows.forEach(a => { const hr = parseInt(String(a.arrTime || '').split(':')[0], 10); if (!isFinite(hr)) return; const o = hrs[hr] = hrs[hr] || { DFW:0, DAL:0, Other:0 }; o[a.airport === 'DFW' || a.airport === 'DAL' ? a.airport : 'Other'] += num(a.people) || 1; });
+   const mx = Math.max(1, ...Object.values(hrs).map(o => o.DFW + o.DAL + o.Other));
+   return '<div class="card"><div class="ch">' + fmtD(d) + ' · ' + new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday:'long' }) + '<span class="sp sm">' + nf(rows.reduce((s, a) => s + (num(a.people) || 1), 0)) + ' people</span></div><p class="hint">People landing each hour. DFW green, Love Field gold.</p>'
+    + Object.keys(hrs).map(Number).sort((a, b) => a - b).map(hr => { const o = hrs[hr], tot = o.DFW + o.DAL + o.Other; return '<div class="prog"><span style="width:70px">' + t12(hr + ':00') + '</span><div class="bar" style="display:flex"><i style="width:' + (o.DFW / mx * 100) + '%;background:#1f6f5c"></i><i style="width:' + (o.DAL / mx * 100) + '%;background:var(--gold)"></i><i style="width:' + (o.Other / mx * 100) + '%;background:var(--mute)"></i></div><small>' + tot + '</small></div>'; }).join('') + '</div>'; }).join('') || '<div class="card"><div class="empty">Add arrival dates and times to see the waves.</div></div>';
+ } else h += '<div class="card"><div class="list">' + groups.map(([g, rs]) => (g ? '<div class="grp-h">' + esc(g) + ' · ' + nf(rs.reduce((s, a) => s + (num(a.people) || 1), 0)) + ' people</div>' : '') + rs.map(a => {
+   const fl = fNo(a.flight), stc = a.status === 'Cancelled' ? 'bad' : a.status === 'Picked up' || a.status === 'Landed' ? 'good' : a.pickup === 'Yes' && !a.assigned ? 'warn' : '';
+   return '<div class="it" data-open="arr|' + esc(a._id) + '"><div class="t"><span class="dot ' + stc + '"></span>' + esc(a.name || 'Unnamed') + (a.people > 1 ? ' · ' + nf(a.people) + ' people' : '') + '</div><div class="m">' + esc([a.kind, a.region, fl ? (a.airline && !fl.startsWith(fNo(a.airline)) ? a.airline + ' ' : '') + fl : '', a.from ? 'from ' + a.from : '', a.airport].filter(Boolean).join(' · ')) + (a.pickup === 'Yes' ? ' · Pickup: ' + esc(a.assigned || 'not assigned') : '') + '</div><div class="r"><span>' + (a.arrTime ? t12(a.arrTime) : '') + '</span>' + (fl ? '<a class="lnk" href="https://www.flightaware.com/live/flight/' + encodeURIComponent(fl) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()">Live status ↗</a>' : '') + '</div></div>'; }).join('')).join('') + '</div></div>';
+ $('#view').innerHTML = h;
+};
+OPEN.arr = id => { const a = id ? Object.assign({}, S.arrivals[id] || {}) : { kind:'Individual pickup', pickup:'Yes', status:'Planned', people:1 }, ed = canEdit(), fl = fNo(a.flight);
+ openDrawer(id ? (a.name || 'Flight') : 'Add flight', (fl ? '<p style="margin-top:12px"><a class="btn" href="https://www.flightaware.com/live/flight/' + encodeURIComponent(fl) + '" target="_blank" rel="noopener">Live flight status ↗</a></p>' : '') + recForm(a, AFIELDS, !ed),
+  ed ? (id ? '<button class="btn" id="aDel" type="button">Delete</button>' : '') + '<button class="btn pri" id="aSave" type="button">Save</button>' : '');
+ if (!ed) return;
+ $('#aSave').onclick = async () => { const { patch, ch } = readForm(a); if (!id && !patch.name) { toast('Add a name or group.'); return; } if (patch.flight) patch.flight = fNo(patch.flight); patch.updated = new Date().toISOString(); patch.updatedBy = me();
+  if (await save('arrivals/' + (id || 'a' + Date.now()), patch, 'arrivals', patch.name || a.name, 'Flight ' + (id ? ch.join(', ') : 'added') + ': ' + (patch.name || a.name))) closeDrawer(); };
+ const d = $('#aDel'); if (d) d.onclick = async () => { if (!confirm('Delete this flight record?')) return; await set(R('arrivals/' + id), null); logAct('arrivals', 'arrivals/' + id, a.name, 'Flight deleted: ' + a.name); closeDrawer(); toast('Deleted'); };
+};
+function csvParse(t){ const rows = []; let r = [], c = '', q = false; for (let i = 0; i < t.length; i++) { const ch = t[i];
+  if (q) { if (ch === '"' && t[i+1] === '"') { c += '"'; i++; } else if (ch === '"') q = false; else c += ch; }
+  else if (ch === '"') q = true; else if (ch === ',' || ch === '\t') { r.push(c); c = ''; } else if (ch === '\n' || ch === '\r') { if (ch === '\r' && t[i+1] === '\n') i++; r.push(c); rows.push(r); r = []; c = ''; } else c += ch; }
+ if (c || r.length) { r.push(c); rows.push(r); } return rows.filter(x => x.some(v => String(v).trim())); }
+OPEN.aimp = () => {
+ openDrawer('Import flights', '<p class="hint" style="margin-top:12px">Paste rows copied from a sheet, with a header row. Columns it understands: ' + AFIELDS.map(f => f[1]).join(', ') + '. Dates as YYYY-MM-DD or MM/DD/YYYY, times like 2:35 PM or 14:35.</p><textarea id="aiT" style="min-height:220px"></textarea><p class="hint" id="aiP"></p>', '<button class="btn pri" id="aiGo" type="button">Import</button>');
+ const norm = s => String(s || '').toLowerCase().replace(/[^a-z]/g, ''), map = {}; AFIELDS.forEach(([k, l]) => { map[norm(k)] = k; map[norm(l)] = k; }); Object.assign(map, { flight:'flight', flightno:'flight', group:'name', team:'name', name:'name', pax:'people', count:'people', arrival:'arrDate', arrivaldate:'arrDate', arrivaltime:'arrTime', departure:'depDate', origin:'from', city:'from' });
+ const dt = v => { v = String(v || '').trim(); const m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/); if (m) return (m[3].length === 2 ? '20' + m[3] : m[3]) + '-' + m[1].padStart(2, '0') + '-' + m[2].padStart(2, '0'); return v.slice(0, 10); };
+ const tm = v => { v = String(v || '').trim(); const m = v.match(/^(\d{1,2})(?::(\d{2}))?\s*([AaPp])?/); if (!m) return v; let h = +m[1]; if (m[3]) { const pm = /p/i.test(m[3]); if (pm && h < 12) h += 12; if (!pm && h === 12) h = 0; } return String(h).padStart(2, '0') + ':' + (m[2] || '00'); };
+ const parse = () => { const rows = csvParse($('#aiT').value); if (rows.length < 2) return []; const hdr = rows[0].map(h => map[norm(h)] || null);
+  return rows.slice(1).map(r => { const o = {}; hdr.forEach((k, i) => { if (k && r[i] != null && String(r[i]).trim() !== '') o[k] = String(r[i]).trim(); }); if (o.arrDate) o.arrDate = dt(o.arrDate); if (o.depDate) o.depDate = dt(o.depDate); if (o.arrTime) o.arrTime = tm(o.arrTime); if (o.depTime) o.depTime = tm(o.depTime); if (o.people) o.people = num(o.people) || 1; if (o.flight) o.flight = fNo(o.flight); if (o.airport) o.airport = /love|dal/i.test(o.airport) ? 'DAL' : /dfw/i.test(o.airport) ? 'DFW' : 'Other'; o.kind = o.kind || (num(o.people) > 1 ? 'Athlete group' : 'Individual pickup'); o.status = o.status || 'Planned'; o.pickup = o.pickup ? (/^y/i.test(o.pickup) ? 'Yes' : 'No') : 'Yes'; return o; }).filter(o => o.name || o.flight); };
+ $('#aiT').oninput = () => { const p = parse(); $('#aiP').textContent = p.length ? p.length + ' rows ready · ' + p.reduce((s, a) => s + (num(a.people) || 1), 0) + ' people' : ''; };
+ $('#aiGo').onclick = async () => { const p = parse(); if (!p.length) { toast('Nothing to import. Include a header row.'); return; } const patch = {}, t = Date.now(); p.forEach((o, i) => { o.updated = new Date().toISOString(); o.updatedBy = me(); patch['arrivals/a' + t + '_' + i] = o; });
+  await update(R(''), patch); logAct('arrivals', 'arrivals', 'Import', 'Imported ' + p.length + ' flights'); closeDrawer(); toast('Imported ' + p.length); };
+};
 
 /* ══════════ theme, boot ══════════ */
 const root = document.documentElement;
