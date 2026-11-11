@@ -305,7 +305,7 @@ function permsFor(p){ const ov = ((S.access||{}).overrides||{})[p.id] || {}; con
 function resolve(){
  const g = S.gUser, gate = $('#gate');
  if (!g) { gate.style.display = 'grid'; $('#gateMsg').textContent = 'Sign in with the Google account on your Directory record.'; $('#gateBtn').hidden = false; return; }
- if (!S.loaded.has('prospects')) return;
+ if (!S.loaded.has('prospects')) { gate.style.display = 'grid'; $('#gateMsg').textContent = 'Signed in as ' + g.email + '. Loading the hub…'; $('#gateBtn').hidden = true; return; }
  const list = arr(S.prospects), k = e => String(e||'').trim().toLowerCase();
  const p = list.find(x => k(x.email) === g.email) || list.find(x => x.altEmails && String(x.altEmails).toLowerCase().split(/[,;\s]+/).includes(g.email));
  if (!p) {
@@ -320,9 +320,14 @@ function resolve(){
  buildNav(); route();
 }
 onAuthStateChanged(auth, u => { S.gUser = (u && !u.isAnonymous) ? { uid:u.uid, email:(u.email||'').toLowerCase(), name:u.displayName||'' } : null; if (S.gUser) startData(); resolve(); });
-getRedirectResult(auth).catch(() => {});
+getRedirectResult(auth).catch(e => { const m = $('#gateMsg'); if (m) { m.textContent = 'Sign-in did not work (' + ((e && e.code) || e) + '). Try again, or allow pop-ups for this site.'; $('#gateBtn').hidden = false; } });
+const gateSay = (t, btn) => { $('#gateMsg').textContent = t; $('#gateBtn').hidden = !btn; };
 $('#gateBtn').onclick = () => { const pr = new GoogleAuthProvider(); pr.setCustomParameters({ prompt:'select_account' });
- signInWithPopup(auth, pr).catch(e => { if (/popup|operation-not-supported/.test(e.code||'')) signInWithRedirect(auth, pr); else toast('Sign-in failed: ' + (e.code||e)); }); };
+ gateSay('Finish signing in in the Google window…', false);
+ signInWithPopup(auth, pr).then(() => gateSay('Signed in. Loading the hub…', false)).catch(e => { const c = (e && e.code) || '';
+  if (c === 'auth/popup-blocked' || c === 'auth/operation-not-supported-in-this-environment') { gateSay('Opening Google sign-in…', false); signInWithRedirect(auth, pr); return; }
+  if (c === 'auth/popup-closed-by-user' || c === 'auth/cancelled-popup-request') { gateSay('The Google window closed before sign-in finished. Try again, and allow pop-ups for this site if your browser asks.', true); return; }
+  gateSay('Sign-in did not work (' + (c || e) + '). Try again, or open the hub in Chrome on a computer.', true); }); };
 $('#outBtn').onclick = () => signOut(auth).then(() => location.reload());
 
 /* ══════════ live data ══════════ */
@@ -332,7 +337,7 @@ function startData(){
  Object.entries(PATHS).forEach(([k, p]) => onValue(R(p), s => { S[k] = s.val() || {}; S.loaded.add(k);
   if (k === 'tasks') window._tasksData = S.tasks; if (k === 'venues') window._venuesData = S.venues;
   if (k === 'prospects' || k === 'access' || k === 'accessRequests') resolve(); ENG.dirty = true; rerender(k); },
-  e => { S.loaded.add(k); console.warn('[hub] read refused', p, e && e.code); }));
+  e => { S.loaded.add(k); console.warn('[hub] read refused', p, e && e.code); if (k === 'prospects') { $('#gate').style.display = 'grid'; $('#gateMsg').textContent = 'Signed in as ' + ((S.gUser && S.gUser.email) || '') + ', but the hub could not read the Directory (' + ((e && e.code) || 'denied') + '). Contact Rizwan.'; $('#outBtn') && ($('#gateBtn').hidden = true); } }));
  ['2027-03-24','2027-03-25','2027-03-26','2027-03-27','2027-03-28','2027-03-29'].forEach(d => onValue(R('m2m/' + d), s => { S.m2m[d] = s.val() || {}; rerender('m2m'); }, () => {}));
  setInterval(backgroundJobs, 5000);
  onValue(ref(db, '.info/connected'), s => { const on = s.val() !== false; S.live = on; const el = $('#liveDot'); if (el) el.innerHTML = on ? '<span style="color:#4cc79a">●</span> Live, synced' : '<span style="color:#ff8a80">●</span> Offline, changes will sync when back'; }, () => {});
