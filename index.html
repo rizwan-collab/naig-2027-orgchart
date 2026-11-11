@@ -657,7 +657,7 @@ let HSEG = 'blocked';
 RENDER.home = () => {
  const all = taskList(), open = all.filter(isOpen), act = open.filter(t => !onHold(t)), mine = act.filter(isMine);
  const by = b => act.filter(t => bucket(t) === b).sort((a,c) => (due(a) || '9').localeCompare(due(c) || '9'));
- const seg = { blocked:['Blocked','bad', by('blocked')], overdue:['Overdue','bad', by('overdue')], week:['Next 7 days','warn', by('week')], nodate:['No date','', by('nodate')] };
+ const seg = { blocked:['Blocked','bad', by('blocked')], overdue:['Overdue','bad', by('overdue')], week:['Next 7 days','warn', by('week')], nodate:['No date','', by('nodate')], stale:['No update in 14 days','warn', act.filter(t => (Date.now() - (Date.parse(t.updated || t.created || '') || 0)) > 14 * 864e5).sort((a,c) => String(a.updated || '').localeCompare(String(c.updated || '')))] };
  const V = arr(S.venues).filter(v => v.name && !v.archived), conf = V.filter(v => /confirmed|committed|signed/i.test((v.status||'') + ' ' + (v.pipelineStatus||'')));
  const E = engine(), h = E.hotels, t = E.total;
  const wk = []; for (let i = 7; i >= 0; i--) { const end = Date.now() - i * 7 * 864e5, start = end - 7 * 864e5; wk.push(all.filter(x => x.status === 'done' && Date.parse(x.updated || '') > start && Date.parse(x.updated || '') <= end).length); }
@@ -673,7 +673,7 @@ RENDER.home = () => {
  const mineUrgent = mine.filter(x => ['overdue','blocked','week'].includes(bucket(x))).sort((a,c) => (due(a) || '9').localeCompare(due(c) || '9'));
  html += '<div class="row"><div class="card"><div class="ch">Needs attention<span class="sp sm">Whole team, parked items left out</span></div>'
   + '<div class="att">' + Object.entries(seg).map(([k,[l,c,a]]) => '<button type="button" data-seg="' + k + '" class="' + c + (k === cur2 ? ' on' : '') + '"><b>' + a.length + '</b><span>' + l + '</span></button>').join('') + '</div>'
-  + (list.length ? '<div class="list">' + list.slice(0, 6).map(taskRow).join('') + '</div>' + (list.length > 6 ? '<a href="#" class="more" data-go="tasks|due|' + esc(BK[cur2][0]) + '">See all ' + list.length + ' →</a>' : '') : '<div class="empty">Nothing here.</div>') + '</div>'
+  + (list.length ? '<div class="list">' + list.slice(0, 6).map(taskRow).join('') + '</div>' + (list.length > 6 ? '<a href="#" class="more" data-go="tasks' + (BK[cur2] ? '|due|' + esc(BK[cur2][0]) : '') + '">See all ' + list.length + ' →</a>' : '') : '<div class="empty">Nothing here.</div>') + '</div>'
   + '<div class="card"><div class="ch">On you<span class="sp sm">' + mine.length + ' open</span></div>' + (mineUrgent.length ? '<div class="list">' + mineUrgent.slice(0, 7).map(taskRow).join('') + '</div>' + (mineUrgent.length > 7 ? '<a href="#" class="more" data-go="tasks|tog|mine">See all your tasks →</a>' : '') : '<div class="empty" style="margin-top:10px">Nothing urgent on you.</div>') + '</div></div>';
  const areas = {}; all.forEach(x => { const a = area(x), o = areas[a] = areas[a] || { d:0, n:0 }; o.n++; if (x.status === 'done') o.d++; });
  const prog = Object.entries(areas).filter(([a,o]) => o.n >= 3).sort((a,b) => b[1].n - a[1].n).slice(0, 7).map(([a,o]) => '<div class="prog"><a href="#" data-go="tasks|area|' + esc(a) + '">' + esc(a) + '</a><div class="bar"><i style="width:' + Math.round(o.d / o.n * 100) + '%"></i></div><small>' + o.d + '/' + o.n + '</small></div>').join('');
