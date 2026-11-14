@@ -243,6 +243,21 @@ details.fpV>summary{cursor:pointer;font-size:16px;padding:2px 0 8px}
 .iBtn{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin:0 0 0 8px;padding:0;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--mute);font:italic 600 12px Georgia,serif;cursor:pointer;vertical-align:middle;line-height:1}
 .iBtn:hover{color:var(--ink);border-color:var(--ink)}
 .card>.iBtn,#view>.iBtn{margin:0 0 8px}
+.spWrap{display:grid;grid-template-columns:230px 1fr;gap:14px}.spSide{display:flex;flex-direction:column;gap:10px}
+.spPal{display:flex;flex-direction:column;gap:4px}.spPal button{display:flex;align-items:center;gap:8px;text-align:left;border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:5px 8px;cursor:pointer;font-size:13px;color:var(--ink)}
+.spPal button.on{outline:2px solid var(--navy);background:var(--panel2)}
+.spPal i,.spLeg i,.spMk i{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 3px;border-radius:10px;color:#fff;font:700 10px/1 system-ui;font-style:normal}
+.spMain{background:#fff;color:#111;border:1px solid var(--line);border-radius:12px;padding:12px}.spTitle{display:flex;justify-content:space-between;gap:10px;margin-bottom:8px;color:#111}.spTitle span{color:#555;font-size:12px}
+.spFloor svg{width:100%;height:auto;display:block;background:#fff}.spFloor .g{stroke:#e5e7eb;stroke-width:.25}.spFloor .G{stroke:#cbd5e1;stroke-width:.5}
+.spFloor .sf{fill:#f8fafc;stroke:#0f172a;stroke-width:1}.spFloor .sl{font:6px system-ui;fill:#334155}.spFloor .ct{fill:#eef6ff;stroke:#1d4ed8;stroke-width:.6}.spFloor .cl{font:5px system-ui;fill:#1e3a8a;text-anchor:middle}
+.spFloor .spI{cursor:grab}.spFloor .ic{font:700 6px system-ui;fill:#fff;text-anchor:middle;dominant-baseline:central}.spFloor .il{font:600 5px system-ui;fill:#111;text-anchor:middle;paint-order:stroke;stroke:#fff;stroke-width:1.5px}
+#spCanvas.placing,#spCanvas.placing .leaflet-container{cursor:crosshair}.spSat #spMap{height:640px;border-radius:8px}
+.spMk{display:flex;align-items:center;gap:3px;white-space:nowrap}.spMk span{background:rgba(255,255,255,.9);color:#111;font:600 11px system-ui;padding:1px 4px;border-radius:4px}
+.spLeg{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-size:12px;color:#111}.spLeg span{display:inline-flex;align-items:center;gap:5px}
+@media (max-width:800px){.spWrap{grid-template-columns:1fr}}
+@media print{body.spPrinting #side,body.spPrinting .top,body.spPrinting header,body.spPrinting #topR,body.spPrinting .spVs,body.spPrinting .spSide,body.spPrinting .note,body.spPrinting #scBar,body.spPrinting .iBtn{display:none!important}
+body.spPrinting .spWrap{display:block}body.spPrinting .spMain{border:0;padding:0}body.spPrinting .spSat #spMap{height:85vh}body.spPrinting main,body.spPrinting #view{margin:0!important;padding:0!important}}
+.dkPrior{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0 12px;max-height:240px;overflow:auto}.dkP{padding:6px 0;border-top:1px solid var(--line);font-size:13px}.dkP:first-of-type{border-top:0}
 </style>
 </head>
 <body>
@@ -611,6 +626,7 @@ const PAGES = [
  { g:'Logistics' },
  { k:'hotels', label:'Hotels', tab:'hotels', title:'Hotels', sub:() => 'Room blocks against what we need. Rates are on Budget.' },
  { k:'transport', label:'Transportation', tab:'transport', title:'Transportation', sub:() => 'Transport plan, shuttle loops, flights and jamatkhanas.' },
+ { k:'siteplan', label:'Site plans', tab:'venues', title:'Site plans', sub:() => 'Floor plans for indoor sites and satellite views for outdoor sites. Place tents, food, medical and more, then print for the plotting exercise.' },
  { k:'map', label:'Map and travel', tab:'transport', title:'Map and travel', sub:() => 'Venues, hotels, jamatkhanas and airports, with drive times.' },
  { k:'flights', label:'Flights and pickups', tab:'transport', title:'Flights and pickups', sub:() => 'Athlete arrivals and everyone we pick up, with live flight status.', badge:() => { const n = arr(S.arrivals).filter(a => a.pickup === 'Yes' && !a.assigned && a.status !== 'Cancelled').length; return n ? [n, 'warn'] : null; } },
  { k:'food', label:'Food', tab:'budget', alt:'venues', title:'Food', sub:() => 'What we serve, day by meal. Costs need the Budget PIN.' },
@@ -1215,9 +1231,9 @@ const deckNotes = h => { const m = String(h).match(/<aside>([\s\S]*?)<\/aside>/i
 let DKMODE = 'one';
 const deckTasks = (d, id) => ents(S.tasks).filter(([k, t]) => t && t.deck === d._id && t.slide === id);
 function deckCmts(d, id, k){ const ts = deckTasks(d, id), btn = DKMODE === 'all' ? '<button class="btn sm" type="button" data-dkc="' + k + '">Comment</button>' : '';
- return '<div class="dkCm">' + ts.map(([tk, t]) => '<a class="dkCi" href="?task=' + encodeURIComponent(tk) + '"><span class="st ' + esc(t.status || 'todo') + '">' + esc((ST[t.status] || [t.status || 'To do'])[0]) + '</span> <b>' + esc(t.submittedBy || t.createdBy || 'Unknown') + '</b>' + (t.created ? ' <small>' + esc(fmtTs(t.created)) + '</small>' : '') + ': ' + esc(String(t.comment || t.title || '').slice(0, 140)) + (t.owner ? ' <small>→ ' + esc(t.owner) + '</small>' : '') + '</a>').join('') + btn + '</div>'; }
+ return '<div class="dkCm">' + (ts.length ? '<div class="l">Comments on this slide (' + ts.length + '), visible to everyone</div>' : '') + ts.map(([tk, t]) => '<a class="dkCi" href="?task=' + encodeURIComponent(tk) + '"><span class="st ' + esc(t.status || 'todo') + '">' + esc((ST[t.status] || [t.status || 'To do'])[0]) + '</span> <b>' + esc(t.submittedBy || t.createdBy || 'Unknown') + '</b>' + (t.created ? ' <small>' + esc(fmtTs(t.created)) + '</small>' : '') + ': ' + esc(String(t.comment || t.title || '').slice(0, 140)) + (t.owner ? ' <small>→ ' + esc(t.owner) + '</small>' : '') + '</a>').join('') + btn + '</div>'; }
 function deckComment(d, k, link){ const id = d.order[k], title = deckTitle(d.slides[id] || '');
- openDrawer('Comment on slide ' + (k + 1), '<p class="hint">' + esc(title) + '</p><label class="l">Your name</label><input id="dkWho" value="' + esc(me()) + '"' + (me() ? ' readonly' : '') + ' placeholder="Who is commenting?"><label class="l">Your comment</label><textarea id="dkTxt" rows="6" placeholder="What should change on this slide?"></textarea><p class="hint">Each comment becomes a task for Logistics, linked to this slide.</p>', '<button class="btn pri" id="dkSend" type="button">Send comment</button>');
+ const prior = deckTasks(d, id); openDrawer('Comment on slide ' + (k + 1), '<p><b>' + esc(title) + '</b></p>' + (prior.length ? '<div class="dkPrior"><div class="l">Already raised on this slide (' + prior.length + ')</div>' + prior.map(([tk, t]) => '<div class="dkP"><b>' + esc(t.submittedBy || t.createdBy || 'Unknown') + '</b> <small>' + esc(fmtTs(t.created)) + ' · ' + esc((ST[t.status] || [t.status || 'To do'])[0]) + '</small><br>' + esc(String(t.comment || t.title || '')) + '</div>').join('') + '</div>' : '') + '<label class="l">Your name</label><input id="dkWho" value="' + esc(me()) + '"' + (me() ? ' readonly' : '') + ' placeholder="Who is commenting?"><label class="l">Your comment</label><textarea id="dkTxt" rows="6" placeholder="What should change on this slide?"></textarea><p class="hint">Each comment becomes a task for Logistics, linked to this slide.</p>', '<button class="btn pri" id="dkSend" type="button">Send comment</button>');
  $('#dkSend').onclick = async () => { const txt = $('#dkTxt').value.trim(); if (!txt) { toast('Write a comment first.'); return; } const now = new Date().toISOString(), who = ($('#dkWho').value || '').trim() || me(); if (!who) { toast('Add your name first.'); return; }
   const tk = 'dk' + Date.now() + Math.random().toString(36).slice(2,6), short = txt.replace(/\s+/g, ' ').slice(0, 70);
   const patch = { title:'Deck comment from ' + who + ' · slide ' + (k + 1) + ': ' + short, submittedBy:who, comment:txt, status:'todo', owner:'Rizwan Ali', owners:['Rizwan Ali'], priority:'', department:'Logistics', tags:'deck-comment', deck:d._id, slide:id, slideNo:k + 1, source:'deck comment',
@@ -1238,10 +1254,10 @@ RENDER.deck = () => {
  const slide = (id, k) => { const h = (d.slides || {})[id] || ''; return '<div class="dkStage" data-i="' + k + '"><div class="dkSlide">' + deckSan(h) + '</div></div>'; };
  const head = '<div class="card"><div class="ch">' + esc(d.title || 'Deck') + '<span class="sp sm">' + n + ' slides</span></div><div class="m" style="padding:4px 0 0">' + esc(d.sub || '') + (d.updatedAt ? ' · updated ' + esc(fmtTs(d.updatedAt)) : '') + '</div>' + (pick ? '<div style="margin-top:8px">' + pick + '</div>' : '') + '</div>';
  if (DKMODE === 'all') {
-  $('#view').innerHTML = head + d.order.map((id, k) => { return '<div class="card dkCard"><div class="m"><b>' + (k + 1) + '</b> · ' + esc(deckTitle(d.slides[id] || '')) + '</div>' + slide(id, k) + deckCmts(d, id, k) + '</div>'; }).join('');
+  $('#view').innerHTML = scNote() + head + d.order.map((id, k) => { return '<div class="card dkCard"><div class="m"><b>' + (k + 1) + '</b> · ' + esc(deckTitle(d.slides[id] || '')) + '</div>' + slide(id, k) + deckCmts(d, id, k) + '</div>'; }).join('');
  } else {
-  const opts = d.order.map((id, k) => '<option value="' + k + '"' + (k === i ? ' selected' : '') + '>' + (k + 1) + ' · ' + esc(deckTitle(d.slides[id] || '').slice(0, 70)) + '</option>').join('');
-  $('#view').innerHTML = head + '<div class="card dkCard" id="dkOne">' + slide(d.order[i], i) + '<div class="dkBar"><button class="btn" id="dkPrev" type="button"' + (i ? '' : ' disabled') + '>‹ Previous</button><select id="dkJump" class="sel">' + opts + '</select><button class="btn" id="dkNext" type="button"' + (i < n - 1 ? '' : ' disabled') + '>Next ›</button><button class="btn pri" type="button" data-dkc="' + i + '">Comment on slide ' + (i + 1) + '</button></div>' + deckCmts(d, d.order[i], i) + '</div>';
+  const opts = d.order.map((id, k) => '<option value="' + k + '"' + (k === i ? ' selected' : '') + '>' + (k + 1) + ' · ' + esc(deckTitle(d.slides[id] || '').slice(0, 70)) + (deckTasks(d, id).length ? ' · ' + deckTasks(d, id).length + ' comment' + (deckTasks(d, id).length > 1 ? 's' : '') : '') + '</option>').join('');
+  $('#view').innerHTML = scNote() + head + '<div class="card dkCard" id="dkOne">' + slide(d.order[i], i) + '<div class="dkBar"><button class="btn" id="dkPrev" type="button"' + (i ? '' : ' disabled') + '>‹ Previous</button><select id="dkJump" class="sel">' + opts + '</select><button class="btn" id="dkNext" type="button"' + (i < n - 1 ? '' : ' disabled') + '>Next ›</button><button class="btn pri" type="button" data-dkc="' + i + '">Comment on slide ' + (i + 1) + '</button></div>' + deckCmts(d, d.order[i], i) + '</div>';
   const to = k => { const u = new URL(location); u.searchParams.set('tab', 'deck'); u.searchParams.set('deck', d._id); u.searchParams.set('s', String(k + 1)); history.replaceState({}, '', u); route(true); };
   $('#dkPrev').onclick = () => to(i - 1); $('#dkNext').onclick = () => to(i + 1); $('#dkJump').onchange = e => to(+e.target.value);
   document.onkeydown = e => { if (cur !== 'deck' || DKMODE !== 'one' || /INPUT|SELECT|TEXTAREA/.test((e.target || {}).tagName || '')) return; if (e.key === 'ArrowRight' && i < n - 1) to(i + 1); if (e.key === 'ArrowLeft' && i) to(i - 1); };
@@ -1396,13 +1412,13 @@ function scFmt(){ const F = Object.assign({ openGames:3, womenGames:3, openHours
  const rows = arr((S.sportsPlan || {}).rows), t = re => rows.filter(r => re.test(r.sport || '')).reduce((a,r) => a + num(r.slots), 0);
  F.openTeams = num(F.openTeams) || t(/Hardball/) || 13; F.womenTeams = num(F.womenTeams) || t(/Tapeball/) || 5; return F; }
 function scCricket(s, F){ const gap = num(F.gapMin) / 60, so = num(F.openHours) + gap, sw = num(F.womenHours) + gap;
- const win = (d, lights) => Math.max(0, hh(d === 'fri' ? F.fridayEnd : (lights ? F.lightsEnd : F.daylightEnd)) - hh(F.start));
+ const win = (d, lights, end) => Math.max(0, hh(d === 'fri' ? F.fridayEnd : (lights ? (end || F.lightsEnd) : F.daylightEnd)) - hh(F.start));
  const fit = (h, slot) => Math.max(0, Math.floor((h + gap + 1e-9) / slot));
  const po = Math.ceil(F.openTeams * F.openGames / 2), pw = Math.ceil(F.womenTeams * F.womenGames / 2);
  const No = po + (F.playoffsAll ? F.openTeams - 1 : 3), Nw = pw + (F.playoffsAll ? F.womenTeams - 1 : 1);
  const mo = F.stadiumPerTeam ? Math.ceil(F.openTeams / 2) : 0, mw = F.stadiumPerTeam ? Math.ceil(F.womenTeams / 2) : 0;
  let O = 0, W = 0, A = 0; const stad = {}, P = arr(s.pitches);
- P.forEach(p => SC_ORDER.forEach(d => { const n = num((p.days || {})[d]); if (!n) return; const h = win(d, p.lights);
+ P.forEach(p => SC_ORDER.forEach(d => { const n = num((p.days || {})[d]); if (!n) return; const h = win(d, p.lights, p.end);
   if (p.kind === 'open') O += n * fit(h, so); else if (p.kind === 'women') W += n * fit(h, sw); else if (p.kind === 'stadium') stad[d] = (stad[d] || 0) + n * h; else A += n * h; }));
  const sd = SC_ORDER.filter(d => stad[d]), Hs = sd.reduce((a,d) => a + stad[d], 0);
  const r = { No, Nw, po, pw, O, W, A, Hs, so, sw, mo, mw, stadDays:sd };
@@ -1596,7 +1612,7 @@ function scSiteDays(k){ const prev = SC_FORCE; SC_FORCE = k; scApplyDays(); ENG.
  SC_FORCE = prev; scApplyDays(); ENG.dirty = true; return out; }
 const LIVE = {
  scenarios: () => { const F = scFmt(), defs = ents(SCN().defs).sort((a,b) => num(a[1].order) - num(b[1].order)), act = SCN().active;
-  return '<table><thead><tr><th></th>' + defs.map(([id, s]) => '<th>' + esc(s.short || id) + '</th>').join('') + '</tr></thead><tbody>'
+  return '<table><thead><tr><th></th>' + defs.map(([id, s]) => '<th' + (id === scKey() ? ' style="background:#1F3A5F;color:#fff"' : '') + '>' + esc(s.short || id) + '</th>').join('') + '</tr></thead><tbody>'
    + [['Cricket days', s => esc(s.cricketDays || '')], ['Venues in', s => esc((s.venuesIn || []).join('; '))], ['Fits the format', s => { const c = scCricket(s, F); return c.fits ? (c.spare < 6 ? 'Yes (tight)' : 'Yes') : 'Not yet'; }],
       ['Stadium starts by', s => { const c = scCricket(s, F); return c.noStadium ? 'No stadium' : c.latest ? scDL(c.latest) : 'Not enough'; }]].map(([l, f]) => '<tr><td><b>' + l + '</b></td>' + defs.map(([id, s]) => '<td>' + f(s) + '</td>').join('') + '</tr>').join('')
    + '</tbody></table><p style="margin-top:14px;font-size:.8em">' + F.openTeams + ' open and ' + F.womenTeams + ' women’s teams · open games ' + F.openHours + ' h, women’s ' + F.womenHours + ' h, ' + F.gapMin + '-min gap · every team makes the playoffs, plays at least 3 games and at least 1 at the stadium.</p>'; },
@@ -1608,6 +1624,24 @@ const LIVE = {
   return '<table><thead><tr><th>Venue</th><th>Main vendor</th>' + days.map(d => '<th>' + esc(d.label) + '</th>').join('') + '<th>Servings</th></tr></thead><tbody>' + fp.venues.map(v => '<tr><td><b>' + esc(v.name) + '</b></td><td>' + esc(fpVname(v.V.vendor)) + '</td>' + days.map(d => { const n = v.rows.filter(r => r.on && r.d.key === d.key).reduce((a,r) => a + r.count, 0); return '<td>' + (n ? nf(n) : '') + '</td>'; }).join('') + '<td><b>' + nf(v.servings) + '</b></td></tr>').join('') + '</tbody></table>'; },
  venues: () => { const x = scSiteDays(scKey()); return '<table><thead><tr><th>Venue</th>' + x.days.map(d => '<th>' + esc(d[1]) + '</th>').join('') + '</tr></thead><tbody>' + Object.entries(x.sites).map(([s, dd]) => '<tr><td><b>' + esc(s) + '</b></td>' + x.days.map(d => '<td style="font-size:.75em">' + (dd[d[0]] || []).map(esc).join('<br>') + '</td>').join('') + '</tr>').join('') + '</tbody></table>'; }
 };
+
+LIVE.week = () => { const defs = ents(SCN().defs).sort((a,b) => num(a[1].order) - num(b[1].order)), k = scKey();
+ const D = [['tue','Tue 23 Mar'],['wed','Wed 24 Mar'],['thu','Thu 25 Mar'],['fri','Fri 26 Mar'],['sat','Sat 27 Mar'],['sun','Sun 28 Mar'],['mon','Mon 29 Mar']];
+ const used = D.filter(([d]) => d !== 'tue' || defs.some(([i, s]) => arr(s.pitches).some(p => num((p.days || {}).tue))));
+ const cell = (s, d) => { const P = arr(s.pitches).filter(p => num((p.days || {})[d])), out = [];
+  if (P.length) { const rr = P.filter(p => /railroad/i.test(p.name)), st = P.some(p => p.kind === 'stadium'); out.push('<b>Cricket</b> · ' + [rr.length ? 'Railroad Park' + (rr.some(p => p.kind === 'open') ? '' : ' (women’s)') : '', st ? 'stadium' : ''].filter(Boolean).join(' + ')); }
+  const sv = (s.sportVenue || {})['Football (Soccer)'], soc = sv ? String(sv).replace(/ Sports Complex/, '').replace(/\s*\(.*\)/, ', Mansfield') : 'Railroad Park';
+  if (d === 'wed') out.push(P.length ? 'Load-in at other venues' : 'Load-in · cricket squads arrive');
+  if (d === 'thu') out.push('Setup at every other venue');
+  if (d === 'fri') out.push('All sports start · ends 5 PM', 'Soccer, flag football · ' + soc);
+  if (d === 'sat') out.push('Full day, all venues', 'Soccer, flag football · ' + soc);
+  if (d === 'sun') out.push('Finals · end 3 PM', 'Soccer, flag football · ' + soc);
+  if (d === 'mon') out.push('Move-out');
+  return out.join('<br>') || '—'; };
+ return '<table><thead><tr><th style="width:14%">Day</th>' + defs.map(([i, s]) => '<th' + (i === k ? ' style="background:#1F3A5F;color:#fff"' : '') + '>' + esc(s.short || i) + '</th>').join('') + '</tr></thead><tbody>'
+  + used.map(([d, l]) => '<tr><td><b>' + l + '</b></td>' + defs.map(([i, s]) => '<td style="font-size:.85em' + (i === k ? ';background:#EEF2F7' : '') + '">' + cell(s, d) + '</td>').join('') + '</tr>').join('') + '</tbody></table>'; };
+LIVE.soccerVenue = () => { const s = scDef(), sv = s && (s.sportVenue || {})['Football (Soccer)']; return sv ? 'Skinner Sports Complex, Mansfield' : 'Railroad Park, Lewisville'; };
+LIVE.cricketHead = () => { const s = scDef(); if (!s) return 'Cricket opens Thursday'; const d = SC_ORDER.find(x => arr(s.pitches).some(p => num((p.days || {})[x]))) || 'thu'; return 'Cricket opens ' + ({ tue:'Tuesday', wed:'Wednesday', thu:'Thursday' }[d] || 'Thursday'); };
 function deckLive(root){ $$('[data-live]', root || document).forEach(el => { const f = LIVE[el.dataset.live]; if (!f) return; try { el.innerHTML = f(); el.classList.add('dkLive'); } catch(e) { el.innerHTML = '<p>Live block unavailable: ' + esc(e.message) + '</p>'; } }); }
 
 /* ══════════ VENUE PLAN DOCUMENT (printable; money behind the PIN) ══════════ */
@@ -1643,6 +1677,87 @@ function infoize(){
  $$('#view p.hint').forEach(p => { if (p.dataset.i || !p.textContent.trim() || p.closest('.dkSlide')) return; p.dataset.i = '1'; p.classList.add('iHint');
   const b = document.createElement('button'); b.type = 'button'; b.className = 'iBtn'; b.textContent = 'i'; b.title = p.textContent; b.onclick = e => { e.stopPropagation(); p.classList.toggle('show'); }; p.parentNode.insertBefore(b, p); });
 }
+
+/* ══════════ SITE PLANS: scaled floor plans (indoor) and satellite views (outdoor) for the plotting exercise ══════════ */
+const SP_T = { tent:['Tent / canopy','#b07a1a','T'], food:['Food','#1f6f5c','F'], water:['Water','#2563eb','W'], med:['First aid','#b42318','+'], reg:['Check-in / registration','#0b1f3a','R'],
+ vol:['Volunteer hub','#5b4aa0','V'], merch:['Merch','#7c3aed','M'], jamati:['Jamati engagement','#0d9488','J'], rest:['Restrooms','#475569','WC'], tables:['Tables and chairs','#78350f','TC'],
+ cmd:['Venue lead / radio','#111827','L'], bus:['Bus drop','#ca8a04','B'], park:['Parking','#334155','P'], sign:['Signage','#ea580c','S'], spect:['Spectator area','#64748b','SP'], cart:['Golf-cart route','#16a34a','GC'] };
+const SP_COURT = [ [/basket/i,'Basketball',94,50,10], [/volley/i,'Volleyball',59,30,10], [/throw/i,'Throwball',80,40,8], [/badminton/i,'Badminton',44,20,5], [/table/i,'Table tennis',9,5,18],
+ [/pickle/i,'Pickleball',44,20,10], [/tennis/i,'Tennis',78,36,18], [/chess/i,'Chess',30,20,5] ];
+const SP_FLOOR = [ [/northlake/i, { surfaces:8, w:200, h:85, src:'Northlake: 8 floor surfaces (DSE draft, June)' }], [/farmers branch/i, { surfaces:6, w:200, h:85, src:'Farmers Branch: 6 floor surfaces (DSE draft, June)' }],
+ [/pickler/i, { surfaces:1, hall:true, src:'Pickler Universe: one hall, 26 courts' }] ];
+let SPV = null, SPT = null, SPMAP = null, SPPAPER = 'letter';
+const spVenues = () => ents(S.venues).filter(([k, v]) => v && v.name && !v.archived && !/^(declined|not available|not selected|closed)/i.test(String(v.status || ''))
+ && (/silverlake|skinner|grand prairie cricket stadium|railroad park/i.test(v.name) || ((venuePeople(v.name) || {}).onSite > 0))).sort((a,b) => String(a[1].name).localeCompare(String(b[1].name)));
+const spFloorDef = name => { const f = SP_FLOOR.find(([re]) => re.test(name)); return f ? f[1] : null; };
+function spCourts(name){ const n = fpNrm(name), out = [];
+ try { CMLines().forEach(l => { const s = fpNrm(l.site); if (!s || !(s.indexOf(n) === 0 || n.indexOf(s) === 0)) return; const mx = Math.max(0, ...DAYS.map(([d]) => num(cmVal(l, d).c)), ...['tue','wed'].map(d => num(cmVal(l, d).c)));
+  const txt = (l.sport || '') + ' ' + (l.label || ''), spec = SP_COURT.find(([re]) => re.test(txt)); if (!mx || !spec) return; const ex = out.find(o => o.name === spec[1]); if (ex) ex.n = Math.max(ex.n, mx); else out.push({ name:spec[1], n:mx, w:spec[2], h:spec[3], run:spec[4] }); }); } catch(e) {}
+ return out; }
+function spLayout(name){ const F = spFloorDef(name); if (!F) return null; const courts = spCourts(name), shapes = [], surf = [];
+ if (F.hall) { const tot = courts.reduce((a,c) => a + c.n, 0) || 26, c0 = courts[0] || { name:'Pickleball', w:44, h:20, run:10 }, bw = c0.w + 2 * c0.run, bh = c0.h + 2 * c0.run, cols = Math.ceil(Math.sqrt(tot * bh / bw)), rows = Math.ceil(tot / cols);
+  surf.push({ x:0, y:0, w:cols * bw, h:rows * bh, label:'Main hall' }); let i = 0; for (let r = 0; r < rows; r++) for (let c = 0; c < cols && i < tot; c++) { i++; shapes.push({ x:c * bw + c0.run, y:r * bh + c0.run, w:c0.w, h:c0.h, label:(c0.name === 'Pickleball' ? 'PB ' : '') + i }); }
+  return { W:cols * bw, H:rows * bh, surf, shapes, courts, src:F.src }; }
+ const gap = 30, perRow = 2; for (let i = 0; i < F.surfaces; i++) surf.push({ x:(i % perRow) * (F.w + gap), y:Math.floor(i / perRow) * (F.h + gap), w:F.w, h:F.h, label:'Surface ' + (i + 1) });
+ let si = 0; courts.forEach(c => { const bw = c.w + 2 * c.run, bh = c.h + 2 * c.run, ab = ({ Basketball:'BB', Volleyball:'VB', Throwball:'TB', Badminton:'BD', 'Table tennis':'TT', Pickleball:'PB', Tennis:'TN', Chess:'CH' })[c.name] || c.name.slice(0,2).toUpperCase(); let left = c.n, k = 0;
+  while (left > 0 && si < surf.length) { const S0 = surf[si], cols = Math.max(1, Math.floor(S0.w / bw)), rows = Math.max(1, Math.floor(S0.h / bh)), fit = cols * rows, ox = S0.x + (S0.w - Math.min(left, cols) * bw) / 2, oy = S0.y + (S0.h - Math.min(rows, Math.ceil(Math.min(left, fit) / cols)) * bh) / 2;
+   for (let j = 0; j < Math.min(left, fit); j++) { k++; const r = Math.floor(j / cols), cc = j % cols; shapes.push({ x:ox + cc * bw + c.run, y:oy + r * bh + c.run, w:c.w, h:c.h, label:ab + ' ' + k }); }
+   S0.label = c.name; left -= Math.min(left, fit); si++; } });
+ const W = Math.max(...surf.map(s => s.x + s.w)), H = Math.max(...surf.map(s => s.y + s.h)); return { W, H, surf, shapes, courts, src:F.src }; }
+function spFloorSVG(name, items){ const L = spLayout(name), pad = 40, W = L.W + 2 * pad, H = L.H + 2 * pad + 40; let g = '';
+ for (let x = 0; x <= L.W; x += 10) g += '<line x1="' + (pad + x) + '" y1="' + pad + '" x2="' + (pad + x) + '" y2="' + (pad + L.H) + '" class="g' + (x % 50 ? '' : ' G') + '"/>';
+ for (let y = 0; y <= L.H; y += 10) g += '<line x1="' + pad + '" y1="' + (pad + y) + '" x2="' + (pad + L.W) + '" y2="' + (pad + y) + '" class="g' + (y % 50 ? '' : ' G') + '"/>';
+ const s = L.surf.map(r => '<rect class="sf" x="' + (pad + r.x) + '" y="' + (pad + r.y) + '" width="' + r.w + '" height="' + r.h + '" rx="14"/><text class="sl" x="' + (pad + r.x + 6) + '" y="' + (pad + r.y + 11) + '">' + esc(r.label) + '</text>').join('');
+ const c = L.shapes.map(r => '<rect class="ct" x="' + (pad + r.x) + '" y="' + (pad + r.y) + '" width="' + r.w + '" height="' + r.h + '"/><text class="cl" x="' + (pad + r.x + r.w / 2) + '" y="' + (pad + r.y + r.h / 2 + 2.5) + '">' + esc(r.label) + '</text>').join('');
+ const it = items.map(([id, o]) => { const t = SP_T[o.t] || ['Item','#444','?']; return '<g class="spI" data-id="' + esc(id) + '" transform="translate(' + (pad + num(o.x)) + ',' + (pad + num(o.y)) + ')"><circle r="7" fill="' + t[1] + '"/><text class="ic">' + t[2] + '</text>' + (o.label ? '<text class="il" y="15">' + esc(o.label) + (num(o.n) > 1 ? ' ×' + num(o.n) : '') + '</text>' : '') + '</g>'; }).join('');
+ const sb = '<g transform="translate(' + pad + ',' + (pad + L.H + 18) + ')"><rect width="50" height="4" fill="#111"/><rect x="50" width="50" height="4" fill="#fff" stroke="#111" stroke-width=".5"/><text class="sl" y="14">0</text><text class="sl" x="46" y="14">50</text><text class="sl" x="92" y="14">100 ft</text><text class="sl" x="140" y="5">Grid 10 ft · ' + esc(L.src) + ' · schematic, check against venue CAD</text></g>';
+ return { svg:'<svg id="spSvg" viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg">' + g + s + c + it + sb + '</svg>', L, pad }; }
+function spLegend(items){ const cnt = {}; items.forEach(([k, o]) => cnt[o.t] = (cnt[o.t] || 0) + Math.max(1, num(o.n) || 1));
+ return '<div class="spLeg">' + Object.entries(SP_T).map(([k, t]) => '<span><i style="background:' + t[1] + '">' + t[2] + '</i>' + esc(t[0]) + (cnt[k] ? ' · ' + cnt[k] : '') + '</span>').join('') + '</div>'; }
+
+RENDER.siteplan = () => {
+ const list = spVenues(); if (!list.length) { $('#view').innerHTML = '<div class="empty">No venues in play.</div>'; return; }
+ const q = new URLSearchParams(location.search); if (q.get('site') && list.some(([k]) => k === q.get('site'))) SPV = q.get('site'); if (!SPV || !list.some(([k]) => k === SPV)) SPV = list[0][0];
+ const v = S.venues[SPV], P = v.siteplan || {}, items = ents(P.items || {}), floor = !!spFloorDef(v.name), ed = canEdit();
+ $('#topR').innerHTML = '<select id="spPaper" class="sel">' + [['letter','Letter'],['tabloid','11×17'],['24','24×24 in'],['36x24','36×24 in'],['48','48×48 in']].map(([k,l]) => '<option value="' + k + '"' + (k === SPPAPER ? ' selected' : '') + '>' + l + '</option>').join('') + '</select><button class="btn pri" id="spPrint" type="button">Print / PDF</button>';
+ const people = venuePeople(v.name);
+ let h = '<div class="seg chips spVs" style="margin-bottom:12px">' + list.map(([k, x]) => '<button type="button" class="' + (k === SPV ? 'on' : '') + '" data-spv="' + esc(k) + '">' + esc(String(x.name).replace(/\s*\(.*\)$/, '').replace(/ — .*$/, '')) + '</button>').join('') + '</div>';
+ h += '<div class="spWrap"><div class="spSide">' + (ed ? '<div class="spPal">' + Object.entries(SP_T).map(([k, t]) => '<button type="button" class="' + (SPT === k ? 'on' : '') + '" data-spt="' + k + '"><i style="background:' + t[1] + '">' + t[2] + '</i>' + esc(t[0]) + '</button>').join('') + '</div><p class="hint">Pick an item, then click the plan to place it. Drag to move. Click an item to rename, set a count or remove it.</p>' : '')
+  + '<div class="spCnt"><b>' + items.length + '</b> placed' + (people ? ' · ' + nf(people.onSite) + ' on site' : '') + '</div></div>'
+  + '<div class="spMain"><div class="spTitle"><b>' + esc(v.name) + '</b><span>' + (floor ? 'Floor plan' : 'Satellite view') + ' · NAIG 2027 · ' + esc(fmtTs(Date.now())) + '</span></div>'
+  + (floor ? '<div id="spCanvas" class="spFloor">' + spFloorSVG(v.name, items).svg + '</div>' : '<div id="spCanvas" class="spSat"><div id="spMap"></div></div>') + spLegend(items) + '</div></div>';
+ $('#view').innerHTML = h;
+ $$('[data-spv]').forEach(b => b.onclick = () => { SPV = b.dataset.spv; SPT = null; const u = new URL(location); u.searchParams.set('site', SPV); history.replaceState({}, '', u); route(true); });
+ $$('[data-spt]').forEach(b => b.onclick = () => { SPT = SPT === b.dataset.spt ? null : b.dataset.spt; $$('[data-spt]').forEach(x => x.classList.toggle('on', x.dataset.spt === SPT)); $('#spCanvas').classList.toggle('placing', !!SPT); });
+ $('#spPaper').onchange = e => { SPPAPER = e.target.value; }; $('#spPrint').onclick = () => spPrint(floor);
+ const base = 'venues/' + SPV + '/siteplan/items/';
+ const add = pos => { if (!SPT || !ed) return; const id = 'i' + Date.now().toString(36); save(base + id, Object.assign({ t:SPT, label:'', n:1, by:me(), at:Date.now() }, pos), 'venue', v.name, 'Site plan: ' + SP_T[SPT][0] + ' placed at ' + v.name); };
+ if (floor) { const svg = $('#spSvg'), pad = 40, pt = e => { const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; const r = p.matrixTransform(svg.getScreenCTM().inverse()); return { x:Math.round((r.x - pad) * 2) / 2, y:Math.round((r.y - pad) * 2) / 2 }; };
+  let drag = null, moved = false;
+  svg.addEventListener('pointerdown', e => { const g = e.target.closest('.spI'); if (g && ed) { drag = g; moved = false; svg.setPointerCapture(e.pointerId); e.preventDefault(); } });
+  svg.addEventListener('pointermove', e => { if (!drag) return; moved = true; const p = pt(e); drag.setAttribute('transform', 'translate(' + (p.x + pad) + ',' + (p.y + pad) + ')'); drag._p = p; });
+  svg.addEventListener('pointerup', e => { if (drag) { const g = drag; drag = null; if (moved && g._p) save(base + g.dataset.id, g._p); else spEdit(base, g.dataset.id, v.name); return; } if (!e.target.closest('.spI')) add(pt(e)); }); }
+ else loadLeaflet().then(() => { const el = $('#spMap'); if (!el) return; if (SPMAP) { SPMAP.remove(); SPMAP = null; }
+  const lat = parseFloat(v.lat), lng = parseFloat(v.lng), vw = P.view || {}; if (!isFinite(lat) || !isFinite(lng)) { el.innerHTML = '<div class="empty">This venue has no map location yet.</div>'; return; }
+  SPMAP = L.map(el, { zoomControl:true, maxZoom:20 }).setView([num(vw.lat) || lat, num(vw.lng) || lng], num(vw.z) || 18);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom:20, maxNativeZoom:19, crossOrigin:true, attribution:'Imagery © Esri, Maxar, Earthstar Geographics' }).addTo(SPMAP);
+  L.control.scale({ imperial:true, metric:false }).addTo(SPMAP);
+  items.forEach(([id, o]) => { if (!isFinite(parseFloat(o.lat))) return; const t = SP_T[o.t] || ['Item','#444','?'];
+   const m = L.marker([o.lat, o.lng], { draggable:ed, icon:L.divIcon({ className:'spMk', html:'<i style="background:' + t[1] + '">' + t[2] + '</i>' + (o.label ? '<span>' + esc(o.label) + (num(o.n) > 1 ? ' ×' + num(o.n) : '') + '</span>' : ''), iconSize:[24,24], iconAnchor:[12,12] }) }).addTo(SPMAP);
+   m.on('dragend', () => { const p = m.getLatLng(); save(base + id, { lat:+p.lat.toFixed(7), lng:+p.lng.toFixed(7) }); }); m.on('click', () => spEdit(base, id, v.name)); });
+  SPMAP.on('click', e => add({ lat:+e.latlng.lat.toFixed(7), lng:+e.latlng.lng.toFixed(7) }));
+  if (ed) SPMAP.on('moveend', () => { clearTimeout(SPMAP._t); SPMAP._t = setTimeout(() => { const c = SPMAP.getCenter(); update(R('venues/' + SPV + '/siteplan/view'), { lat:+c.lat.toFixed(6), lng:+c.lng.toFixed(6), z:SPMAP.getZoom() }).catch(() => {}); }, 800); }); }).catch(() => { const el = $('#spMap'); if (el) el.innerHTML = '<div class="empty">Map could not load.</div>'; });
+};
+function spEdit(base, id, vname){ const o = ((S.venues[SPV].siteplan || {}).items || {})[id]; if (!o || !canEdit()) return; const t = SP_T[o.t] || ['Item'];
+ openDrawer(t[0], '<label class="l">Label</label><input id="spL" value="' + esc(o.label || '') + '" placeholder="e.g. Food tent A"><label class="l">Count</label><input id="spN" type="number" min="1" value="' + esc(o.n || 1) + '"><label class="l">Type</label><select id="spTy">' + Object.entries(SP_T).map(([k, x]) => '<option value="' + k + '"' + (k === o.t ? ' selected' : '') + '>' + esc(x[0]) + '</option>').join('') + '</select>',
+  '<button class="btn" id="spDel" type="button">Remove</button><button class="btn pri" id="spSv" type="button">Save</button>');
+ $('#spSv').onclick = async () => { if (await save(base + id, { label:$('#spL').value.trim(), n:Math.max(1, num($('#spN').value) || 1), t:$('#spTy').value })) closeDrawer(); };
+ $('#spDel').onclick = async () => { try { await set(R(base + id), null); toast('Removed'); closeDrawer(); } catch(e) { toast('Not removed: ' + (e.code || e.message)); } }; }
+function spPrint(floor){ const sz = { letter:'11in 8.5in', tabloid:'17in 11in', '24':'24in 24in', '36x24':'36in 24in', '48':'48in 48in' }[SPPAPER] || '11in 8.5in';
+ let st = $('#spPage'); if (!st) { st = document.createElement('style'); st.id = 'spPage'; document.head.appendChild(st); } st.textContent = '@page{size:' + sz + ';margin:0.4in}';
+ document.body.classList.add('spPrinting');
+ const done = () => { document.body.classList.remove('spPrinting'); if (SPMAP) setTimeout(() => SPMAP.invalidateSize(), 100); };
+ if (!floor && SPMAP) { SPMAP.invalidateSize(); setTimeout(() => { window.print(); done(); }, 1800); } else { setTimeout(() => { window.print(); done(); }, 100); } }
 
 /* ══════════ theme, boot ══════════ */
 const root = document.documentElement;
