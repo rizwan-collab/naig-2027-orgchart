@@ -218,6 +218,17 @@ td small,.sm{color:var(--mute);font-size:12px}
 a.it{text-decoration:none;color:inherit;display:block}
 .chips .dot{margin-right:6px}
 .leaflet-container{font:inherit}
+
+.dkCard{padding:12px}.dkStage{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;border-radius:8px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12);margin:8px 0}
+.dkSlide{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;color:#1F2937;font-family:'Carlito',Calibri,Arial,sans-serif;line-height:1.3}
+.dkSlide>section{position:relative;width:1920px;height:1080px;box-sizing:border-box;overflow:hidden}
+.dkSlide *{margin:0;box-sizing:border-box}.dkSlide aside{display:none}.dkSlide ul,.dkSlide ol{padding-left:1.2em}.dkSlide li{margin:0 0 .25em}
+.dkSlide table{border-collapse:collapse;width:100%}.dkSlide th,.dkSlide td{padding:10px 16px;text-align:left;vertical-align:top;border-bottom:1px solid #D5DBE3}.dkSlide th,.dkSlide td{font-size:inherit;text-transform:none;letter-spacing:0;color:inherit;background:transparent;white-space:normal;height:auto}.dkSlide th{font-weight:700}
+.dkPic{display:flex;align-items:center;justify-content:center;background:#E5E9EF;color:#6B7280;font-size:28px}
+.dkBar{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap}.dkBar .sel{max-width:420px}
+.dkCm{display:flex;flex-direction:column;gap:6px;margin-top:10px}.dkCi{display:block;padding:8px 10px;border:1px solid var(--line,#e5e7eb);border-radius:8px;text-decoration:none;color:inherit;font-size:13px}.dkCi:hover{background:rgba(0,0,0,.03)}.dkCm .btn{align-self:flex-start}
+.dkNote{margin-top:8px;font-size:13px;color:var(--mut,#667085);white-space:pre-wrap}
+#dkOne:fullscreen{background:#111;display:flex;flex-direction:column;justify-content:center;padding:24px}#dkOne:fullscreen .dkNote{display:none}
 </style>
 </head>
 <body>
@@ -264,7 +275,7 @@ const PATHS = { tasks:'tasks', venues:'venues', hotels:'hotels', prospects:'pros
  emailLog:'progressWatch/emailLog', pw:'progressWatch', lines:'costMatrix/lines', days:'costMatrix/days', rates:'budget/costLines', budget:'budget',
  plan:'plan', sportsPlan:'sportsPlan', slotRegions:'slotRegions', headcount:'headcount', teamModel:'teamModel/sports', supportRules:'headcountModel/supportRules',
  scope:'scope', loops:'loops', flights:'flights', jk:'jamatkhanas', transportation:'transportation', transportModel:'transportModel', drivers:'drivers',
- food:'food', intake:'intake', rnr:'rnr', vendors:'vendors', docs:'docs', driveIndex:'settings/driveIndex', arrivals:'arrivals', publicRef:'public/venueRef/venues' };
+ food:'food', intake:'intake', rnr:'rnr', vendors:'vendors', docs:'docs', driveIndex:'settings/driveIndex', decks:'settings/decks', arrivals:'arrivals', publicRef:'public/venueRef/venues' };
 const S = { m2m:{}, loaded:new Set(), user:null, perms:null, gUser:null };
 Object.keys(PATHS).forEach(k => S[k] = {});
 window._tasksData = S.tasks; window._venuesData = S.venues;
@@ -591,6 +602,7 @@ const PAGES = [
  { g:'Reference' },
  { k:'docs', label:'Documents', tab:'docs', title:'Documents', sub:() => 'Contracts, proposals and plans, linked to Drive.' },
  { k:'drive', label:'Decks and Drive', tab:'docs', title:'Decks and Drive', sub:() => 'Decks, rules, plans and notes from the team Drive. Click to open in Drive.' },
+ { k:'deck', label:'Meeting decks', tab:'docs', title:'Meeting decks', sub:() => 'Review meeting decks in the hub. Share the link with anyone who has hub access.' },
  { k:'people', label:'People and org chart', tab:'orgchart', title:'People and org chart', sub:() => 'The directory and who reports to whom.' },
  { k:'rnr', label:'Roles and duties', tab:'orgchart', title:'Roles and duties', sub:() => 'What each role owns in every vertical, who it escalates to, and time needed.' },
  { k:'access', label:'Access', tab:'orgchart', manage:true, title:'Access', sub:() => 'Who can see and edit what, and pending requests.', badge:() => { const n = arr(S.accessRequests).filter(r => r.status === 'pending').length; return n ? [n,'bad'] : null; } },
@@ -893,10 +905,11 @@ const DCFG = { placeholder:'Search activities, owners, venues', def:{ sort:'star
  groups:[ { k:'day', label:'Day', get:b => b._day, order:MDAYS.map(x => x[1]) }, { k:'lane', label:'Team', get:b => b.lane || 'Other' }, { k:'venue', label:'Venue', get:b => blkVenues(b).length ? blkVenues(b) : ['All'] } ],
  csv:() => csv('naig-game-days', [['Day','_day'],['Start','start'],['End','end'],['Activity',b => clean(b.activity)],['Team','lane'],['Owner','owner'],['Where',b => blkVenues(b).join('; ')],['Detail','detail']], applyF('days', MBlocks(), DCFG)) };
 RENDER.days = () => { const { bar, groups } = filtered('days', MBlocks(), DCFG);
+ $('#topR').innerHTML = '<button class="btn" type="button" id="dByV">' + (FS.days.group === 'venue' ? 'Group by day' : 'Group by venue') + '</button>'; $('#dByV').onclick = () => { FS.days.group = FS.days.group === 'venue' ? 'day' : 'venue'; fsave('days'); route(true); };
  const tm = x => /^\d/.test(x || '') ? t12(x) : esc(x || '');
  $('#view').innerHTML = bar + groups.map(([g, bs]) => { const d = MDAYS.find(x => x[1] === g), note = d && (S.m2m[d[0]] || {}).dayNote;
-  return '<div class="card">' + (g ? '<h2>' + esc(g) + '</h2>' : '') + (note ? '<p class="hint">' + esc(note) + '</p>' : '') + '<div class="tw"><table><thead><tr><th>Start</th><th>End</th><th>What</th><th>Team</th><th>Owner</th><th>Where</th></tr></thead><tbody>'
-   + bs.map(b => '<tr class="cl" data-open="blk|' + esc(b._id) + '"><td>' + tm(b.start) + '</td><td>' + tm(b.end) + '</td><td><b>' + esc(clean(b.activity)) + '</b>' + (b.detail ? '<br><small>' + esc(noMoney(clean(b.detail))) + '</small>' : '') + '</td><td class="sm">' + esc(b.lane || '') + '</td><td class="sm">' + esc(b.owner || '') + '</td><td class="sm">' + esc(blkVenues(b).join(', ')) + '</td></tr>').join('') + '</tbody></table></div></div>'; }).join('') || '<div class="empty">Nothing matches.</div>'; };
+  return '<div class="card">' + (g ? '<h2>' + esc(g) + '</h2>' : '') + (note ? '<p class="hint">' + esc(note) + '</p>' : '') + '<div class="tw"><table><thead><tr>' + (FS.days && FS.days.group !== 'day' ? '<th>Day</th>' : '') + '<th>Start</th><th>End</th><th>What</th><th>Team</th><th>Owner</th><th>Where</th></tr></thead><tbody>'
+   + bs.map(b => '<tr class="cl" data-open="blk|' + esc(b._id) + '">' + (FS.days && FS.days.group !== 'day' ? '<td class="sm">' + esc(b._day) + '</td>' : '') + '<td>' + tm(b.start) + '</td><td>' + tm(b.end) + '</td><td><b>' + esc(clean(b.activity)) + '</b>' + (b.detail ? '<br><small>' + esc(noMoney(clean(b.detail))) + '</small>' : '') + '</td><td class="sm">' + esc(b.lane || '') + '</td><td class="sm">' + esc(b.owner || '') + '</td><td class="sm">' + esc(blkVenues(b).join(', ')) + '</td></tr>').join('') + '</tbody></table></div></div>'; }).join('') || '<div class="empty">Nothing matches.</div>'; };
 OPEN.blk = id => { const [d, i] = id.split('|'), b = Object.assign({}, (((S.m2m[d] || {}).blocks) || {})[i] || {}), ed = canEdit();
  openDrawer(clean(b.activity) || 'Block', recForm(b, [['activity','What'],['start','Start (24h, e.g. 08:00)'],['end','End'],['lane','Team'],['owner','Owner'],['location','Where'],['detail','Detail','ta']], !ed), ed ? '<button class="btn pri" id="bSave" type="button">Save</button>' : '');
  if (ed) $('#bSave').onclick = async () => { const { patch, ch } = readForm(b); if (!ch.length) { closeDrawer(); return; } if (await save('m2m/' + d + '/blocks/' + i, patch, 'm2m', clean(b.activity), 'Game day ' + d + ': ' + clean(b.activity) + ' ' + ch.join(', '))) closeDrawer(); }; };
@@ -1085,13 +1098,15 @@ OPEN.person = k => { const p = Object.assign({}, (S.prospects || {})[k] || {}), 
   if (await save('prospects/' + k, patch, 'access', p.name, 'Directory: ' + p.name + ' ' + ch.join(', '))) closeDrawer(); }; };
 
 /* ══════════ ACCESS (admins) ══════════ */
-RENDER.access = () => { const all = PList().sort((a,b) => String(a.name).localeCompare(b.name)), ov = (S.access || {}).overrides || {}, reqs = ents(S.accessRequests).filter(([k,r]) => r.status === 'pending');
- let h = reqs.length ? '<div class="card"><h2>Waiting for approval</h2><div class="tw"><table><thead><tr><th>Who</th><th>Requested</th><th>Match to</th><th></th></tr></thead><tbody>' + reqs.map(([k,r]) => '<tr><td><b>' + esc(r.name || '') + '</b><br><small>' + esc(r.email) + '</small></td><td class="sm">' + fmtTs(r.requestedAt) + '</td><td><select id="rq_' + esc(k) + '"><option value="">Pick who this is</option><option value="__new__">Add as a new person</option>' + all.filter(p => !p.email).map(p => '<option value="' + esc(p._key) + '">' + esc(p.name) + '</option>').join('') + '</select></td><td><button class="btn sm pri" data-rq="ok|' + esc(k) + '" type="button">Approve</button> <button class="btn sm" data-rq="no|' + esc(k) + '" type="button">Deny</button></td></tr>').join('') + '</tbody></table></div></div>' : '<div class="note">No access requests waiting.</div>';
+RENDER.access = () => { const all = PList().sort((a,b) => String(a.name).localeCompare(b.name)), ov = (S.access || {}).overrides || {}, known = new Set(PList().map(x => String(x.email || '').trim().toLowerCase()).filter(Boolean)), reqs = ents(S.accessRequests).filter(([k,r]) => r.status === 'pending' && !known.has(String(r.email || '').trim().toLowerCase()));
+ let h = reqs.length ? '<div class="card"><h2>Waiting for approval</h2><p class="hint">Already handled? Use Clear: it removes the request without changing anyone’s access. <button class="btn sm" type="button" id="rqAll">Clear all ' + reqs.length + '</button></p><div class="tw"><table><thead><tr><th>Who</th><th>Requested</th><th>Match to</th><th></th></tr></thead><tbody>' + reqs.map(([k,r]) => '<tr><td><b>' + esc(r.name || '') + '</b><br><small>' + esc(r.email) + '</small></td><td class="sm">' + fmtTs(r.requestedAt) + '</td><td><select id="rq_' + esc(k) + '"><option value="">Pick who this is</option><option value="__new__">Add as a new person</option>' + all.filter(p => !p.email).map(p => '<option value="' + esc(p._key) + '">' + esc(p.name) + '</option>').join('') + '</select></td><td><button class="btn sm pri" data-rq="ok|' + esc(k) + '" type="button">Approve</button> <button class="btn sm" data-rq="no|' + esc(k) + '" type="button">Deny</button> <button class="btn sm" data-rq="clr|' + esc(k) + '" type="button">Clear</button></td></tr>').join('') + '</tbody></table></div></div>' : '<div class="note">No access requests waiting.</div>';
  h += '<div class="card"><h2>Who sees what</h2><p class="hint">Admin: everything. Core: everything except access. Lead: everything but Budget, can edit. Member: working pages, read-only. Viewer: Today and the org chart.</p><div class="tw"><table><thead><tr><th>Person</th><th>Vertical</th><th>Access</th><th>Can edit</th></tr></thead><tbody>'
   + all.map(p => { const pm = permsFor(p), o = ov[p.id] || {}; return '<tr><td><b>' + esc(p.name) + '</b><br><small>' + esc(p.email || 'no email yet') + '</small></td><td class="sm">' + esc(p.vertical || '') + '</td><td><select data-tier="' + esc(p.id) + '">' + Object.keys(TIERS).map(t => '<option value="' + t + '"' + (t === pm.tier ? ' selected' : '') + '>' + t + (t === defTier(p) ? ' (default)' : '') + '</option>').join('') + '</select>' + (o.tier ? ' <small>override</small>' : '') + '</td><td>' + (pm.edit ? 'Yes' : 'No') + '</td></tr>'; }).join('') + '</tbody></table></div></div>';
  $('#view').innerHTML = h;
  $$('#view [data-tier]').forEach(s => s.onchange = async () => { const p = all.find(x => x.id === s.dataset.tier); await save('access/overrides/' + s.dataset.tier, { tier:s.value }, 'access', p.name, 'Access: ' + p.name + ' set to ' + s.value); });
+ const ra = $('#rqAll'); if (ra) ra.onclick = async () => { for (const [k, r] of reqs) await save('accessRequests/' + k, { status:'cleared', decidedAt:Date.now() }, 'access', r.email, 'Access request cleared (already handled) for ' + r.email); };
  $$('#view [data-rq]').forEach(b => b.onclick = async () => { const [act, k] = b.dataset.rq.split('|'), r = S.accessRequests[k];
+  if (act === 'clr') { await save('accessRequests/' + k, { status:'cleared', decidedAt:Date.now() }, 'access', r.email, 'Access request cleared (already handled) for ' + r.email); return; }
   if (act === 'no') { await save('accessRequests/' + k, { status:'denied', decidedAt:Date.now() }, 'access', r.email, 'Access denied for ' + r.email); return; }
   const ch = $('#rq_' + CSS.escape(k)).value; if (!ch) { toast('Pick who this is first.'); return; }
   if (ch === '__new__') { const n = arr(S.prospects).length; await set(R('prospects/' + n), { id:'p-' + Date.now(), name:r.name || r.email, email:r.email, role:'', roleType:'', vertical:'', status:'ready', region:'usa', added:today(), notes:'Added by approving an access request on ' + today() }); }
@@ -1164,7 +1179,7 @@ const DRCFG = { placeholder:'Search decks and documents', def:{ sort:'modified',
 const kIcon = k => '<span class="fk fk-' + esc(String(k || 'doc').toLowerCase()) + '">' + esc(k === 'Deck' ? 'Slides' : (k || 'Doc')) + '</span>';
 RENDER.drive = () => {
  const all = DRV(), D = S.driveIndex || {}, folder = D.folder || '1Twb2E87ED4bDF9-JX_0cx1bUhVOGNZF8';
- $('#topR').innerHTML = '<a class="btn" href="https://drive.google.com/drive/folders/' + esc(folder) + '" target="_blank" rel="noopener">Open team Drive ↗</a>';
+ $('#topR').innerHTML = (DECKS().length ? '<button class="btn" type="button" onclick="window.__goDeck()">Meeting decks · ' + DECKS().length + '</button>' : '') + '<a class="btn" href="https://drive.google.com/drive/folders/' + esc(folder) + '" target="_blank" rel="noopener">Open team Drive ↗</a>';
  if (!all.length) { $('#view').innerHTML = '<div class="empty">The Drive index has not loaded yet.</div>'; return; }
  const { bar, groups } = filtered('drive', all, DRCFG), wk = all.filter(f => Date.parse(f.modified || '') > Date.now() - 7 * 864e5);
  $('#view').innerHTML = '<div class="kpis"><div class="kpi"><span>Files</span><b>' + all.length + '</b><small>decks, PDFs and docs</small></div><button class="kpi" data-go="drive|kind|Deck" type="button"><span>Decks</span><b>' + all.filter(f => f.kind === 'Deck').length + '</b><small>slides and presentations</small></button><div class="kpi"><span>Changed this week</span><b>' + wk.length + '</b><small>index updated ' + esc(fmtTs(D.updatedAt) || '') + '</small></div></div>'
@@ -1172,6 +1187,56 @@ RENDER.drive = () => {
   + rs.map(f => '<a class="it" href="' + esc(f.url) + '" target="_blank" rel="noopener"><div class="t">' + kIcon(f.kind) + esc(f.name.replace(/\.(pptx|pdf|docx|md)$/i, '')) + '</div><div class="m" style="padding-left:0">' + esc(f.area || '') + '</div><div class="r"><span>' + fmtD(f.modified) + '</span><span class="lnk">Open ↗</span></div></a>').join('') + '</div></div>').join('');
 };
 
+/* ══════════ MEETING DECKS ══════════ */
+const DECKS = () => ents(S.decks).filter(([k, d]) => d && Array.isArray(d.order) && d.slides).map(([k, d]) => Object.assign({ _id:k }, d)).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+const deckSan = h => String(h || '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<(iframe|object|embed|link|meta|style)[^>]*>/gi, '').replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '').replace(/(href|src)\s*=\s*"\s*javascript:[^"]*"/gi, '')
+ .replace(/<img([^>]*?)\ssrc="\/_blob\/[^"]*"([^>]*)>/gi, (m, a, b) => '<div class="dkPic"' + ((a + b).match(/style="[^"]*"/) || [''])[0] + '><span>Picture in the master deck</span></div>');
+const deckTitle = h => { const m = String(h).match(/<h[12][^>]*>([\s\S]*?)<\/h[12]>/i); return m ? m[1].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim() : ''; };
+const deckNotes = h => { const m = String(h).match(/<aside>([\s\S]*?)<\/aside>/i); return m ? m[1].replace(/<[^>]+>/g, '').trim() : ''; };
+let DKMODE = 'one';
+const deckTasks = (d, id) => ents(S.tasks).filter(([k, t]) => t && t.deck === d._id && t.slide === id);
+function deckCmts(d, id, k){ const ts = deckTasks(d, id), btn = DKMODE === 'all' ? '<button class="btn sm" type="button" data-dkc="' + k + '">Comment</button>' : '';
+ return '<div class="dkCm">' + ts.map(([tk, t]) => '<a class="dkCi" href="?task=' + encodeURIComponent(tk) + '"><span class="st ' + esc(t.status || 'todo') + '">' + esc((ST[t.status] || [t.status || 'To do'])[0]) + '</span> ' + esc(String(t.comment || t.title || '').slice(0, 140)) + ' <small>· ' + esc(t.createdBy || '') + (t.owner ? ' → ' + esc(t.owner) : '') + '</small></a>').join('') + btn + '</div>'; }
+function deckComment(d, k, link){ const id = d.order[k], title = deckTitle(d.slides[id] || '');
+ openDrawer('Comment on slide ' + (k + 1), '<p class="hint">' + esc(title) + '</p><label class="l">Your comment</label><textarea id="dkTxt" rows="6" placeholder="What should change on this slide?"></textarea><p class="hint">Each comment becomes a task for Logistics, linked to this slide.</p>', '<button class="btn pri" id="dkSend" type="button">Send comment</button>');
+ $('#dkSend').onclick = async () => { const txt = $('#dkTxt').value.trim(); if (!txt) { toast('Write a comment first.'); return; } const now = new Date().toISOString(), who = me() || 'hub user';
+  const tk = 'dk' + Date.now() + Math.random().toString(36).slice(2,6), short = txt.replace(/\s+/g, ' ').slice(0, 70);
+  const patch = { title:'Deck comment · slide ' + (k + 1) + ': ' + short, comment:txt, status:'todo', owner:'Rizwan Ali', owners:['Rizwan Ali'], priority:'', department:'Logistics', tags:'deck-comment', deck:d._id, slide:id, slideNo:k + 1, source:'deck comment',
+   notes:'COMMENT ' + now.slice(0, 10) + ' (' + who + ') on "' + (d.title || d._id) + '", slide ' + (k + 1) + (title ? ' (' + title + ')' : '') + ':\n' + txt + '\n\nSlide: ' + link + '&s=' + (k + 1), created:now, createdBy:who, updated:now, due:'' };
+  if (await save('tasks/' + tk, patch, 'task', patch.title, 'Deck comment added on slide ' + (k + 1))) { closeDrawer(); route(true); } }; }
+
+function deckFit(){ $$('.dkStage').forEach(st => { const sl = st.firstElementChild; if (sl) sl.style.transform = 'scale(' + (st.clientWidth / 1920) + ')'; }); }
+window.addEventListener('resize', deckFit);
+if (!document.getElementById('dkFont')) { const l = document.createElement('link'); l.id = 'dkFont'; l.rel = 'stylesheet'; l.href = 'https://fonts.googleapis.com/css2?family=Carlito:wght@400;700&display=swap'; document.head.appendChild(l); }
+RENDER.deck = () => {
+ const list = DECKS(), q = new URLSearchParams(location.search);
+ if (!list.length) { $('#view').innerHTML = '<div class="empty">No meeting decks in the hub yet.</div>'; return; }
+ const d = list.find(x => x._id === q.get('deck')) || list[0], n = d.order.length;
+ let i = Math.max(0, Math.min(n - 1, (parseInt(q.get('s'), 10) || 1) - 1));
+ const link = location.origin + location.pathname + '?tab=deck&deck=' + encodeURIComponent(d._id);
+ $('#topR').innerHTML = '<button class="btn" id="dkCopy" type="button">Copy link</button><button class="btn" id="dkMode" type="button">' + (DKMODE === 'one' ? 'Show all slides' : 'One at a time') + '</button><button class="btn" id="dkFull" type="button">Full screen</button>';
+ const pick = list.length > 1 ? '<select id="dkPick" class="sel">' + list.map(x => '<option value="' + esc(x._id) + '"' + (x._id === d._id ? ' selected' : '') + '>' + esc(x.title || x._id) + '</option>').join('') + '</select>' : '';
+ const slide = (id, k) => { const h = (d.slides || {})[id] || ''; return '<div class="dkStage" data-i="' + k + '"><div class="dkSlide">' + deckSan(h) + '</div></div>'; };
+ const head = '<div class="card"><div class="ch">' + esc(d.title || 'Deck') + '<span class="sp sm">' + n + ' slides</span></div><div class="m" style="padding:4px 0 0">' + esc(d.sub || '') + (d.updatedAt ? ' · updated ' + esc(fmtTs(d.updatedAt)) : '') + '</div>' + (pick ? '<div style="margin-top:8px">' + pick + '</div>' : '') + '</div>';
+ if (DKMODE === 'all') {
+  $('#view').innerHTML = head + d.order.map((id, k) => { return '<div class="card dkCard"><div class="m"><b>' + (k + 1) + '</b> · ' + esc(deckTitle(d.slides[id] || '')) + '</div>' + slide(id, k) + deckCmts(d, id, k) + '</div>'; }).join('');
+ } else {
+  const opts = d.order.map((id, k) => '<option value="' + k + '"' + (k === i ? ' selected' : '') + '>' + (k + 1) + ' · ' + esc(deckTitle(d.slides[id] || '').slice(0, 70)) + '</option>').join('');
+  $('#view').innerHTML = head + '<div class="card dkCard" id="dkOne">' + slide(d.order[i], i) + '<div class="dkBar"><button class="btn" id="dkPrev" type="button"' + (i ? '' : ' disabled') + '>‹ Previous</button><select id="dkJump" class="sel">' + opts + '</select><button class="btn" id="dkNext" type="button"' + (i < n - 1 ? '' : ' disabled') + '>Next ›</button><button class="btn pri" type="button" data-dkc="' + i + '">Comment on slide ' + (i + 1) + '</button></div>' + deckCmts(d, d.order[i], i) + '</div>';
+  const to = k => { const u = new URL(location); u.searchParams.set('tab', 'deck'); u.searchParams.set('deck', d._id); u.searchParams.set('s', String(k + 1)); history.replaceState({}, '', u); route(true); };
+  $('#dkPrev').onclick = () => to(i - 1); $('#dkNext').onclick = () => to(i + 1); $('#dkJump').onchange = e => to(+e.target.value);
+  document.onkeydown = e => { if (cur !== 'deck' || DKMODE !== 'one' || /INPUT|SELECT|TEXTAREA/.test((e.target || {}).tagName || '')) return; if (e.key === 'ArrowRight' && i < n - 1) to(i + 1); if (e.key === 'ArrowLeft' && i) to(i - 1); };
+ }
+ if ($('#dkPick')) $('#dkPick').onchange = e => { const u = new URL(location); u.searchParams.set('tab', 'deck'); u.searchParams.set('deck', e.target.value); u.searchParams.delete('s'); history.replaceState({}, '', u); route(); };
+ $$('[data-dkc]').forEach(b => b.onclick = () => deckComment(d, +b.dataset.dkc, link));
+ $('#dkCopy').onclick = () => (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject()).then(() => toast('Deck link copied'), () => prompt('Copy this link', link));
+ $('#dkMode').onclick = () => { DKMODE = DKMODE === 'one' ? 'all' : 'one'; route(); };
+ $('#dkFull').onclick = () => { const el = $('#dkOne') || $('#view'); (el.requestFullscreen ? el.requestFullscreen() : Promise.reject()).then(() => setTimeout(deckFit, 150)).catch(() => {}); };
+ document.addEventListener('fullscreenchange', () => setTimeout(deckFit, 150));
+ requestAnimationFrame(deckFit);
+};
+
+window.__goDeck = () => go('deck');
 /* ══════════ MAP AND TRAVEL ══════════ */
 const AIRPORTS = [ { _id:'apt-dfw', name:'DFW International Airport', kind:'Airport', lat:32.8998, lng:-97.0403, address:'2400 Aviation Dr, DFW Airport, TX 75261' }, { _id:'apt-dal', name:'Dallas Love Field', kind:'Airport', lat:32.8471, lng:-96.8518, address:'8008 Herb Kelleher Way, Dallas, TX 75235' } ];
 const PKIND = { Venue:'#1f6f5c', Hotel:'#b07a1a', Jamatkhana:'#5b4aa0', Airport:'#b42318', Hub:'#0b1f3a' };
