@@ -239,6 +239,10 @@ details.fpV>summary{cursor:pointer;font-size:16px;padding:2px 0 8px}
 .dkLive table{font-size:26px}.dkLive{font-size:28px}
 .sdoc h3{margin:18px 0 8px;font-size:16px}
 @media print{#side,#topR,.seg,#scBar,.pin{display:none!important}.sdoc{break-inside:avoid;box-shadow:none}}
+#pageSub{display:none}#pageSub.show{display:block}.iHint{display:none!important}.iHint.show{display:block!important}
+.iBtn{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin:0 0 0 8px;padding:0;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--mute);font:italic 600 12px Georgia,serif;cursor:pointer;vertical-align:middle;line-height:1}
+.iBtn:hover{color:var(--ink);border-color:var(--ink)}
+.card>.iBtn,#view>.iBtn{margin:0 0 8px}
 </style>
 </head>
 <body>
@@ -647,7 +651,7 @@ function route(soft){
  const y = window.scrollY; $('#topR').innerHTML = '';
  try { RENDER[k]();
  } catch(e) { console.error(e); $('#view').innerHTML = '<div class="empty">This page hit an error: ' + esc(e.message) + '</div>'; }
- fbind(); collapsers(k); if (soft) window.scrollTo(0, y);
+ fbind(); collapsers(k); try { infoize(); } catch(e) {} if (soft) window.scrollTo(0, y);
  if (q.get('task') && !$('#drawer').classList.contains('open')) openTask(q.get('task'));
 }
 /* expand / collapse on every card and list group, remembered per browser */
@@ -1380,7 +1384,7 @@ function scFood(meals){ const s = scDef(), ex = ((s && s.extraDays) || []).lengt
  const E = engine(), ca = Object.keys(E.athSport).filter(n => /^Cricket/.test(n)).reduce((a,n) => a + num(E.athSport[n]), 0), r = E.total.rules;
  const ppl = ca + Math.ceil(ca / r.athletesPerVolunteer) + Math.ceil(ca / r.athletesPerStaff), per = meals.reduce((a,m) => a + num(m.price), 0);
  return { cost:ppl * per * ex, servings:ppl * meals.length * ex, days:ex, people:ppl, athletes:ca }; }
-function scNote(){ const s = scDef(); if (!s) return ''; return '<div class="note">Scenario in view: <b>' + esc(s.name || scKey()) + '</b>' + (scKey() !== (SCN().active || 's1') ? ' (preview, only you see this)' : '') + '. Change it on <a href="?tab=scen">Scenarios</a> or in the menu.</div>'; }
+function scNote(){ const s = scDef(); if (!s) return ''; return '<div class="note">Scenario: <b>' + esc(s.short || s.name || scKey()) + '</b>' + (scKey() !== (SCN().active || 's1') ? ' · preview, only you' : '') + '</div>'; }
 function scBar(){ const defs = ents(SCN().defs).sort((a,b) => num(a[1].order) - num(b[1].order)); let el = $('#scBar');
  if (!defs.length) { if (el) el.remove(); return; } if (!el) { el = document.createElement('div'); el.id = 'scBar'; const nav = $('#nav'); nav.parentNode.insertBefore(el, nav); }
  const k = scKey(), act = SCN().active || 's1';
@@ -1415,7 +1419,6 @@ RENDER.scen = () => { const defs = ents(SCN().defs).sort((a,b) => num(a[1].order
  const dl = d => (SC_DAYS[d] || (BASE_DAYS.find(x => x[0] === d) || [d, d])[1]);
  const res = defs.map(([id, s]) => ({ id, s, c:scCricket(s, F), e:scEval(id) })), base = res.find(x => x.id === 's1') || res[0];
  let h = '<div class="seg chips" style="margin-bottom:12px">' + res.map(x => '<button type="button" class="' + (x.id === k ? 'on' : '') + '" data-sc="' + esc(x.id) + '">' + esc(x.s.short || x.id) + (x.id === act ? ' ★' : '') + '</button>').join('') + '</div>';
- h += '<p><a class="btn" href="?tab=scendoc">Open the venue plan document</a></p>';
  h += '<p class="hint">★ is the plan everyone sees. Picking another one previews it for you only: Courts and hours, Budget, Food and venue counts all switch with it.' + (canEdit() ? '' : '') + '</p>';
  h += '<div class="card"><h2>Side by side</h2><div class="tw"><table><thead><tr><th></th>' + res.map(x => '<th>' + esc(x.s.short || x.id) + '</th>').join('') + '</tr></thead><tbody>'
   + '<tr><td><b>Cricket days</b></td>' + res.map(x => '<td class="sm">' + esc(x.s.cricketDays || '') + '</td>').join('') + '</tr>'
@@ -1438,7 +1441,7 @@ RENDER.scen = () => { const defs = ents(SCN().defs).sort((a,b) => num(a[1].order
  h += '<div class="card"><h2>Cricket format and rules</h2><p class="hint">Used for every scenario. Change a number and all scenarios recalculate.</p><div class="g2">'
   + [['openTeams','Open teams'],['womenTeams','Women’s teams'],['openGames','Pool games per open team'],['womenGames','Pool games per women’s team'],['openHours','Open game length (hours)'],['womenHours','Women’s game length (hours)'],['gapMin','Gap between games (minutes)'],['start','First game'],['lightsEnd','Last finish with lights'],['daylightEnd','Last finish without lights'],['fridayEnd','Friday finish']].map(([f,l]) => '<div><label class="l">' + l + '</label><input data-scf="' + f + '" value="' + esc(F[f]) + '"' + (canEdit() ? '' : ' disabled') + '></div>').join('')
   + '</div><p class="hint">Everyone makes the playoffs (' + (F.playoffsAll ? 'on' : 'off') + ') and every team plays at least once at the stadium (' + (F.stadiumPerTeam ? 'on' : 'off') + '). Stadium time is counted in hours, so women’s and open games can share it.</p></div>';
- $('#view').innerHTML = scNote() + h;
+ $('#view').innerHTML = h; $('#topR').innerHTML = '<a class="btn" href="?tab=scendoc">Venue plan doc</a>';
  $$('[data-sc]').forEach(b => b.onclick = () => scSet(b.dataset.sc));
  const u = $('#scUnlock'); if (u) u.onclick = () => go('budget');
  const m = $('#scMake'); if (m) m.onclick = async () => { if (await save('settings/scenarios', { active:k, activeAt:Date.now(), activeBy:me() }, 'scenarios', cur.s.name, 'Scenario set for everyone: ' + (cur.s.name || k))) { try { localStorage.removeItem('naigScen'); } catch(e) {} } };
@@ -1593,17 +1596,16 @@ function scSiteDays(k){ const prev = SC_FORCE; SC_FORCE = k; scApplyDays(); ENG.
  SC_FORCE = prev; scApplyDays(); ENG.dirty = true; return out; }
 const LIVE = {
  scenarios: () => { const F = scFmt(), defs = ents(SCN().defs).sort((a,b) => num(a[1].order) - num(b[1].order)), act = SCN().active;
-  return '<table><thead><tr><th></th>' + defs.map(([id, s]) => '<th>' + esc(s.short || id) + (id === act ? ' ★' : '') + '</th>').join('') + '</tr></thead><tbody>'
-   + [['Cricket days', s => esc(s.cricketDays || '')], ['Venues in', s => esc((s.venuesIn || []).join('; '))], ['Backup', s => esc((s.venuesOut || []).join(', ') || '—')],
-      ['Cricket fits?', s => { const c = scCricket(s, F); return (c.fits ? 'Yes' : 'Short') + ' · ' + Math.round(Math.abs(c.spare) * 10) / 10 + ' h ' + (c.spare >= 0 ? 'spare' : 'short'); }],
-      ['Stadium must start by', s => { const c = scCricket(s, F); return c.noStadium ? 'No stadium' : c.latest ? scDL(c.latest) : 'Not enough'; }]].map(([l, f]) => '<tr><td><b>' + l + '</b></td>' + defs.map(([id, s]) => '<td>' + f(s) + '</td>').join('') + '</tr>').join('')
-   + '</tbody></table><p style="margin-top:14px;font-size:.8em">' + F.openTeams + ' open and ' + F.womenTeams + ' women’s teams · open games ' + F.openHours + ' h, women’s ' + F.womenHours + ' h, ' + F.gapMin + '-min gap · everyone makes playoffs, 3+ games, 1+ at the stadium. ★ = plan everyone sees. Costs: see Budget tab.</p>'; },
+  return '<table><thead><tr><th></th>' + defs.map(([id, s]) => '<th>' + esc(s.short || id) + '</th>').join('') + '</tr></thead><tbody>'
+   + [['Cricket days', s => esc(s.cricketDays || '')], ['Venues in', s => esc((s.venuesIn || []).join('; '))], ['Fits the format', s => { const c = scCricket(s, F); return c.fits ? (c.spare < 6 ? 'Yes (tight)' : 'Yes') : 'Not yet'; }],
+      ['Stadium starts by', s => { const c = scCricket(s, F); return c.noStadium ? 'No stadium' : c.latest ? scDL(c.latest) : 'Not enough'; }]].map(([l, f]) => '<tr><td><b>' + l + '</b></td>' + defs.map(([id, s]) => '<td>' + f(s) + '</td>').join('') + '</tr>').join('')
+   + '</tbody></table><p style="margin-top:14px;font-size:.8em">' + F.openTeams + ' open and ' + F.womenTeams + ' women’s teams · open games ' + F.openHours + ' h, women’s ' + F.womenHours + ' h, ' + F.gapMin + '-min gap · every team makes the playoffs, plays at least 3 games and at least 1 at the stadium.</p>'; },
  scenario: () => { const s = scDef(), F = scFmt(); if (!s) return 'No scenario set.'; const c = scCricket(s, F);
-  return '<p style="margin-bottom:12px"><b>' + esc(s.name) + '</b> · ' + esc(s.note || '') + '</p><table><thead><tr><th>Pitch</th><th>Lights</th>' + SC_ORDER.map(d => '<th>' + esc(scDL(d)) + '</th>').join('') + '</tr></thead><tbody>' + arr(s.pitches).map(p => '<tr><td><b>' + esc(p.name) + '</b></td><td>' + (p.lights ? 'Yes' : 'No') + '</td>' + SC_ORDER.map(d => '<td>' + (num((p.days || {})[d]) || '') + '</td>').join('') + '</tr>').join('') + '</tbody></table>'
+  return '<p style="margin-bottom:12px"><b>' + esc(s.name) + '</b></p><table><thead><tr><th>Pitch</th><th>Lights</th>' + SC_ORDER.map(d => '<th>' + esc(scDL(d)) + '</th>').join('') + '</tr></thead><tbody>' + arr(s.pitches).map(p => '<tr><td><b>' + esc(p.name) + '</b></td><td>' + (p.lights ? 'Yes' : 'No') + '</td>' + SC_ORDER.map(d => '<td>' + (num((p.days || {})[d]) || '') + '</td>').join('') + '</tr>').join('') + '</tbody></table>'
    + '<p style="margin-top:12px">' + c.No + ' open matches · ' + c.Nw + ' women’s matches' + (c.noStadium ? '' : ' · stadium ' + Math.round(c.need) + ' of ' + Math.round(c.Hs) + ' h, must start by ' + (c.latest ? scDL(c.latest) : 'N/A')) + '</p>'; },
  people: () => { const E = engine(); return '<table><thead><tr><th>Venue</th><th>Athletes</th><th>Coaches</th><th>Chaperones</th><th>Volunteers</th><th>Staff</th><th>On site</th></tr></thead><tbody>' + Object.entries(E.venue).filter(([n,p]) => n !== 'TBD' && p.onSite > 0).sort((a,b) => b[1].onSite - a[1].onSite).map(([n,p]) => '<tr><td><b>' + esc(n) + '</b></td><td>' + nf(p.athletes) + '</td><td>' + nf(p.coaches) + '</td><td>' + nf(p.chaperones) + '</td><td>' + nf(p.volunteers) + '</td><td>' + nf(p.staff) + '</td><td><b>' + nf(p.onSite) + '</b></td></tr>').join('') + '<tr><td><b>Total</b></td><td>' + nf(E.total.athletes) + '</td><td>' + nf(E.total.coaches) + '</td><td>' + nf(E.total.chaperones) + '</td><td>' + nf(E.total.volunteers) + '</td><td>' + nf(E.total.staff) + '</td><td><b>' + nf(E.total.onSite) + '</b></td></tr></tbody></table>'; },
  food: () => { const fp = foodPlanCalc(), days = []; fp.venues.forEach(v => v.days.forEach(d => { if (!days.some(x => x.key === d.key)) days.push(d); })); days.sort((a,b) => a.order - b.order);
-  return '<table><thead><tr><th>Venue</th><th>Main vendor</th>' + days.map(d => '<th>' + esc(d.label) + '</th>').join('') + '<th>Servings</th></tr></thead><tbody>' + fp.venues.map(v => '<tr><td><b>' + esc(v.name) + '</b></td><td>' + esc(fpVname(v.V.vendor)) + '</td>' + days.map(d => { const n = v.rows.filter(r => r.on && r.d.key === d.key).reduce((a,r) => a + r.count, 0); return '<td>' + (n ? nf(n) : '') + '</td>'; }).join('') + '<td><b>' + nf(v.servings) + '</b></td></tr>').join('') + '</tbody></table><p style="margin-top:12px;font-size:.8em">Live from the hub Food plan and the slot sheet. Costs: see Budget tab.</p>'; },
+  return '<table><thead><tr><th>Venue</th><th>Main vendor</th>' + days.map(d => '<th>' + esc(d.label) + '</th>').join('') + '<th>Servings</th></tr></thead><tbody>' + fp.venues.map(v => '<tr><td><b>' + esc(v.name) + '</b></td><td>' + esc(fpVname(v.V.vendor)) + '</td>' + days.map(d => { const n = v.rows.filter(r => r.on && r.d.key === d.key).reduce((a,r) => a + r.count, 0); return '<td>' + (n ? nf(n) : '') + '</td>'; }).join('') + '<td><b>' + nf(v.servings) + '</b></td></tr>').join('') + '</tbody></table>'; },
  venues: () => { const x = scSiteDays(scKey()); return '<table><thead><tr><th>Venue</th>' + x.days.map(d => '<th>' + esc(d[1]) + '</th>').join('') + '</tr></thead><tbody>' + Object.entries(x.sites).map(([s, dd]) => '<tr><td><b>' + esc(s) + '</b></td>' + x.days.map(d => '<td style="font-size:.75em">' + (dd[d[0]] || []).map(esc).join('<br>') + '</td>').join('') + '</tr>').join('') + '</tbody></table>'; }
 };
 function deckLive(root){ $$('[data-live]', root || document).forEach(el => { const f = LIVE[el.dataset.live]; if (!f) return; try { el.innerHTML = f(); el.classList.add('dkLive'); } catch(e) { el.innerHTML = '<p>Live block unavailable: ' + esc(e.message) + '</p>'; } }); }
@@ -1628,10 +1630,19 @@ RENDER.scendoc = () => { const defs = ents(SCN().defs).sort((a,b) => num(a[1].or
     + '<tr class="tot"><td colspan="2">These venues</td><td class="n">' + money(L.reduce((a,y) => a + num(y.cost), 0)) + '</td></tr>'
     + '<tr><td colspan="2">Early cricket days food</td><td class="n">' + (sf.cost ? money(sf.cost) : '—') + '</td></tr>'
     + '<tr><td colspan="2">All venues (courts and hours grid)</td><td class="n">' + money(x.vtot) + '</td></tr>'
-    + '<tr><td colspan="2">Food total</td><td class="n">' + money(x.food.total) + '</td></tr></tbody></table></div><p class="hint">Stadium rate includes lights. Skinner lights are an estimate (Saturday evening, $50/hr actual use). Not priced yet: Railroad Park night lights if billed apart from crew, extra hotel nights for early cricket days.</p>'; }
+    + '<tr><td colspan="2">Food total</td><td class="n">' + money(x.food.total) + '</td></tr></tbody></table></div><p class="hint">Lights: in the stadium day rate and the Railroad crew hourly rate; Skinner lights are an estimate ($50/hr actual use). Not priced yet: extra hotel nights for early cricket days.</p>'; }
   h += '</div>'; });
- h += '<div class="card sdoc"><h2>Open items</h2><ul><li>Railroad Park: quote for cricket days (Tue/Wed) and confirm whether night lights are billed apart from crew.</li><li>Grand Prairie stadium: contract and daily hours (pencilled rate includes lights).</li><li>Skinner (Mansfield): permit R34670 covers Thu–Sun, 8 fields; confirm soccer and flag football fit 8 fields; lights billed by use.</li><li>Hotels: extra nights for cricket teams on early-start scenarios.</li><li>Texoma: on backup; revisit only if we bring it back.</li></ul></div>';
+ h += '<div class="card sdoc"><h2>Open items</h2><ul><li>Railroad Park: quote for cricket days (Tue/Wed).</li><li>Grand Prairie stadium: contract and daily hours.</li><li>Skinner (Mansfield): permit R34670 covers Thu–Sun, 8 fields; confirm soccer and flag football fit 8 fields; lights billed by use.</li><li>Hotels: extra nights for cricket teams on early-start scenarios.</li><li>Texoma: on backup; revisit only if we bring it back.</li></ul></div>';
  $('#view').innerHTML = h; pinBind(); lockBind(); $('#sdPrint').onclick = () => window.print(); };
+
+/* ══════════ less text: explanations sit behind an (i) icon ══════════ */
+function infoize(){
+ const sub = $('#pageSub'), t = $('#pageTitle');
+ if (sub && t) { let b = $('#subI'); if (!b) { b = document.createElement('button'); b.type = 'button'; b.id = 'subI'; b.className = 'iBtn'; b.textContent = 'i'; b.onclick = () => sub.classList.toggle('show'); t.appendChild(b); }
+  b.style.display = sub.textContent.trim() ? '' : 'none'; b.title = sub.textContent; sub.classList.remove('show'); }
+ $$('#view p.hint').forEach(p => { if (p.dataset.i || !p.textContent.trim() || p.closest('.dkSlide')) return; p.dataset.i = '1'; p.classList.add('iHint');
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'iBtn'; b.textContent = 'i'; b.title = p.textContent; b.onclick = e => { e.stopPropagation(); p.classList.toggle('show'); }; p.parentNode.insertBefore(b, p); });
+}
 
 /* ══════════ theme, boot ══════════ */
 const root = document.documentElement;
