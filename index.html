@@ -1628,9 +1628,9 @@ RENDER.scendoc = () => { const defs = ents(SCN().defs).sort((a,b) => num(a[1].or
     + '<tr class="tot"><td colspan="2">These venues</td><td class="n">' + money(L.reduce((a,y) => a + num(y.cost), 0)) + '</td></tr>'
     + '<tr><td colspan="2">Early cricket days food</td><td class="n">' + (sf.cost ? money(sf.cost) : '—') + '</td></tr>'
     + '<tr><td colspan="2">All venues (courts and hours grid)</td><td class="n">' + money(x.vtot) + '</td></tr>'
-    + '<tr><td colspan="2">Food total</td><td class="n">' + money(x.food.total) + '</td></tr></tbody></table></div><p class="hint">Not priced yet: lights at Railroad Park and the stadium, Skinner lights ($50/hr actual use), extra hotel nights for early cricket days.</p>'; }
+    + '<tr><td colspan="2">Food total</td><td class="n">' + money(x.food.total) + '</td></tr></tbody></table></div><p class="hint">Stadium rate includes lights. Skinner lights are an estimate (Saturday evening, $50/hr actual use). Not priced yet: Railroad Park night lights if billed apart from crew, extra hotel nights for early cricket days.</p>'; }
   h += '</div>'; });
- h += '<div class="card sdoc"><h2>Open items</h2><ul><li>Railroad Park: quote for cricket days (Tue/Wed) and night lights.</li><li>Grand Prairie stadium: contract, daily hours and lights (pencilled only).</li><li>Skinner (Mansfield): permit R34670 covers Thu–Sun, 8 fields; confirm soccer and flag football fit 8 fields; lights billed by use.</li><li>Hotels: extra nights for cricket teams on early-start scenarios.</li><li>Texoma: on backup; revisit only if we bring it back.</li></ul></div>';
+ h += '<div class="card sdoc"><h2>Open items</h2><ul><li>Railroad Park: quote for cricket days (Tue/Wed) and confirm whether night lights are billed apart from crew.</li><li>Grand Prairie stadium: contract and daily hours (pencilled rate includes lights).</li><li>Skinner (Mansfield): permit R34670 covers Thu–Sun, 8 fields; confirm soccer and flag football fit 8 fields; lights billed by use.</li><li>Hotels: extra nights for cricket teams on early-start scenarios.</li><li>Texoma: on backup; revisit only if we bring it back.</li></ul></div>';
  $('#view').innerHTML = h; pinBind(); lockBind(); $('#sdPrint').onclick = () => window.print(); };
 
 /* ══════════ theme, boot ══════════ */
