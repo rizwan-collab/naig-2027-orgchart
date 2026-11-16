@@ -638,8 +638,6 @@ const PAGES = [
  { k:'home', label:'Today', tab:'dashboard', title:'Today', sub:() => daysTo() },
  { g:'Work' },
  { k:'tasks', label:'Tasks', tab:'tasks', title:'Tasks', sub:() => 'Every task, with filters. Done items are hidden unless you turn them on.', badge:() => { const n = taskList().filter(t => ['overdue','blocked'].includes(bucket(t))).length; return n ? [n,'bad'] : null; } },
- { k:'scendoc', label:'Venue plan doc', tab:'plan', title:'Venue plan document', sub:() => 'Cricket and outdoor venue plan by scenario. Live from the hub; budgets need the Budget PIN.' },
- { k:'scen', label:'Scenarios', tab:'plan', title:'Scenarios', sub:() => 'Switch venue and schedule scenarios. Courts, budget, food and venue counts follow the one you pick.' },
  { k:'plan', label:'Milestones', tab:'plan', title:'Milestones', sub:() => 'Project plan milestones by phase and department.' },
  { k:'gantt', label:'Gantt', tab:'plan', title:'Gantt', sub:() => 'Every task and milestone on one timeline, with owners, progress and dependencies.' },
  { k:'raid', label:'RAID log', tab:'plan', title:'RAID log', sub:() => 'Risks, actions, issues and decisions, each with an owner and a date.' },
@@ -1414,7 +1412,7 @@ const BASE_DAYS = DAYS.slice();
 const SC_ORDER = ['tue','wed','thu','fri','sat','sun'];
 let SC_FORCE = null;
 const SCN = () => S.scenarios || {};
-function scKey(){ const d = SCN().defs || {}; if (SC_FORCE && d[SC_FORCE]) return SC_FORCE; let k = null; try { k = localStorage.getItem('naigScen'); } catch(e) {} if (k && d[k]) return k; return (SCN().active && d[SCN().active]) ? SCN().active : 's1'; }
+function scKey(){ const d = SCN().defs || {}; if (SC_FORCE && d[SC_FORCE]) return SC_FORCE;  return (SCN().active && d[SCN().active]) ? SCN().active : 's1'; }
 function scDef(){ return (SCN().defs || {})[scKey()] || null; }
 function scApplyDays(){ const s = scDef(), ex = (s && s.extraDays) || [], want = ['tue','wed'].filter(x => ex.indexOf(x) >= 0).map(x => [x, SC_DAYS[x]]).concat(BASE_DAYS);
  if (DAYS.map(x => x[0]).join() !== want.map(x => x[0]).join()) { DAYS.splice(0, DAYS.length, ...want); ENG.dirty = true; } }
@@ -1428,8 +1426,8 @@ function scFood(meals){ const s = scDef(), ex = ((s && s.extraDays) || []).lengt
  const E = engine(), ca = Object.keys(E.athSport).filter(n => /^Cricket/.test(n)).reduce((a,n) => a + num(E.athSport[n]), 0), r = E.total.rules;
  const ppl = ca + Math.ceil(ca / r.athletesPerVolunteer) + Math.ceil(ca / r.athletesPerStaff), per = meals.reduce((a,m) => a + num(m.price), 0);
  return { cost:ppl * per * ex, servings:ppl * meals.length * ex, days:ex, people:ppl, athletes:ca }; }
-function scNote(){ const s = scDef(); if (!s) return ''; return '<div class="note">Scenario: <b>' + esc(s.short || s.name || scKey()) + '</b>' + (scKey() !== (SCN().active || 's1') ? ' · preview, only you' : '') + '</div>'; }
-function scBar(){ const defs = ents(SCN().defs).sort((a,b) => num(a[1].order) - num(b[1].order)); let el = $('#scBar');
+function scNote(){ return ''; const s = scDef(); if (!s) return ''; return '<div class="note">Scenario: <b>' + esc(s.short || s.name || scKey()) + '</b>' + (scKey() !== (SCN().active || 's1') ? ' · preview, only you' : '') + '</div>'; }
+function scBar(){ { const e0 = $('#scBar'); if (e0) e0.remove(); return; } const defs = ents(SCN().defs).sort((a,b) => num(a[1].order) - num(b[1].order)); let el = $('#scBar');
  if (!defs.length) { if (el) el.remove(); return; } if (!el) { el = document.createElement('div'); el.id = 'scBar'; const nav = $('#nav'); nav.parentNode.insertBefore(el, nav); }
  const k = scKey(), act = SCN().active || 's1';
  el.innerHTML = '<label for="scSel">Scenario</label><select id="scSel">' + defs.map(([id,d]) => '<option value="' + esc(id) + '"' + (id === k ? ' selected' : '') + '>' + esc(d.short || d.name || id) + (id === act ? ' ★' : '') + '</option>').join('') + '</select>' + (k !== act ? '<small>Preview: only you see this</small>' : '');
