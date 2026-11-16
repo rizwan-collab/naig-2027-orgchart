@@ -280,6 +280,8 @@ body.fpPrinting .fpPrintHead{display:flex;justify-content:space-between;font-siz
 .vdT td:first-child{width:38%}.vdT td{vertical-align:top}.vdP{margin:2px 0}.vdP small{color:var(--mute)}.vdP a,.vdT a{color:inherit;text-decoration:underline;text-decoration-color:var(--line)}.vdAct{margin-top:12px}
 @media (max-width:700px){.vdT td:first-child{width:auto}.vdT tr{display:grid}.vdT td{border-bottom:0}.vdT tr{border-bottom:1px solid var(--line)}}
 @media print{.vdCard{break-inside:avoid;page-break-after:always;box-shadow:none}.vdAct,.gtBar,.kpis{display:none!important}}
+.rdMap td,.rdMap th{text-align:center;width:22%}.rdHeat{font-weight:700;height:38px}.rdHeat.sh{background:var(--badbg)}.rdHeat.sm{background:var(--warnbg)}.rdHeat.sl{background:var(--goodbg)}
+.wkG{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px 18px}.wkR{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line)}.wkOld{opacity:.55}
 </style>
 </head>
 <body>
@@ -640,6 +642,7 @@ const PAGES = [
  { k:'scen', label:'Scenarios', tab:'plan', title:'Scenarios', sub:() => 'Switch venue and schedule scenarios. Courts, budget, food and venue counts follow the one you pick.' },
  { k:'plan', label:'Milestones', tab:'plan', title:'Milestones', sub:() => 'Project plan milestones by phase and department.' },
  { k:'gantt', label:'Gantt', tab:'plan', title:'Gantt', sub:() => 'Every task and milestone on one timeline, with owners, progress and dependencies.' },
+ { k:'raid', label:'RAID log', tab:'plan', title:'RAID log', sub:() => 'Risks, actions, issues and decisions, each with an owner and a date.' },
  { k:'raci', label:'RACI', tab:'plan', title:'RACI', sub:() => 'Who is Responsible, Accountable, Consulted and Informed for each workstream.' },
  { g:'Games' },
  { k:'venues', label:'Venues', tab:'venues', title:'Venues', sub:() => 'Active venues by stage, with the people split at each one.', badge:() => [arr(S.venues).filter(v => !v.archived && v.name).length] },
@@ -1976,7 +1979,7 @@ const VD_ROLES = [
  ['transport','Transportation lead','Shuttles, drop-off and parking',''],
  ['volunteers','Volunteer lead','Volunteer check-in and shifts',''],
  ['security','Security lead','Access control and safety','']];
-const vdVenues = () => ents(S.venues).filter(([k, v]) => v && v.name && !v.archived && !/backup|closed|not available/i.test(String(v.status || '') + ' ' + String(v.pipelineStatus || ''))).map(([k, v]) => Object.assign({ _id:k }, v)).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+const vdVenues = () => ents(S.venues).filter(([k, v]) => v && v.name && !v.archived && !v.nonVenue && !/backup|closed|not available/i.test(String(v.status || '') + ' ' + String(v.pipelineStatus || ''))).map(([k, v]) => Object.assign({ _id:k }, v)).sort((a, b) => String(a.name).localeCompare(String(b.name)));
 const vdSports = v => [...new Set(String(v.sports || '').split(/\s*[·,;\/]\s*/).map(s => s.replace(/\(.*?\)/g, '').trim()).filter(Boolean))];
 const vdPerson = n => arr(S.prospects).find(p => p.name && key(p.name) === key(n)) || null;
 const vdList = v => Array.isArray(v) ? v.filter(Boolean) : String(v || '').split(/\s*[,;]\s*/).filter(Boolean);
@@ -2041,6 +2044,74 @@ function vdEditContact(vk, ck){ const v = S.venues[vk] || {}, c = ck ? Object.as
   if (await save('venues/' + vk + '/directory/contacts/' + (ck || 'c' + Date.now()), val, 'venue', v.name, 'Stakeholder saved in venue directory')) closeDrawer(); };
  $('#vcDel') && ($('#vcDel').onclick = async () => { if (await save('venues/' + vk + '/directory/contacts', { [ck]:null }, 'venue', v.name, 'Stakeholder removed from venue directory')) closeDrawer(); });
 }
+
+/* ══════════ RAID log + weekly area status ══════════ */
+const RD_T = { Risk:['Risk','warn','Something that might go wrong'], Action:['Action','info','A follow-up someone owns'], Issue:['Issue','bad','Something already going wrong'], Decision:['Decision','good','A choice that was made or is needed'] };
+const RD_ST = ['Open','In progress','Waiting','Closed'];
+const RD_LV = ['High','Medium','Low'];
+const raidItems = () => ents((S.plan.raid || {}).items).map(([k, x]) => Object.assign({ _id:k }, x));
+const rdOpen = x => x.status !== 'Closed';
+const rdAreas = () => [...new Set(taskList().map(area).concat(raidItems().map(x => x.area)).filter(a => a && a !== 'Other'))].sort();
+const rdScore = x => ({ High:3, Medium:2, Low:1 }[x.impact] || 1) * ({ High:3, Medium:2, Low:1 }[x.likelihood] || (x.type === 'Risk' ? 1 : 0));
+RENDER.raid = () => {
+ const st = Object.assign({ type:'', status:'open', area:'', owner:'', q:'' }, (() => { try { return JSON.parse(localStorage.getItem('naigRaid') || '{}'); } catch(e) { return {}; } })()), sv = () => { try { localStorage.setItem('naigRaid', JSON.stringify(st)); } catch(e) {} };
+ const all = raidItems(), td = today(), ed = canEdit();
+ const openR = all.filter(x => x.type === 'Risk' && rdOpen(x)), hiR = openR.filter(x => rdScore(x) >= 6), openI = all.filter(x => x.type === 'Issue' && rdOpen(x)), odA = all.filter(x => x.type === 'Action' && rdOpen(x) && x.due && x.due < td), pendD = all.filter(x => x.type === 'Decision' && rdOpen(x));
+ $('#topR').innerHTML = '<button class="btn" id="rdCsv" type="button">Export CSV</button>' + (ed ? ' <button class="btn pri" id="rdNew" type="button">New entry</button>' : '');
+ const k = (l, n, sub, cls, go) => '<button class="kpi ' + cls + '" type="button" data-rdk="' + go + '"><span>' + l + '</span><b>' + n + '</b><small>' + sub + '</small></button>';
+ let h = '<div class="kpis">' + k('Open risks', openR.length, hiR.length + ' high', hiR.length ? 'bad' : '', 'Risk') + k('Open issues', openI.length, 'happening now', openI.length ? 'bad' : 'good', 'Issue') + k('Overdue actions', odA.length, 'past due date', odA.length ? 'warn' : 'good', 'Action') + k('Decisions pending', pendD.length, 'need a call', pendD.length ? 'warn' : 'good', 'Decision') + '</div>';
+ // heat map
+ const cell = (i, l) => { const n = openR.filter(x => (x.impact || 'Low') === i && (x.likelihood || 'Low') === l).length, s = ({ High:3, Medium:2, Low:1 }[i]) * ({ High:3, Medium:2, Low:1 }[l]); return '<td class="rdHeat s' + (s >= 6 ? 'h' : s >= 3 ? 'm' : 'l') + '">' + (n || '') + '</td>'; };
+ h += '<div class="g2"><div class="card"><h2>Risk map</h2><div class="tw"><table class="rdMap"><thead><tr><th>Impact ↓ / Likelihood →</th><th>Low</th><th>Medium</th><th>High</th></tr></thead><tbody>' + ['High','Medium','Low'].map(i => '<tr><th>' + i + '</th>' + ['Low','Medium','High'].map(l => cell(i, l)).join('') + '</tr>').join('') + '</tbody></table></div></div>'
+  + '<div class="card"><h2>Top risks</h2>' + (openR.sort((a, b) => rdScore(b) - rdScore(a)).slice(0, 5).map(x => '<div class="it" data-rd="' + esc(x._id) + '"><div class="t">' + esc(x.title) + '</div><div class="m">' + esc(x.area || '') + (x.owner ? ' · ' + esc(x.owner) : '') + '</div><div class="r"><span class="pill ' + (rdScore(x) >= 6 ? 'bad' : rdScore(x) >= 3 ? 'warn' : '') + '">' + esc((x.impact || '—') + ' / ' + (x.likelihood || '—')) + '</span></div></div>').join('') || '<div class="empty">No open risks.</div>') + '</div></div>';
+ const owners = [...new Set(all.map(x => x.owner).filter(Boolean))].sort(), areas = rdAreas();
+ const sel = (id, label, opts, v) => '<label class="gtF"><span>' + label + '</span><select id="' + id + '">' + opts.map(o => { const [val, txt] = Array.isArray(o) ? o : [o, o]; return '<option value="' + esc(val) + '"' + (String(val) === String(v || '') ? ' selected' : '') + '>' + esc(txt) + '</option>'; }).join('') + '</select></label>';
+ h += '<div class="card gtBar"><div class="seg">' + [['','All']].concat(Object.keys(RD_T).map(t => [t, t + 's'])).map(([v, l]) => '<button type="button" class="' + (st.type === v ? 'on' : '') + '" data-rdt="' + v + '">' + l + '</button>').join('') + '</div>'
+  + sel('rdSt', 'Status', [['open','Open'],['closed','Closed'],['all','All']], st.status) + sel('rdArea', 'Area', [['', 'All areas']].concat(areas), st.area) + sel('rdOwner', 'Owner', [['', 'Everyone']].concat(owners), st.owner) + '<label class="gtF"><span>Search</span><input id="rdQ" value="' + esc(st.q) + '"></label></div>';
+ const q = st.q.toLowerCase(), rows = all.filter(x => (!st.type || x.type === st.type) && (st.status === 'all' || (st.status === 'open' ? rdOpen(x) : !rdOpen(x))) && (!st.area || x.area === st.area) && (!st.owner || x.owner === st.owner) && (!q || (x.title + ' ' + (x.notes || '') + ' ' + (x.owner || '')).toLowerCase().includes(q)))
+  .sort((a, b) => (rdOpen(b) - rdOpen(a)) || (rdScore(b) - rdScore(a)) || String(a.due || '9').localeCompare(String(b.due || '9')));
+ h += '<div class="card"><div class="tw"><table><thead><tr><th>Type</th><th>Entry</th><th>Area</th><th>Owner</th><th>Due</th><th>Impact</th><th>Status</th></tr></thead><tbody>' + (rows.map(x => { const t = RD_T[x.type] || [x.type, '']; const late = rdOpen(x) && x.due && x.due < td;
+  return '<tr class="cl" data-rd="' + esc(x._id) + '"><td><span class="pill ' + t[1] + '">' + esc(t[0]) + '</span></td><td><b>' + esc(x.title) + '</b>' + (x.notes ? '<div class="sm">' + esc(String(x.notes).slice(0, 140)) + (String(x.notes).length > 140 ? '…' : '') + '</div>' : '') + '</td><td class="sm">' + esc(x.area || '') + '</td><td>' + esc(x.owner || '') + '</td><td>' + (x.due ? (late ? '<span class="pill bad">' + fmtD(x.due) + '</span>' : fmtD(x.due)) : '') + '</td><td>' + esc(x.impact || '') + '</td><td>' + esc(x.status || 'Open') + '</td></tr>'; }).join('') || '<tr><td colspan="7" class="empty">Nothing matches.</td></tr>') + '</tbody></table></div></div>';
+ h += '<p class="hint">' + Object.entries(RD_T).map(([k, v]) => '<b>' + k + '</b>: ' + v[2]).join(' · ') + '. Log every scope, venue or budget change as a Decision.</p>';
+ $('#view').innerHTML = h;
+ const set = (kk, v) => { st[kk] = v; sv(); RENDER.raid(); };
+ $$('[data-rdt]').forEach(b => b.onclick = () => set('type', b.dataset.rdt)); $('#rdSt').onchange = e => set('status', e.target.value); $('#rdArea').onchange = e => set('area', e.target.value); $('#rdOwner').onchange = e => set('owner', e.target.value);
+ let qt; $('#rdQ').oninput = e => { clearTimeout(qt); qt = setTimeout(() => { set('q', e.target.value); const i = $('#rdQ'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 350); };
+ $$('[data-rdk]').forEach(b => b.onclick = () => { st.type = b.dataset.rdk; st.status = 'open'; sv(); RENDER.raid(); });
+ $$('[data-rd]').forEach(r => r.onclick = () => raidOpen(r.dataset.rd));
+ $('#rdNew') && ($('#rdNew').onclick = () => raidOpen(null));
+ $('#rdCsv').onclick = () => csv('naig-raid-log', [['Type','type'],['Entry','title'],['Area','area'],['Owner','owner'],['Due','due'],['Impact','impact'],['Likelihood','likelihood'],['Status','status'],['Notes','notes'],['Decided by','decidedBy'],['Decided on','decidedOn']], rows);
+};
+function raidOpen(id){ const x = id ? Object.assign({}, ((S.plan.raid || {}).items || {})[id]) : { type:'Risk', status:'Open' }, ed = canEdit(), dis = ed ? '' : ' disabled';
+ const opt = (arrv, v) => arrv.map(o => '<option' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>').join('');
+ const ppl = [...new Set(people().concat(x.owner ? [x.owner] : []))].sort();
+ openDrawer(id ? x.title : 'New RAID entry', '<div class="g2"><div><label class="l">Type</label><select id="rdTy"' + dis + '>' + opt(Object.keys(RD_T), x.type) + '</select></div><div><label class="l">Status</label><select id="rdS"' + dis + '>' + opt(RD_ST, x.status || 'Open') + '</select></div></div>'
+  + '<label class="l">Entry</label><input id="rdTi" value="' + esc(x.title || '') + '"' + dis + ' placeholder="What is the risk, issue, action or decision?">'
+  + '<div class="g2"><div><label class="l">Area</label><input id="rdAr" list="rdAl" value="' + esc(x.area || '') + '"' + dis + '><datalist id="rdAl">' + rdAreas().map(a => '<option value="' + esc(a) + '">').join('') + '</datalist></div><div><label class="l">Owner</label><select id="rdOw"' + dis + '><option value="">—</option>' + opt(ppl, x.owner) + '</select></div></div>'
+  + '<div class="g2"><div><label class="l">Due / review date</label><input type="date" id="rdDu" value="' + esc(x.due || '') + '"' + dis + '></div><div><label class="l">Impact</label><select id="rdIm"' + dis + '><option value="">—</option>' + opt(RD_LV, x.impact) + '</select></div></div>'
+  + '<div class="g2"><div><label class="l">Likelihood (risks)</label><select id="rdLi"' + dis + '><option value="">—</option>' + opt(RD_LV, x.likelihood) + '</select></div><div><label class="l">Decided by (decisions)</label><input id="rdDb" value="' + esc(x.decidedBy || '') + '"' + dis + '></div></div>'
+  + '<label class="l">Mitigation, next step or decision detail</label><textarea id="rdNo"' + dis + '>' + esc(x.notes || '') + '</textarea>'
+  + (x.created ? '<p class="hint">Logged ' + fmtTs(x.created) + (x.createdBy ? ' by ' + esc(x.createdBy) : '') + (x.updated ? ' · updated ' + fmtTs(x.updated) : '') + '</p>' : ''),
+  ed ? '<button class="btn pri" id="rdSave" type="button">Save</button>' : '');
+ if (ed) $('#rdSave').onclick = async () => { const v = { type:$('#rdTy').value, status:$('#rdS').value, title:$('#rdTi').value.trim(), area:$('#rdAr').value.trim(), owner:$('#rdOw').value, due:$('#rdDu').value, impact:$('#rdIm').value, likelihood:$('#rdLi').value, decidedBy:$('#rdDb').value.trim(), notes:$('#rdNo').value, updated:Date.now(), updatedBy:me() };
+  if (!v.title) { toast('Describe the entry.'); return; } if (!id) { v.created = Date.now(); v.createdBy = me(); } if (v.type === 'Decision' && v.status === 'Closed' && !x.decidedOn) v.decidedOn = today();
+  if (await save('plan/raid/items/' + (id || 'rd' + Date.now()), v, 'raid', v.title, v.type + ' ' + (id ? 'updated' : 'logged'))) closeDrawer(); };
+}
+/* weekly area status on Today */
+const wkKey = d => { const x = new Date((d || today()) + 'T12:00:00'); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x.toISOString().slice(0,10); };
+const RAG = { Green:'good', Amber:'warn', Red:'bad' };
+function weeklyCard(){ const wk = wkKey(), prev = addDays(wk, -7), W = (S.plan.weekly || {}), cur = W[wk] || {}, last = W[prev] || {}, areas = rdAreas();
+ const rows = areas.map(a => { const c = cur[a.replace(/[.#$\/\[\]]/g, '_')], l = last[a.replace(/[.#$\/\[\]]/g, '_')], x = c || l; return '<div class="wkR"><div><b>' + esc(a) + '</b><div class="sm">' + (x ? esc(x.note || '') + (c ? '' : ' <i>(last week)</i>') + (x.by ? ' · ' + esc(x.by) : '') : 'No update yet this week') + '</div></div>' + (x ? '<span class="pill ' + (RAG[x.rag] || '') + (c ? '' : ' wkOld') + '">' + esc(x.rag) + '</span>' : '<span class="pill">—</span>') + '</div>'; }).join('');
+ const done = areas.filter(a => cur[a.replace(/[.#$\/\[\]]/g, '_')]).length;
+ return '<div class="card" id="wkCard"><div class="vdHead"><h2>Weekly area status · week of ' + fmtD(wk) + '</h2><span class="pill ' + (done === areas.length ? 'good' : 'warn') + '">' + done + ' of ' + areas.length + ' areas updated</span></div><p class="hint">Each lead sets green, amber or red with one line by Thursday.</p><div class="wkG">' + rows + '</div>' + (canEdit() ? '<div class="vdAct"><button class="btn pri" id="wkUpd" type="button">Update an area</button> <a class="btn" href="?tab=raid">RAID log</a></div>' : '') + '</div>'; }
+function weeklyOpen(){ const wk = wkKey(), areas = rdAreas(), W = (S.plan.weekly || {})[wk] || {};
+ openDrawer('Weekly status · week of ' + fmtD(wk), '<label class="l">Area</label><select id="wkA">' + areas.map(a => '<option>' + esc(a) + '</option>').join('') + '</select><label class="l">Status</label><div class="seg" id="wkRag">' + Object.keys(RAG).map(r => '<button type="button" data-rag="' + r + '">' + r + '</button>').join('') + '</div><label class="l">One line: what changed, what is stuck</label><input id="wkN" maxlength="200">',
+  '<button class="btn pri" id="wkSave" type="button">Save</button>');
+ let rag = ''; const fill = () => { const c = W[$('#wkA').value.replace(/[.#$\/\[\]]/g, '_')] || {}; rag = c.rag || ''; $('#wkN').value = c.note || ''; $$('#wkRag button').forEach(b => b.classList.toggle('on', b.dataset.rag === rag)); };
+ $('#wkA').onchange = fill; fill(); $$('#wkRag button').forEach(b => b.onclick = () => { rag = b.dataset.rag; $$('#wkRag button').forEach(x => x.classList.toggle('on', x === b)); });
+ $('#wkSave').onclick = async () => { if (!rag) { toast('Pick green, amber or red.'); return; } const a = $('#wkA').value; if (await save('plan/weekly/' + wk + '/' + a.replace(/[.#$\/\[\]]/g, '_'), { area:a, rag, note:$('#wkN').value.trim(), by:me(), at:Date.now() }, 'status', a, 'Weekly status: ' + rag)) closeDrawer(); };
+}
+{ const _home = RENDER.home; RENDER.home = (...a) => { const r = _home(...a); try { const v = $('#view'); if (v && !$('#wkCard')) { const d = document.createElement('div'); d.innerHTML = weeklyCard(); const kp = v.querySelector('.kpis'); if (kp && kp.nextSibling) v.insertBefore(d.firstChild, kp.nextSibling); else v.appendChild(d.firstChild); $('#wkUpd') && ($('#wkUpd').onclick = weeklyOpen); } } catch(e) { console.warn('[hub] weekly card', e); } return r; }; }
 
 /* ══════════ theme, boot ══════════ */
 const root = document.documentElement;
