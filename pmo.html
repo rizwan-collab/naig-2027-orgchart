@@ -8,10 +8,14 @@
   RULES FOR THIS PAGE
   1. People and the org chart ALWAYS come from the hub Directory in Firebase (naig2027/prospects), live.
      No names are hardcoded here. If Firebase can't be read, the page says so; it never falls back to made-up data.
-  2. The hub's own data (people, tasks) is READ-ONLY here. The ONLY thing this page writes to Firebase is task attachment links,
-     at naig2027/pmoSync/attachments/<hubTaskId>/<attachmentId>, a path no other hub page reads. It never writes to naig2027/tasks or prospects.
-     Writes need the database rules to allow that path for signed-in users; if they don't, the page says so.
-  3. Tasks created on this page live only in this browser (localStorage) until we decide otherwise.
+  2. The hub's own data (people, tasks) is READ-ONLY here; this page never writes to naig2027/tasks or prospects.
+     Everything the weekly sync adds is SHARED with everyone using the page and lives under ONE new path, naig2027/pmoSync:
+       ov/<task>/...        status, closed date, moved-to-next-week, hidden/parked, updates, dependencies on other teams
+       tasks/<id>           tasks created on this page (and their weekly repeats)
+       attachments/<task>/  Drive links
+       placement/<name>     "Fix placement" overrides to the org chart
+     Writes need the database rules to allow naig2027/pmoSync for signed-in users. If they don't, a red banner says so and nothing is shared.
+  3. Only view preferences (org open/closed, cached directory) stay in each browser.
   Lives in the hub repo as pmo.html and is linked from the hub nav (lead, core and admin tiers). Same origin as the hub, so the hub's Google sign-in carries over.
 -->
 <style>
@@ -195,7 +199,7 @@ table.sm th:first-child,table.sm td:first-child{text-align:left}table.sm th{font
           </div>
           <label>Notes</label><textarea id="fNotes" placeholder="Context, blockers, what leadership should know"></textarea>
           <div class="chk"><input type="checkbox" id="fWeekly"><span>Repeats weekly (recreated each Monday)</span></div>
-          <div style="margin-top:10px"><button class="btn pri" id="addBtn">Add task</button> <span class="hint" style="color:var(--mut);font-size:12px">Saved in this browser only; the hub is not changed.</span></div>
+          <div style="margin-top:10px"><button class="btn pri" id="addBtn">Add task</button> <span class="hint" style="color:var(--mut);font-size:12px">Shared with everyone using this page; the hub is not changed.</span></div>
         </div>
       </details>
       <div id="tlist"></div>
@@ -219,9 +223,9 @@ table.sm th:first-child,table.sm td:first-child{text-align:left}table.sm th{font
 </main>
 
 <script type="module">
-// Writes are limited to pmoSync/attachments (see header). Nothing else is written to Firebase.
+// Writes go only to naig2027/pmoSync/* (see header). The hub's own records are never written.
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, onValue, set, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, getRedirectResult, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 /* Same Firebase project as the hub (public web config, copied from the hub's index.html). */
@@ -251,11 +255,17 @@ const pid = p => p.id || p._key;
    Fix it for good by changing "Reports to" on his Directory record in the hub, then delete this line. */
 const PARENT_OVERRIDE = { 'rahimmalik': 'sohailali' };
 /* Core Team PMOs are drawn in a box beside their manager instead of as a child below. */
-/* Placements you set on this page ("Fix placement"). Browser-only, display-only; nothing is written to the hub.
+/* Placements set on this page ("Fix placement"), shared with everyone through pmoSync/placement. Display-only; the Directory itself is not changed.
    { personNameKey: managerNameKey | '' }  ('' = top level / no manager) */
-const PLACE_KEY = 'naigPmo.placement.v1';
-let PLACE = JSON.parse(localStorage.getItem(PLACE_KEY) || '{}');
-const savePlace = () => localStorage.setItem(PLACE_KEY, JSON.stringify(PLACE));
+let PLACE = {};   // shared, from naig2027/pmoSync/placement
+const sk = x => String(x).replace(/[.#$\/\[\]]/g, '_');   // Firebase-safe key
+/* The single write path. Firebase applies a write locally at once and rolls it back if the server refuses, so the screen never keeps a change that did not save. */
+function W(path, val) {
+  if (!S.email) { alert('Sign in first.'); return Promise.resolve(); }
+  return set(R('pmoSync/' + path), val).then(() => { if (D.writeErr) { D.writeErr = ''; status(); } }).catch(wfail);
+}
+function wfail(e) { const c = (e && e.code) || '';
+  D.writeErr = /permission/i.test(c + ((e && e.message) || '')) ? 'permission denied. Rizwan needs to allow signed-in users to write to naig2027/pmoSync in the Firebase database rules' : (c || String(e)); status(); }
 const EQUIP_LABEL = 'Procurement';
 const isSidePmo = p => /pmo/i.test(p.roleType || '') && /core/i.test(p.vertical || '');
 const isTbd = p => /^\s*TBD\b/i.test(p.name || '');
@@ -317,11 +327,9 @@ const colorOf = p => D.vcolor[String(p.vertical || '').trim()] || '#1e3a8a';
 const personById = id => D.byId[D.alias[id] || id];
 const subtree = id => { const out = [id]; const walk = i => (D.kids[i] || []).concat(D.side[i] || []).forEach(c => { if (!out.includes(pid(c))) { out.push(pid(c)); walk(pid(c)); } }); walk(id); return out; };
 
-/* ===== my tasks (local) ===== */
+/* ===== tasks created on this page: shared, from naig2027/pmoSync/tasks ===== */
 const S = { email: '' };
-const KEY = 'naigPmo.localTasks.v4';
-let ST = JSON.parse(localStorage.getItem(KEY) || 'null') || { tasks: [] };
-const save = () => localStorage.setItem(KEY, JSON.stringify(ST));
+let ST = { tasks: [] };
 const cur = () => weekStart();
 const isLate = t => t.status !== 'done' && t.due && t.due < todayS();
 
@@ -408,13 +416,13 @@ function renderPlace() {
   const cur_ = Object.keys(PLACE).map(k => { const p = D.people.find(x => key(x.name) === k); const t = PLACE[k] ? D.people.find(x => key(x.name) === PLACE[k]) : null;
     return p ? '<span class="chip">' + esc(p.name) + ' → ' + esc(t ? t.name : 'top level') + ' <a href="#" data-undo="' + esc(k) + '">undo</a></span>' : ''; }).join('');
   const keepSel = ['#pPerson', '#pMgr'].map(i => ($(i) || {}).value);
-  $('#placebox').innerHTML = '<details' + ($('#placebox').querySelector('details[open]') ? ' open' : '') + '><summary><b>Fix placement</b> — put anyone under a manager (this browser only, the hub is not changed)</summary>'
+  $('#placebox').innerHTML = '<details' + ($('#placebox').querySelector('details[open]') ? ' open' : '') + '><summary><b>Fix placement</b> — put anyone under a manager (shared with everyone using this page; the Directory is not changed)</summary>'
     + '<div class="row" style="margin-top:6px"><div><label>Person</label><select id="pPerson">' + opts.map(o).join('') + '</select></div>'
     + '<div><label>Reports to</label><select id="pMgr"><option value="">Top level (no manager)</option>' + opts.map(o).join('') + '</select></div></div>'
     + '<div style="margin-top:8px"><button class="btn pri" id="pApply">Apply</button></div>' + (cur_ ? '<div style="margin-top:8px">Your placements: ' + cur_ + '</div>' : '') + '</details>';
   if (keepSel[0]) $('#pPerson').value = keepSel[0]; if (keepSel[1] != null) $('#pMgr').value = keepSel[1];
-  $('#pApply').onclick = () => { const a = $('#pPerson').value, b = $('#pMgr').value; if (!a || a === b) return; PLACE[a] = b; savePlace(); rebuild(); };
-  $('#placebox').querySelectorAll('[data-undo]').forEach(l => l.onclick = e => { e.preventDefault(); delete PLACE[l.dataset.undo]; savePlace(); rebuild(); });
+  $('#pApply').onclick = () => { const a = $('#pPerson').value, b = $('#pMgr').value; if (!a || a === b) return; W('placement/' + a, b); };
+  $('#placebox').querySelectorAll('[data-undo]').forEach(l => l.onclick = e => { e.preventDefault(); W('placement/' + l.dataset.undo, null); });
 }
 function rebuild() { if (D.raw) { buildDirectory(D.raw); renderAll(); } }
 let ORGOPEN = localStorage.getItem('naigPmo.orgOpen') === '1';
@@ -450,12 +458,19 @@ const vList = () => D.verts.concat(['Other']);
 const vOf = t => vList().includes(t.vert) ? t.vert : 'Other';
 const vColor = v => D.vcolor[v] || '#64748b';
 
-/* Everything I do in the weekly sync (status, updates, dependencies, moves, closes) is stored here, in this browser.
-   Hub tasks are NEVER written to; this layer sits on top of them, keyed by hub task id. */
-const OV_KEY = 'naigPmo.sync.v1';
-let OV = JSON.parse(localStorage.getItem(OV_KEY) || '{}');
-const saveOv = () => localStorage.setItem(OV_KEY, JSON.stringify(OV));
-const ovOf = k => OV[k] || (OV[k] = {});
+/* Everything done in the weekly sync (status, updates, dependencies, moves, closes, hiding) is shared through naig2027/pmoSync/ov, keyed by task.
+   Hub tasks are never written to; this layer sits on top of them. Each action writes one small field so two people editing at once do not overwrite each other. */
+let OV = {};
+const ovGet = k => OV[sk(k)] || {};
+const ovPath = k => 'ov/' + sk(k);
+const ovSet = (k, f, v) => W(ovPath(k) + '/' + f, v);
+function normOv(raw) {
+  const out = {};
+  Object.entries(raw || {}).forEach(([k, o]) => { if (!o || typeof o !== 'object') return; const x = Object.assign({}, o);
+    x.updates = ents(o.updates).map(([id, u]) => Object.assign({ id }, u)).sort((a, b) => (a.at || 0) - (b.at || 0));
+    x.deps = ents(o.deps).map(([id, d]) => Object.assign({ id }, d)).sort((a, b) => (a.at || 0) - (b.at || 0)); out[k] = x; });
+  return out;
+}
 /* The hub's own dependency lists (copied from classic.html: _CROSS_TEAMS and _LOGISTICS_STREAMS). These are code constants in the hub, not database records.
    If the hub adds a team, add it here too. */
 const CROSS_TEAMS = ['Sports', 'Registration', 'Finance', 'Legal', 'HR / IVS', 'Technology', 'Marketing', 'Command Center'];
@@ -489,7 +504,7 @@ const isCoreV = v => /core/i.test(v || '');
 function allRows() {
   const td = todayS(), w = cur(), wk = addDays(td, 7), rows = [];
   const mk = (src, id, v, title, ownerNames, due, rawStatus, notes, extra) => {
-    ownerNames = ownerNames.map(canonName); const k = src + ':' + id, o = OV[k] || {}, hs = String(rawStatus || '').toLowerCase().replace(/[^a-z]/g, '');
+    ownerNames = ownerNames.map(canonName); const k = src + ':' + id, o = ovGet(k), hs = String(rawStatus || '').toLowerCase().replace(/[^a-z]/g, '');
     const status = o.status || (hs === 'blocked' ? 'blocked' : /progress|doing|started/.test(hs) ? 'progress' : hs === 'done' ? 'done' : 'open');
     const deps = o.deps || [], r = { k, src, id, v, title, ownerNames, owners: ownerNames.join(', '), due, status, notes, updates: o.updates || [], deps,
       waiting: deps.some(d => !d.resolved), hold: hs === 'onhold' || holdRe.test(title) || !!o.parked, deferTo: o.deferTo || '', closedAt: o.closedAt || 0, hidden: !!o.hidden, hiddenWhy: o.hiddenWhy || '' };
@@ -504,10 +519,10 @@ function allRows() {
   ents(D.hubTasks).forEach(([id, t]) => { if (!t.title) return;
     const r = mk('hub', id, hubVert(t), t.title, hubOwners(t), hubDue(t), t.status, t.notes || t.description || '', { hubDeps: hubDepsOf(t) });
     if (!r.done && r.hubDeps.some(d => d.status === 'blocked')) { r.blocked = true; r.b = 0; }
-    if (r.done && !OV[r.k]) return;   // done in the hub and untouched by me: not part of the working list
+    if (r.done && !OV[sk(r.k)]) return;   // done in the hub and untouched by me: not part of the working list
     rows.push(r); });
   ST.tasks.forEach(t => { if (t.week > w) return;
-    rows.push(mk('mine', t.id, vOf(t), t.title, t.owner ? [ownerName(t.owner)] : [], t.due || '', t.status, t.notes || '', { local: t, createdThisWeek: (t.createdAt || 0) >= wkMs() || (!t.createdAt && t.week === w) })); });
+    rows.push(mk('mine', t.id, vOf(t), t.title, t.owner ? [ownerName(t.owner)] : [], t.due || '', t.status, t.notes || '', { createdThisWeek: (t.createdAt || 0) >= wkMs() || (!t.createdAt && t.week === w) })); });
   const hubs = rows.filter(r => r.src === 'hub');
   hubs.forEach((r, i) => { const o = hubs.slice(0, i).find(x => x.v === r.v && !x.done && !r.done && x.tk.size && r.tk.size && (() => { let n = 0; r.tk.forEach(z => x.tk.has(z) && n++); return n / (x.tk.size + r.tk.size - n) >= .6; })()); if (o) r.dupOf = o.title; });
   return rows.filter(r => !r.hold || showHold());
@@ -538,7 +553,7 @@ function pillsHtml(r) {
 function srowHtml(r, showV) {
   const na = attsOf(r).length;
   const last = r.updates.filter(u => !u.sys).slice(-1)[0];
-  return '<div class="srow' + brCls(rowBranch(r)) + (SK === r.k ? ' on' : '') + (r.done ? ' done' : '') + '" data-k="' + esc(r.k) + '"><div class="t"><span class="src ' + r.src + '">' + r.src + '</span>' + esc(r.title) + (na ? ' <span class="pill" title="Attachments">&#128206; ' + na + '</span>' : '') + '</div>'
+  return '<div class="srow' + brCls(rowBranch(r)) + (SK === r.k ? ' on' : '') + (r.done ? ' done' : '') + '" data-k="' + esc(r.k) + '"><div class="t"><span class="src ' + r.src + '">' + (r.src === 'mine' ? 'pmo' : r.src) + '</span>' + esc(r.title) + (na ? ' <span class="pill" title="Attachments">&#128206; ' + na + '</span>' : '') + '</div>'
     + '<div class="m">' + esc(r.owners || 'No owner') + ' · <span style="' + (r.late ? 'color:var(--bad);font-weight:600' : '') + '">' + fmtD(r.due) + '</span>' + (showV ? ' · in ' + esc(r.v) : '') + '</div>'
     + pillsHtml(r) + (last ? '<div class="lu">' + fmtDT(last.at) + ': ' + esc(String(last.text).slice(0, 120)) + '</div>' : '') + '</div>';
 }
@@ -568,7 +583,7 @@ function personOptions(vrows) {
   return h;
 }
 const PLABEL = {};
-/* ===== clean up: find duplicates and tasks that are not actionable. Nothing here touches the hub; hiding/parking is saved in this browser. ===== */
+/* ===== clean up: find duplicates and tasks that are not actionable. Nothing here touches the hub; hiding/parking is shared through pmoSync. ===== */
 const VERBS = /^(confirm|finalize|finalise|send|order|book|review|draft|schedule|collect|assign|submit|update|create|get|follow|call|email|approve|sign|finish|complete|build|pay|request|check|share|prepare|arrange|negotiate|reserve|coordinate|deliver|verify|define|decide|identify|develop|set|plan|obtain|ask|add|make|print|buy|pick|find|post|publish|upload|reach|meet|lock|source|secure|resolve|fix|test|track|compile|circulate|distribute|brief|train|recruit|hire|purchase|invoice|quote|propose|present|walk|visit|measure|count|list|map|write|design|clarify|align|chase|remind|notify|inform|escalate|cancel|renew|extend|rebook)\b/i;
 const VAGUE = /\b(tbd|discuss|discussion|think about|explore|look into|looking into|consider|misc|various|general|ideas?|thoughts?|brainstorm|etc)\b/i;
 function flagsOf(r) {
@@ -594,9 +609,9 @@ function cleanupHtml(rows) {
   const dupKeys = new Set(groups.flat().map(r => r.k));
   const weak = open.filter(r => flagsOf(r).length).map(r => ({ r, f: flagsOf(r) })).sort((a, b) => b.f.length - a.f.length || (a.r.due || '9').localeCompare(b.r.due || '9'));
   const dupRows = groups.reduce((n, g) => n + g.length - 1, 0);
-  const row = (r, extra) => '<div class="srow' + brCls(rowBranch(r)) + '" data-k="' + esc(r.k) + '"><div class="t"><span class="src ' + r.src + '">' + r.src + '</span>' + esc(r.title) + '</div><div class="m">' + esc(r.owners || 'No owner') + ' · ' + fmtD(r.due) + '</div>' + (extra || '') + '</div>';
+  const row = (r, extra) => '<div class="srow' + brCls(rowBranch(r)) + '" data-k="' + esc(r.k) + '"><div class="t"><span class="src ' + r.src + '">' + (r.src === 'mine' ? 'pmo' : r.src) + '</span>' + esc(r.title) + '</div><div class="m">' + esc(r.owners || 'No owner') + ' · ' + fmtD(r.due) + '</div>' + (extra || '') + '</div>';
   let h = '<div class="cl-head"><b>Clean up ' + esc(SV === '*' ? 'all verticals' : SV) + '</b> <span class="pill">' + open.length + ' open</span> <span class="pill warn">' + dupRows + ' likely duplicates</span> <span class="pill warn">' + weak.length + ' to review</span> <button class="btn" data-cl="done">Done cleaning</button></div>'
-    + '<div class="hint" style="color:var(--mut);font-size:12px;margin:4px 0 8px">Hiding and parking are saved in this browser only. The hub is not changed, and everything is reversible below.</div>';
+    + '<div class="hint" style="color:var(--mut);font-size:12px;margin:4px 0 8px">Hiding and parking are shared with everyone using this page. The hub is not changed, and everything is reversible below.</div>';
   h += '<div class="gh">1. Likely duplicates (' + groups.length + ' groups)</div>';
   h += groups.length ? groups.map((g, gi) => '<div class="dgrp"><div class="m" style="margin-bottom:4px">Same task? Keep one, hide the rest. Best candidate first.</div>'
     + g.map((r, i) => row(r, '<div class="ps"><span class="pill ' + (i ? '' : 'good') + '">' + (i ? 'duplicate?' : 'suggested keeper') + '</span> <button class="btn" data-cl="keep" data-g="' + gi + '" data-k="' + esc(r.k) + '">Keep this, hide others</button></div>')).join('') + '</div>').join('') : '<div class="empty">No duplicates found.</div>';
@@ -604,16 +619,15 @@ function cleanupHtml(rows) {
   h += '<div class="gh">2. Not clearly actionable (' + rest.length + ')</div>';
   h += rest.length ? rest.map(x => row(x.r, '<div class="ps">' + x.f.map(t => '<span class="pill warn">' + esc(t) + '</span>').join('') + '</div><div class="acts" style="display:flex;gap:4px;margin-top:4px"><button class="btn" data-cl="close" data-k="' + esc(x.r.k) + '">Close</button><button class="btn" data-cl="park" data-k="' + esc(x.r.k) + '">Park</button><button class="btn" data-cl="hide" data-k="' + esc(x.r.k) + '">Hide</button><button class="btn" data-cl="open" data-k="' + esc(x.r.k) + '">Edit in sync</button></div>')).join('') : '<div class="empty">Everything left has an owner, a date and a clear action.</div>';
   const hid = HIDDEN.filter(r => inV(r, SV));
-  h += '<div class="gh">Hidden by me (' + hid.length + ')</div>' + (hid.length ? hid.map(r => row(r, '<div class="ps"><span class="pill">' + esc(r.hiddenWhy || 'hidden') + '</span> <button class="btn" data-cl="restore" data-k="' + esc(r.k) + '">Restore</button></div>')).join('') : '<div class="empty">None.</div>');
+  h += '<div class="gh">Hidden (' + hid.length + ')</div>' + (hid.length ? hid.map(r => row(r, '<div class="ps"><span class="pill">' + esc(r.hiddenWhy || 'hidden') + '</span> <button class="btn" data-cl="restore" data-k="' + esc(r.k) + '">Restore</button></div>')).join('') : '<div class="empty">None.</div>');
   return h;
 }
 function clAction(a, k, g) {
-  const o = ovOf(k), r = ROWS.find(x => x.k === k) || HIDDEN.find(x => x.k === k);
+  const r = ROWS.find(x => x.k === k) || HIDDEN.find(x => x.k === k);
   if (a === 'close' && r) setStatus(r, 'done');
-  if (a === 'park') { o.parked = true; logSys(k, 'Parked during clean up'); }
-  if (a === 'hide') { o.hidden = true; o.hiddenWhy = 'hidden in clean up'; logSys(k, 'Hidden in clean up'); }
-  if (a === 'restore') { delete o.hidden; delete o.hiddenWhy; logSys(k, 'Restored'); }
-  saveOv();
+  if (a === 'park') { ovSet(k, 'parked', true); logSys(k, 'Parked during clean up'); }
+  if (a === 'hide') { ovSet(k, 'hidden', true); ovSet(k, 'hiddenWhy', 'hidden in clean up'); logSys(k, 'Hidden in clean up'); }
+  if (a === 'restore') { ovSet(k, 'hidden', null); ovSet(k, 'hiddenWhy', null); logSys(k, 'Restored'); }
 }
 function renderSync() {
   const w = cur(), rows = syncRows();
@@ -651,21 +665,17 @@ const safeUrl = u => { u = String(u || '').trim(); if (u && !/^https?:\/\//i.tes
 const kindOf = u => /docs\.google\.com\/document/.test(u) ? 'Doc' : /docs\.google\.com\/spreadsheets/.test(u) ? 'Sheet' : /docs\.google\.com\/presentation/.test(u) ? 'Slides' : /drive\.google\.com/.test(u) ? 'Drive' : 'Link';
 function attsOf(r) {   // links are re-validated on every read: anything that is not http(s) is dropped, whatever is in the database
   const clean = l => l.map(a => Object.assign({}, a, { url: safeUrl(a.url) })).filter(a => a.url);
-  if (r.src === 'mine') return clean(((r.local && r.local.atts) || []).map(a => Object.assign({ shared: false }, a)));
-  return clean(ents(D.att[r.id]).map(([id, a]) => Object.assign({ id, shared: true }, a))).sort((a, b) => (a.addedAt || 0) - (b.addedAt || 0));
+  return clean(ents(D.att[sk(r.k)]).map(([id, a]) => Object.assign({ id, shared: true }, a))).sort((a, b) => (a.addedAt || 0) - (b.addedAt || 0));
 }
 const attWho = () => (D.me && D.me.name) || S.email || 'someone';
-function attFail(e) { const c = (e && e.code) || ''; alert(c === 'PERMISSION_DENIED' || /permission/i.test(c + (e && e.message))
-  ? 'The hub database refused this write (permission denied). Shared attachments need Rizwan to allow signed-in users to write to naig2027/pmoSync in the Firebase rules. Nothing was saved.'
-  : 'Could not save the attachment (' + (c || e) + '). Nothing was saved.'); }
 function attachHtml(r) {
-  const list = attsOf(r), shared = r.src === 'hub';
+  const list = attsOf(r);
   return '<h4>Attachments' + (list.length ? ' (' + list.length + ')' : '') + '</h4>'
     + (list.map(a => '<div class="dep"><span><span class="src">' + kindOf(a.url) + '</span><a href="' + esc(a.url) + '" target="_blank" rel="noopener noreferrer">' + esc(a.name || a.url) + '</a>'
       + (a.addedBy ? ' <small style="color:var(--mut)">' + esc(a.addedBy) + (a.addedAt ? ', ' + fmtDT(a.addedAt) : '') + '</small>' : '') + '</span><button class="btn" data-act="attDel" data-id="' + esc(a.id || '') + '">×</button></div>').join('') || '<div class="empty" style="padding:2px 0">None.</div>')
     + '<div class="row" style="margin-top:6px"><input id="attUrl" placeholder="Paste a Google Drive link"><input id="attName" placeholder="Name (optional)"></div>'
     + '<div class="acts"><button class="btn" data-act="attAdd">Add attachment</button></div>'
-    + '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">' + (shared ? 'Shared: everyone who opens this page sees these links. Make sure the Drive file itself is shared with the team.' : 'This is your own task, so its attachments are saved in this browser only.') + (D.attErr ? ' <b style="color:var(--bad)">Could not read shared attachments (' + esc(D.attErr) + ').</b>' : '') + '</div>';
+    + '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">' + 'Shared: everyone who opens this page sees these links. Make sure the Drive file itself is shared with the team.' + (D.attErr ? ' <b style="color:var(--bad)">Could not read shared attachments (' + esc(D.attErr) + ').</b>' : '') + '</div>';
 }
 function renderDetail() {
   const el = $('#tdetail'), r = ROWS.find(x => x.k === SK);
@@ -677,9 +687,9 @@ function renderDetail() {
   const dopts = '<optgroup label="Logistics verticals">' + D.verts.filter(v => v !== r.v).map(v => '<option>' + esc(v) + '</option>').join('') + '</optgroup><optgroup label="Other teams">' + CROSS_TEAMS.map(v => '<option>' + esc(v) + '</option>').join('') + '</optgroup>';
   const hd = (r.hubDeps || []).map(d => '<div class="dep' + (d.status === 'done' ? ' ok' : '') + '"><span><span class="src">hub</span><b>' + esc(d.team) + '</b> <small style="color:var(--mut)">' + d.kind.toLowerCase() + '</small></span><span class="pill ' + (d.status === 'blocked' ? 'bad' : d.status === 'done' ? 'good' : d.status === 'inprogress' ? 'blue' : '') + '">' + DEP_ST[d.status] + '</span></div>').join('');
   el.innerHTML = '<div class="dt">' + esc(r.title) + '</div>'
-    + '<div class="m" style="color:var(--mut);font-size:12px"><span class="src ' + r.src + '">' + r.src + '</span>' + esc(r.v) + ' · ' + esc(r.owners || 'No owner') + ' · due ' + fmtD(r.due) + (r.deferred ? ' · moved to ' + fmtD(r.deferTo) : '') + '</div>'
+    + '<div class="m" style="color:var(--mut);font-size:12px"><span class="src ' + r.src + '">' + (r.src === 'mine' ? 'pmo' : r.src) + '</span>' + esc(r.v) + ' · ' + esc(r.owners || 'No owner') + ' · due ' + fmtD(r.due) + (r.deferred ? ' · moved to ' + fmtD(r.deferTo) : '') + '</div>'
     + (r.notes ? '<div class="upd sys" style="margin-top:6px">' + esc(String(r.notes).slice(0, 400)) + '</div>' : '')
-    + (r.src === 'hub' ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Hub task: your status, updates and moves are saved here only; the hub copy is not changed.</div>' : '')
+    + (r.src === 'hub' ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Hub task: status, updates, dependencies and moves are shared with everyone using this page. The hub task itself is not changed.</div>' : '')
     + '<h4>Status</h4><select id="dStatus"><option value="open"' + (r.status === 'open' ? ' selected' : '') + '>Open</option><option value="progress"' + (r.status === 'progress' ? ' selected' : '') + '>In progress</option><option value="blocked"' + (r.status === 'blocked' ? ' selected' : '') + '>Blocked</option><option value="done"' + (r.status === 'done' ? ' selected' : '') + '>Done</option></select>'
     + '<div class="acts">' + (r.done ? '<button class="btn" data-act="reopen">Reopen</button>' : '<button class="btn pri" data-act="close">Close it</button>')
     + (r.deferred ? '<button class="btn" data-act="back">Bring back to this week</button>' : (!r.done ? '<button class="btn" data-act="move">Move to next week</button>' : ''))
@@ -691,11 +701,10 @@ function renderDetail() {
     + attachHtml(r)
     + '<h4>History</h4>' + ups;
 }
-function logSys(k, text) { const o = ovOf(k); (o.updates = o.updates || []).push({ at: Date.now(), text, sys: true }); }
+function logSys(k, text) { W(ovPath(k) + '/updates/' + uid(), { at: Date.now(), text, sys: true, by: attWho() }); }
 function setStatus(r, st) {
-  const o = ovOf(r.k); o.status = st; if (st === 'done') o.closedAt = Date.now(); else delete o.closedAt;
-  if (r.local) r.local.status = st === 'done' ? 'done' : 'open';
-  logSys(r.k, 'Status: ' + ({ open: 'Open', progress: 'In progress', blocked: 'Blocked', done: 'Done' }[st])); save(); saveOv();
+  ovSet(r.k, 'status', st); ovSet(r.k, 'closedAt', st === 'done' ? Date.now() : null);
+  logSys(r.k, 'Status: ' + ({ open: 'Open', progress: 'In progress', blocked: 'Blocked', done: 'Done' }[st]));
 }
 function afterChange(advance) { if (advance) { const i = ORDER.indexOf(SK); SK = ORDER[i + 1] || ORDER[i - 1] || ''; } renderAll(); }
 $('#syncsec').addEventListener('click', e => {
@@ -707,35 +716,32 @@ $('#syncsec').addEventListener('click', e => {
     if (c === 'done') { CL = false; return renderAll(); }
     if (c === 'open') { CL = false; SK = k; return renderAll(); }
     if (c === 'keep') { const grp = dupGroups(ROWS.filter(r => !r.done && !r.deferred && inV(r, SV))).find(g => g.some(x => x.k === k)); const keeper = ROWS.find(x => x.k === k);
-      (grp || []).filter(x => x.k !== k).forEach(x => { const o = ovOf(x.k); o.hidden = true; o.hiddenWhy = 'duplicate of "' + keeper.title.slice(0, 40) + '"'; logSys(x.k, 'Hidden as duplicate of ' + keeper.title);
-        const ko = ovOf(keeper.k); if (x.notes && x.notes !== keeper.notes) (ko.updates = ko.updates || []).push({ at: Date.now(), text: 'Merged from duplicate "' + x.title + '": ' + String(x.notes).slice(0, 200), sys: true }); });
-      saveOv(); return renderAll(); }
+      (grp || []).filter(x => x.k !== k).forEach(x => { ovSet(x.k, 'hidden', true); ovSet(x.k, 'hiddenWhy', 'duplicate of "' + keeper.title.slice(0, 40) + '"'); logSys(x.k, 'Hidden as duplicate of ' + keeper.title);
+        if (x.notes && x.notes !== keeper.notes) W(ovPath(keeper.k) + '/updates/' + uid(), { at: Date.now(), text: 'Merged from duplicate "' + x.title + '": ' + String(x.notes).slice(0, 200), sys: true, by: attWho() }); });
+      return renderAll(); }
     clAction(c, k); return renderAll();
   }
   const a = e.target.closest('[data-act]');
   if (a) {
-    const r = ROWS.find(x => x.k === SK); if (!r) return; const act = a.dataset.act, o = ovOf(r.k);
+    const r = ROWS.find(x => x.k === SK); if (!r) return; const act = a.dataset.act;
     if (act === 'close') { setStatus(r, 'done'); return afterChange(true); }
     if (act === 'reopen') { setStatus(r, 'open'); return afterChange(false); }
-    if (act === 'move') { o.deferTo = nextMon(); logSys(r.k, 'Moved to next week (' + fmtD(o.deferTo) + ')'); saveOv(); return afterChange(true); }
-    if (act === 'back') { delete o.deferTo; logSys(r.k, 'Brought back to this week'); saveOv(); return afterChange(false); }
+    if (act === 'move') { const dt = nextMon(); ovSet(r.k, 'deferTo', dt); logSys(r.k, 'Moved to next week (' + fmtD(dt) + ')'); return afterChange(true); }
+    if (act === 'back') { ovSet(r.k, 'deferTo', null); logSys(r.k, 'Brought back to this week'); return afterChange(false); }
     if (act === 'next') { const i = ORDER.indexOf(SK); if (ORDER[i + 1]) { SK = ORDER[i + 1]; renderAll(); } return; }
-    if (act === 'updAdd') { const t = ($('#updTxt').value || '').trim(); if (!t) return; (o.updates = o.updates || []).push({ at: Date.now(), text: t }); DRAFT.upd = ''; saveOv(); return afterChange(false); }
-    if (act === 'depAdd') { const v = $('#depV').value; if (!v) { $('#depV').focus(); return; } (o.deps = o.deps || []).push({ on: v, note: ($('#depTxt').value || '').trim(), at: Date.now(), resolved: false }); logSys(r.k, 'Dependency added: waiting on ' + v); DRAFT.dep = ''; saveOv(); return afterChange(false); }
-    if (act === 'depTog') { const d = (o.deps || [])[+a.dataset.i]; if (d) { d.resolved = !d.resolved; logSys(r.k, 'Dependency on ' + d.on + (d.resolved ? ' resolved' : ' reopened')); saveOv(); } return afterChange(false); }
+    if (act === 'updAdd') { const t = ($('#updTxt').value || '').trim(); if (!t) return; W(ovPath(r.k) + '/updates/' + uid(), { at: Date.now(), text: t, by: attWho() }); DRAFT.upd = ''; return afterChange(false); }
+    if (act === 'depAdd') { const v = $('#depV').value; if (!v) { $('#depV').focus(); return; } W(ovPath(r.k) + '/deps/' + uid(), { on: v, note: ($('#depTxt').value || '').trim(), at: Date.now(), resolved: false, by: attWho() }); logSys(r.k, 'Dependency added: waiting on ' + v); DRAFT.dep = ''; return afterChange(false); }
+    if (act === 'depTog') { const d = r.deps[+a.dataset.i]; if (d) { W(ovPath(r.k) + '/deps/' + d.id + '/resolved', !d.resolved); logSys(r.k, 'Dependency on ' + d.on + (!d.resolved ? ' resolved' : ' reopened')); } return afterChange(false); }
     if (act === 'attAdd') {
       const url = safeUrl($('#attUrl').value); if (!url) { alert('Paste a valid http(s) link, for example a Google Drive link.'); $('#attUrl').focus(); return; }
       const name = ($('#attName').value || '').trim() || url.replace(/^https?:\/\//, '').slice(0, 60), att = { name, url, addedBy: attWho(), addedAt: Date.now() };
-      if (r.src === 'mine') { r.local.atts = (r.local.atts || []).concat([Object.assign({ id: uid() }, att)]); save(); return afterChange(false); }
-      if (!S.email) { alert('Sign in first.'); return; }
-      set(R('pmoSync/attachments/' + r.id + '/' + uid()), att).catch(attFail); return;   // the live listener re-renders when it lands
+      W('attachments/' + sk(r.k) + '/' + uid(), att); $('#attUrl').value = ''; $('#attName').value = ''; return;   // the live listener re-renders
     }
     if (act === 'attDel') {
-      if (!confirm('Remove this attachment link' + (r.src === 'hub' ? ' for everyone' : '') + '? The Drive file itself is not deleted.')) return;
-      if (r.src === 'mine') { r.local.atts = (r.local.atts || []).filter(x => x.id !== a.dataset.id); save(); return afterChange(false); }
-      remove(R('pmoSync/attachments/' + r.id + '/' + a.dataset.id)).catch(attFail); return;
+      if (!confirm('Remove this attachment link for everyone? The Drive file itself is not deleted.')) return;
+      W('attachments/' + sk(r.k) + '/' + a.dataset.id, null); return;
     }
-    if (act === 'depDel') { (o.deps || []).splice(+a.dataset.i, 1); saveOv(); return afterChange(false); }
+    if (act === 'depDel') { const d = r.deps[+a.dataset.i]; if (d) W(ovPath(r.k) + '/deps/' + d.id, null); return afterChange(false); }
     return;
   }
   const row = e.target.closest('.srow'); if (row) { SK = row.dataset.k; renderAll(); return; }
@@ -781,19 +787,21 @@ $('#fOwner').onchange = () => { const p = personById($('#fOwner').value); if (p 
 $('#addBtn').onclick = () => {
   const title = $('#fTitle').value.trim(); if (!title) { $('#fTitle').focus(); return; }
   const id = uid(), v = $('#fVert').value;
-  ST.tasks.push({ id, title, vert: v, owner: $('#fOwner').value, due: $('#fDue').value, status: 'open', notes: $('#fNotes').value.trim(), weekly: $('#fWeekly').checked, week: cur(), pri: $('#fPri').value, createdAt: Date.now() });
+  W('tasks/' + id, { title, vert: v, owner: $('#fOwner').value, due: $('#fDue').value, status: 'open', notes: $('#fNotes').value.trim(), weekly: $('#fWeekly').checked, week: cur(), pri: $('#fPri').value, createdAt: Date.now(), createdBy: attWho() });
   ['#fTitle', '#fNotes', '#fDue'].forEach(s => $(s).value = ''); $('#fWeekly').checked = false;
-  save(); SV = v; SK = 'mine:' + id; renderAll(); $('#fTitle').focus();
+  SV = v; SK = 'mine:' + id; renderAll(); $('#fTitle').focus();
 };
 $('#copyBtn').onclick = () => navigator.clipboard.writeText($('#summary').textContent).then(() => { $('#copyBtn').textContent = 'Copied'; setTimeout(() => $('#copyBtn').textContent = 'Copy as text', 1200); });
+/* Weekly repeats are written with a fixed id (title + week), so if two people open the page at once they write the same record instead of making two copies. */
 function spawnRepeaters() {
-  const w = cur(); let n = 0;
+  if (!S.email || !D.pmoTasksLoaded) return;
+  const w = cur();
   ST.tasks.filter(t => t.weekly && t.week < w).forEach(t => {
     if (ST.tasks.some(x => x.weekly && x.title === t.title && x.week >= w)) return;
-    const delta = Math.round((new Date(w) - new Date(t.week)) / 864e5);
-    ST.tasks.push(Object.assign({}, t, { id: uid(), week: w, status: 'open', due: t.due ? addDays(t.due, delta) : '', notes: '' })); n++;
+    const delta = Math.round((new Date(w) - new Date(t.week)) / 864e5), id = 'rep_' + key(t.title).slice(0, 40) + '_' + w;
+    const rec = Object.assign({}, t, { week: w, status: 'open', due: t.due ? addDays(t.due, delta) : '', notes: '', createdAt: Date.now(), createdBy: 'weekly repeat' }); delete rec.id;
+    ST.tasks.push(Object.assign({ id }, rec)); W('tasks/' + id, rec);
   });
-  if (n) save();
 }
 function fillForm() {
   const o = $('#fOwner').value, v = $('#fVert').value;
@@ -818,6 +826,8 @@ function status() {
   if (D.live) { el.className = 'live ok'; el.textContent = 'Live from hub Firebase · ' + D.people.length + ' people'; b.className = 'banner hide'; }
   else if (D.people.length) { el.className = 'live bad'; el.textContent = 'Offline'; b.className = 'banner'; b.textContent = 'Not connected. Showing the last copy that Firebase returned (' + new Date(D.at).toLocaleString() + '). This is not live.'; }
   else { el.className = 'live bad'; el.textContent = 'Not connected'; b.className = 'banner'; b.textContent = 'No directory loaded. People only ever come from the hub Firebase Directory, so sign in to load them.'; }
+  if (D.ovErr) { b.className = 'banner'; b.textContent = 'Could not read the shared weekly-sync data (' + D.ovErr + '). Rizwan may need to allow signed-in users to read naig2027/pmoSync in the database rules.'; }
+  if (D.writeErr) { b.className = 'banner'; b.style.background = '#fee2e2'; b.style.color = '#7f1d1d'; b.textContent = 'Your last change did NOT save, so it was not shared: ' + D.writeErr + '.'; } else b.style.background = b.style.color = '';
 }
 function ingest(kind, val) {
   if (kind === 'prospects') { D.raw = val || {}; D.live = true; D.at = Date.now(); buildDirectory(D.raw); try { localStorage.setItem(CACHE, JSON.stringify({ at: D.at, prospects: D.raw })); } catch (e) {} }
@@ -828,6 +838,9 @@ function startData() {
   if (startData.done) return; startData.done = true;
   const fail = (what, e) => { D.live = false; status(); gate('Signed in as ' + S.email + ', but the hub refused the ' + what + ' read (' + ((e && e.code) || 'denied') + '). Your Google account may not be on the Directory. Ask Rizwan.', false); };
   onValue(R('prospects'), s => { hideGate(); ingest('prospects', s.val()); }, e => fail('Directory', e));
+  onValue(R('pmoSync/ov'), s => { OV = normOv(s.val()); D.ovErr = ''; renderAll(); }, e => { D.ovErr = (e && e.code) || 'denied'; renderAll(); });
+  onValue(R('pmoSync/tasks'), s => { ST.tasks = ents(s.val()).map(([id, t]) => Object.assign({ id }, t)); D.pmoTasksLoaded = true; spawnRepeaters(); renderAll(); }, e => { D.ovErr = (e && e.code) || 'denied'; renderAll(); });
+  onValue(R('pmoSync/placement'), s => { PLACE = s.val() || {}; if (D.raw) buildDirectory(D.raw); renderAll(); }, () => {});
   onValue(R('pmoSync/attachments'), s => { D.att = s.val() || {}; D.attErr = ''; renderAll(); }, e => { D.attErr = (e && e.code) || 'denied'; renderAll(); });
   onValue(R('tasks'), s => ingest('tasks', s.val()), e => { D.hubTasks = {}; D.tasksErr = (e && e.code) || 'denied'; renderAll(); });
 }
@@ -851,7 +864,7 @@ $('#outBtn').onclick = () => signOut(auth).then(() => { startData.done = false; 
 
 /* Show the last Firebase copy immediately (clearly marked not-live) while the live connection comes up. */
 try { const c = JSON.parse(localStorage.getItem(CACHE) || 'null'); if (c && c.prospects) { D.at = c.at; D.raw = c.prospects; buildDirectory(c.prospects); } } catch (e) {}
-spawnRepeaters(); status(); renderAll();
+status(); renderAll();
 </script>
 </body>
 </html>
