@@ -638,6 +638,7 @@ const PAGES = [
  { k:'home', label:'Today', tab:'dashboard', title:'Today', sub:() => daysTo() },
  { g:'Work' },
  { k:'tasks', label:'Tasks', tab:'tasks', title:'Tasks', sub:() => 'Every task, with filters. Done items are hidden unless you turn them on.', badge:() => { const n = taskList().filter(t => ['overdue','blocked'].includes(bucket(t))).length; return n ? [n,'bad'] : null; } },
+ { id:'pmo', label:'PMO weekly sync', tab:'tasks', tiers:['admin','core','lead'], href:'pmo.html' },   // link-only entry: no k, so the router never tries to render it
  { k:'plan', label:'Milestones', tab:'plan', title:'Milestones', sub:() => 'Project plan milestones by phase and department.' },
  { k:'gantt', label:'Gantt', tab:'plan', title:'Gantt', sub:() => 'Every task and milestone on one timeline, with owners, progress and dependencies.' },
  { k:'raid', label:'RAID log', tab:'plan', title:'RAID log', sub:() => 'Risks, actions, issues and decisions, each with an owner and a date.' },
@@ -670,10 +671,11 @@ const PAGES = [
  { k:'log', label:'Change log', tab:'changelog', title:'Change log', sub:() => 'Every edit made in the hub.' }
 ];
 const pageOf = k => PAGES.find(p => p.k === k);
-function allowed(p){ if (!p.tab || !S.perms) return true; if (p.manage && !S.perms.manage) return false; const t = S.perms.tabs; return t.has(p.tab) || (p.tab === 'sports' && t.has('venues')) || (p.alt && t.has(p.alt)); }
+function allowed(p){ if (!p.tab || !S.perms) return true; if (p.tiers && !p.tiers.includes(S.perms.tier)) return false; if (p.manage && !S.perms.manage) return false; const t = S.perms.tabs; return t.has(p.tab) || (p.tab === 'sports' && t.has('venues')) || (p.alt && t.has(p.alt)); }
 let cur = 'home';
 function buildNav(){ let h = '', g = null;
  PAGES.forEach(p => { if (p.g) { g = p.g; return; } if (!allowed(p)) return; if (g) { h += '<div class="grp">' + g + '</div>'; g = null; }
+  if (p.href) { h += '<a href="' + p.href + '">' + esc(p.label) + ' ↗</a>'; return; }
   const b = p.badge && p.badge(); h += '<a data-k="' + p.k + '" class="' + (p.k === cur ? 'on' : '') + '">' + esc(p.label) + (b ? '<span class="bd ' + (b[1] || '') + '">' + b[0] + '</span>' : '') + '</a>'; });
  $('#nav').innerHTML = h; }
 $('#nav').onclick = e => { const a = e.target.closest('a[data-k]'); if (!a) return; go(a.dataset.k); $('#side').classList.remove('open'); };

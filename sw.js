@@ -1,7 +1,7 @@
 // Cache version — BUMP THIS ON EVERY DEPLOY that changes cached assets.
 // The activate handler deletes every cache whose name !== CACHE_NAME, so
 // bumping the version is what forces stale entries out of existing installs.
-const CACHE_NAME = 'naig2027-v155';
+const CACHE_NAME = 'naig2027-v156';
 const APP_SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
@@ -53,6 +53,9 @@ self.addEventListener('fetch', (event) => {
   // The Sports venue page is shared outside the hub and must never be served
   // stale: bypass the cache entirely and always go to Pages.
   if (url.pathname.endsWith('/venues.html')) return;
+
+  // The PMO weekly sync page is live data behind sign-in: never serve it from cache.
+  if (url.pathname.endsWith('/pmo.html')) return;
 
   // The Sports allocation form is shared outside the hub and edited live:
   // never serve it from cache.

@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAIG 2027 — PMO Weekly Sync</title>
+<!--
+  RULES FOR THIS PAGE
+  1. People and the org chart ALWAYS come from the hub Directory in Firebase (naig2027/prospects), live.
+     No names are hardcoded here. If Firebase can't be read, the page says so; it never falls back to made-up data.
+  2. The hub's own data (people, tasks) is READ-ONLY here. The ONLY thing this page writes to Firebase is task attachment links,
+     at naig2027/pmoSync/attachments/<hubTaskId>/<attachmentId>, a path no other hub page reads. It never writes to naig2027/tasks or prospects.
+     Writes need the database rules to allow that path for signed-in users; if they don't, the page says so.
+  3. Tasks created on this page live only in this browser (localStorage) until we decide otherwise.
+  Lives in the hub repo as pmo.html and is linked from the hub nav (lead, core and admin tiers). Same origin as the hub, so the hub's Google sign-in carries over.
+-->
+<style>
+:root{--ink:#0f172a;--mut:#64748b;--line:#e2e8f0;--bg:#f1f5f9;--card:#fff;--pri:#1e3a8a;--bad:#b91c1c;--warn:#b45309;--good:#15803d}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--bg)}
+header{background:var(--pri);color:#fff;padding:14px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header h1{margin:0;font-size:18px}
+header .sp{flex:1}
+header small{opacity:.85}
+.live{font-size:12px;border-radius:99px;padding:2px 10px;background:rgba(255,255,255,.16)}
+.live.ok::before{content:"● ";color:#86efac}.live.bad::before{content:"● ";color:#fca5a5}
+.banner{background:#fef3c7;color:#78350f;padding:6px 24px;font-size:12px}
+.banner.hide{display:none}
+main{max-width:1600px;margin:0 auto;padding:18px 24px 60px}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+section>h2{margin:0 0 10px;font-size:15px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+section>h2 .hint{font-weight:400;color:var(--mut);font-size:12px}
+.btn{border:1px solid var(--line);background:#fff;border-radius:6px;padding:5px 10px;font:inherit;cursor:pointer}
+.btn:hover{background:#f8fafc}
+.btn.pri{background:var(--pri);color:#fff;border-color:var(--pri)}
+header .btn{background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.3)}
+.grid{display:grid;grid-template-columns:2fr 1fr;gap:16px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+/* gate */
+.gate{position:fixed;inset:0;background:rgba(15,23,42,.88);display:grid;place-items:center;z-index:50}
+.gate .box{background:#fff;border-radius:12px;padding:28px;max-width:460px;text-align:center}
+.gate h1{margin:0 0 8px;font-size:18px}.gate p{color:var(--mut);margin:0 0 14px}
+/* org tree */
+.tree{overflow-x:auto;padding-bottom:6px}
+.tree>ul{width:max-content;margin:0 auto!important}
+.tree ul{padding-top:18px;position:relative;display:flex;justify-content:center;margin:0;padding-left:0;list-style:none}
+.tree li{position:relative;text-align:center;padding:18px 6px 0}
+.tree li::before,.tree li::after{content:"";position:absolute;top:0;right:50%;border-top:2px solid #cbd5e1;width:50%;height:18px}
+.tree li::after{right:auto;left:50%;border-left:2px solid #cbd5e1}
+.tree li:only-child::before,.tree li:only-child::after{display:none}
+.tree li:only-child{padding-top:0}
+.tree li:first-child::before,.tree li:last-child::after{border:0 none}
+.tree li:last-child::before{border-right:2px solid #cbd5e1;border-radius:0 6px 0 0}
+.tree li:first-child::after{border-radius:6px 0 0 0}
+.tree ul ul::before{content:"";position:absolute;top:0;left:50%;border-left:2px solid #cbd5e1;height:18px}
+.stack{display:grid;grid-template-columns:158px;gap:6px;margin-top:10px;justify-content:center;border-top:2px solid #cbd5e1;padding-top:10px}
+.node{display:inline-block;width:158px;border:2px solid var(--line);border-left-width:5px;border-radius:8px;padding:6px 9px;background:#fff;cursor:pointer;text-align:left}
+.node:hover{box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.cogroup{display:inline-block;border:2px solid #94a3b8;border-radius:12px;padding:4px 8px 8px;background:#f8fafc}.cogroup.sel{outline:3px solid #fde047}
+.cogroup .gl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink);cursor:pointer;margin:2px 0 6px;text-align:center}.cogroup .gc{font-weight:400;color:var(--mut);text-transform:none;letter-spacing:0}.cogroup .gc .late{color:var(--bad);font-weight:600}
+.cogroup .gm{display:flex;gap:8px;justify-content:center}
+.pair{display:inline-flex;align-items:center}.pair .link{width:18px;border-top:2px dashed #94a3b8}
+.node.side{background:#f8fafc;border-style:dashed;border-left-style:solid}
+.node.me{background:#eff6ff}
+.vcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;align-items:start}
+.vcard{border:1px solid var(--line);border-top-width:6px;border-radius:10px;background:#fff}
+.vcard>.vh{padding:10px 12px;cursor:pointer;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.vcard>.vh b{font-size:14px;flex:1 1 100%}
+.vcard .vb{border-top:1px solid var(--line);max-height:520px;overflow:auto}
+.vcard .vr{padding:6px 12px;border-top:1px solid var(--line);font-size:13px}
+.vcard .vr:first-child{border-top:0}
+.vcard .vr .m{font-size:12px;color:var(--mut)}
+.vcard .vr .src{font-size:10px;border-radius:4px;padding:0 5px;background:#e2e8f0;color:#334155;margin-right:4px}
+.vcard .vr .src.mine{background:#dbeafe;color:#1e40af}
+.vcard .sub{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);padding:6px 12px 2px;background:#f8fafc}
+.chip a{margin-left:6px;color:var(--pri)}
+.chip{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:1px 10px;margin:0 6px 0 4px;background:#fff;cursor:pointer;color:var(--ink)}.chip.sel{outline:2px solid #fde047}
+.node.sel{outline:3px solid #fde047}
+.node .r{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut)}
+.node .n{font-weight:600}
+.node .c{font-size:11px;margin-top:2px;color:var(--mut)}
+.node .c b{color:var(--ink)}
+.node .c .late{color:var(--bad);font-weight:600}
+.filterbar{margin:8px 0 0;font-size:12px;color:var(--mut)}
+/* tasks */
+.vgroup{border:1px solid var(--line);border-left-width:5px;border-radius:8px;margin-bottom:10px}
+.vgroup>h3{margin:0;padding:8px 12px;font-size:13px;display:flex;gap:8px;align-items:center;background:#f8fafc;border-radius:0 8px 0 0}
+.pill{font-size:11px;border-radius:99px;padding:1px 8px;background:#e2e8f0;color:#334155}
+.pill.bad{background:#fee2e2;color:var(--bad)}.pill.warn{background:#fef3c7;color:var(--warn)}.pill.good{background:#dcfce7;color:var(--good)}
+.task{display:grid;grid-template-columns:22px 1fr auto;gap:8px;padding:8px 12px;border-top:1px solid var(--line);align-items:start}
+.task.done .t{text-decoration:line-through;color:var(--mut)}
+.task .t{font-weight:500}
+.task .m{font-size:12px;color:var(--mut)}
+.task .note{font-size:12px;background:#fffbeb;border-left:3px solid #fcd34d;padding:3px 8px;margin-top:4px;border-radius:3px;white-space:pre-wrap}
+.task .acts{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.task .acts button{font-size:11px;padding:2px 6px}
+.empty{color:var(--mut);font-style:italic;padding:8px 12px}
+label{display:block;font-size:12px;color:var(--mut);margin:8px 0 2px}
+input,select,textarea{width:100%;font:inherit;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px;background:#fff}
+textarea{min-height:60px;resize:vertical}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.chk{display:flex;gap:6px;align-items:center;margin-top:10px;font-size:13px;color:var(--ink)}
+.chk input{width:auto}
+.hubcol{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+.hubtask{padding:6px 12px;border-top:1px solid var(--line);font-size:13px}
+.hubtask .m{font-size:12px;color:var(--mut)}
+.dup{font-size:11px;color:var(--warn)}
+pre.summary{white-space:pre-wrap;background:#0f172a;color:#e2e8f0;border-radius:8px;padding:14px;font:12.5px/1.5 ui-monospace,Menlo,monospace;max-height:420px;overflow:auto}
+.sync{display:grid;grid-template-columns:230px minmax(320px,1fr) minmax(380px,1.1fr);gap:12px;align-items:start}
+@media(max-width:1150px){.sync{grid-template-columns:1fr}}
+.vbtn{display:block;width:100%;text-align:left;border:1px solid var(--line);border-left-width:6px;border-radius:8px;background:#fff;padding:8px 10px;margin-bottom:6px;cursor:pointer;font:inherit}
+.vbtn:hover{background:#f8fafc}.vbtn.on{background:#eff6ff;outline:2px solid #93c5fd}
+.vbtn b{display:block;font-size:13px}.vbtn .vp{margin-top:3px;display:flex;flex-wrap:wrap;gap:4px}
+.smid #tlist{max-height:78vh;overflow:auto;padding-right:2px}
+.mh{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:6px}.mh b{font-size:16px}
+.newbox{border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:10px;background:#f8fafc}
+.gh{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);margin:10px 2px 4px}
+.gh.warn{color:var(--warn)}
+.srow{border:1px solid var(--line);border-radius:8px;padding:7px 10px;margin-bottom:5px;background:#fff;cursor:pointer}
+.srow:hover{background:#f8fafc}.srow.on{outline:2px solid #3b82f6;background:#eff6ff}.srow.done .t{text-decoration:line-through;color:var(--mut)}
+.srow .t{font-weight:500}.srow .m{font-size:12px;color:var(--mut)}.srow .ps{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px}
+.srow .lu{font-size:12px;margin-top:3px;background:#fffbeb;border-left:3px solid #fcd34d;padding:2px 7px;border-radius:3px}
+.src{font-size:10px;border-radius:4px;padding:0 5px;background:#e2e8f0;color:#334155;margin-right:5px}.src.mine{background:#dbeafe;color:#1e40af}
+.pill.blue{background:#dbeafe;color:#1e40af}
+#tdetail{position:sticky;top:8px;max-height:calc(100vh - 16px);overflow:auto;border:1px solid var(--line);border-radius:10px;padding:14px;background:#fff}
+#tdetail .dt{font-size:16px;font-weight:600;margin-bottom:4px}
+#tdetail h4{margin:14px 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut)}
+#tdetail .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+#tdetail .upd{border-left:3px solid #cbd5e1;padding:2px 8px;margin:4px 0;font-size:13px;white-space:pre-wrap}
+#tdetail .upd.sys{color:var(--mut);font-size:12px;border-color:#e2e8f0}
+#tdetail .upd small{color:var(--mut)}
+#tdetail .dep{display:flex;gap:8px;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:6px;padding:4px 8px;margin:4px 0;font-size:13px}
+#tdetail .dep.ok{opacity:.6}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+.tile{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#f8fafc}
+.tile b{display:block;font-size:26px;line-height:1.1}.tile span{font-size:12px;color:var(--mut)}
+.tile.bad b{color:var(--bad)}.tile.good b{color:var(--good)}.tile.warn b{color:var(--warn)}
+table.sm{border-collapse:collapse;width:100%;font-size:13px}table.sm th,table.sm td{border-bottom:1px solid var(--line);padding:5px 8px;text-align:right}
+table.sm th:first-child,table.sm td:first-child{text-align:left}table.sm th{font-size:11px;text-transform:uppercase;color:var(--mut)}table.sm tr.tot td{font-weight:700}
+#orgToggle{padding:2px 10px}
+.br-soh{background:#f3f8ff}.br-kir{background:#fff5f5}
+.node.br-soh,.srow.br-soh,.vbtn.br-soh,.cogroup.br-soh{background:#f3f8ff}.node.br-kir,.srow.br-kir,.vbtn.br-kir,.cogroup.br-kir{background:#fff5f5}
+.srow.on.br-soh,.vbtn.on.br-soh{background:#e3eeff}.srow.on.br-kir,.vbtn.on.br-kir{background:#ffe6e6}
+.legend{display:inline-flex;gap:6px;font-weight:400}.legend .lg{font-size:11px;border:1px solid #cbd5e1;border-radius:99px;padding:1px 10px;color:var(--ink)}
+.cl-head{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.dgrp{border:1px dashed #cbd5e1;border-radius:8px;padding:6px;margin-bottom:8px;background:#fafafa}
+@media print{header,.banner,.noprint,#orgsec,#syncsec,.gate{display:none!important}body{background:#fff}section{border:0}pre.summary{background:#fff;color:#000;max-height:none}}
+</style>
+</head>
+<body>
+<div class="gate" id="gate"><div class="box"><h1>NAIG 2027 — PMO Weekly Sync</h1><p id="gateMsg">Starting…</p><button class="btn pri" id="gateBtn" hidden>Sign in with Google</button></div></div>
+<header>
+  <a class="btn" href="index.html" style="text-decoration:none">← Hub</a>
+  <h1>NAIG 2027 — PMO Weekly Sync</h1>
+  <small id="weekLbl"></small>
+  <span class="live bad" id="live">Not connected</span>
+  <span class="sp"></span>
+  <button class="btn" id="outBtn" hidden>Sign out</button>
+</header>
+<div class="banner" id="banner"></div>
+<main>
+
+<section id="orgsec">
+  <h2><button class="btn" id="orgToggle">▸ Show org</button> Org <span class="hint" id="orgSum"></span></h2>
+  <div id="orgbody" hidden>
+    <div style="margin-bottom:6px"><span class="legend noprint"><span class="lg br-soh">Sohail's org</span><span class="lg br-kir">Kiran's org</span></span></div>
+    <div class="hint" style="margin-bottom:6px;color:var(--mut);font-size:12px">Live from the hub Directory. Click any box to filter the weekly sync and summary to that branch; click again to clear.</div>
+    <div class="tree" id="tree"></div>
+    <div class="filterbar" id="filterbar"></div>
+    <div class="filterbar" id="unplaced" style="line-height:2"></div>
+    <div class="filterbar" id="recon" style="margin-top:6px"></div>
+    <div class="filterbar noprint" id="placebox"></div>
+  </div>
+</section>
+
+<section id="syncsec">
+  <h2>Weekly sync <span class="hint" id="syncHint"></span>
+    <span id="selchip"></span> <span class="legend noprint"><span class="lg br-soh">Sohail's org</span><span class="lg br-kir">Kiran's org</span></span>
+    <span style="flex:1"></span>
+    <label class="chk noprint" style="margin:0"><input type="checkbox" id="showHold"><span>Show on hold / parked</span></label></h2>
+  <div class="sync">
+    <div id="vlist"></div>
+    <div class="smid">
+      <div id="mhead"></div>
+      <details id="newtask" class="noprint">
+        <summary class="btn pri" style="display:inline-block;margin-bottom:8px">+ New task</summary>
+        <div class="newbox">
+          <label>Title</label><input id="fTitle" placeholder="e.g. Confirm shuttle loop with vendor">
+          <div class="row">
+            <div><label>Owner</label><select id="fOwner"></select></div>
+            <div><label>Vertical</label><select id="fVert"></select></div>
+          </div>
+          <div class="row">
+            <div><label>Due</label><input type="date" id="fDue"></div>
+            <div><label>Priority</label><select id="fPri"><option>Normal</option><option>High</option></select></div>
+          </div>
+          <label>Notes</label><textarea id="fNotes" placeholder="Context, blockers, what leadership should know"></textarea>
+          <div class="chk"><input type="checkbox" id="fWeekly"><span>Repeats weekly (recreated each Monday)</span></div>
+          <div style="margin-top:10px"><button class="btn pri" id="addBtn">Add task</button> <span class="hint" style="color:var(--mut);font-size:12px">Saved in this browser only; the hub is not changed.</span></div>
+        </div>
+      </details>
+      <div id="tlist"></div>
+    </div>
+    <div id="tdetail"></div>
+  </div>
+</section>
+
+<section id="sumsec">
+  <h2>This week's summary
+    <span class="hint" id="sumHint"></span>
+    <span style="flex:1"></span>
+    <button class="btn noprint" id="copyBtn">Copy as text</button>
+    <button class="btn noprint" onclick="window.print()">Print / save PDF</button>
+  </h2>
+  <div class="tiles" id="tiles"></div>
+  <div id="sumtable" style="overflow-x:auto"></div>
+  <pre class="summary" id="summary" style="margin-top:12px"></pre>
+</section>
+
+</main>
+
+<script type="module">
+// Writes are limited to pmoSync/attachments (see header). Nothing else is written to Firebase.
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, onValue, set, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, getRedirectResult, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+/* Same Firebase project as the hub (public web config, copied from the hub's index.html). */
+const app = initializeApp({apiKey:"AIzaSyC16ftKuUYRkwexYYUuk0i5fYsxxVzI_eU",authDomain:"naig-2027.firebaseapp.com",databaseURL:"https://naig-2027-default-rtdb.firebaseio.com",projectId:"naig-2027",storageBucket:"naig-2027.appspot.com",messagingSenderId:"97335869563",appId:"1:97335869563:web:1a15a49205c103333e22de"});
+const db = getDatabase(app), auth = getAuth(app);
+const R = p => ref(db, 'naig2027/' + p);
+
+/* ===== helpers ===== */
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = n => String(n).padStart(2, '0');
+const iso = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const addDays = (s, n) => { const d = new Date(s + 'T12:00:00'); d.setDate(d.getDate() + n); return iso(d); };
+const todayS = () => iso(new Date());
+const weekStart = s => { const d = new Date((s || todayS()) + 'T12:00:00'); const k = (d.getDay() + 6) % 7; d.setDate(d.getDate() - k); return iso(d); };
+const fmtD = s => s ? new Date(String(s).slice(0, 10) + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'No date';
+const uid = () => 't' + Math.random().toString(36).slice(2, 9);
+const key = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const ents = o => Array.isArray(o) ? o.map((v, i) => [String(i), v]).filter(x => x[1]) : Object.entries(o || {}).filter(x => x[1]);
+
+/* ===== live directory state (from Firebase) ===== */
+const D = { att: {}, attErr: '', side: {}, sideOf: {}, raw: null, hubTasks: null, people: [], byId: {}, alias: {}, kids: {}, roots: [], unplaced: [], finance: [], observers: [], verts: [], vcolor: {}, me: null, at: 0, live: false };
+const CACHE = 'naigPmo.firebaseCache.v1';   // last copy of what Firebase returned, so the page isn't blank offline. Never hand-edited.
+const PALETTE = ['#2c7a5c', '#2d6a9f', '#1a3a5c', '#7b3f00', '#5a3e85', '#0e7490', '#9d174d', '#4d7c0f', '#b45309', '#475569'];
+const pid = p => p.id || p._key;
+/* DISPLAY-ONLY layout overrides (never written to the hub). Directory says Rahim reports to Rizwan; Azmina wants him under Sohail.
+   Fix it for good by changing "Reports to" on his Directory record in the hub, then delete this line. */
+const PARENT_OVERRIDE = { 'rahimmalik': 'sohailali' };
+/* Core Team PMOs are drawn in a box beside their manager instead of as a child below. */
+/* Placements you set on this page ("Fix placement"). Browser-only, display-only; nothing is written to the hub.
+   { personNameKey: managerNameKey | '' }  ('' = top level / no manager) */
+const PLACE_KEY = 'naigPmo.placement.v1';
+let PLACE = JSON.parse(localStorage.getItem(PLACE_KEY) || '{}');
+const savePlace = () => localStorage.setItem(PLACE_KEY, JSON.stringify(PLACE));
+const EQUIP_LABEL = 'Procurement';
+const isSidePmo = p => /pmo/i.test(p.roleType || '') && /core/i.test(p.vertical || '');
+const isTbd = p => /^\s*TBD\b/i.test(p.name || '');
+const roleOf = p => String(p.role || p.title || p.roleType || '').replace(/\s*\(personal account\)/i, '').trim();
+
+function buildDirectory(raw) {
+  const rec = ents(raw).map(([k, p]) => Object.assign({ _key: k }, p));
+  const ST_ = { records: rec.length, noName: rec.filter(p => !p.name).length, archived: rec.filter(p => p.name && p.archived).length, tbd: rec.filter(p => p.name && !p.archived && isTbd(p)).length };
+  D.stats = ST_;
+  const all = rec.filter(p => p.name && !p.archived && !isTbd(p));
+  /* DISPLAY-ONLY relabel: Equipment & Signage and Procurement are one vertical here. The hub still has Shahneel as "Equipment & Signage" and Simin as "Logistics". */
+  all.forEach(p => { const v = key(p.vertical); if (v === 'equipmentsignage' || /procurement/i.test(roleOf(p)) || /procurement/i.test(p.vertical || '')) p.vertical = EQUIP_LABEL; });
+  // The hub lists some people twice (two emails). Keep the first record, point the duplicates' ids at it.
+  const seen = {}, keep = []; D.alias = {}; D.dupes = [];
+  all.forEach(p => { const k = key(p.name); if (seen[k]) { D.alias[pid(p)] = pid(seen[k]); D.dupes.push(p.name); } else { seen[k] = p; keep.push(p); } });
+  const isObs = p => /observer/i.test(roleOf(p)) || /^observer$/i.test(p.vertical || '');
+  const isFin = p => /^finance/i.test(p.vertical || '') || /^finance/i.test(roleOf(p));
+  D.observers = keep.filter(isObs).map(p => p.name);
+  D.finance = keep.filter(p => !isObs(p) && isFin(p)).map(p => p.name);
+  D.people = keep.filter(p => !isObs(p) && !isFin(p));
+  D.byId = {}; D.people.forEach(p => D.byId[pid(p)] = p);
+  const parentOf = p => {
+    if (Object.prototype.hasOwnProperty.call(PLACE, key(p.name))) { const t = PLACE[key(p.name)]; if (!t) return ''; const m = D.people.find(x => key(x.name) === t); if (m && m !== p) return pid(m); }
+    const ov = PARENT_OVERRIDE[key(p.name)]; if (ov) { const m = D.people.find(x => key(x.name) === ov); if (m) return pid(m); }
+    let r = p.reportsTo; if (r && D.alias[r]) r = D.alias[r]; return r && D.byId[r] && r !== pid(p) ? r : ''; };
+  D.kids = {}; D.side = {}; D.sideOf = {}; D.inferred = new Set();
+  /* DISPLAY-ONLY: someone with a non-Core vertical but no "Reports to" joins their vertical's branch,
+     under the same manager as the other leads/deputies in that vertical. Fix properly by setting "Reports to" in the hub. */
+  const inferParent = p => {
+    const v = String(p.vertical || '').trim(); if (Object.prototype.hasOwnProperty.call(PLACE, key(p.name))) return ''; if (!v || /core/i.test(v) || parentOf(p)) return '';
+    const mate = D.people.find(x => x !== p && String(x.vertical || '').trim() === v && parentOf(x) && /lead|deputy/i.test((x.roleType || '') + ' ' + roleOf(x)));
+    return mate ? parentOf(mate) : ''; };
+  D.parent = {};
+  D.people.forEach(p => { const r = parentOf(p) || inferParent(p); D.parent[pid(p)] = r; if (r && !parentOf(p)) D.inferred.add(pid(p));
+    if (r && isSidePmo(p)) { (D.side[r] = D.side[r] || []).push(p); D.sideOf[pid(p)] = r; }
+    else (D.kids[r] = D.kids[r] || []).push(p); });
+  const byName = (a, b) => String(a.name).localeCompare(String(b.name));
+  Object.values(D.kids).forEach(a => a.sort(byName));
+  // Roots with no reports are not part of the chart (listed under it); roots with reports are the chart.
+  const roots = (D.kids[''] || []);
+  D.roots = roots.filter(p => D.kids[pid(p)]);
+  D.unplaced = roots.filter(p => !D.kids[pid(p)]);
+  const inChart = new Set(); const walkC = p => { if (inChart.has(pid(p))) return; inChart.add(pid(p)); (D.kids[pid(p)] || []).concat(D.side[pid(p)] || []).forEach(walkC); };
+  D.roots.forEach(walkC);
+  D.stats.inChart = inChart.size; D.stats.unplaced = D.unplaced.length;
+  D.stats.lost = D.people.filter(p => !inChart.has(pid(p)) && !D.unplaced.includes(p)).map(p => p.name);   // should always be empty
+  D.verts = [...new Set(D.people.map(p => String(p.vertical || '').trim()).filter(Boolean))].sort((a, b) => /core/i.test(a) ? -1 : /core/i.test(b) ? 1 : a.localeCompare(b));
+  D.vcolor = {}; let i = 0; D.verts.forEach(v => D.vcolor[v] = /core/i.test(v) ? '#64748b' : PALETTE[i++ % PALETTE.length]);
+  const em = (S.email || '').toLowerCase();
+  D.me = !em ? null : D.people.find(p => String(p.email || '').toLowerCase() === em || String(p.altEmails || '').toLowerCase().split(/[,;\s]+/).includes(em)) || null;
+}
+/* Branch colors: everyone at or under Sohail is "soh", everyone at or under Kiran is "kir". Display-only. */
+const branchOfName = n => { const k = key(n); return k.startsWith('sohail') ? 'soh' : k.startsWith('kiran') ? 'kir' : ''; };
+function branchOf(id) { let i = D.alias[id] || id, g = 0; while (i && g++ < 30) { const p = D.byId[i]; if (!p) return ''; const b = branchOfName(p.name); if (b) return b; i = D.parent[i]; } return ''; }
+function vBranch(v) { const c = { soh: 0, kir: 0 }; D.people.forEach(p => { if (String(p.vertical || '').trim() === v && !/core/i.test(v)) { const b = branchOf(pid(p)); if (b) c[b]++; } }); return c.soh === c.kir ? '' : c.soh > c.kir ? 'soh' : 'kir'; }
+function rowBranch(r) { for (const n of r.ownerNames) { const p = D.people.find(x => key(x.name) === key(n)); if (p) { const b = branchOf(pid(p)); if (b) return b; } } return vBranch(r.v); }
+const brCls = b => b ? ' br-' + b : '';
+const colorOf = p => D.vcolor[String(p.vertical || '').trim()] || '#1e3a8a';
+const personById = id => D.byId[D.alias[id] || id];
+const subtree = id => { const out = [id]; const walk = i => (D.kids[i] || []).concat(D.side[i] || []).forEach(c => { if (!out.includes(pid(c))) { out.push(pid(c)); walk(pid(c)); } }); walk(id); return out; };
+
+/* ===== my tasks (local) ===== */
+const S = { email: '' };
+const KEY = 'naigPmo.localTasks.v4';
+let ST = JSON.parse(localStorage.getItem(KEY) || 'null') || { tasks: [] };
+const save = () => localStorage.setItem(KEY, JSON.stringify(ST));
+const cur = () => weekStart();
+const isLate = t => t.status !== 'done' && t.due && t.due < todayS();
+
+/* ===== hub tasks (live, read-only) ===== */
+const hubDue = t => String(t.due || t.dueDate || '').slice(0, 10);
+const hubOwners = t => { const a = []; if (t.owner) a.push(t.owner); (Array.isArray(t.owners) ? t.owners : []).forEach(o => o && !a.includes(o) && a.push(o)); return a; };
+const hubOpen = () => ents(D.hubTasks).filter(([k, t]) => t.title && t.status !== 'done').map(([k, t]) => Object.assign({ _id: k }, t));
+const KWS = [/food|f&b|f and b|beverage|menu|catering/i, /hotel|room|accom|lodging/i, /transport|shuttle|airport|flight|pickup|loop|driver/i, /site|venue|tent|generator|walkthrough|floor/i, /equip|signage|sign\b|rental|wayfinding|procure/i, /design/i];
+function hubVert(t) {
+  const area = String(t.vertical || t.department || t.scopeArea || '');
+  const byLabel = txt => { const k = key(txt); if (!k) return ''; return D.verts.find(v => key(v) === k) || D.verts.find(v => key(v).includes(k) || k.includes(key(v))) || ''; };
+  let v = byLabel(area); if (v) return v;
+  const text = area + ' ' + t.title;
+  for (const re of KWS) if (re.test(text)) { v = D.verts.find(x => re.test(x)); if (v) return v; }
+  const o = hubOwners(t).map(n => D.people.find(p => key(p.name) === key(n))).find(Boolean);
+  if (o && o.vertical && !/core/i.test(o.vertical)) return o.vertical;
+  return 'Unsorted';
+}
+const toks = s => new Set(String(s).toLowerCase().replace(/\(.*?\)/g, '').replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w.length > 2));
+const sim = (a, b) => { const A = toks(a), B = toks(b); if (!A.size || !B.size) return 0; let i = 0; A.forEach(x => B.has(x) && i++); return i / (A.size + B.size - i); };
+
+/* ===== filter + counts ===== */
+let SEL = null;   // directory id
+function matcher(nodeId) {
+  if (nodeId && nodeId.startsWith('g:')) {   // a grouped branch (co-leads): union of their subtrees
+    const ids = [...new Set(nodeId.slice(2).split(',').flatMap(subtree))];
+    return { ids, names: new Set(ids.map(i => key((D.byId[i] || {}).name))) };
+  }
+  nodeId = D.sideOf[nodeId] || nodeId;   // a PMO box filters to the branch it supports
+  if (!nodeId || D.roots.some(r => pid(r) === nodeId)) return { all: true };
+  const ids = subtree(nodeId), names = new Set(ids.map(i => key((D.byId[i] || {}).name)));
+  return { ids, names };
+}
+const selName = () => SEL && SEL.startsWith('g:') ? ((D.byId[SEL.slice(2).split(',')[0]] || {}).vertical || 'Branch') + ' (all co-leads)' : (personById(SEL) || {}).name || '';
+const localMatch = (m, t) => m.all || m.ids.includes(D.alias[t.owner] || t.owner);
+const hubMatch = (m, t) => m.all || hubOwners(t).some(n => m.names.has(key(n)));
+const rowMatch = (m, r) => m.all || r.ownerNames.some(n => m.names.has(key(n)));
+let ROWS = [], HIDDEN = [];   // every working task (hub + mine) with my overlay applied; rebuilt on each render
+function counts(nodeId) {
+  const m = matcher(nodeId), g = ROWS.filter(r => !r.done && rowMatch(m, r));
+  return { open: g.length, late: g.filter(r => r.late).length };
+}
+
+/* ===== render org ===== */
+function boxHtml(p, side) {
+  const c = counts(pid(p));
+  return '<div class="node' + brCls(branchOf(pid(p))) + (side ? ' side' : '') + (SEL === pid(p) ? ' sel' : '') + (D.me && pid(D.me) === pid(p) ? ' me' : '') + '" data-id="' + esc(pid(p)) + '" style="border-left-color:' + colorOf(p) + '">'
+    + '<div class="r">' + esc(roleOf(p)) + '</div><div class="n">' + esc(p.name) + (D.me && pid(D.me) === pid(p) ? ' (you)' : '') + '</div>'
+    + '<div class="c"><b>' + c.open + '</b> open' + (c.late ? ' · <span class="late">' + c.late + ' late</span>' : '') + '</div></div>';
+}
+const headHtml = p => { const sd = D.side[pid(p)] || []; return sd.length ? '<div class="pair">' + boxHtml(p) + '<span class="link"></span>' + sd.map(x => boxHtml(x, true)).join('') + '</div>' : boxHtml(p); };
+/* Siblings that share a parent and a (non-Core) vertical are ONE branch: e.g. two Transportation co-leads side by side in one box. */
+function groupSiblings(list, parent) {
+  const pv = parent ? String(parent.vertical || '').trim() : '';
+  const isLead = p => /lead|deputy/i.test((p.roleType || '') + ' ' + roleOf(p));
+  const by = {}; list.forEach(p => { const v = String(p.vertical || '').trim(); if (v && v !== pv && !/core/i.test(v) && isLead(p)) (by[v] = by[v] || []).push(p); });
+  const out = [], done = new Set();
+  list.forEach(p => { if (done.has(pid(p))) return;
+    const v = String(p.vertical || '').trim(), g = by[v];
+    if (g && g.length > 1) { g.forEach(x => done.add(pid(x))); out.push({ group: g, vertical: v }); } else { done.add(pid(p)); out.push({ one: p }); } });
+  return out;
+}
+const kidsOfAll = ms => ms.flatMap(m => D.kids[pid(m)] || []);
+function liHtml(item, seen) {
+  if (item.one) return nodeHtml(item.one, seen);
+  const ms = item.group; ms.forEach(m => seen.add(pid(m)));
+  const gid = 'g:' + ms.map(pid).join(',');
+  const c = counts(gid);
+  const head = '<div class="cogroup' + brCls(branchOf(pid(ms[0]))) + (SEL === gid ? ' sel' : '') + '" style="border-color:' + colorOf(ms[0]) + '"><div class="gl" data-id="' + esc(gid) + '">' + esc(item.vertical) + ' <span class="gc"><b>' + c.open + '</b> open' + (c.late ? ' · <span class="late">' + c.late + ' late</span>' : '') + '</span></div><div class="gm">' + ms.map(m => headHtml(m)).join('') + '</div></div>';
+  const kids = kidsOfAll(ms);
+  const leaf = kids.every(k => !(D.kids[pid(k)] || []).length && !(D.side[pid(k)] || []).length);
+  if (kids.length && leaf) return '<li>' + head + '<div class="stack">' + kids.map(k => boxHtml(k)).join('') + '</div></li>';
+  return '<li>' + head + (kids.length ? '<ul>' + groupSiblings(kids, ms[0]).map(i => liHtml(i, seen)).join('') + '</ul>' : '') + '</li>';
+}
+function nodeHtml(p, seen) {
+  seen = seen || new Set(); if (seen.has(pid(p))) return ''; seen.add(pid(p));
+  const kids = D.kids[pid(p)] || [];
+  if (kids.length && kids.every(k => !(D.kids[pid(k)] || []).length && !(D.side[pid(k)] || []).length) && groupSiblings(kids, p).every(i => i.one)) return '<li>' + headHtml(p) + '<div class="stack">' + kids.map(k => boxHtml(k)).join('') + '</div></li>';
+  return '<li>' + headHtml(p) + (kids.length ? '<ul>' + groupSiblings(kids, p).map(i => liHtml(i, seen)).join('') + '</ul>' : '') + '</li>';
+}
+function renderPlace() {
+  const opts = D.people.slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const o = x => '<option value="' + esc(key(x.name)) + '">' + esc(x.name + ' — ' + roleOf(x)) + '</option>';
+  const cur_ = Object.keys(PLACE).map(k => { const p = D.people.find(x => key(x.name) === k); const t = PLACE[k] ? D.people.find(x => key(x.name) === PLACE[k]) : null;
+    return p ? '<span class="chip">' + esc(p.name) + ' → ' + esc(t ? t.name : 'top level') + ' <a href="#" data-undo="' + esc(k) + '">undo</a></span>' : ''; }).join('');
+  const keepSel = ['#pPerson', '#pMgr'].map(i => ($(i) || {}).value);
+  $('#placebox').innerHTML = '<details' + ($('#placebox').querySelector('details[open]') ? ' open' : '') + '><summary><b>Fix placement</b> — put anyone under a manager (this browser only, the hub is not changed)</summary>'
+    + '<div class="row" style="margin-top:6px"><div><label>Person</label><select id="pPerson">' + opts.map(o).join('') + '</select></div>'
+    + '<div><label>Reports to</label><select id="pMgr"><option value="">Top level (no manager)</option>' + opts.map(o).join('') + '</select></div></div>'
+    + '<div style="margin-top:8px"><button class="btn pri" id="pApply">Apply</button></div>' + (cur_ ? '<div style="margin-top:8px">Your placements: ' + cur_ + '</div>' : '') + '</details>';
+  if (keepSel[0]) $('#pPerson').value = keepSel[0]; if (keepSel[1] != null) $('#pMgr').value = keepSel[1];
+  $('#pApply').onclick = () => { const a = $('#pPerson').value, b = $('#pMgr').value; if (!a || a === b) return; PLACE[a] = b; savePlace(); rebuild(); };
+  $('#placebox').querySelectorAll('[data-undo]').forEach(l => l.onclick = e => { e.preventDefault(); delete PLACE[l.dataset.undo]; savePlace(); rebuild(); });
+}
+function rebuild() { if (D.raw) { buildDirectory(D.raw); renderAll(); } }
+let ORGOPEN = localStorage.getItem('naigPmo.orgOpen') === '1';
+function renderOrg() {
+  const act = ROWS.filter(r => !r.done);
+  $('#orgSum').textContent = D.people.length ? D.people.length + ' people · ' + act.length + ' open tasks · ' + act.filter(r => r.late).length + ' overdue' : '';
+  $('#orgbody').hidden = !ORGOPEN; $('#orgToggle').textContent = ORGOPEN ? '▾ Hide org' : '▸ Show org';
+  if (!ORGOPEN) return;
+  const T = $('#tree'); T.style.zoom = 1;
+  if (!D.people.length) { T.innerHTML = '<div class="empty">Waiting for the hub Directory…</div>'; return; }
+  T.innerHTML = '<ul>' + D.roots.map(r => nodeHtml(r)).join('') + '</ul>';
+  const sw = T.firstChild.scrollWidth, cw = T.parentElement.clientWidth - 32;
+  if (sw > cw) T.style.zoom = Math.max(.7, cw / sw);
+  const chip = p => '<span class="chip' + (SEL === pid(p) ? ' sel' : '') + '" data-id="' + esc(pid(p)) + '">' + esc(p.name) + ' · ' + esc(roleOf(p)) + '</span>';
+  $('#unplaced').innerHTML = (D.unplaced.length ? '<b>In the Directory with no "Reports to" (not in the chart):</b> ' + D.unplaced.map(chip).join('') + '<br>' : '')
+    + (D.finance.length ? '<b>Finance (view only):</b> ' + esc(D.finance.join(', ')) + ' &nbsp; ' : '')
+    + (D.observers.length ? '<b>Observers:</b> ' + esc(D.observers.join(', ')) : '');
+  const st = D.stats, hid = [];
+  if (st.tbd) hid.push(st.tbd + ' TBD placeholder' + (st.tbd > 1 ? 's' : '')); if (st.archived) hid.push(st.archived + ' archived'); if (st.noName) hid.push(st.noName + ' without a name');
+  if (D.dupes.length) hid.push(D.dupes.length + ' duplicate' + (D.dupes.length > 1 ? 's' : '') + ' merged (' + D.dupes.join(', ') + ')');
+  $('#recon').innerHTML = '<b>Directory check:</b> ' + st.records + ' records in Firebase = ' + st.inChart + ' in the chart + ' + st.unplaced + ' not placed + ' + D.finance.length + ' finance + ' + D.observers.length + ' observers'
+    + (hid.length ? ' + hidden: ' + esc(hid.join('; ')) : '') + '.'
+    + (st.lost.length ? ' <span style="color:var(--bad);font-weight:600">NOT SHOWN ANYWHERE: ' + esc(st.lost.join(', ')) + '</span>' : ' <span style="color:var(--good)">Everyone is accounted for.</span>');
+  renderPlace();
+  const click = n => n.onclick = () => { SEL = SEL === n.dataset.id ? null : n.dataset.id; renderAll(); };
+  T.querySelectorAll('.node,.gl').forEach(click); $('#unplaced').querySelectorAll('.chip').forEach(click);
+  $('#filterbar').innerHTML = SEL ? 'Filtered to: <b>' + esc(selName()) + '</b> and everyone under them (click the box again to clear)' : D.people.length + ' people in the Directory.' + (D.inferred.size ? ' Placed by vertical (no "Reports to" in the hub): ' + [...D.inferred].map(i => (D.byId[i] || {}).name).join(', ') + '.' : '');
+}
+
+/* ===== my tasks (local) + overlay ===== */
+const ownerName = id => (personById(id) || {}).name || 'No owner';
+const vList = () => D.verts.concat(['Other']);
+const vOf = t => vList().includes(t.vert) ? t.vert : 'Other';
+const vColor = v => D.vcolor[v] || '#64748b';
+
+/* Everything I do in the weekly sync (status, updates, dependencies, moves, closes) is stored here, in this browser.
+   Hub tasks are NEVER written to; this layer sits on top of them, keyed by hub task id. */
+const OV_KEY = 'naigPmo.sync.v1';
+let OV = JSON.parse(localStorage.getItem(OV_KEY) || '{}');
+const saveOv = () => localStorage.setItem(OV_KEY, JSON.stringify(OV));
+const ovOf = k => OV[k] || (OV[k] = {});
+/* The hub's own dependency lists (copied from classic.html: _CROSS_TEAMS and _LOGISTICS_STREAMS). These are code constants in the hub, not database records.
+   If the hub adds a team, add it here too. */
+const CROSS_TEAMS = ['Sports', 'Registration', 'Finance', 'Legal', 'HR / IVS', 'Technology', 'Marketing', 'Command Center'];
+const HUB_STREAMS = ['Core Team', 'Food & Beverage', 'Hotels & Accommodations', 'Transportation', 'Site Management', 'Equipment & Signage'];
+const DEP_ST = { todo: 'To do', inprogress: 'In progress', blocked: 'Blocked', done: 'Done' };
+/* Dependencies already recorded on a hub task (verticalDependencies = other teams, workstreamDependencies = logistics streams). Read-only. */
+function hubDepsOf(t) {
+  const out = [], seen = new Set();
+  [['verticalDependencies', CROSS_TEAMS, 'Team'], ['workstreamDependencies', HUB_STREAMS, 'Stream']].forEach(([f, ok, kind]) => {
+    const raw = Array.isArray(t[f]) ? t[f] : (t[f] && typeof t[f] === 'object' ? Object.values(t[f]) : []);
+    raw.forEach(d => { const team = typeof d === 'string' ? d : d && d.team, st = d && typeof d === 'object' ? d.status : 'todo';
+      if (!ok.includes(team) || seen.has(team)) return; seen.add(team); out.push({ team, kind, status: DEP_ST[st] ? st : 'todo' }); });
+  });
+  return out;
+}
+const holdRe = /^\s*(ON HOLD|PARKED)\b/i;
+const showHold = () => !!($('#showHold') && $('#showHold').checked);
+const wkMs = () => new Date(cur() + 'T00:00:00').getTime();
+const nextMon = () => addDays(cur(), 7);
+const fmtDT = ms => new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+/* Hub owner text is free-form ("Azmina", "azmina@...", "Azmina Hashim"). Map it to the Directory person so counts roll up to the right name. */
+function canonName(n) {
+  const raw = String(n || '').trim(), k = key(raw); if (!k) return raw;
+  const p = D.people.find(x => key(x.name) === k) || D.people.find(x => String(x.email || '').toLowerCase() === raw.toLowerCase());
+  if (p) return p.name;
+  if (raw.split(/\s+/).length === 1) { const c = D.people.filter(x => key(String(x.name).split(/\s+/)[0]) === k); if (c.length === 1) return c[0].name; }
+  return raw;
+}
+const isCoreV = v => /core/i.test(v || '');
+function allRows() {
+  const td = todayS(), w = cur(), wk = addDays(td, 7), rows = [];
+  const mk = (src, id, v, title, ownerNames, due, rawStatus, notes, extra) => {
+    ownerNames = ownerNames.map(canonName); const k = src + ':' + id, o = OV[k] || {}, hs = String(rawStatus || '').toLowerCase().replace(/[^a-z]/g, '');
+    const status = o.status || (hs === 'blocked' ? 'blocked' : /progress|doing|started/.test(hs) ? 'progress' : hs === 'done' ? 'done' : 'open');
+    const deps = o.deps || [], r = { k, src, id, v, title, ownerNames, owners: ownerNames.join(', '), due, status, notes, updates: o.updates || [], deps,
+      waiting: deps.some(d => !d.resolved), hold: hs === 'onhold' || holdRe.test(title) || !!o.parked, deferTo: o.deferTo || '', closedAt: o.closedAt || 0, hidden: !!o.hidden, hiddenWhy: o.hiddenWhy || '' };
+    r.done = status === 'done'; r.deferred = !r.done && !!r.deferTo && r.deferTo > w;
+    r.blocked = !r.done && (status === 'blocked' || r.waiting); r.late = !r.done && !!due && due < td;
+    r.closedThisWeek = r.done && r.closedAt >= wkMs();
+    r.b = r.blocked ? 0 : r.late ? 1 : due && due <= wk ? 2 : due ? 3 : 4;
+    r.tk = toks(title);
+    r.core = isCoreV(v) || ownerNames.some(n => { const p = D.people.find(x => key(x.name) === key(n)); return p && isCoreV(p.vertical); });
+    r.hubDeps = []; return Object.assign(r, extra || {});
+  };
+  ents(D.hubTasks).forEach(([id, t]) => { if (!t.title) return;
+    const r = mk('hub', id, hubVert(t), t.title, hubOwners(t), hubDue(t), t.status, t.notes || t.description || '', { hubDeps: hubDepsOf(t) });
+    if (!r.done && r.hubDeps.some(d => d.status === 'blocked')) { r.blocked = true; r.b = 0; }
+    if (r.done && !OV[r.k]) return;   // done in the hub and untouched by me: not part of the working list
+    rows.push(r); });
+  ST.tasks.forEach(t => { if (t.week > w) return;
+    rows.push(mk('mine', t.id, vOf(t), t.title, t.owner ? [ownerName(t.owner)] : [], t.due || '', t.status, t.notes || '', { local: t, createdThisWeek: (t.createdAt || 0) >= wkMs() || (!t.createdAt && t.week === w) })); });
+  const hubs = rows.filter(r => r.src === 'hub');
+  hubs.forEach((r, i) => { const o = hubs.slice(0, i).find(x => x.v === r.v && !x.done && !r.done && x.tk.size && r.tk.size && (() => { let n = 0; r.tk.forEach(z => x.tk.has(z) && n++); return n / (x.tk.size + r.tk.size - n) >= .6; })()); if (o) r.dupOf = o.title; });
+  return rows.filter(r => !r.hold || showHold());
+}
+
+/* ===== weekly sync ===== */
+let CL = false, PS = '', SV = '*', SK = '', ORDER = [], DRAFT = { k: '', upd: '', dep: '', focus: '' };
+const syncRows = () => { const m = matcher(SEL); return ROWS.filter(r => rowMatch(m, r)); };
+const inV = (r, v) => v === '*' || r.v === v || (isCoreV(v) && r.core);
+const BNAME = ['Blocked or waiting on another vertical', 'Overdue', 'Due in the next 7 days', 'Later', 'No due date'];
+const vStat = (rows, v) => {
+  const g = rows.filter(r => inV(r, v)), act = g.filter(r => !r.done && !r.deferred);
+  return { open: act.length, blocked: act.filter(r => r.blocked).length, late: act.filter(r => r.late).length, closed: g.filter(r => r.closedThisWeek).length, moved: g.filter(r => r.deferred).length,
+    incoming: v === '*' ? 0 : rows.filter(r => !r.done && !r.deferred && r.v !== v && r.deps.some(d => !d.resolved && d.on === v)).length };
+};
+function pillsHtml(r) {
+  let h = '';
+  if (r.done) h += '<span class="pill good">Done</span>';
+  else { if (r.status === 'blocked') h += '<span class="pill bad">Blocked</span>'; if (r.status === 'progress') h += '<span class="pill blue">In progress</span>';
+    r.deps.filter(d => !d.resolved).forEach(d => h += '<span class="pill warn">waiting on ' + esc(d.on) + '</span>');
+    (r.hubDeps || []).filter(d => d.status !== 'done').forEach(d => h += '<span class="pill ' + (d.status === 'blocked' ? 'bad' : 'warn') + '" title="From the hub: ' + DEP_ST[d.status] + '">needs ' + esc(d.team) + '</span>');
+    if (r.late) h += '<span class="pill bad">Overdue</span>'; }
+  if (r.deferred) h += '<span class="pill">moved to ' + fmtD(r.deferTo) + '</span>';
+  if (r.hold) h += '<span class="pill">on hold</span>';
+  if (r.dupOf) h += '<span class="dup">possible duplicate of "' + esc(r.dupOf) + '"</span>';
+  return h ? '<div class="ps">' + h + '</div>' : '';
+}
+function srowHtml(r, showV) {
+  const na = attsOf(r).length;
+  const last = r.updates.filter(u => !u.sys).slice(-1)[0];
+  return '<div class="srow' + brCls(rowBranch(r)) + (SK === r.k ? ' on' : '') + (r.done ? ' done' : '') + '" data-k="' + esc(r.k) + '"><div class="t"><span class="src ' + r.src + '">' + r.src + '</span>' + esc(r.title) + (na ? ' <span class="pill" title="Attachments">&#128206; ' + na + '</span>' : '') + '</div>'
+    + '<div class="m">' + esc(r.owners || 'No owner') + ' · <span style="' + (r.late ? 'color:var(--bad);font-weight:600' : '') + '">' + fmtD(r.due) + '</span>' + (showV ? ' · in ' + esc(r.v) : '') + '</div>'
+    + pillsHtml(r) + (last ? '<div class="lu">' + fmtDT(last.at) + ': ' + esc(String(last.text).slice(0, 120)) + '</div>' : '') + '</div>';
+}
+/* Person filter for the middle pane. '' = everyone, '@me' = my tasks, '@team' = my branch (me + everyone I support), 'n:<key>' = one person. */
+const meKey = () => D.me ? key(D.me.name) : '';
+const teamMgr = () => D.me ? (D.byId[D.sideOf[pid(D.me)]] || null) : null;
+function personFilter() {
+  if (!PS) return () => true;
+  if (PS === '@me') return r => r.ownerNames.some(n => key(n) === meKey());
+  if (PS === '@team') { const m = matcher(pid(D.me)); return r => rowMatch(m, r); }
+  const k = PS.slice(2); return r => r.ownerNames.some(n => key(n) === k);
+}
+function personOptions(vrows) {
+  Object.keys(PLABEL).forEach(k => delete PLABEL[k]); PLABEL['@me'] = 'my tasks'; PLABEL['@team'] = 'my team';
+  const open = vrows.filter(r => !r.done && !r.deferred), cnt = k => open.filter(r => r.ownerNames.some(n => key(n) === k)).length;
+  const names = new Map();
+  D.people.filter(p => SV === '*' || String(p.vertical || '').trim() === SV).forEach(p => names.set(key(p.name), p.name));
+  vrows.forEach(r => r.ownerNames.forEach(n => { if (key(n) && !names.has(key(n))) names.set(key(n), n); }));
+  const list = [...names.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  let h = '<option value="">Everyone' + (SV === '*' ? '' : ' in ' + esc(SV)) + ' (' + open.length + ')</option>';
+  if (D.me) {
+    const mgr = teamMgr(), mm = matcher(pid(D.me)), tm = open.filter(r => rowMatch(mm, r)).length;
+    h += '<optgroup label="Mine"><option value="@me">My tasks — ' + esc(D.me.name) + ' (' + cnt(meKey()) + ')</option>'
+      + '<option value="@team">My team' + (mgr ? ' — everyone under ' + esc(mgr.name) : '') + ' (' + tm + ')</option></optgroup>';
+  }
+  h += '<optgroup label="By person">' + list.map(([k, n]) => (PLABEL['n:' + k] = n, '') + '<option value="n:' + esc(k) + '">' + esc(n) + ' (' + cnt(k) + ')</option>').join('') + '</optgroup>';
+  return h;
+}
+const PLABEL = {};
+/* ===== clean up: find duplicates and tasks that are not actionable. Nothing here touches the hub; hiding/parking is saved in this browser. ===== */
+const VERBS = /^(confirm|finalize|finalise|send|order|book|review|draft|schedule|collect|assign|submit|update|create|get|follow|call|email|approve|sign|finish|complete|build|pay|request|check|share|prepare|arrange|negotiate|reserve|coordinate|deliver|verify|define|decide|identify|develop|set|plan|obtain|ask|add|make|print|buy|pick|find|post|publish|upload|reach|meet|lock|source|secure|resolve|fix|test|track|compile|circulate|distribute|brief|train|recruit|hire|purchase|invoice|quote|propose|present|walk|visit|measure|count|list|map|write|design|clarify|align|chase|remind|notify|inform|escalate|cancel|renew|extend|rebook)\b/i;
+const VAGUE = /\b(tbd|discuss|discussion|think about|explore|look into|looking into|consider|misc|various|general|ideas?|thoughts?|brainstorm|etc)\b/i;
+function flagsOf(r) {
+  const f = [], w = r.title.trim().split(/\s+/).filter(Boolean), td = todayS();
+  if (!r.ownerNames.length) f.push('No owner');
+  if (!r.due) f.push('No due date');
+  if (w.length < 3 || (!VERBS.test(r.title.trim()) && w.length < 5) || VAGUE.test(r.title)) f.push('Vague: no clear action');
+  if (r.due && r.due < addDays(td, -21)) f.push('Overdue 3+ weeks');
+  return f;
+}
+function dupGroups(rows) {
+  const n = rows.length, par = rows.map((_, i) => i), find = i => par[i] === i ? i : (par[i] = find(par[i]));
+  const near = (a, b) => { if (!a.tk.size || !b.tk.size) return false; let i = 0; a.tk.forEach(x => b.tk.has(x) && i++);
+    const j = i / (a.tk.size + b.tk.size - i), c = i / Math.min(a.tk.size, b.tk.size); return j >= .55 || (c >= .85 && Math.min(a.tk.size, b.tk.size) >= 2); };
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) if (near(rows[i], rows[j])) par[find(j)] = find(i);
+  const g = {}; rows.forEach((r, i) => (g[find(i)] = g[find(i)] || []).push(r));
+  return Object.values(g).filter(a => a.length > 1);
+}
+const richness = r => (r.ownerNames.length ? 2 : 0) + (r.due ? 2 : 0) + (r.updates.length ? 2 : 0) + (r.notes ? 1 : 0) + (r.src === 'hub' ? 1 : 0) + (r.status !== 'open' ? 1 : 0);
+function cleanupHtml(rows) {
+  const open = rows.filter(r => !r.done && !r.deferred);
+  const groups = dupGroups(open).map(g => g.sort((a, b) => richness(b) - richness(a)));
+  const dupKeys = new Set(groups.flat().map(r => r.k));
+  const weak = open.filter(r => flagsOf(r).length).map(r => ({ r, f: flagsOf(r) })).sort((a, b) => b.f.length - a.f.length || (a.r.due || '9').localeCompare(b.r.due || '9'));
+  const dupRows = groups.reduce((n, g) => n + g.length - 1, 0);
+  const row = (r, extra) => '<div class="srow' + brCls(rowBranch(r)) + '" data-k="' + esc(r.k) + '"><div class="t"><span class="src ' + r.src + '">' + r.src + '</span>' + esc(r.title) + '</div><div class="m">' + esc(r.owners || 'No owner') + ' · ' + fmtD(r.due) + '</div>' + (extra || '') + '</div>';
+  let h = '<div class="cl-head"><b>Clean up ' + esc(SV === '*' ? 'all verticals' : SV) + '</b> <span class="pill">' + open.length + ' open</span> <span class="pill warn">' + dupRows + ' likely duplicates</span> <span class="pill warn">' + weak.length + ' to review</span> <button class="btn" data-cl="done">Done cleaning</button></div>'
+    + '<div class="hint" style="color:var(--mut);font-size:12px;margin:4px 0 8px">Hiding and parking are saved in this browser only. The hub is not changed, and everything is reversible below.</div>';
+  h += '<div class="gh">1. Likely duplicates (' + groups.length + ' groups)</div>';
+  h += groups.length ? groups.map((g, gi) => '<div class="dgrp"><div class="m" style="margin-bottom:4px">Same task? Keep one, hide the rest. Best candidate first.</div>'
+    + g.map((r, i) => row(r, '<div class="ps"><span class="pill ' + (i ? '' : 'good') + '">' + (i ? 'duplicate?' : 'suggested keeper') + '</span> <button class="btn" data-cl="keep" data-g="' + gi + '" data-k="' + esc(r.k) + '">Keep this, hide others</button></div>')).join('') + '</div>').join('') : '<div class="empty">No duplicates found.</div>';
+  const rest = weak.filter(x => !dupKeys.has(x.r.k) || x.f.length > 1);
+  h += '<div class="gh">2. Not clearly actionable (' + rest.length + ')</div>';
+  h += rest.length ? rest.map(x => row(x.r, '<div class="ps">' + x.f.map(t => '<span class="pill warn">' + esc(t) + '</span>').join('') + '</div><div class="acts" style="display:flex;gap:4px;margin-top:4px"><button class="btn" data-cl="close" data-k="' + esc(x.r.k) + '">Close</button><button class="btn" data-cl="park" data-k="' + esc(x.r.k) + '">Park</button><button class="btn" data-cl="hide" data-k="' + esc(x.r.k) + '">Hide</button><button class="btn" data-cl="open" data-k="' + esc(x.r.k) + '">Edit in sync</button></div>')).join('') : '<div class="empty">Everything left has an owner, a date and a clear action.</div>';
+  const hid = HIDDEN.filter(r => inV(r, SV));
+  h += '<div class="gh">Hidden by me (' + hid.length + ')</div>' + (hid.length ? hid.map(r => row(r, '<div class="ps"><span class="pill">' + esc(r.hiddenWhy || 'hidden') + '</span> <button class="btn" data-cl="restore" data-k="' + esc(r.k) + '">Restore</button></div>')).join('') : '<div class="empty">None.</div>');
+  return h;
+}
+function clAction(a, k, g) {
+  const o = ovOf(k), r = ROWS.find(x => x.k === k) || HIDDEN.find(x => x.k === k);
+  if (a === 'close' && r) setStatus(r, 'done');
+  if (a === 'park') { o.parked = true; logSys(k, 'Parked during clean up'); }
+  if (a === 'hide') { o.hidden = true; o.hiddenWhy = 'hidden in clean up'; logSys(k, 'Hidden in clean up'); }
+  if (a === 'restore') { delete o.hidden; delete o.hiddenWhy; logSys(k, 'Restored'); }
+  saveOv();
+}
+function renderSync() {
+  const w = cur(), rows = syncRows();
+  $('#weekLbl').textContent = 'Week of ' + fmtD(w) + ' – ' + fmtD(addDays(w, 6));
+  $('#syncHint').textContent = 'Pick a vertical, work the list top to bottom, log updates on the right.';
+  $('#selchip').innerHTML = SEL ? '<span class="chip">Filtered to ' + esc(selName()) + ' <a href="#" id="selClear">clear</a></span>' : '';
+  // left: verticals
+  const vs = D.verts.concat(['Unsorted', 'Other']).filter((v, i, a) => a.indexOf(v) === i).filter(v => D.verts.includes(v) || rows.some(r => r.v === v));
+  const vb = (v, label) => { const t = vStat(rows, v);
+    return '<button class="vbtn' + brCls(v === '*' ? '' : vBranch(v)) + (SV === v ? ' on' : '') + '" data-v="' + esc(v) + '" style="border-left-color:' + (v === '*' ? '#1e3a8a' : vColor(v)) + '"><b>' + esc(label) + '</b><div class="vp"><span class="pill">' + t.open + ' open</span>'
+      + (t.blocked ? '<span class="pill warn">' + t.blocked + ' blocked/dep</span>' : '') + (t.late ? '<span class="pill bad">' + t.late + ' overdue</span>' : '') + (t.incoming ? '<span class="pill warn">' + t.incoming + ' waiting on us</span>' : '') + (t.closed ? '<span class="pill good">' + t.closed + ' closed</span>' : '') + '</div></button>'; };
+  $('#vlist').innerHTML = vb('*', 'All verticals') + vs.map(v => vb(v, isCoreV(v) ? v + ' (incl. all tasks owned by Core Team)' : v)).join('');
+  // middle: task list
+  const vrows = rows.filter(r => inV(r, SV));
+  const popts = personOptions(vrows);
+  if (PS && !(PS in PLABEL) || (PS === '@me' || PS === '@team') && !D.me) PS = '';
+  const pf = personFilter();
+  const act = rows.filter(r => inV(r, SV) && pf(r) && !r.done && !r.deferred).sort((a, b) => a.b - b.b || (a.due || '9').localeCompare(b.due || '9'));
+  const incoming = SV === '*' ? [] : rows.filter(r => !r.done && !r.deferred && pf(r) && r.v !== SV && r.deps.some(d => !d.resolved && d.on === SV));
+  const closed = rows.filter(r => inV(r, SV) && pf(r) && r.closedThisWeek), moved = rows.filter(r => inV(r, SV) && pf(r) && r.deferred);
+  ORDER = act.map(r => r.k);
+  $('#mhead').innerHTML = '<select id="pSel" style="margin-bottom:8px" title="Filter this vertical by person">' + popts + '</select><div class="mh"><b>' + esc(SV === '*' ? 'All verticals' : SV) + (PS ? ' · ' + esc(PLABEL[PS])  : '') + '</b><span class="pill">' + act.length + ' open</span><button class="btn noprint" data-cl="start" style="margin-left:auto">Clean up</button>' + (closed.length ? '<span class="pill good">' + closed.length + ' closed this week</span>' : '') + (moved.length ? '<span class="pill">' + moved.length + ' moved to next week</span>' : '') + '</div>';
+  let h = '';
+  if (incoming.length) h += '<div class="gh warn">Other verticals are waiting on ' + esc(SV) + ' (' + incoming.length + ')</div>' + incoming.map(r => srowHtml(r, true)).join('');
+  for (let b = 0; b < 5; b++) { const g = act.filter(r => r.b === b); if (g.length) h += '<div class="gh">' + BNAME[b] + ' (' + g.length + ')</div>' + g.map(r => srowHtml(r, SV === '*')).join(''); }
+  if (closed.length) h += '<div class="gh">Closed this week (' + closed.length + ')</div>' + closed.map(r => srowHtml(r, SV === '*')).join('');
+  if (moved.length) h += '<div class="gh">Moved to next week (' + moved.length + ')</div>' + moved.map(r => srowHtml(r, SV === '*')).join('');
+  $('#pSel').value = PS;
+  if (CL) { $('#tlist').innerHTML = cleanupHtml(rows.filter(r => inV(r, SV) && pf(r))); renderDetail(); return; }
+  $('#tlist').innerHTML = h || '<div class="empty">' + (D.tasksErr ? 'The hub refused the tasks read (' + esc(D.tasksErr) + ').' : D.hubTasks ? 'No open tasks here.' : 'Waiting for hub tasks…') + '</div>';
+  renderDetail();
+}
+/* ===== attachments: shared Drive links, stored in Firebase so everyone sees them ===== */
+const safeUrl = u => { u = String(u || '').trim(); if (u && !/^https?:\/\//i.test(u)) u = 'https://' + u; try { const x = new URL(u); return /^https?:$/.test(x.protocol) ? x.href : ''; } catch (e) { return ''; } };
+const kindOf = u => /docs\.google\.com\/document/.test(u) ? 'Doc' : /docs\.google\.com\/spreadsheets/.test(u) ? 'Sheet' : /docs\.google\.com\/presentation/.test(u) ? 'Slides' : /drive\.google\.com/.test(u) ? 'Drive' : 'Link';
+function attsOf(r) {   // links are re-validated on every read: anything that is not http(s) is dropped, whatever is in the database
+  const clean = l => l.map(a => Object.assign({}, a, { url: safeUrl(a.url) })).filter(a => a.url);
+  if (r.src === 'mine') return clean(((r.local && r.local.atts) || []).map(a => Object.assign({ shared: false }, a)));
+  return clean(ents(D.att[r.id]).map(([id, a]) => Object.assign({ id, shared: true }, a))).sort((a, b) => (a.addedAt || 0) - (b.addedAt || 0));
+}
+const attWho = () => (D.me && D.me.name) || S.email || 'someone';
+function attFail(e) { const c = (e && e.code) || ''; alert(c === 'PERMISSION_DENIED' || /permission/i.test(c + (e && e.message))
+  ? 'The hub database refused this write (permission denied). Shared attachments need Rizwan to allow signed-in users to write to naig2027/pmoSync in the Firebase rules. Nothing was saved.'
+  : 'Could not save the attachment (' + (c || e) + '). Nothing was saved.'); }
+function attachHtml(r) {
+  const list = attsOf(r), shared = r.src === 'hub';
+  return '<h4>Attachments' + (list.length ? ' (' + list.length + ')' : '') + '</h4>'
+    + (list.map(a => '<div class="dep"><span><span class="src">' + kindOf(a.url) + '</span><a href="' + esc(a.url) + '" target="_blank" rel="noopener noreferrer">' + esc(a.name || a.url) + '</a>'
+      + (a.addedBy ? ' <small style="color:var(--mut)">' + esc(a.addedBy) + (a.addedAt ? ', ' + fmtDT(a.addedAt) : '') + '</small>' : '') + '</span><button class="btn" data-act="attDel" data-id="' + esc(a.id || '') + '">×</button></div>').join('') || '<div class="empty" style="padding:2px 0">None.</div>')
+    + '<div class="row" style="margin-top:6px"><input id="attUrl" placeholder="Paste a Google Drive link"><input id="attName" placeholder="Name (optional)"></div>'
+    + '<div class="acts"><button class="btn" data-act="attAdd">Add attachment</button></div>'
+    + '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">' + (shared ? 'Shared: everyone who opens this page sees these links. Make sure the Drive file itself is shared with the team.' : 'This is your own task, so its attachments are saved in this browser only.') + (D.attErr ? ' <b style="color:var(--bad)">Could not read shared attachments (' + esc(D.attErr) + ').</b>' : '') + '</div>';
+}
+function renderDetail() {
+  const el = $('#tdetail'), r = ROWS.find(x => x.k === SK);
+  if (!r) { el.innerHTML = '<div class="empty">Select a task to log an update, close it, move it to next week, or add a dependency on another vertical.</div>'; return; }
+  const dv = DRAFT.k === r.k ? DRAFT : { upd: '', dep: '' };
+  const idx = ORDER.indexOf(r.k), hasNext = idx >= 0 && idx < ORDER.length - 1;
+  const ups = r.updates.slice().reverse().map(u => '<div class="upd' + (u.sys ? ' sys' : '') + '"><small>' + fmtDT(u.at) + '</small> ' + esc(u.text) + '</div>').join('') || '<div class="empty" style="padding:2px 0">No updates yet.</div>';
+  const deps = r.deps.map((d, i) => '<div class="dep' + (d.resolved ? ' ok' : '') + '"><span>' + (d.resolved ? '✓ ' : '') + 'Waiting on <b>' + esc(d.on) + '</b>' + (d.note ? ': ' + esc(d.note) : '') + '</span><span><button class="btn" data-act="depTog" data-i="' + i + '">' + (d.resolved ? 'Reopen' : 'Resolved') + '</button> <button class="btn" data-act="depDel" data-i="' + i + '">×</button></span></div>').join('');
+  const dopts = '<optgroup label="Logistics verticals">' + D.verts.filter(v => v !== r.v).map(v => '<option>' + esc(v) + '</option>').join('') + '</optgroup><optgroup label="Other teams">' + CROSS_TEAMS.map(v => '<option>' + esc(v) + '</option>').join('') + '</optgroup>';
+  const hd = (r.hubDeps || []).map(d => '<div class="dep' + (d.status === 'done' ? ' ok' : '') + '"><span><span class="src">hub</span><b>' + esc(d.team) + '</b> <small style="color:var(--mut)">' + d.kind.toLowerCase() + '</small></span><span class="pill ' + (d.status === 'blocked' ? 'bad' : d.status === 'done' ? 'good' : d.status === 'inprogress' ? 'blue' : '') + '">' + DEP_ST[d.status] + '</span></div>').join('');
+  el.innerHTML = '<div class="dt">' + esc(r.title) + '</div>'
+    + '<div class="m" style="color:var(--mut);font-size:12px"><span class="src ' + r.src + '">' + r.src + '</span>' + esc(r.v) + ' · ' + esc(r.owners || 'No owner') + ' · due ' + fmtD(r.due) + (r.deferred ? ' · moved to ' + fmtD(r.deferTo) : '') + '</div>'
+    + (r.notes ? '<div class="upd sys" style="margin-top:6px">' + esc(String(r.notes).slice(0, 400)) + '</div>' : '')
+    + (r.src === 'hub' ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Hub task: your status, updates and moves are saved here only; the hub copy is not changed.</div>' : '')
+    + '<h4>Status</h4><select id="dStatus"><option value="open"' + (r.status === 'open' ? ' selected' : '') + '>Open</option><option value="progress"' + (r.status === 'progress' ? ' selected' : '') + '>In progress</option><option value="blocked"' + (r.status === 'blocked' ? ' selected' : '') + '>Blocked</option><option value="done"' + (r.status === 'done' ? ' selected' : '') + '>Done</option></select>'
+    + '<div class="acts">' + (r.done ? '<button class="btn" data-act="reopen">Reopen</button>' : '<button class="btn pri" data-act="close">Close it</button>')
+    + (r.deferred ? '<button class="btn" data-act="back">Bring back to this week</button>' : (!r.done ? '<button class="btn" data-act="move">Move to next week</button>' : ''))
+    + '<button class="btn" data-act="next"' + (hasNext ? '' : ' disabled') + '>Next task ▸</button></div>'
+    + '<h4>Add an update</h4><textarea id="updTxt" placeholder="What happened this week? (Ctrl+Enter to save)">' + esc(dv.upd) + '</textarea><div class="acts"><button class="btn pri" data-act="updAdd">Add update</button></div>'
+    + (hd ? '<h4>Dependencies recorded in the hub (read-only)</h4>' + hd : '')
+    + '<h4>Dependencies on other verticals and teams</h4>' + (deps || '<div class="empty" style="padding:2px 0">None.</div>')
+    + '<div class="row" style="margin-top:6px"><select id="depV"><option value="">Waiting on…</option>' + dopts + '</select><input id="depTxt" placeholder="What do we need from them?" value="' + esc(dv.dep) + '"></div><div class="acts"><button class="btn" data-act="depAdd">Add dependency</button></div>'
+    + attachHtml(r)
+    + '<h4>History</h4>' + ups;
+}
+function logSys(k, text) { const o = ovOf(k); (o.updates = o.updates || []).push({ at: Date.now(), text, sys: true }); }
+function setStatus(r, st) {
+  const o = ovOf(r.k); o.status = st; if (st === 'done') o.closedAt = Date.now(); else delete o.closedAt;
+  if (r.local) r.local.status = st === 'done' ? 'done' : 'open';
+  logSys(r.k, 'Status: ' + ({ open: 'Open', progress: 'In progress', blocked: 'Blocked', done: 'Done' }[st])); save(); saveOv();
+}
+function afterChange(advance) { if (advance) { const i = ORDER.indexOf(SK); SK = ORDER[i + 1] || ORDER[i - 1] || ''; } renderAll(); }
+$('#syncsec').addEventListener('click', e => {
+  if (e.target.id === 'selClear') { e.preventDefault(); SEL = null; renderAll(); return; }
+  const cl = e.target.closest('[data-cl]');
+  if (cl) {
+    const c = cl.dataset.cl, k = cl.dataset.k;
+    if (c === 'start') { CL = true; SK = ''; return renderAll(); }
+    if (c === 'done') { CL = false; return renderAll(); }
+    if (c === 'open') { CL = false; SK = k; return renderAll(); }
+    if (c === 'keep') { const grp = dupGroups(ROWS.filter(r => !r.done && !r.deferred && inV(r, SV))).find(g => g.some(x => x.k === k)); const keeper = ROWS.find(x => x.k === k);
+      (grp || []).filter(x => x.k !== k).forEach(x => { const o = ovOf(x.k); o.hidden = true; o.hiddenWhy = 'duplicate of "' + keeper.title.slice(0, 40) + '"'; logSys(x.k, 'Hidden as duplicate of ' + keeper.title);
+        const ko = ovOf(keeper.k); if (x.notes && x.notes !== keeper.notes) (ko.updates = ko.updates || []).push({ at: Date.now(), text: 'Merged from duplicate "' + x.title + '": ' + String(x.notes).slice(0, 200), sys: true }); });
+      saveOv(); return renderAll(); }
+    clAction(c, k); return renderAll();
+  }
+  const a = e.target.closest('[data-act]');
+  if (a) {
+    const r = ROWS.find(x => x.k === SK); if (!r) return; const act = a.dataset.act, o = ovOf(r.k);
+    if (act === 'close') { setStatus(r, 'done'); return afterChange(true); }
+    if (act === 'reopen') { setStatus(r, 'open'); return afterChange(false); }
+    if (act === 'move') { o.deferTo = nextMon(); logSys(r.k, 'Moved to next week (' + fmtD(o.deferTo) + ')'); saveOv(); return afterChange(true); }
+    if (act === 'back') { delete o.deferTo; logSys(r.k, 'Brought back to this week'); saveOv(); return afterChange(false); }
+    if (act === 'next') { const i = ORDER.indexOf(SK); if (ORDER[i + 1]) { SK = ORDER[i + 1]; renderAll(); } return; }
+    if (act === 'updAdd') { const t = ($('#updTxt').value || '').trim(); if (!t) return; (o.updates = o.updates || []).push({ at: Date.now(), text: t }); DRAFT.upd = ''; saveOv(); return afterChange(false); }
+    if (act === 'depAdd') { const v = $('#depV').value; if (!v) { $('#depV').focus(); return; } (o.deps = o.deps || []).push({ on: v, note: ($('#depTxt').value || '').trim(), at: Date.now(), resolved: false }); logSys(r.k, 'Dependency added: waiting on ' + v); DRAFT.dep = ''; saveOv(); return afterChange(false); }
+    if (act === 'depTog') { const d = (o.deps || [])[+a.dataset.i]; if (d) { d.resolved = !d.resolved; logSys(r.k, 'Dependency on ' + d.on + (d.resolved ? ' resolved' : ' reopened')); saveOv(); } return afterChange(false); }
+    if (act === 'attAdd') {
+      const url = safeUrl($('#attUrl').value); if (!url) { alert('Paste a valid http(s) link, for example a Google Drive link.'); $('#attUrl').focus(); return; }
+      const name = ($('#attName').value || '').trim() || url.replace(/^https?:\/\//, '').slice(0, 60), att = { name, url, addedBy: attWho(), addedAt: Date.now() };
+      if (r.src === 'mine') { r.local.atts = (r.local.atts || []).concat([Object.assign({ id: uid() }, att)]); save(); return afterChange(false); }
+      if (!S.email) { alert('Sign in first.'); return; }
+      set(R('pmoSync/attachments/' + r.id + '/' + uid()), att).catch(attFail); return;   // the live listener re-renders when it lands
+    }
+    if (act === 'attDel') {
+      if (!confirm('Remove this attachment link' + (r.src === 'hub' ? ' for everyone' : '') + '? The Drive file itself is not deleted.')) return;
+      if (r.src === 'mine') { r.local.atts = (r.local.atts || []).filter(x => x.id !== a.dataset.id); save(); return afterChange(false); }
+      remove(R('pmoSync/attachments/' + r.id + '/' + a.dataset.id)).catch(attFail); return;
+    }
+    if (act === 'depDel') { (o.deps || []).splice(+a.dataset.i, 1); saveOv(); return afterChange(false); }
+    return;
+  }
+  const row = e.target.closest('.srow'); if (row) { SK = row.dataset.k; renderAll(); return; }
+  const vb = e.target.closest('.vbtn'); if (vb) { SV = vb.dataset.v; SK = ''; if (SV !== '*' && [...$('#fVert').options].some(o => o.value === SV)) $('#fVert').value = SV; renderAll(); }
+});
+$('#syncsec').addEventListener('change', e => { if (e.target.id === 'dStatus') { const r = ROWS.find(x => x.k === SK); if (r) { setStatus(r, e.target.value); afterChange(false); } } if (e.target.id === 'showHold') renderAll(); if (e.target.id === 'pSel') { PS = e.target.value; SK = ''; renderAll(); } });
+$('#syncsec').addEventListener('input', e => { if (e.target.id === 'updTxt' || e.target.id === 'depTxt') { DRAFT.k = SK; DRAFT[e.target.id === 'updTxt' ? 'upd' : 'dep'] = e.target.value; DRAFT.focus = e.target.id; } });
+$('#syncsec').addEventListener('keydown', e => { if (e.target.id === 'updTxt' && e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); const b = $('#tdetail [data-act="updAdd"]'); b && b.click(); } });
+$('#orgToggle').onclick = () => { ORGOPEN = !ORGOPEN; localStorage.setItem('naigPmo.orgOpen', ORGOPEN ? '1' : '0'); renderOrg(); };
+
+/* ===== weekly summary ===== */
+function renderSummary() {
+  const w = cur(), rows = syncRows(), wm = wkMs(), L = [];
+  const t = vStat(rows, '*'), upd = rows.reduce((n, r) => n + r.updates.filter(u => !u.sys && u.at >= wm).length, 0), made = rows.filter(r => r.src === 'mine' && r.createdThisWeek).length;
+  $('#sumHint').textContent = 'Week of ' + fmtD(w) + ' – ' + fmtD(addDays(w, 6)) + (SEL ? ' · filtered to ' + selName() : '');
+  const tile = (n, lbl, cls) => '<div class="tile ' + (cls || '') + '"><b>' + n + '</b><span>' + lbl + '</span></div>';
+  $('#tiles').innerHTML = tile(t.closed, 'Closed this week', 'good') + tile(t.open, 'Still open', '') + tile(t.blocked, 'Blocked or waiting on a dependency', t.blocked ? 'warn' : '') + tile(t.late, 'Overdue', t.late ? 'bad' : '') + tile(t.moved, 'Moved to next week', '') + tile(made, 'New tasks this week', '') + tile(upd, 'Updates logged', '');
+  const vs = D.verts.concat(['Unsorted', 'Other']).filter((v, i, a) => a.indexOf(v) === i).filter(v => rows.some(r => r.v === v));
+  const tr = (n, s, cls) => '<tr class="' + (cls || '') + '"><td>' + esc(n) + '</td><td>' + s.open + '</td><td>' + s.blocked + '</td><td>' + s.late + '</td><td>' + s.closed + '</td><td>' + s.moved + '</td></tr>';
+  $('#sumtable').innerHTML = '<table class="sm"><tr><th>Vertical</th><th>Still open</th><th>Blocked / dependent</th><th>Overdue</th><th>Closed this week</th><th>Moved to next week</th></tr>' + vs.map(v => tr(isCoreV(v) ? v + ' (incl. tasks owned by Core Team in other verticals; rows overlap)' : v, vStat(rows, v))).join('') + tr('All', t, 'tot') + '</table>';
+  L.push('NAIG 2027 Logistics — Weekly sync summary', 'Week of ' + fmtD(w) + ' – ' + fmtD(addDays(w, 6)) + (SEL ? '   (filter: ' + selName() + ')' : ''));
+  L.push('', 'Closed this week: ' + t.closed + ' · Still open: ' + t.open + ' (blocked/dependent: ' + t.blocked + ', overdue: ' + t.late + ') · Moved to next week: ' + t.moved + ' · New: ' + made);
+  const line = r => ' - ' + r.title + ' — ' + (r.owners || 'no owner') + (r.due ? ', due ' + fmtD(r.due) : '') + (r.late ? ' (OVERDUE)' : '') + (r.status === 'blocked' ? ' [BLOCKED]' : '') + r.deps.filter(d => !d.resolved).map(d => ' [waiting on ' + d.on + (d.note ? ': ' + d.note : '') + ']').join('');
+  const al = r => attsOf(r).map(a => '\n     link: ' + (a.name || 'attachment') + ' — ' + a.url).join('');
+  const lu = r => { const u = r.updates.filter(x => !x.sys).slice(-1)[0]; return u ? '\n     update (' + fmtDT(u.at) + '): ' + u.text : ''; };
+  vs.forEach(v => {
+    const g = rows.filter(r => r.v === v), a = g.filter(r => !r.done && !r.deferred).sort((x, y) => x.b - y.b), c = g.filter(r => r.closedThisWeek), m = g.filter(r => r.deferred);
+    if (!a.length && !c.length && !m.length) return;
+    L.push('', v.toUpperCase() + ' — ' + a.length + ' open, ' + c.length + ' closed this week');
+    if (c.length) { L.push('  Closed:'); c.forEach(r => L.push(' ' + line(r).replace(/ \(OVERDUE\)/, ''))); }
+    if (a.length) { L.push('  Open:'); a.forEach(r => L.push(' ' + line(r) + lu(r) + al(r))); }
+    if (m.length) { L.push('  Moved to next week:'); m.forEach(r => L.push(' - ' + r.title)); }
+  });
+  const hdep = rows.filter(r => !r.done && r.hubDeps.some(d => d.status !== 'done'));
+  const dep = rows.filter(r => !r.done && r.deps.some(d => !d.resolved));
+  if (dep.length) { L.push('', 'CROSS-VERTICAL DEPENDENCIES'); dep.forEach(r => r.deps.filter(d => !d.resolved).forEach(d => L.push(' - ' + r.v + ': "' + r.title + '" is waiting on ' + d.on + (d.note ? ' (' + d.note + ')' : '')))); }
+  if (hdep.length) { L.push('', 'DEPENDENCIES RECORDED IN THE HUB'); hdep.forEach(r => r.hubDeps.filter(d => d.status !== 'done').forEach(d => L.push(' - ' + r.v + ': "' + r.title + '" needs ' + d.team + ' [' + DEP_ST[d.status] + ']'))); }
+  $('#summary').textContent = L.join('\n');
+}
+
+/* ===== events ===== */
+$('#fOwner').onchange = () => { const p = personById($('#fOwner').value); if (p && D.verts.includes(String(p.vertical || '').trim())) $('#fVert').value = String(p.vertical).trim(); };
+$('#addBtn').onclick = () => {
+  const title = $('#fTitle').value.trim(); if (!title) { $('#fTitle').focus(); return; }
+  const id = uid(), v = $('#fVert').value;
+  ST.tasks.push({ id, title, vert: v, owner: $('#fOwner').value, due: $('#fDue').value, status: 'open', notes: $('#fNotes').value.trim(), weekly: $('#fWeekly').checked, week: cur(), pri: $('#fPri').value, createdAt: Date.now() });
+  ['#fTitle', '#fNotes', '#fDue'].forEach(s => $(s).value = ''); $('#fWeekly').checked = false;
+  save(); SV = v; SK = 'mine:' + id; renderAll(); $('#fTitle').focus();
+};
+$('#copyBtn').onclick = () => navigator.clipboard.writeText($('#summary').textContent).then(() => { $('#copyBtn').textContent = 'Copied'; setTimeout(() => $('#copyBtn').textContent = 'Copy as text', 1200); });
+function spawnRepeaters() {
+  const w = cur(); let n = 0;
+  ST.tasks.filter(t => t.weekly && t.week < w).forEach(t => {
+    if (ST.tasks.some(x => x.weekly && x.title === t.title && x.week >= w)) return;
+    const delta = Math.round((new Date(w) - new Date(t.week)) / 864e5);
+    ST.tasks.push(Object.assign({}, t, { id: uid(), week: w, status: 'open', due: t.due ? addDays(t.due, delta) : '', notes: '' })); n++;
+  });
+  if (n) save();
+}
+function fillForm() {
+  const o = $('#fOwner').value, v = $('#fVert').value;
+  $('#fOwner').innerHTML = '<option value="">No owner</option>' + D.people.slice().sort((a, b) => String(a.name).localeCompare(String(b.name))).map(p => '<option value="' + esc(pid(p)) + '">' + esc(p.name + ' — ' + roleOf(p)) + '</option>').join('');
+  $('#fVert').innerHTML = vList().map(x => '<option>' + esc(x) + '</option>').join('');
+  if (o) $('#fOwner').value = o; if (v) $('#fVert').value = v;
+}
+let formKey = '';
+function renderAll() {
+  const k = D.people.length + '|' + D.verts.join(','); if (k !== formKey) { formKey = k; fillForm(); }
+  const had = document.activeElement && document.activeElement.id, pos = had && document.activeElement.selectionStart;
+  ROWS = allRows(); HIDDEN = ROWS.filter(r => r.hidden); ROWS = ROWS.filter(r => !r.hidden);
+  renderOrg(); renderSync(); renderSummary();
+  if ((had === 'updTxt' || had === 'depTxt') && $('#' + had)) { const el = $('#' + had); el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} }
+}
+
+/* ===== connection / status ===== */
+const gate = (msg, btn) => { $('#gate').style.display = 'grid'; $('#gateMsg').textContent = msg; $('#gateBtn').hidden = !btn; };
+const hideGate = () => $('#gate').style.display = 'none';
+function status() {
+  const el = $('#live'), b = $('#banner');
+  if (D.live) { el.className = 'live ok'; el.textContent = 'Live from hub Firebase · ' + D.people.length + ' people'; b.className = 'banner hide'; }
+  else if (D.people.length) { el.className = 'live bad'; el.textContent = 'Offline'; b.className = 'banner'; b.textContent = 'Not connected. Showing the last copy that Firebase returned (' + new Date(D.at).toLocaleString() + '). This is not live.'; }
+  else { el.className = 'live bad'; el.textContent = 'Not connected'; b.className = 'banner'; b.textContent = 'No directory loaded. People only ever come from the hub Firebase Directory, so sign in to load them.'; }
+}
+function ingest(kind, val) {
+  if (kind === 'prospects') { D.raw = val || {}; D.live = true; D.at = Date.now(); buildDirectory(D.raw); try { localStorage.setItem(CACHE, JSON.stringify({ at: D.at, prospects: D.raw })); } catch (e) {} }
+  else D.hubTasks = val || {};
+  status(); renderAll();
+}
+function startData() {
+  if (startData.done) return; startData.done = true;
+  const fail = (what, e) => { D.live = false; status(); gate('Signed in as ' + S.email + ', but the hub refused the ' + what + ' read (' + ((e && e.code) || 'denied') + '). Your Google account may not be on the Directory. Ask Rizwan.', false); };
+  onValue(R('prospects'), s => { hideGate(); ingest('prospects', s.val()); }, e => fail('Directory', e));
+  onValue(R('pmoSync/attachments'), s => { D.att = s.val() || {}; D.attErr = ''; renderAll(); }, e => { D.attErr = (e && e.code) || 'denied'; renderAll(); });
+  onValue(R('tasks'), s => ingest('tasks', s.val()), e => { D.hubTasks = {}; D.tasksErr = (e && e.code) || 'denied'; renderAll(); });
+}
+getRedirectResult(auth).catch(() => {});   // same as the hub: lets Firebase finish restoring the session before the auth listener reports
+onAuthStateChanged(auth, u => {
+  if (u && !u.isAnonymous) { S.email = (u.email || '').toLowerCase(); $('#outBtn').hidden = false; gate('Signed in as ' + S.email + '. Loading the Directory from Firebase…', false); startData(); }
+  else { S.email = ''; $('#outBtn').hidden = true; D.live = false; status(); gate('Sign in with the Google account on your hub Directory record. People and the org chart load live from Firebase.', true); }
+});
+$('#gateBtn').onclick = () => {
+  const pr = new GoogleAuthProvider(); pr.setCustomParameters({ prompt: 'select_account' });
+  gate('Finish signing in in the Google window…', false);
+  signInWithPopup(auth, pr).catch(e => {
+    const c = (e && e.code) || '';
+    if (c === 'auth/unauthorized-domain') gate('Firebase does not allow sign-in from ' + location.host + '. Rizwan may need to add this domain under Authentication > Settings > Authorized domains in the naig-2027 Firebase project.', true);
+    else if (c === 'auth/popup-closed-by-user' || c === 'auth/cancelled-popup-request') gate('The Google window closed before sign-in finished. Try again.', true);
+    else if (c === 'auth/popup-blocked') gate('The browser blocked the Google pop-up. Allow pop-ups for this site and try again.', true);
+    else gate('Sign-in did not work (' + (c || e) + ').', true);
+  });
+};
+$('#outBtn').onclick = () => signOut(auth).then(() => { startData.done = false; location.reload(); });
+
+/* Show the last Firebase copy immediately (clearly marked not-live) while the live connection comes up. */
+try { const c = JSON.parse(localStorage.getItem(CACHE) || 'null'); if (c && c.prospects) { D.at = c.at; D.raw = c.prospects; buildDirectory(c.prospects); } } catch (e) {}
+spawnRepeaters(); status(); renderAll();
+</script>
+</body>
+</html>
