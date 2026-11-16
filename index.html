@@ -262,6 +262,20 @@ body.spPrinting .spWrap{display:block}body.spPrinting .spMain{border:0;padding:0
 @media print{body.fpPrinting #side,body.fpPrinting #topR,body.fpPrinting .seg,body.fpPrinting .note,body.fpPrinting .iBtn,body.fpPrinting .fpNoPrint,body.fpPrinting #pinF,body.fpPrinting #scBar,body.fpPrinting header{display:none!important}
 body.fpPrinting .fpPrintHead{display:flex;justify-content:space-between;font-size:18px;margin-bottom:10px}body.fpPrinting main,body.fpPrinting #view{margin:0!important;padding:0!important}body.fpPrinting .card{break-inside:avoid;box-shadow:none}}
 @media (max-width:900px){.top{padding-top:calc(22px + env(safe-area-inset-top))}.side{padding-top:calc(18px + env(safe-area-inset-top))}.main{padding-bottom:calc(48px + env(safe-area-inset-bottom))}}
+.gtBar{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end;padding:12px}.gtF{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--mute)}.gtF select,.gtF input{min-width:130px}
+.gtWrap{display:flex;padding:0;overflow:hidden;position:relative}.gtLeft{width:260px;flex:none;border-right:1px solid var(--line);background:var(--panel);z-index:2}.gtLh{height:32px;border-bottom:1px solid var(--line);padding:8px 10px;font-size:12px;color:var(--mute);font-weight:600}
+.gtLb{position:relative}.gtL{position:absolute;left:0;right:0;height:30px;padding:3px 10px;font-size:12.5px;line-height:1.2;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer;border-bottom:1px solid var(--line)}.gtL small{display:block;color:var(--mute);font-size:10.5px;overflow:hidden;text-overflow:ellipsis}.gtL:hover{background:var(--infobg)}
+.gtH{background:var(--bg);font-weight:700;cursor:default;padding-top:7px}.gtH small{display:inline;margin-left:6px}.gtHrow{position:absolute;left:0;height:30px;background:var(--bg);opacity:.7}
+.gtRight{flex:1;overflow-x:auto;overflow-y:hidden;position:relative}.gtScale{position:relative;height:32px;border-bottom:1px solid var(--line)}.gtTick{position:absolute;top:0;height:32px;padding:9px 3px;font-size:10.5px;color:var(--mute);border-left:1px solid var(--line);white-space:nowrap}
+.gtBody{position:relative}.gtGrid{position:absolute;top:0;bottom:0;border-left:1px solid var(--line);opacity:.6}.gtSvg{position:absolute;left:0;top:0;pointer-events:none;z-index:1}
+.gtToday,.gtGames{position:absolute;top:0;bottom:0;border-left:2px solid var(--bad);z-index:3;pointer-events:none}.gtGames{border-left-color:var(--gold)}.gtToday span,.gtGames span{position:absolute;top:0;left:3px;font-size:10px;font-weight:700;color:var(--bad);background:var(--panel);padding:0 3px}.gtGames span{color:#a07418}
+.gtBarI{position:absolute;height:18px;border:1.5px solid;border-radius:5px;overflow:hidden;z-index:2;cursor:pointer;touch-action:pan-y}.gtBarI.ed{cursor:grab}.gtBarI i{position:absolute;left:0;top:0;bottom:0;opacity:.55}.gtBarI span{position:relative;font-size:10.5px;padding:0 5px;white-space:nowrap;line-height:15px;color:var(--ink)}
+.gtHl,.gtHr{position:absolute;top:0;bottom:0;width:7px;cursor:ew-resize;z-index:3}.gtHl{left:0}.gtHr{right:0}.gtMs{position:absolute;width:14px;height:14px;transform:rotate(45deg);z-index:2;cursor:pointer;border:2px solid var(--panel)}
+.gtProg{display:grid;grid-template-columns:1fr 120px 42px;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}.gtProg small{display:block;color:var(--mute);font-size:11.5px}.gtPb{height:8px;background:var(--line);border-radius:4px;overflow:hidden}.gtPb i{display:block;height:100%;background:var(--good)}.gtProg span{font-size:12px;text-align:right}
+.gtDeps{max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column;gap:4px}.gtDeps .chk{white-space:normal;color:var(--ink)}.gtDeps small{color:var(--mute)}.rcBox{max-height:170px}
+.rcM th span{display:inline-block;writing-mode:vertical-rl;transform:rotate(180deg);font-size:11.5px;max-height:130px}.rcM td.c{text-align:center}.rcM b{display:inline-block;width:20px;height:20px;line-height:20px;border-radius:4px;font-size:11px;margin:1px;color:#fff}.rcA{background:#2e9d5b}.rcR{background:#4a78c2}.rcC{background:#d9932b}.rcI{background:#8a8f98}
+@media (max-width:700px){.gtLeft{width:140px}.gtL{font-size:11.5px;padding:3px 6px}.gtF select,.gtF input{min-width:110px}}
+@media print{body.gtPrinting .gtBar,body.gtPrinting .kpis,body.gtPrinting .g2{display:none!important}body.gtPrinting .gtRight{overflow:visible}}
 </style>
 </head>
 <body>
@@ -621,6 +635,8 @@ const PAGES = [
  { k:'scendoc', label:'Venue plan doc', tab:'plan', title:'Venue plan document', sub:() => 'Cricket and outdoor venue plan by scenario. Live from the hub; budgets need the Budget PIN.' },
  { k:'scen', label:'Scenarios', tab:'plan', title:'Scenarios', sub:() => 'Switch venue and schedule scenarios. Courts, budget, food and venue counts follow the one you pick.' },
  { k:'plan', label:'Milestones', tab:'plan', title:'Milestones', sub:() => 'Project plan milestones by phase and department.' },
+ { k:'gantt', label:'Gantt', tab:'plan', title:'Gantt', sub:() => 'Every task and milestone on one timeline, with owners, progress and dependencies.' },
+ { k:'raci', label:'RACI', tab:'plan', title:'RACI', sub:() => 'Who is Responsible, Accountable, Consulted and Informed for each workstream.' },
  { g:'Games' },
  { k:'venues', label:'Venues', tab:'venues', title:'Venues', sub:() => 'Active venues by stage, with the people split at each one.', badge:() => [arr(S.venues).filter(v => !v.archived && v.name).length] },
  { k:'program', label:'Sports and slots', tab:'sports', title:'Sports and slots', sub:() => 'The slot sheet: every event, its venue and slots. Headcount comes from here.' },
@@ -1779,6 +1795,168 @@ LIVE.siteplan = el => { const q = String(el.dataset.venue || '').toLowerCase(); 
  if (spFloorDef(v.name)) return '<div class="spFloor" style="background:#fff">' + spFloorSVG(v.name, items).svg + '</div>' + list;
  return null; };
 LIVE.sitecounts = el => { const q = String(el.dataset.venue || '').toLowerCase(); const hit = ents(S.venues).find(([k, v]) => v && v.name && !v.archived && v.name.toLowerCase().indexOf(q) >= 0); if (!hit || spFloorDef(hit[1].name)) return ''; const cnt = {}; ents((hit[1].siteplan || {}).items || {}).forEach(([i, o]) => cnt[o.t] = (cnt[o.t] || 0) + Math.max(1, num(o.n) || 1)); return Object.entries(cnt).map(([t, n]) => esc((SP_T[t] || ['Item'])[0]) + ' · ' + n).join(' · '); };
+
+/* ══════════ Gantt + RACI ══════════ */
+const GT = { load(){ try { return JSON.parse(localStorage.getItem('naigGantt') || '{}'); } catch(e) { return {}; } }, save(st){ try { localStorage.setItem('naigGantt', JSON.stringify(st)); } catch(e) {} } };
+const gtDays = (a, b) => Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 864e5);
+const gtIso = v => { if (!v) return ''; if (typeof v === 'number') return new Date(v).toISOString().slice(0,10); return String(v).slice(0,10); };
+const gtDeps = t => (Array.isArray(t.deps) ? t.deps : String(t.deps || '').split(/[,\s]+/)).filter(Boolean);
+const gtPct = t => t.status === 'done' ? 100 : Math.max(0, Math.min(100, Number(t.pct) || 0));
+function gtItems(){
+ const tasks = taskList().filter(t => due(t)).map(t => { const d = due(t); let s = gtIso(t.start) || gtIso(t.created || t.createdAt) || addDays(d, -7); if (s > d) s = d; if (gtDays(s, d) > 120 && !t.start) s = addDays(d, -14);
+  return { kind:'task', id:t._id, t, title:noMoney(t.title), start:s, end:d, owner:ownersOf(t).join(', '), owners:ownersOf(t), area:area(t), status:t.status || 'todo', b:bucket(t), pct:gtPct(t), deps:gtDeps(t) }; });
+ const ms = MS().filter(m => m.due).map(m => ({ kind:'ms', id:m._id, m, title:m.title, start:String(m.due).slice(0,10), end:String(m.due).slice(0,10), owner:m.owner || '', owners:m.owner ? [m.owner] : [], area:m.dept || 'Milestones', phase:m.phase || '', status:msStatus(m), b:/done|complete/i.test(msStatus(m)) ? 'done' : (String(m.due).slice(0,10) < today() ? 'overdue' : 'later'), pct:/done|complete/i.test(msStatus(m)) ? 100 : 0, deps:[] }));
+ return tasks.concat(ms);
+}
+function gtFilter(items, st){
+ const q = (st.q || '').toLowerCase();
+ return items.filter(x => (st.done || x.b !== 'done') && (st.ms !== false || x.kind !== 'ms') && (!st.area || x.area === st.area) && (!st.owner || x.owners.includes(st.owner)) && (!st.mine || x.owners.some(o => key(o) === key(me()))) && (!q || (x.title + ' ' + x.owner + ' ' + x.area).toLowerCase().includes(q)));
+}
+const GT_COL = { done:'#2e9d5b', overdue:'#d64545', blocked:'#d64545', week:'#d9932b', later:'#4a78c2', nodate:'#8a8f98', onhold:'#9a8f7a' };
+RENDER.gantt = () => {
+ const st = Object.assign({ group:'area', zoom:'week', done:false, ms:true }, GT.load());
+ const all = gtItems(), items = gtFilter(all, st), td = today();
+ const open = all.filter(x => x.kind === 'task' && x.b !== 'done'), od = open.filter(x => x.b === 'overdue'), bl = open.filter(x => x.status === 'blocked'), soon = open.filter(x => x.end >= td && x.end <= addDays(td, 14));
+ const tAll = all.filter(x => x.kind === 'task'), pctAll = Math.round(tAll.reduce((a, x) => a + x.pct, 0) / Math.max(1, tAll.length));
+ const byId = {}; all.forEach(x => byId[x.id] = x);
+ const lateDeps = items.filter(x => x.deps.some(d => byId[d] && byId[d].end > x.start && byId[d].b !== 'done'));
+ const areas = [...new Set(all.map(x => x.area))].sort(), owners = [...new Set(all.flatMap(x => x.owners))].sort();
+ if (canEdit()) $('#topR').innerHTML = '<button class="btn" id="gtCsv" type="button">Export CSV</button> <button class="btn" id="gtPrint" type="button">Print</button> <button class="btn pri" id="gtNew" type="button">New task</button>';
+ else $('#topR').innerHTML = '<button class="btn" id="gtCsv" type="button">Export CSV</button> <button class="btn" id="gtPrint" type="button">Print</button>';
+ const kpi = (l, n, sub, cls, go) => '<button class="kpi ' + (cls || '') + '" type="button" data-gtk="' + go + '"><span>' + l + '</span><b>' + n + '</b><small>' + sub + '</small></button>';
+ let h = '<div class="kpis">' + kpi('Open tasks', open.length, pctAll + '% complete overall', '', '') + kpi('Overdue', od.length, 'past due date', od.length ? 'bad' : 'good', 'overdue') + kpi('Blocked', bl.length, 'need a decision', bl.length ? 'bad' : '', 'blocked') + kpi('Due in 14 days', soon.length, 'coming up', soon.length ? 'warn' : '', 'soon') + kpi('Dependency clashes', lateDeps.length, 'start before what they wait on', lateDeps.length ? 'warn' : 'good', 'deps') + '</div>';
+ const sel = (id, label, opts, v) => '<label class="gtF"><span>' + label + '</span><select id="' + id + '">' + opts.map(o => { const [val, txt] = Array.isArray(o) ? o : [o, o]; return '<option value="' + esc(val) + '"' + (String(val) === String(v || '') ? ' selected' : '') + '>' + esc(txt) + '</option>'; }).join('') + '</select></label>';
+ h += '<div class="card gtBar">' + sel('gtGroup', 'Group by', [['area','Area'],['owner','Owner'],['status','Status'],['none','No grouping']], st.group) + sel('gtZoom', 'Zoom', [['day','Days'],['week','Weeks'],['month','Months']], st.zoom)
+  + sel('gtArea', 'Area', [['', 'All areas']].concat(areas), st.area) + sel('gtOwner', 'Owner', [['', 'Everyone']].concat(owners), st.owner)
+  + '<label class="gtF"><span>Search</span><input id="gtQ" value="' + esc(st.q || '') + '" placeholder="Task, owner or area"></label>'
+  + '<label class="chk"><input type="checkbox" id="gtMine"' + (st.mine ? ' checked' : '') + '> Only mine</label><label class="chk"><input type="checkbox" id="gtDone"' + (st.done ? ' checked' : '') + '> Show done</label><label class="chk"><input type="checkbox" id="gtMs"' + (st.ms !== false ? ' checked' : '') + '> Milestones</label>'
+  + '<button class="btn" id="gtToday" type="button">Today</button></div>';
+ // timeline
+ const px = { day:28, week:10, month:4 }[st.zoom] || 10;
+ let from = addDays(td, -21), to = '2027-04-05';
+ items.forEach(x => { if (x.start < from) from = x.start; if (x.end > to) to = x.end; });
+ if (gtDays(from, td) > 120) from = addDays(td, -120);
+ from = addDays(from, -((new Date(from + 'T12:00:00').getDay() + 6) % 7));
+ const span = gtDays(from, to) + 7, W = span * px, xOf = d => gtDays(from, d) * px;
+ const grpKey = x => st.group === 'owner' ? (x.owners[0] || 'No owner') : st.group === 'status' ? (x.kind === 'ms' ? 'Milestones' : (ST[x.status] || [x.status])[0]) : st.group === 'none' ? '' : x.area;
+ const groups = {}; items.forEach(x => (groups[grpKey(x)] = groups[grpKey(x)] || []).push(x));
+ const gNames = Object.keys(groups).sort((a, b) => a === 'Milestones' ? 1 : b === 'Milestones' ? -1 : a.localeCompare(b));
+ const rows = []; gNames.forEach(g => { if (g) rows.push({ hdr:g, n:groups[g].length, done:groups[g].filter(x => x.b === 'done').length, pct:Math.round(groups[g].reduce((a, x) => a + x.pct, 0) / groups[g].length) }); groups[g].sort((a, b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end)).forEach(x => rows.push(x)); });
+ const RH = 30, H = rows.length * RH;
+ let scale = '', grid = '';
+ for (let d = from; d <= addDays(to, 7); d = addDays(d, 1)) { const dt = new Date(d + 'T12:00:00'), x = xOf(d);
+  if (st.zoom === 'month' ? dt.getDate() === 1 : st.zoom === 'week' ? dt.getDay() === 1 : true) { scale += '<div class="gtTick" style="left:' + x + 'px">' + (st.zoom === 'month' ? dt.toLocaleDateString('en-US', { month:'short', year:'2-digit' }) : st.zoom === 'week' ? fmtD(d) : dt.toLocaleDateString('en-US', { weekday:'narrow' }) + dt.getDate()) + '</div>'; grid += '<div class="gtGrid" style="left:' + x + 'px"></div>'; }
+ }
+ const pos = {}; let left = '', bars = '';
+ rows.forEach((r, i) => { const y = i * RH;
+  if (r.hdr) { left += '<div class="gtL gtH" style="top:' + y + 'px">' + esc(r.hdr) + ' <small>' + r.done + '/' + r.n + ' · ' + r.pct + '%</small></div>'; bars += '<div class="gtHrow" style="top:' + y + 'px;width:' + W + 'px"></div>'; return; }
+  const c = r.status === 'blocked' ? GT_COL.blocked : (GT_COL[r.b] || GT_COL.later);
+  left += '<div class="gtL" style="top:' + y + 'px" data-gto="' + r.kind + '|' + esc(r.id) + '" title="' + esc(r.title) + '">' + (r.kind === 'ms' ? '◆ ' : '') + esc(r.title) + '<small>' + esc(r.owner) + '</small></div>';
+  const x1 = xOf(r.start), x2 = xOf(r.end) + px; pos[r.id] = { x1, x2, y:y + RH / 2 };
+  if (r.kind === 'ms') bars += '<div class="gtMs" style="left:' + (x2 - px / 2 - 7) + 'px;top:' + (y + 8) + 'px;background:' + c + '" data-gto="ms|' + esc(r.id) + '" title="' + esc(r.title + ' · ' + fmtD(r.end)) + '"></div>';
+  else bars += '<div class="gtBarI' + (canEdit() ? ' ed' : '') + '" data-gtid="' + esc(r.id) + '" style="left:' + x1 + 'px;top:' + (y + 6) + 'px;width:' + Math.max(px, x2 - x1) + 'px;border-color:' + c + ';background:' + c + '33" title="' + esc(r.title + ' · ' + fmtD(r.start) + ' to ' + fmtD(r.end) + ' · ' + r.pct + '%') + '"><i style="width:' + r.pct + '%;background:' + c + '"></i><span>' + esc(r.title) + '</span>' + (canEdit() ? '<b class="gtHl"></b><b class="gtHr"></b>' : '') + '</div>';
+ });
+ let arrows = '';
+ rows.forEach(r => { if (r.hdr || !r.deps) return; r.deps.forEach(d => { const a = pos[d], b = pos[r.id]; if (!a || !b) return; const bad = byId[d] && byId[d].end > r.start && byId[d].b !== 'done', mx = Math.max(a.x2 + 6, b.x1 - 8);
+  arrows += '<path d="M' + a.x2 + ' ' + a.y + ' H' + mx + ' V' + b.y + ' H' + (b.x1 - 2) + '" fill="none" stroke="' + (bad ? '#d64545' : '#8a8f98') + '" stroke-width="1.5" marker-end="url(#gtArr' + (bad ? 'R' : '') + ')"/>'; }); });
+ const tdx = xOf(td), gw = xOf('2027-03-25');
+ h += '<div class="card gtWrap"><div class="gtLeft"><div class="gtLh">Task</div><div class="gtLb" style="height:' + H + 'px">' + left + '</div></div><div class="gtRight" id="gtScroll"><div class="gtScale" style="width:' + W + 'px">' + scale + '</div><div class="gtBody" style="width:' + W + 'px;height:' + H + 'px">' + grid
+  + '<div class="gtToday" style="left:' + tdx + 'px"><span>Today</span></div>' + (gw > 0 && gw < W ? '<div class="gtGames" style="left:' + gw + 'px"><span>Games</span></div>' : '')
+  + '<svg class="gtSvg" width="' + W + '" height="' + H + '"><defs><marker id="gtArr" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#8a8f98"/></marker><marker id="gtArrR" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#d64545"/></marker></defs>' + arrows + '</svg>' + bars + '</div></div></div>'
+  + (rows.length ? '' : '<div class="empty">No tasks with due dates match these filters.</div>')
+  + '<p class="hint">' + (canEdit() ? 'Drag a bar to move it, drag its ends to change start or due date, tap it to set progress and dependencies. ' : '') + 'Red bars are overdue or blocked; red arrows mean a task starts before the one it depends on finishes.</p>';
+ // workload + progress
+ const wl = {}; open.forEach(x => (x.owners.length ? x.owners : ['No owner']).forEach(o => { const w = wl[o] = wl[o] || { open:0, od:0, soon:0, bl:0 }; w.open++; if (x.b === 'overdue') w.od++; if (x.end >= td && x.end <= addDays(td, 14)) w.soon++; if (x.status === 'blocked') w.bl++; }));
+ const ar = {}; tAll.forEach(x => { const a = ar[x.area] = ar[x.area] || { n:0, done:0, pct:0, od:0 }; a.n++; if (x.b === 'done') a.done++; if (x.b === 'overdue') a.od++; a.pct += x.pct; });
+ h += '<div class="g2"><div class="card"><h2>Workload</h2><div class="tw"><table><thead><tr><th>Owner</th><th class="n">Open</th><th class="n">Overdue</th><th class="n">Due in 14 days</th><th class="n">Blocked</th></tr></thead><tbody>' + Object.entries(wl).sort((a, b) => b[1].open - a[1].open).map(([o, w]) => '<tr class="cl" data-gtw="' + esc(o) + '"><td>' + esc(o) + '</td><td class="n">' + w.open + '</td><td class="n">' + (w.od ? '<span class="pill bad">' + w.od + '</span>' : '0') + '</td><td class="n">' + w.soon + '</td><td class="n">' + w.bl + '</td></tr>').join('') + '</tbody></table></div></div>'
+  + '<div class="card"><h2>Progress by area</h2>' + Object.entries(ar).sort((a, b) => a[0].localeCompare(b[0])).map(([n, a]) => { const p = Math.round(a.pct / a.n); return '<div class="gtProg"><div><b>' + esc(n) + '</b><small>' + a.done + ' of ' + a.n + ' done' + (a.od ? ' · ' + a.od + ' overdue' : '') + '</small></div><div class="gtPb"><i style="width:' + p + '%"></i></div><span>' + p + '%</span></div>'; }).join('') + '</div></div>';
+ $('#view').innerHTML = h;
+ // bind
+ const set = (k, v) => { st[k] = v; GT.save(st); RENDER.gantt(); };
+ $('#gtGroup').onchange = e => set('group', e.target.value); $('#gtZoom').onchange = e => set('zoom', e.target.value); $('#gtArea').onchange = e => set('area', e.target.value); $('#gtOwner').onchange = e => set('owner', e.target.value);
+ $('#gtMine').onchange = e => set('mine', e.target.checked); $('#gtDone').onchange = e => set('done', e.target.checked); $('#gtMs').onchange = e => set('ms', e.target.checked);
+ let qt; $('#gtQ').oninput = e => { clearTimeout(qt); qt = setTimeout(() => { set('q', e.target.value); const q = $('#gtQ'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }, 350); };
+ const sc = $('#gtScroll'), goToday = () => { sc.scrollLeft = Math.max(0, tdx - 120); }; $('#gtToday').onclick = goToday; if (st._sl != null && st._k === st.zoom) sc.scrollLeft = st._sl; else goToday();
+ sc.onscroll = () => { st._sl = sc.scrollLeft; st._k = st.zoom; GT.save(st); };
+ $$('[data-gtk]').forEach(b => b.onclick = () => { const k = b.dataset.gtk; if (!k) return; const list = k === 'overdue' ? od : k === 'blocked' ? bl : k === 'soon' ? soon : lateDeps; openDrawer({ overdue:'Overdue', blocked:'Blocked', soon:'Due in 14 days', deps:'Dependency clashes' }[k], '<div class="list">' + (list.map(x => '<div class="it" data-gto="task|' + esc(x.id) + '"><div class="t">' + esc(x.title) + '</div><div class="m">' + esc(x.area) + (x.owner ? ' · ' + esc(x.owner) : '') + '</div><div class="r"><span>Due ' + fmtD(x.end) + '</span></div></div>').join('') || '<div class="empty">None.</div>') + '</div>'); $$('#dBody [data-gto]').forEach(e => e.onclick = () => gtOpen(e.dataset.gto)); });
+ $$('[data-gtw]').forEach(r => r.onclick = () => set('owner', r.dataset.gtw === 'No owner' ? '' : r.dataset.gtw));
+ $$('.gtL[data-gto], .gtMs[data-gto]').forEach(e => e.onclick = () => gtOpen(e.dataset.gto));
+ $('#gtCsv').onclick = () => csv('naig-gantt', [['Type', x => x.kind === 'ms' ? 'Milestone' : 'Task'], ['Title','title'], ['Area','area'], ['Owner','owner'], ['Status', x => x.kind === 'ms' ? x.status : (ST[x.status] || [x.status])[0]], ['Start','start'], ['Due','end'], ['% done','pct'], ['Depends on', x => x.deps.map(d => byId[d] ? byId[d].title : d).join('; ')]], items);
+ $('#gtPrint').onclick = () => { document.body.classList.add('gtPrinting'); setTimeout(() => { window.print(); document.body.classList.remove('gtPrinting'); }, 50); };
+ if ($('#gtNew')) $('#gtNew').onclick = () => openTask(null);
+ $$('.gtBarI').forEach(el => gtDrag(el, px));
+};
+function gtOpen(ref){ const [kind, id] = ref.split('|'); if (kind === 'ms') { OPEN.ms(id); return; } const t = S.tasks[id]; if (!t) return; const ed = canEdit(), dis = ed ? '' : ' disabled';
+ const others = taskList().filter(x => x._id !== id && x.status !== 'done' || gtDeps(t).includes(x._id)).filter(x => x._id !== id).sort((a, b) => (area(a) === area(t) ? 0 : 1) - (area(b) === area(t) ? 0 : 1) || String(a.title).localeCompare(String(b.title)));
+ const deps = gtDeps(t), x = gtItems().find(i => i.id === id) || {};
+ openDrawer(noMoney(t.title), '<p class="hint" style="margin-top:12px">' + stPill(t.status) + ' · ' + esc(area(t)) + (ownersOf(t).length ? ' · ' + esc(ownersOf(t).join(', ')) : '') + '</p>'
+  + '<div class="g2"><div><label class="l">Start</label><input type="date" id="gtS" value="' + esc(x.start || '') + '"' + dis + '></div><div><label class="l">Due</label><input type="date" id="gtD" value="' + esc(due(t)) + '"' + dis + '></div></div>'
+  + '<div class="g2"><div><label class="l">Status</label><select id="gtSt"' + dis + '>' + Object.entries(ST).map(([k, v]) => '<option value="' + k + '"' + ((t.status || 'todo') === k ? ' selected' : '') + '>' + v[0] + '</option>').join('') + '</select></div><div><label class="l">% done</label><input type="number" min="0" max="100" step="5" id="gtP" value="' + gtPct(t) + '"' + dis + '></div></div>'
+  + '<label class="l">Depends on (finish these first)</label><input id="gtDq" placeholder="Filter tasks"' + dis + '><div class="gtDeps" id="gtDl">' + others.map(o => '<label class="chk" data-n="' + esc(String(o.title).toLowerCase()) + '"><input type="checkbox" value="' + esc(o._id) + '"' + (deps.includes(o._id) ? ' checked' : '') + dis + '> ' + esc(noMoney(o.title)) + ' <small>' + esc(area(o)) + (due(o) ? ' · ' + fmtD(due(o)) : '') + '</small></label>').join('') + '</div>',
+  (ed ? '<button class="btn pri" id="gtSave" type="button">Save</button> ' : '') + '<button class="btn" id="gtFull" type="button">Open full task</button>');
+ $('#gtDq') && ($('#gtDq').oninput = e => { const q = e.target.value.toLowerCase(); $$('#gtDl label').forEach(l => l.style.display = l.dataset.n.includes(q) ? '' : 'none'); });
+ $('#gtFull').onclick = () => { closeDrawer(); openTask(id); };
+ if (ed) $('#gtSave').onclick = async () => { let s = $('#gtS').value, d = $('#gtD').value; if (s && d && s > d) { toast('Start must be on or before the due date.'); return; }
+  const p = { start:s || null, due:d || null, status:$('#gtSt').value, pct:Math.max(0, Math.min(100, Number($('#gtP').value) || 0)), deps:$$('#gtDl input:checked').map(i => i.value), updated:Date.now(), updatedBy:me() };
+  if (p.status === 'done') p.pct = 100; if (await save('tasks/' + id, p, 'task', t.title, 'Plan dates or dependencies updated')) closeDrawer(); };
+}
+function gtDrag(el, px){ if (!canEdit()) { el.onclick = () => gtOpen('task|' + el.dataset.gtid); return; }
+ let mode = null, sx = 0, ox = 0, ow = 0, moved = false;
+ const down = e => { const p = e.touches ? e.touches[0] : e; sx = p.clientX; ox = el.offsetLeft; ow = el.offsetWidth; moved = false; mode = e.target.classList.contains('gtHl') ? 'l' : e.target.classList.contains('gtHr') ? 'r' : 'm';
+  document.addEventListener('mousemove', move); document.addEventListener('mouseup', up); document.addEventListener('touchmove', move, { passive:false }); document.addEventListener('touchend', up); };
+ const move = e => { const p = e.touches ? e.touches[0] : e, dx = p.clientX - sx; if (Math.abs(dx) > 4) moved = true; if (!moved) return; if (e.cancelable) e.preventDefault();
+  const snap = Math.round(dx / px) * px; if (mode === 'm') el.style.left = (ox + snap) + 'px'; else if (mode === 'r') el.style.width = Math.max(px, ow + snap) + 'px'; else { el.style.left = Math.min(ox + snap, ox + ow - px) + 'px'; el.style.width = Math.max(px, ow - snap) + 'px'; } };
+ const up = async e => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); document.removeEventListener('touchmove', move); document.removeEventListener('touchend', up);
+  if (!moved) { gtOpen('task|' + el.dataset.gtid); return; }
+  const id = el.dataset.gtid, x = gtItems().find(i => i.id === id); if (!x) return; const dl = Math.round((el.offsetLeft - ox) / px), dr = Math.round((el.offsetLeft + el.offsetWidth - ox - ow) / px);
+  const p = { start:addDays(x.start, dl), due:addDays(x.end, dr), updated:Date.now(), updatedBy:me() }; if (p.start > p.due) p.start = p.due;
+  await save('tasks/' + id, p, 'task', x.title, 'Moved on the Gantt to ' + fmtD(p.start) + ' – ' + fmtD(p.due)); };
+ el.addEventListener('mousedown', down); el.addEventListener('touchstart', down, { passive:true }); }
+
+/* RACI */
+const RACI_L = { R:['Responsible','Does the work'], A:['Accountable','Owns the outcome and signs off (one person)'], C:['Consulted','Asked for input before decisions'], I:['Informed','Kept up to date'] };
+const raciRows = () => ents((S.plan.raci || {}).rows).map(([k, r]) => Object.assign({ _id:k }, r)).sort((a, b) => (Number(a.order) || 999) - (Number(b.order) || 999) || String(a.name).localeCompare(String(b.name)));
+const raciArr = v => Array.isArray(v) ? v.filter(Boolean) : String(v || '').split(/\s*[,;]\s*/).filter(Boolean);
+RENDER.raci = () => {
+ const st = Object.assign({ view:'table' }, (() => { try { return JSON.parse(localStorage.getItem('naigRaci') || '{}'); } catch(e) { return {}; } })()), sv = () => { try { localStorage.setItem('naigRaci', JSON.stringify(st)); } catch(e) {} };
+ const rows = raciRows(), ed = canEdit(), areas = [...new Set(taskList().map(area))].filter(a => a && a !== 'Other').sort();
+ $('#topR').innerHTML = '<button class="btn" id="rcCsv" type="button">Export CSV</button> <button class="btn" id="rcPrint" type="button">Print</button>' + (ed ? ' <button class="btn pri" id="rcNew" type="button">New row</button>' : '');
+ const noA = rows.filter(r => !r.A), noR = rows.filter(r => !raciArr(r.R).length), missing = areas.filter(a => !rows.some(r => r.name === a));
+ let h = '<div class="kpis"><div class="kpi"><span>Workstreams</span><b>' + rows.length + '</b><small>rows in the matrix</small></div><div class="kpi ' + (noA.length ? 'bad' : 'good') + '"><span>No one accountable</span><b>' + noA.length + '</b><small>every row needs one A</small></div><div class="kpi ' + (noR.length ? 'warn' : 'good') + '"><span>No one responsible</span><b>' + noR.length + '</b><small>rows with no R</small></div><div class="kpi"><span>Task areas not covered</span><b>' + missing.length + '</b><small>' + (missing.length ? esc(missing.slice(0, 3).join(', ')) + (missing.length > 3 ? '…' : '') : 'all covered') + '</small></div></div>';
+ h += '<div class="card gtBar"><div class="seg"><button type="button" class="' + (st.view === 'table' ? 'on' : '') + '" data-rv="table">By workstream</button><button type="button" class="' + (st.view === 'matrix' ? 'on' : '') + '" data-rv="matrix">Matrix</button><button type="button" class="' + (st.view === 'person' ? 'on' : '') + '" data-rv="person">By person</button></div>'
+  + (ed && missing.length ? '<button class="btn" id="rcAdd" type="button">Add rows for ' + missing.length + ' task areas</button>' : '') + (ed && rows.length ? ' <button class="btn" id="rcSug" type="button">Suggest R from task owners</button>' : '') + '</div>';
+ const pills = (v, c) => raciArr(v).map(n => '<span class="pill ' + (c || '') + '">' + esc(n) + '</span>').join(' ') || '<span class="sm">—</span>';
+ if (!rows.length) h += '<div class="card"><div class="empty">No RACI rows yet. ' + (ed ? 'Use "Add rows for task areas" to start from the hub\'s task areas, or "New row".' : '') + '</div></div>';
+ else if (st.view === 'table') h += '<div class="card"><div class="tw"><table class="rcT"><thead><tr><th>Workstream</th><th title="' + RACI_L.R[1] + '">R · Responsible</th><th title="' + RACI_L.A[1] + '">A · Accountable</th><th title="' + RACI_L.C[1] + '">C · Consulted</th><th title="' + RACI_L.I[1] + '">I · Informed</th></tr></thead><tbody>'
+  + rows.map(r => '<tr class="' + (ed ? 'cl' : '') + '" data-rc="' + esc(r._id) + '"><td><b>' + esc(r.name) + '</b>' + (r.notes ? '<div class="sm">' + esc(r.notes) + '</div>' : '') + '</td><td>' + pills(r.R, 'info') + '</td><td>' + (r.A ? '<span class="pill good">' + esc(r.A) + '</span>' : '<span class="pill bad">Missing</span>') + '</td><td>' + pills(r.C) + '</td><td>' + pills(r.I) + '</td></tr>').join('') + '</tbody></table></div></div>';
+ else if (st.view === 'matrix') { const ppl = [...new Set(rows.flatMap(r => [r.A].concat(raciArr(r.R), raciArr(r.C), raciArr(r.I))).filter(Boolean))].sort();
+  const cell = (r, p) => { const l = []; if (r.A === p) l.push('A'); if (raciArr(r.R).includes(p)) l.push('R'); if (raciArr(r.C).includes(p)) l.push('C'); if (raciArr(r.I).includes(p)) l.push('I'); return l.map(x => '<b class="rc' + x + '">' + x + '</b>').join(''); };
+  h += '<div class="card"><div class="tw"><table class="rcM"><thead><tr><th>Workstream</th>' + ppl.map(p => '<th><span>' + esc(p) + '</span></th>').join('') + '</tr></thead><tbody>' + rows.map(r => '<tr class="' + (ed ? 'cl' : '') + '" data-rc="' + esc(r._id) + '"><td><b>' + esc(r.name) + '</b></td>' + ppl.map(p => '<td class="c">' + cell(r, p) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div><p class="hint">R Responsible · A Accountable · C Consulted · I Informed</p></div>'; }
+ else { const by = {}; rows.forEach(r => { const add = (p, l) => { if (!p) return; (by[p] = by[p] || { R:[], A:[], C:[], I:[] })[l].push(r.name); }; add(r.A, 'A'); raciArr(r.R).forEach(p => add(p, 'R')); raciArr(r.C).forEach(p => add(p, 'C')); raciArr(r.I).forEach(p => add(p, 'I')); });
+  h += '<div class="card"><div class="tw"><table><thead><tr><th>Person</th><th>Accountable for</th><th>Responsible for</th><th>Consulted on</th><th>Informed on</th></tr></thead><tbody>' + Object.entries(by).sort((a, b) => a[0].localeCompare(b[0])).map(([p, x]) => '<tr><td><b>' + esc(p) + '</b></td>' + ['A','R','C','I'].map(l => '<td class="sm">' + esc(x[l].join(', ')) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div></div>'; }
+ h += '<p class="hint">' + Object.entries(RACI_L).map(([k, v]) => '<b>' + k + '</b> ' + v[0] + ': ' + v[1]).join(' · ') + '</p>';
+ $('#view').innerHTML = h;
+ $$('[data-rv]').forEach(b => b.onclick = () => { st.view = b.dataset.rv; sv(); RENDER.raci(); });
+ if (ed) $$('[data-rc]').forEach(r => r.onclick = () => raciOpen(r.dataset.rc));
+ $('#rcNew') && ($('#rcNew').onclick = () => raciOpen(null));
+ $('#rcAdd') && ($('#rcAdd').onclick = async () => { const p = {}; missing.forEach((a, i) => { p['r' + Date.now() + '_' + i] = { name:a, order:rows.length + i + 1, R:[], A:'', C:[], I:[] }; }); await save('plan/raci/rows', p, 'raci', 'RACI', 'Added ' + missing.length + ' workstream rows from task areas'); });
+ $('#rcSug') && ($('#rcSug').onclick = async () => { const p = {}; let n = 0; rows.forEach(r => { if (raciArr(r.R).length) return; const cnt = {}; taskList().filter(t => area(t) === r.name && t.status !== 'done').forEach(t => ownersOf(t).forEach(o => cnt[o] = (cnt[o] || 0) + 1)); const top = Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 3).map(x => x[0]); if (top.length) { p[r._id + '/R'] = top; n++; } });
+  if (!n) { toast('Every row already has someone responsible, or no task owners to suggest.'); return; } await save('plan/raci/rows', p, 'raci', 'RACI', 'Suggested Responsible for ' + n + ' rows from task owners'); });
+ $('#rcCsv').onclick = () => csv('naig-raci', [['Workstream','name'], ['Responsible', r => raciArr(r.R).join('; ')], ['Accountable','A'], ['Consulted', r => raciArr(r.C).join('; ')], ['Informed', r => raciArr(r.I).join('; ')], ['Notes','notes']], rows);
+ $('#rcPrint').onclick = () => window.print();
+};
+function raciOpen(id){ const r = id ? Object.assign({}, ((S.plan.raci || {}).rows || {})[id]) : { R:[], C:[], I:[] };
+ const ppl = [...new Set(people().concat(taskList().flatMap(ownersOf), [r.A].concat(raciArr(r.R), raciArr(r.C), raciArr(r.I))).filter(Boolean))].sort();
+ const box = (l) => '<label class="l">' + l + ' · ' + RACI_L[l][0] + ' <small class="sm">' + RACI_L[l][1] + '</small></label><div class="gtDeps rcBox">' + ppl.map(p => '<label class="chk"><input type="checkbox" data-l="' + l + '" value="' + esc(p) + '"' + (raciArr(r[l]).includes(p) ? ' checked' : '') + '> ' + esc(p) + '</label>').join('') + '</div>';
+ openDrawer(id ? r.name : 'New RACI row', '<label class="l">Workstream</label><input id="rcName" value="' + esc(r.name || '') + '">'
+  + '<label class="l">A · Accountable <small class="sm">' + RACI_L.A[1] + '</small></label><select id="rcA"><option value="">— pick one —</option>' + ppl.map(p => '<option' + (p === r.A ? ' selected' : '') + '>' + esc(p) + '</option>').join('') + '</select>'
+  + box('R') + box('C') + box('I') + '<label class="l">Notes</label><textarea id="rcNotes">' + esc(r.notes || '') + '</textarea>',
+  '<button class="btn pri" id="rcSave" type="button">Save</button>' + (id ? ' <button class="btn" id="rcDel" type="button">Remove row</button>' : ''));
+ $('#rcSave').onclick = async () => { const name = $('#rcName').value.trim(); if (!name) { toast('Give the row a name.'); return; }
+  const v = { name, A:$('#rcA').value, notes:$('#rcNotes').value, updated:Date.now(), updatedBy:me() }; ['R','C','I'].forEach(l => v[l] = $$('#dBody input[data-l="' + l + '"]:checked').map(i => i.value));
+  if (!id) v.order = raciRows().length + 1; const k = id || ('r' + Date.now()); if (await save('plan/raci/rows/' + k, v, 'raci', name, 'RACI row saved')) closeDrawer(); };
+ $('#rcDel') && ($('#rcDel').onclick = async () => { if (!confirm('Remove "' + r.name + '" from the RACI?')) return; if (await save('plan/raci/rows', { [id]:null }, 'raci', r.name, 'RACI row removed')) closeDrawer(); });
+}
 
 /* ══════════ theme, boot ══════════ */
 const root = document.documentElement;
