@@ -276,6 +276,10 @@ body.fpPrinting .fpPrintHead{display:flex;justify-content:space-between;font-siz
 .rcM th span{display:inline-block;writing-mode:vertical-rl;transform:rotate(180deg);font-size:11.5px;max-height:130px}.rcM td.c{text-align:center}.rcM b{display:inline-block;width:20px;height:20px;line-height:20px;border-radius:4px;font-size:11px;margin:1px;color:#fff}.rcA{background:#2e9d5b}.rcR{background:#4a78c2}.rcC{background:#d9932b}.rcI{background:#8a8f98}
 @media (max-width:700px){.gtLeft{width:140px}.gtL{font-size:11.5px;padding:3px 6px}.gtF select,.gtF input{min-width:110px}}
 @media print{body.gtPrinting .gtBar,body.gtPrinting .kpis,body.gtPrinting .g2{display:none!important}body.gtPrinting .gtRight{overflow:visible}}
+.vdHead{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}.vdHead h2{margin:0}.vdH{font-size:14px;margin:16px 0 6px;color:var(--navy)}.vdH small{font-weight:400;color:var(--mute)}
+.vdT td:first-child{width:38%}.vdT td{vertical-align:top}.vdP{margin:2px 0}.vdP small{color:var(--mute)}.vdP a,.vdT a{color:inherit;text-decoration:underline;text-decoration-color:var(--line)}.vdAct{margin-top:12px}
+@media (max-width:700px){.vdT td:first-child{width:auto}.vdT tr{display:grid}.vdT td{border-bottom:0}.vdT tr{border-bottom:1px solid var(--line)}}
+@media print{.vdCard{break-inside:avoid;page-break-after:always;box-shadow:none}.vdAct,.gtBar,.kpis{display:none!important}}
 </style>
 </head>
 <body>
@@ -646,6 +650,7 @@ const PAGES = [
  { g:'Logistics' },
  { k:'hotels', label:'Hotels', tab:'hotels', title:'Hotels', sub:() => 'Room blocks against what we need. Rates are on Budget.' },
  { k:'transport', label:'Transportation', tab:'transport', title:'Transportation', sub:() => 'Transport plan, shuttle loops, flights and jamatkhanas.' },
+ { k:'vdir', label:'Venue directory', tab:'venues', title:'Venue directory', sub:() => 'Who is who at each venue: Site Management coordinates, then every lead and outside stakeholder.' },
  { k:'siteplan', label:'Site plans', tab:'venues', title:'Site plans', sub:() => 'Floor plans for indoor sites and satellite views for outdoor sites. Place tents, food, medical and more, then print for the plotting exercise.' },
  { k:'map', label:'Map and travel', tab:'transport', title:'Map and travel', sub:() => 'Venues, hotels, jamatkhanas and airports, with drive times.' },
  { k:'flights', label:'Flights and pickups', tab:'transport', title:'Flights and pickups', sub:() => 'Athlete arrivals and everyone we pick up, with live flight status.', badge:() => { const n = arr(S.arrivals).filter(a => a.pickup === 'Yes' && !a.assigned && a.status !== 'Cancelled').length; return n ? [n, 'warn'] : null; } },
@@ -1956,6 +1961,85 @@ function raciOpen(id){ const r = id ? Object.assign({}, ((S.plan.raci || {}).row
   const v = { name, A:$('#rcA').value, notes:$('#rcNotes').value, updated:Date.now(), updatedBy:me() }; ['R','C','I'].forEach(l => v[l] = $$('#dBody input[data-l="' + l + '"]:checked').map(i => i.value));
   if (!id) v.order = raciRows().length + 1; const k = id || ('r' + Date.now()); if (await save('plan/raci/rows/' + k, v, 'raci', name, 'RACI row saved')) closeDrawer(); };
  $('#rcDel') && ($('#rcDel').onclick = async () => { if (!confirm('Remove "' + r.name + '" from the RACI?')) return; if (await save('plan/raci/rows', { [id]:null }, 'raci', r.name, 'RACI row removed')) closeDrawer(); });
+}
+
+/* ══════════ Venue directory ══════════ */
+const VD_ROLES = [
+ ['siteLead','Site lead','Site Management · runs the venue on the day and coordinates everyone below','site'],
+ ['siteTeam','Site Management team','Site Management · on-site coordinators','site'],
+ ['design','Venue design lead','Venue Design · layouts and design, works with every team','site'],
+ ['food','Food lead','Meals, snacks and water at this venue',''],
+ ['setup','Procurement and setup lead','Rentals, equipment, signage, build and teardown',''],
+ ['health','Health and medical lead','First aid, EMS and athlete care',''],
+ ['reg','Registration lead','Check-in, accreditation and wristbands',''],
+ ['content','Content lead','Photo, video and social',''],
+ ['transport','Transportation lead','Shuttles, drop-off and parking',''],
+ ['volunteers','Volunteer lead','Volunteer check-in and shifts',''],
+ ['security','Security lead','Access control and safety','']];
+const vdVenues = () => ents(S.venues).filter(([k, v]) => v && v.name && !v.archived && !/backup|closed|not available/i.test(String(v.status || '') + ' ' + String(v.pipelineStatus || ''))).map(([k, v]) => Object.assign({ _id:k }, v)).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+const vdSports = v => [...new Set(String(v.sports || '').split(/\s*[·,;\/]\s*/).map(s => s.replace(/\(.*?\)/g, '').trim()).filter(Boolean))];
+const vdPerson = n => arr(S.prospects).find(p => p.name && key(p.name) === key(n)) || null;
+const vdList = v => Array.isArray(v) ? v.filter(Boolean) : String(v || '').split(/\s*[,;]\s*/).filter(Boolean);
+function vdRoles(v){ const d = v.directory || {}, r = d.roles || {}, out = [];
+ VD_ROLES.forEach(([k, label, hint, grp]) => { let ppl = vdList((r[k] || {}).people); if (k === 'siteLead' && !ppl.length && v.siteLead && !/@/.test(v.siteLead)) ppl = vdList(v.siteLead); if (k === 'design' && !ppl.length) ppl = arr(S.prospects).filter(p => /venue design lead/i.test(p.role || '')).map(p => p.name); out.push({ k, label, hint, grp:grp || 'lead', people:ppl, note:(r[k] || {}).note || '' }); });
+ vdSports(v).forEach(s => { const k = 'sport_' + s.toLowerCase().replace(/[^a-z0-9]+/g, '_'); out.push({ k, label:'Sports lead · ' + s, hint:'Competition, schedule and officials for ' + s, grp:'sport', people:vdList((r[k] || {}).people), note:(r[k] || {}).note || '' }); });
+ ents(r).filter(([k, x]) => x && x.custom).forEach(([k, x]) => out.push({ k, label:x.label || k, hint:x.hint || '', grp:'lead', people:vdList(x.people), note:x.note || '', custom:true }));
+ return out; }
+const vdContact = n => { const p = vdPerson(n); if (!p) return ''; const tel = String(p.phone || '').trim(), em = String(p.email || '').trim(); return (tel ? '<a href="tel:' + esc(tel.replace(/[^\d+]/g, '')) + '">' + esc(tel) + '</a>' : '') + (tel && em ? ' · ' : '') + (em ? '<a href="mailto:' + esc(em) + '">' + esc(em) + '</a>' : ''); };
+const vdNames = ppl => ppl.length ? ppl.map(n => '<div class="vdP"><b>' + esc(n) + '</b>' + (vdPerson(n) && vdPerson(n).vertical ? ' <small>' + esc(vdPerson(n).vertical) + '</small>' : '') + '<div class="sm">' + vdContact(n) + '</div></div>').join('') : '<span class="pill warn">TBD</span>';
+function vdCard(v, ed){ const roles = vdRoles(v), site = roles.filter(r => r.grp === 'site'), leads = roles.filter(r => r.grp === 'lead'), sports = roles.filter(r => r.grp === 'sport');
+ const filled = roles.filter(r => r.people.length).length, ext = ents((v.directory || {}).contacts).map(([k, c]) => Object.assign({ _id:k }, c));
+ const row = r => '<tr' + (ed ? ' class="cl" data-vdr="' + esc(v._id) + '|' + esc(r.k) + '"' : '') + '><td><b>' + esc(r.label) + '</b><div class="sm">' + esc(r.hint) + '</div></td><td>' + vdNames(r.people) + (r.note ? '<div class="sm">' + esc(r.note) + '</div>' : '') + '</td></tr>';
+ const tx = x => x && typeof x === 'object' ? [x.name, x.title, x.phone, x.email].filter(Boolean).join(' · ') : x;
+ const fac = [['Venue contact', tx(v.primaryContact || v.poc)], ['Phone', v.primaryPhone], ['Email', v.primaryEmail], ['Emergency contact', tx(v.emergContact)], ['Address', v.address || v.location]].filter(x => x[1]);
+ return '<div class="card vdCard" id="vd-' + esc(v._id) + '"><div class="vdHead"><div><h2>' + esc(v.name) + '</h2><div class="sm">' + esc(vdSports(v).join(' · ') || 'Sports not set') + (v.address ? ' · ' + esc(v.address) : '') + '</div></div><span class="pill ' + (filled === roles.length ? 'good' : 'warn') + '">' + filled + ' of ' + roles.length + ' roles filled</span></div>'
+  + '<h3 class="vdH">Site Management <small>coordinating body for this venue</small></h3><div class="tw"><table class="vdT"><tbody>' + site.map(row).join('') + '</tbody></table></div>'
+  + '<h3 class="vdH">Venue leads</h3><div class="tw"><table class="vdT"><tbody>' + leads.map(row).join('') + '</tbody></table></div>'
+  + (sports.length ? '<h3 class="vdH">Sports leads</h3><div class="tw"><table class="vdT"><tbody>' + sports.map(row).join('') + '</tbody></table></div>' : '')
+  + '<h3 class="vdH">Facility and outside stakeholders</h3><div class="tw"><table class="vdT"><tbody>' + fac.map(([l, x]) => '<tr><td><b>' + l + '</b></td><td>' + (l === 'Phone' ? '<a href="tel:' + esc(String(x).replace(/[^\d+]/g, '')) + '">' + esc(x) + '</a>' : l === 'Email' ? '<a href="mailto:' + esc(x) + '">' + esc(x) + '</a>' : esc(x)) + '</td></tr>').join('')
+  + ext.map(c => '<tr' + (ed ? ' class="cl" data-vdc="' + esc(v._id) + '|' + esc(c._id) + '"' : '') + '><td><b>' + esc(c.role || 'Contact') + '</b>' + (c.org ? '<div class="sm">' + esc(c.org) + '</div>' : '') + '</td><td><b>' + esc(c.name || '') + '</b><div class="sm">' + (c.phone ? '<a href="tel:' + esc(String(c.phone).replace(/[^\d+]/g, '')) + '">' + esc(c.phone) + '</a>' : '') + (c.phone && c.email ? ' · ' : '') + (c.email ? '<a href="mailto:' + esc(c.email) + '">' + esc(c.email) + '</a>' : '') + '</div></td></tr>').join('')
+  + (fac.length || ext.length ? '' : '<tr><td colspan="2" class="sm">No facility contact on file yet.</td></tr>') + '</tbody></table></div>'
+  + (ed ? '<div class="vdAct"><button class="btn" type="button" data-vdadd="' + esc(v._id) + '">Add stakeholder</button> <button class="btn" type="button" data-vdrole="' + esc(v._id) + '">Add role</button></div>' : '') + '</div>'; }
+RENDER.vdir = () => {
+ const vs = vdVenues(), ed = canEdit(), q = new URLSearchParams(location.search); let pick = q.get('venue') || ''; try { if (!pick) pick = localStorage.getItem('naigVdir') || ''; } catch(e) {}
+ if (pick && !vs.some(v => v._id === pick)) pick = '';
+ $('#topR').innerHTML = '<button class="btn" id="vdCsv" type="button">Export CSV</button> <button class="btn" id="vdPrint" type="button">Print</button>';
+ const all = vs.map(v => ({ v, roles:vdRoles(v) })), tot = all.reduce((a, x) => a + x.roles.length, 0), fil = all.reduce((a, x) => a + x.roles.filter(r => r.people.length).length, 0);
+ const noLead = all.filter(x => !x.roles.find(r => r.k === 'siteLead').people.length);
+ let h = '<div class="kpis"><div class="kpi"><span>Venues</span><b>' + vs.length + '</b><small>active venues</small></div><div class="kpi ' + (fil === tot ? 'good' : 'warn') + '"><span>Roles filled</span><b>' + fil + ' / ' + tot + '</b><small>' + Math.round(fil / Math.max(1, tot) * 100) + '% across all venues</small></div><div class="kpi ' + (noLead.length ? 'bad' : 'good') + '"><span>No site lead</span><b>' + noLead.length + '</b><small>' + esc(noLead.slice(0, 2).map(x => x.v.name).join(', ')) + (noLead.length > 2 ? '…' : '') + '</small></div></div>';
+ h += '<div class="card gtBar"><label class="gtF"><span>Venue</span><select id="vdPick"><option value="">All venues</option>' + vs.map(v => '<option value="' + esc(v._id) + '"' + (v._id === pick ? ' selected' : '') + '>' + esc(v.name) + '</option>').join('') + '</select></label><label class="gtF"><span>Find a person or role</span><input id="vdQ" placeholder="Name or role"></label></div>';
+ h += '<div id="vdList">' + vs.filter(v => !pick || v._id === pick).map(v => vdCard(v, ed)).join('') + '</div>';
+ $('#view').innerHTML = h;
+ $('#vdPick').onchange = e => { try { localStorage.setItem('naigVdir', e.target.value); } catch(x) {} const u = new URL(location); if (e.target.value) u.searchParams.set('venue', e.target.value); else u.searchParams.delete('venue'); history.replaceState({}, '', u); RENDER.vdir(); };
+ $('#vdQ').oninput = e => { const s = e.target.value.toLowerCase(); $$('.vdCard tr').forEach(tr => tr.style.display = !s || tr.textContent.toLowerCase().includes(s) ? '' : 'none'); $$('.vdCard').forEach(c => c.style.display = !s || c.textContent.toLowerCase().includes(s) ? '' : 'none'); };
+ if (ed) { $$('[data-vdr]').forEach(r => r.onclick = () => { const [vk, rk] = r.dataset.vdr.split('|'); vdEditRole(vk, rk); });
+  $$('[data-vdc]').forEach(r => r.onclick = () => { const [vk, ck] = r.dataset.vdc.split('|'); vdEditContact(vk, ck); });
+  $$('[data-vdadd]').forEach(b => b.onclick = () => vdEditContact(b.dataset.vdadd, null)); $$('[data-vdrole]').forEach(b => b.onclick = () => vdEditRole(b.dataset.vdrole, null)); }
+ $('#vdCsv').onclick = () => { const rows = []; all.filter(x => !pick || x.v._id === pick).forEach(x => { x.roles.forEach(r => (r.people.length ? r.people : ['TBD']).forEach(n => { const p = vdPerson(n) || {}; rows.push({ venue:x.v.name, group:r.grp === 'site' ? 'Site Management' : r.grp === 'sport' ? 'Sports' : 'Venue leads', role:r.label, name:n, phone:p.phone || '', email:p.email || '' }); }));
+   ents((x.v.directory || {}).contacts).forEach(([k, c]) => rows.push({ venue:x.v.name, group:'Stakeholder', role:c.role || '', name:(c.name || '') + (c.org ? ' (' + c.org + ')' : ''), phone:c.phone || '', email:c.email || '' })); });
+  csv('naig-venue-directory', [['Venue','venue'],['Group','group'],['Role','role'],['Name','name'],['Phone','phone'],['Email','email']], rows); };
+ $('#vdPrint').onclick = () => window.print();
+};
+function vdEditRole(vk, rk){ const v = Object.assign({ _id:vk }, S.venues[vk] || {}), roles = vdRoles(v), r = rk ? roles.find(x => x.k === rk) : { k:'', label:'', hint:'', people:[], custom:true };
+ if (!r) return; const ppl = [...new Set(people().concat(r.people))].sort(), sm = arr(S.prospects).filter(p => /site management/i.test(p.vertical || '')).map(p => p.name);
+ const opts = (r.grp === 'site' ? sm.concat(ppl.filter(n => !sm.includes(n))) : ppl);
+ openDrawer(rk ? r.label + ' · ' + v.name : 'New role · ' + v.name, (rk ? '<p class="hint" style="margin-top:12px">' + esc(r.hint) + '</p>' : '<label class="l">Role name</label><input id="vdLbl" placeholder="e.g. Equipment lead"><label class="l">What they do</label><input id="vdHint">')
+  + '<label class="l">People (pick from the Directory)</label><input id="vdF" placeholder="Filter names"><div class="gtDeps" id="vdPpl">' + opts.map(n => '<label class="chk" data-n="' + esc(n.toLowerCase()) + '"><input type="checkbox" value="' + esc(n) + '"' + (r.people.includes(n) ? ' checked' : '') + '> ' + esc(n) + (vdPerson(n) && vdPerson(n).vertical ? ' <small>' + esc(vdPerson(n).vertical) + '</small>' : '') + '</label>').join('') + '</div>'
+  + '<p class="hint">Someone not in the Directory yet? Add them to the Directory first so their phone and email show here.</p><label class="l">Note</label><input id="vdNote" value="' + esc(r.note || '') + '" placeholder="Shift, backup, radio channel…">',
+  '<button class="btn pri" id="vdSave" type="button">Save</button>' + (r.custom && rk ? ' <button class="btn" id="vdDel" type="button">Remove role</button>' : ''));
+ $('#vdF').oninput = e => { const s = e.target.value.toLowerCase(); $$('#vdPpl label').forEach(l => l.style.display = l.dataset.n.includes(s) ? '' : 'none'); };
+ $('#vdSave').onclick = async () => { const sel = $$('#vdPpl input:checked').map(i => i.value), note = $('#vdNote').value; let k = rk, val = { people:sel, note, updated:Date.now(), updatedBy:me() };
+  if (!rk) { const lbl = $('#vdLbl').value.trim(); if (!lbl) { toast('Name the role.'); return; } k = 'c_' + Date.now(); Object.assign(val, { custom:true, label:lbl, hint:$('#vdHint').value.trim() }); }
+  if (await save('venues/' + vk + '/directory/roles/' + k, val, 'venue', v.name, (r.label || 'Role') + ' updated in venue directory')) closeDrawer(); };
+ $('#vdDel') && ($('#vdDel').onclick = async () => { if (await save('venues/' + vk + '/directory/roles', { [rk]:null }, 'venue', v.name, r.label + ' removed from venue directory')) closeDrawer(); });
+}
+function vdEditContact(vk, ck){ const v = S.venues[vk] || {}, c = ck ? Object.assign({}, ((v.directory || {}).contacts || {})[ck]) : {};
+ const f = (id, l, val, ph) => '<label class="l">' + l + '</label><input id="' + id + '" value="' + esc(val || '') + '" placeholder="' + (ph || '') + '">';
+ openDrawer(ck ? (c.name || 'Stakeholder') : 'New stakeholder · ' + v.name, f('vcRole', 'Role', c.role, 'e.g. City parks contact, caterer, EMS') + f('vcName', 'Name', c.name) + f('vcOrg', 'Organization', c.org) + '<div class="g2"><div>' + f('vcPhone', 'Phone', c.phone) + '</div><div>' + f('vcEmail', 'Email', c.email) + '</div></div><p class="hint">Only add contacts you have from the partner directly.</p>',
+  '<button class="btn pri" id="vcSave" type="button">Save</button>' + (ck ? ' <button class="btn" id="vcDel" type="button">Remove</button>' : ''));
+ $('#vcSave').onclick = async () => { const val = { role:$('#vcRole').value.trim(), name:$('#vcName').value.trim(), org:$('#vcOrg').value.trim(), phone:$('#vcPhone').value.trim(), email:$('#vcEmail').value.trim(), updated:Date.now(), updatedBy:me() }; if (!val.name && !val.org) { toast('Add a name or organization.'); return; }
+  if (await save('venues/' + vk + '/directory/contacts/' + (ck || 'c' + Date.now()), val, 'venue', v.name, 'Stakeholder saved in venue directory')) closeDrawer(); };
+ $('#vcDel') && ($('#vcDel').onclick = async () => { if (await save('venues/' + vk + '/directory/contacts', { [ck]:null }, 'venue', v.name, 'Stakeholder removed from venue directory')) closeDrawer(); });
 }
 
 /* ══════════ theme, boot ══════════ */
