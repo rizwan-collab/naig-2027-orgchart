@@ -455,6 +455,7 @@ function renderOrg() {
 /* ===== my tasks (local) + overlay ===== */
 const ownerName = id => (personById(id) || {}).name || 'No owner';
 const vList = () => D.verts.concat(['Other']);
+const vAll = () => D.verts.concat(['Unsorted', 'Other']);
 const vOf = t => vList().includes(t.vert) ? t.vert : 'Other';
 const vColor = v => D.vcolor[v] || '#64748b';
 
@@ -504,10 +505,11 @@ const isCoreV = v => /core/i.test(v || '');
 function allRows() {
   const td = todayS(), w = cur(), wk = addDays(td, 7), rows = [];
   const mk = (src, id, v, title, ownerNames, due, rawStatus, notes, extra) => {
-    const hubDue0 = due; ownerNames = ownerNames.map(canonName); const k = src + ':' + id, o = ovGet(k), hs = String(rawStatus || '').toLowerCase().replace(/[^a-z]/g, '');
+    const hubV0 = v; const hubDue0 = due; ownerNames = ownerNames.map(canonName); const k = src + ':' + id, o = ovGet(k), hs = String(rawStatus || '').toLowerCase().replace(/[^a-z]/g, '');
+    if (o.vertBy && vAll().includes(o.vertBy)) v = o.vertBy;   // vertical moved on this page (shared); the hub task's own vertical is not changed
     if (/^\d{4}-\d{2}-\d{2}$/.test(o.dueBy || '')) due = o.dueBy;   // "Due by" set on this page (shared); the hub task's own date is not changed
     const status = o.status || (hs === 'blocked' ? 'blocked' : /progress|doing|started/.test(hs) ? 'progress' : hs === 'done' ? 'done' : 'open');
-    const deps = o.deps || [], r = { k, src, id, v, title, ownerNames, owners: ownerNames.join(', '), due, hubDue: hubDue0, dueSet: due !== hubDue0, status, notes, updates: o.updates || [], deps,
+    const deps = o.deps || [], r = { k, src, id, v, title, ownerNames, owners: ownerNames.join(', '), due, hubDue: hubDue0, dueSet: due !== hubDue0, hubV: hubV0, vSet: v !== hubV0, status, notes, updates: o.updates || [], deps,
       waiting: deps.some(d => !d.resolved), hold: hs === 'onhold' || holdRe.test(title) || !!o.parked, deferTo: o.deferTo || '', closedAt: o.closedAt || 0, hidden: !!o.hidden, hiddenWhy: o.hiddenWhy || '' };
     r.done = status === 'done'; r.deferred = !r.done && !!r.deferTo && r.deferTo > w;
     r.blocked = !r.done && (status === 'blocked' || r.waiting); r.late = !r.done && !!due && due < td;
@@ -691,6 +693,8 @@ function renderDetail() {
     + '<div class="m" style="color:var(--mut);font-size:12px"><span class="src ' + r.src + '">' + (r.src === 'mine' ? 'pmo' : r.src) + '</span>' + esc(r.v) + ' · ' + esc(r.owners || 'No owner') + ' · due ' + fmtD(r.due) + (r.deferred ? ' · moved to ' + fmtD(r.deferTo) : '') + '</div>'
     + (r.notes ? '<div class="upd sys" style="margin-top:6px">' + esc(String(r.notes).slice(0, 400)) + '</div>' : '')
     + (r.src === 'hub' ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Hub task: status, updates, dependencies and moves are shared with everyone using this page. The hub task itself is not changed.</div>' : '')
+    + '<h4>Vertical</h4><div class="row" style="grid-template-columns:1fr auto"><select id="dVert">' + vAll().filter((x, i, a) => a.indexOf(x) === i && (x !== 'Unsorted' || r.v === 'Unsorted')).map(x => '<option' + (x === r.v ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select><button class="btn" data-act="vertReset"' + (r.src === 'hub' && r.vSet ? '' : ' disabled') + ' title="Back to where the hub puts it">Reset</button></div>'
+    + (r.vSet && r.src === 'hub' ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Moved here from ' + esc(r.hubV) + '. Shared with everyone using this page; the hub task is not changed.</div>' : '')
     + '<h4>Due by</h4><div class="row" style="grid-template-columns:1fr auto"><input type="date" id="dDue" value="' + esc(r.due || '') + '"><button class="btn" data-act="dueReset"' + ((r.src === 'mine' ? r.due : r.dueSet) ? '' : ' disabled') + ' title="' + (r.src === 'hub' ? 'Back to the hub date' : 'Clear the date') + '">' + (r.src === 'hub' ? 'Reset' : 'Clear') + '</button></div>'
     + '<div class="acts"><button class="btn" data-act="dueSet" data-d="' + addDays(todayS(), 1) + '">Tomorrow</button><button class="btn" data-act="dueSet" data-d="' + addDays(cur(), 4) + '">This Friday</button><button class="btn" data-act="dueSet" data-d="' + addDays(cur(), 11) + '">Next Friday</button></div>'
     + (r.dueSet ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Changed here' + (r.hubDue ? ' (hub says ' + fmtD(r.hubDue) + ')' : '') + '. Shared with everyone using this page; the hub task is not changed.</div>' : '')
@@ -704,6 +708,13 @@ function renderDetail() {
     + '<div class="row" style="margin-top:6px"><select id="depV"><option value="">Waiting on…</option>' + dopts + '</select><input id="depTxt" placeholder="What do we need from them?" value="' + esc(dv.dep) + '"></div><div class="acts"><button class="btn" data-act="depAdd">Add dependency</button></div>'
     + attachHtml(r)
     + '<h4>History</h4>' + ups;
+}
+function setVert(r, v) {
+  if (v && !vAll().includes(v)) return;
+  if (v === r.v) return;
+  if (r.src === 'mine') W('tasks/' + r.id + '/vert', v);   // a task created on this page: its own record
+  else ovSet(r.k, 'vertBy', v && v !== r.hubV ? v : null);  // a hub task: shared overlay, hub copy untouched
+  logSys(r.k, v ? 'Moved from ' + r.v + ' to ' + v : 'Vertical reset to ' + r.hubV);
 }
 function setDue(r, d) {
   if (d && !/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
@@ -735,6 +746,7 @@ $('#syncsec').addEventListener('click', e => {
   const a = e.target.closest('[data-act]');
   if (a) {
     const r = ROWS.find(x => x.k === SK); if (!r) return; const act = a.dataset.act;
+    if (act === 'vertReset') { setVert(r, r.hubV); return afterChange(false); }
     if (act === 'dueSet') { setDue(r, a.dataset.d); return afterChange(false); }
     if (act === 'dueReset') { setDue(r, ''); return afterChange(false); }
     if (act === 'close') { setStatus(r, 'done'); return afterChange(true); }
@@ -760,7 +772,7 @@ $('#syncsec').addEventListener('click', e => {
   const row = e.target.closest('.srow'); if (row) { SK = row.dataset.k; renderAll(); return; }
   const vb = e.target.closest('.vbtn'); if (vb) { SV = vb.dataset.v; SK = ''; if (SV !== '*' && [...$('#fVert').options].some(o => o.value === SV)) $('#fVert').value = SV; renderAll(); }
 });
-$('#syncsec').addEventListener('change', e => { if (e.target.id === 'dDue') { const r = ROWS.find(x => x.k === SK); if (r) { setDue(r, e.target.value); afterChange(false); } return; } if (e.target.id === 'dStatus') { const r = ROWS.find(x => x.k === SK); if (r) { setStatus(r, e.target.value); afterChange(false); } } if (e.target.id === 'showHold') renderAll(); if (e.target.id === 'pSel') { PS = e.target.value; SK = ''; renderAll(); } });
+$('#syncsec').addEventListener('change', e => { if (e.target.id === 'dVert') { const r = ROWS.find(x => x.k === SK); if (r && e.target.value) { const from = r.v; setVert(r, e.target.value); if (SV !== '*' && !inV(Object.assign({}, r, { v: e.target.value }), SV)) SV = e.target.value; afterChange(false); } return; } if (e.target.id === 'dDue') { const r = ROWS.find(x => x.k === SK); if (r) { setDue(r, e.target.value); afterChange(false); } return; } if (e.target.id === 'dStatus') { const r = ROWS.find(x => x.k === SK); if (r) { setStatus(r, e.target.value); afterChange(false); } } if (e.target.id === 'showHold') renderAll(); if (e.target.id === 'pSel') { PS = e.target.value; SK = ''; renderAll(); } });
 $('#syncsec').addEventListener('input', e => { if (e.target.id === 'updTxt' || e.target.id === 'depTxt') { DRAFT.k = SK; DRAFT[e.target.id === 'updTxt' ? 'upd' : 'dep'] = e.target.value; DRAFT.focus = e.target.id; } });
 $('#syncsec').addEventListener('keydown', e => { if (e.target.id === 'updTxt' && e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); const b = $('#tdetail [data-act="updAdd"]'); b && b.click(); } });
 $('#orgToggle').onclick = () => { ORGOPEN = !ORGOPEN; localStorage.setItem('naigPmo.orgOpen', ORGOPEN ? '1' : '0'); renderOrg(); };
