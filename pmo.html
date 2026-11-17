@@ -473,7 +473,8 @@ function normOv(raw) {
   Object.entries(raw || {}).forEach(([k, o]) => { if (!o || typeof o !== 'object') return; const x = Object.assign({}, o);
     x.updates = ents(o.updates).map(([id, u]) => Object.assign({ id }, u)).sort((a, b) => (a.at || 0) - (b.at || 0));
     x.deps = ents(o.deps).map(([id, d]) => Object.assign({ id }, d)).sort((a, b) => (a.at || 0) - (b.at || 0));
-    x.sites = ents(o.sites).map(([id, t]) => Object.assign({ id }, t)).filter(t => t.name).sort((a, b) => (a.at || 0) - (b.at || 0));
+    { const seenS = new Set(); x.sites = ents(o.sites).map(([id, t]) => Object.assign({ id }, t, { name: siteCanon(t && t.name) })).filter(t => t.name).sort((a, b) => (a.at || 0) - (b.at || 0))
+        .filter(t => { const k = key(t.name); if (seenS.has(k)) return false; seenS.add(k); return true; }); }
     x.needs = ents(o.needs).map(([id, n]) => Object.assign({ id }, n)).filter(n => n.k).sort((a, b) => (a.at || 0) - (b.at || 0)); out[k] = x; });
   return out;
 }
@@ -573,7 +574,9 @@ function allRows() {
 /* ===== weekly sync ===== */
 const SITE_ST = { todo: 'To do', ordered: 'Ordered', received: 'Received', notneeded: 'Not needed' };
 const siteDone = t => !!t.done || t.status === 'notneeded';
-const SITE_PRESET = ['Northlake', 'Farmers Branch', 'RailRoad', 'Pickler'];   // standard sites, supplied by Azmina
+const PICKL = 'Pickler Universe';
+const siteCanon = n => /pickl/i.test(n || '') ? PICKL : String(n || '').trim();   // Pickler, Picklr and Picklr Universe are all the one site
+const SITE_PRESET = ['Northlake', 'Farmers Branch', 'RailRoad', PICKL];   // standard sites, supplied by Azmina
 let ALLK = {}, NOTICE = null;   // ALLK: every task by key (including done and hidden), so prerequisites can be found
 let EDIT = '', EDRAFT = { title: '', notes: '' }, CL = false, PS = '', SV = '*', SK = '', ORDER = [], DRAFT = { k: '', upd: '', dep: '', focus: '' };
 const syncRows = () => { const m = matcher(SEL); return ROWS.filter(r => rowMatch(m, r)); };
@@ -784,7 +787,7 @@ function reaches(a, b, seen) { seen = seen || new Set(); if (a === b) return tru
 let NEEDMAP = {};
 function siteCands(r) {
   const have = new Set(r.sites.map(t => key(t.name))), seen = new Set(), out = [];
-  SITE_PRESET.concat(ents(D.venues).filter(([k, v]) => v && !v.archived && v.name).map(([k, v]) => String(v.name))).forEach(n => { const k = key(n); if (k && !have.has(k) && !seen.has(k)) { seen.add(k); out.push(n); } });
+  SITE_PRESET.concat(ents(D.venues).filter(([k, v]) => v && !v.archived && v.name).map(([k, v]) => siteCanon(v.name))).forEach(n => { const k = key(n); if (k && !have.has(k) && !seen.has(k)) { seen.add(k); out.push(n); } });
   return out;
 }
 function sitesHtml(r) {
@@ -905,7 +908,7 @@ $('#syncsec').addEventListener('click', e => {
     if (act === 'hdepBack') { e.preventDefault(); const t = a.dataset.t; ovSet(r.k, 'hdep/' + sk(t) + '/removed', null); logSys(r.k, 'Restored hub dependency: ' + t); return afterChange(false); }
     if (act === 'siteAdd' || act === 'siteAddAll') {
       const names = act === 'siteAddAll' ? SITE_PRESET.filter(p => !r.sites.some(t => key(t.name) === key(p))) : [($('#siteQ').value || '').trim().replace(/\s+/g, ' ')];
-      const cands = siteCands(r), canon = nm => cands.find(c => key(c) === key(nm)) || nm;   // typed names snap to the matching venue / standard site name
+      const cands = siteCands(r), canon = nm => cands.find(c => key(c) === key(siteCanon(nm))) || siteCanon(nm);   // typed names snap to the matching venue / standard site name
       const add = names.map(canon).filter(nm => nm && key(nm) && !r.sites.some(t => key(t.name) === key(nm)));
       if (!add.length) { NOTICE = { k: r.k, text: names[0] ? 'That site is already on this task.' : 'Type or pick a site name first.' }; return afterChange(false); }
       add.forEach((nm, i) => W(ovPath(r.k) + '/sites/' + sk(key(nm)), { name: nm, done: false, status: 'todo', note: '', at: Date.now() + i, by: attWho() }));
