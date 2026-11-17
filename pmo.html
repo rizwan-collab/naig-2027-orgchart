@@ -666,7 +666,7 @@ function renderSync() {
   // left: verticals
   const vs = D.verts.concat([NONV]).filter((v, i, a) => a.indexOf(v) === i).filter(v => D.verts.includes(v) || rows.some(r => r.v === v));
   const vb = (v, label, green) => { const t = vStat(rows, v);
-    return '<button class="vbtn' + (green ? ' grn' : brCls(vBranch(v))) + (SV === v ? ' on' : '') + '" data-v="' + esc(v) + '" style="border-left-color:' + (v === '*' ? '#1e3a8a' : vColor(v)) + '"><b>' + esc(label) + '</b><div class="vp"><span class="pill">' + t.open + ' open</span>'
+    return '<button class="vbtn' + (green ? ' grn' : brCls(vBranch(v))) + (SV === v ? ' on' : '') + '" data-v="' + esc(v) + '" style="border-left-color:' + (v === '*' ? '#1e3a8a' : vColor(v)) + '"><b>' + esc(label) + '</b>' + (v === '*' ? '<div class="m" style="font-size:11px;color:var(--mut)">Every vertical + Core Team + Non-Vertical</div>' : '') + '<div class="vp"><span class="pill">' + t.open + ' open</span>'
       + (t.blocked ? '<span class="pill warn">' + t.blocked + ' blocked/dep</span>' : '') + (t.late ? '<span class="pill bad">' + t.late + ' overdue</span>' : '') + (t.incoming ? '<span class="pill warn">' + t.incoming + ' waiting on us</span>' : '') + (t.closed ? '<span class="pill good">' + t.closed + ' closed</span>' : '') + '</div></button>'; };
   const ORDER_V = [/site/i, /hotel/i, /f&b|f and b|food/i, /transport/i, /procure/i, /design/i], main = [];
   ORDER_V.forEach(re => { const v = vs.find(x => !main.includes(x) && !isCoreV(x) && x !== NONV && re.test(x)); if (v) main.push(v); });
@@ -682,7 +682,7 @@ function renderSync() {
   const incoming = SV === '*' ? [] : rows.filter(r => !r.done && !r.deferred && pf(r) && r.v !== SV && r.deps.some(d => !d.resolved && d.on === SV));
   const closed = rows.filter(r => inV(r, SV) && pf(r) && r.closedThisWeek), moved = rows.filter(r => inV(r, SV) && pf(r) && r.deferred);
   ORDER = act.map(r => r.k);
-  $('#mhead').innerHTML = '<select id="pSel" style="margin-bottom:8px" title="Filter this vertical by person">' + popts + '</select><div class="mh"><b>' + esc(SV === '*' ? 'All verticals' : SV) + (PS ? ' · ' + esc(PLABEL[PS])  : '') + '</b><span class="pill">' + act.length + ' open</span><button class="btn noprint" data-cl="start" style="margin-left:auto">Clean up</button>' + (closed.length ? '<span class="pill good">' + closed.length + ' closed this week</span>' : '') + (moved.length ? '<span class="pill">' + moved.length + ' moved to next week</span>' : '') + '</div>';
+  $('#mhead').innerHTML = '<select id="pSel" style="margin-bottom:8px" title="Filter this vertical by person">' + popts + '</select><div class="mh"><b>' + esc(SV === '*' ? 'All verticals + Core Team + Non-Vertical' : SV) + (PS ? ' · ' + esc(PLABEL[PS])  : '') + '</b><span class="pill">' + act.length + ' open</span><button class="btn noprint" data-cl="start" style="margin-left:auto">Clean up</button>' + (closed.length ? '<span class="pill good">' + closed.length + ' closed this week</span>' : '') + (moved.length ? '<span class="pill">' + moved.length + ' moved to next week</span>' : '') + '</div>';
   let h = '';
   if (incoming.length) h += '<div class="gh warn">Other verticals are waiting on ' + esc(SV) + ' (' + incoming.length + ')</div>' + incoming.map(r => srowHtml(r, true)).join('');
   for (let b = 0; b < 5; b++) { const g = act.filter(r => r.b === b); if (g.length) h += '<div class="gh">' + BNAME[b] + ' (' + g.length + ')</div>' + g.map(r => srowHtml(r, SV === '*')).join(''); }
