@@ -146,7 +146,7 @@ table.sm th:first-child,table.sm td:first-child{text-align:left}table.sm th{font
 .br-soh{background:#f3f8ff}.br-kir{background:#fffcea}
 .node.br-soh,.srow.br-soh,.vbtn.br-soh,.cogroup.br-soh{background:#f3f8ff}.node.br-kir,.srow.br-kir,.vbtn.br-kir,.cogroup.br-kir{background:#fffcea}
 .srow.on.br-soh,.vbtn.on.br-soh{background:#e3eeff}.srow.on.br-kir,.vbtn.on.br-kir{background:#fff4c2}
-.site{border:1px solid var(--line);border-radius:6px;padding:5px 7px;margin:4px 0;background:#fff}.site.ok{background:#f1faf3}.site .sr{display:flex;align-items:center;gap:6px}.site .sr b{flex:1}.site .sr input{width:auto}.site .sr select{width:auto;padding:2px 4px;font-size:12px}.site .sn{margin-top:4px;font-size:12px;padding:3px 6px}
+.site{border:1px solid var(--line);border-radius:6px;padding:5px 7px;margin:4px 0;background:#fff}.site.ok{background:#f1faf3}.site .sr{display:flex;align-items:center;gap:6px}.site .sr b{flex:1}.grip{cursor:grab;color:#94a3b8;letter-spacing:-3px;padding:0 4px 0 0;user-select:none;font-weight:700}.grip:active{cursor:grabbing}.site.dragging{opacity:.4}.site.dropb{box-shadow:0 -3px 0 #3b82f6}.site.dropa{box-shadow:0 3px 0 #3b82f6}.mv{display:inline-flex;gap:2px}.mv .btn{padding:0 5px;font-size:11px}.site .sr input{width:auto}.site .sr select{width:auto;padding:2px 4px;font-size:12px}.site .sn{margin-top:4px;font-size:12px;padding:3px 6px}
 .bar{height:6px;background:#e2e8f0;border-radius:99px;overflow:hidden;margin:2px 0 6px}.bar i{display:block;height:100%;background:#4ea86a}
 .note-bad{background:#fee2e2;color:#7f1d1d;border-radius:6px;padding:6px 8px;font-size:12px;margin:6px 0}
 .cl-head{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.dgrp{border:1px dashed #cbd5e1;border-radius:8px;padding:6px;margin-bottom:8px;background:#fafafa}
@@ -808,11 +808,29 @@ function siteCands(r) {
   SITE_PRESET.concat(ents(D.venues).filter(([k, v]) => v && !v.archived && v.name).map(([k, v]) => siteCanon(v.name))).forEach(n => { const k = key(n); if (k && !have.has(k) && !seen.has(k)) { seen.add(k); out.push(n); } });
   return out;
 }
+/* Reordering: items are ordered by their "at" number. Moving one item writes ONE new number between its new neighbours, so two people moving different items never overwrite each other. */
+function moveItem(r, kind, id, targetId, after) {
+  const list = (kind === 'step' ? r.steps : r.sites).slice(), base = ovPath(r.k) + '/' + (kind === 'step' ? 'steps' : 'sites') + '/';
+  const me = list.find(x => x.id === id); if (!me) return;
+  const rest = list.filter(x => x.id !== id), ti = rest.findIndex(x => x.id === targetId); if (ti < 0) return;
+  const at = ti + (after ? 1 : 0), prev = rest[at - 1], next = rest[at];
+  if (list.indexOf(me) === at) return;   // dropped where it already is
+  let v;
+  if (prev && next) v = (prev.at + next.at) / 2; else if (prev) v = prev.at + 1000; else v = next.at - 1000;
+  if (prev && next && !(v > prev.at && v < next.at)) { const t0 = Date.now(); rest.splice(at, 0, me); rest.forEach((x, i) => W(base + x.id + '/at', t0 + i * 1000)); }   // numbers too close: renumber the list
+  else W(base + id + '/at', v);
+  logSys(r.k, (kind === 'step' ? 'Step' : 'Site') + ' moved: ' + (me.text || me.name));
+}
+function nudge(r, kind, id, dir) {
+  const list = kind === 'step' ? r.steps : r.sites, i = list.findIndex(x => x.id === id), j = i + dir; if (i < 0 || j < 0 || j >= list.length) return;
+  moveItem(r, kind, id, list[j].id, dir > 0);
+}
+let DRAGI = null;
 function stepsHtml(r) {
   const n = r.steps.length, d = n - r.openSteps.length, first = r.openSteps[0];
-  const rows = r.steps.map((t, i) => '<div class="site' + (t.done ? ' ok' : '') + '"><div class="sr"><input type="checkbox" data-stepchk="' + esc(t.id) + '"' + (t.done ? ' checked' : '') + '><span style="flex:1' + (t.done ? ';text-decoration:line-through;color:var(--mut)' : '') + '"><b style="font-weight:600">' + (i + 1) + '. ' + esc(t.text) + '</b></span>'
+  const rows = r.steps.map((t, i) => '<div class="site' + (t.done ? ' ok' : '') + '" data-row="step" data-rid="' + esc(t.id) + '"><div class="sr">' + '<span class="grip" draggable="true" data-grip="step" title="Drag to move">&#8942;&#8942;</span>' + '<input type="checkbox" data-stepchk="' + esc(t.id) + '"' + (t.done ? ' checked' : '') + '><span style="flex:1' + (t.done ? ';text-decoration:line-through;color:var(--mut)' : '') + '"><b style="font-weight:600">' + (i + 1) + '. ' + esc(t.text) + '</b></span>'
     + '<select data-stepteam="' + esc(t.id) + '" title="Team that owns this step"><option value="">Our team</option>' + STEP_TEAMS.map(x => '<option' + (t.team === x ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>'
-    + '<button class="btn" data-act="stepDel" data-id="' + esc(t.id) + '" title="Remove this step">&times;</button></div></div>').join('');
+    + '<span class="mv"><button class="btn" data-act="stepUp" data-id="' + esc(t.id) + '" title="Move up"' + (i === 0 ? ' disabled' : '') + '>&uarr;</button><button class="btn" data-act="stepDown" data-id="' + esc(t.id) + '" title="Move down"' + (i === n - 1 ? ' disabled' : '') + '>&darr;</button></span><button class="btn" data-act="stepDel" data-id="' + esc(t.id) + '" title="Remove this step">&times;</button></div></div>').join('');
   const presets = Object.keys(STEP_PRESETS).filter(k => (!STEP_PRESET_WHEN[k] || STEP_PRESET_WHEN[k](r)) && !STEP_PRESETS[k].every(p => r.steps.some(t => key(t.text) === key(p[0])))).map(k => '<button class="btn' + (n ? '' : ' pri') + '" data-act="stepPreset" data-p="' + esc(k) + '">Add the ' + esc(k.toLowerCase()) + ' steps (' + STEP_PRESETS[k].length + ')</button>').join('');
   return '<h4>Steps' + (n ? ' (' + d + ' of ' + n + ' done)' : '') + '</h4>' + (n ? '<div class="bar"><i style="width:' + Math.round(100 * d / n) + '%"></i></div>' : '')
     + (first && first.team ? '<div class="m" style="margin-bottom:4px">Waiting on <b>' + esc(first.team) + '</b> for: ' + esc(first.text) + '</div>' : '')
@@ -823,9 +841,9 @@ function stepsHtml(r) {
 }
 function sitesHtml(r) {
   const n = r.sites.length, d = n - r.openSites.length, cands = siteCands(r), left = SITE_PRESET.filter(p => !r.sites.some(t => key(t.name) === key(p)));
-  const rows = r.sites.map(t => '<div class="site' + (siteDone(t) ? ' ok' : '') + '"><div class="sr"><input type="checkbox" data-sitechk="' + esc(t.id) + '"' + (t.done ? ' checked' : '') + '><b>' + esc(t.name) + '</b>'
+  const rows = r.sites.map((t, i) => '<div class="site' + (siteDone(t) ? ' ok' : '') + '" data-row="site" data-rid="' + esc(t.id) + '"><div class="sr">' + '<span class="grip" draggable="true" data-grip="site" title="Drag to move">&#8942;&#8942;</span>' + '<input type="checkbox" data-sitechk="' + esc(t.id) + '"' + (t.done ? ' checked' : '') + '><b>' + esc(t.name) + '</b>'
     + '<select data-sitest="' + esc(t.id) + '">' + Object.keys(SITE_ST).map(k => '<option value="' + k + '"' + ((t.status || 'todo') === k ? ' selected' : '') + '>' + SITE_ST[k] + '</option>').join('') + '</select>'
-    + '<button class="btn" data-act="siteDel" data-id="' + esc(t.id) + '" title="Remove this site">&times;</button></div>'
+    + '<span class="mv"><button class="btn" data-act="siteUp" data-id="' + esc(t.id) + '" title="Move up"' + (i === 0 ? ' disabled' : '') + '>&uarr;</button><button class="btn" data-act="siteDown" data-id="' + esc(t.id) + '" title="Move down"' + (i === n - 1 ? ' disabled' : '') + '>&darr;</button></span><button class="btn" data-act="siteDel" data-id="' + esc(t.id) + '" title="Remove this site">&times;</button></div>'
     + '<input class="sn" data-sitenote="' + esc(t.id) + '" placeholder="Note (PO #, vendor, quantity…)" value="' + esc(t.note || '') + '"></div>').join('');
   return '<h4>Sites' + (n ? ' (' + d + ' of ' + n + ' done)' : '') + '</h4>'
     + (n ? '<div class="bar"><i style="width:' + Math.round(100 * d / n) + '%"></i></div>' : '')
@@ -953,6 +971,8 @@ $('#syncsec').addEventListener('click', e => {
       add.forEach((p, i) => W(ovPath(r.k) + '/steps/' + uid(), { text: p[0], team: p[1] || '', done: false, at: Date.now() + i, by: attWho() }));
       logSys(r.k, 'Steps added: ' + add.map(p => p[0]).join('; ')); DRAFT.step = ''; return afterChange(false);
     }
+    if (act === 'stepUp' || act === 'stepDown') { nudge(r, 'step', a.dataset.id, act === 'stepUp' ? -1 : 1); return afterChange(false); }
+    if (act === 'siteUp' || act === 'siteDown') { nudge(r, 'site', a.dataset.id, act === 'siteUp' ? -1 : 1); return afterChange(false); }
     if (act === 'stepDel') { const t = r.steps.find(x => x.id === a.dataset.id); if (t) { W(ovPath(r.k) + '/steps/' + t.id, null); logSys(r.k, 'Step removed: ' + t.text); } return afterChange(false); }
     if (act === 'siteDel') { const t = r.sites.find(x => x.id === a.dataset.id); if (t) { W(ovPath(r.k) + '/sites/' + t.id, null); logSys(r.k, 'Site removed: ' + t.name); } return afterChange(false); }
     if (act === 'needAdd') {
@@ -1003,6 +1023,11 @@ $('#syncsec').addEventListener('change', e => {
   } if (e.target.dataset && e.target.dataset.hdep) { const r = ROWS.find(x => x.k === SK), t = e.target.dataset.hdep, st = e.target.value; if (r && DEP_ST[st]) { const d = r.hubDeps.find(x => x.team === t); ovSet(r.k, 'hdep/' + sk(t) + '/status', d && st === d.hubStatus ? null : st); logSys(r.k, 'Hub dependency ' + t + ': ' + DEP_ST[st]); afterChange(false); } return; } if (e.target.id === 'ownAdd') { const r = ROWS.find(x => x.k === SK), nm = e.target.value; if (r && nm) { setOwners(r, r.ownerNames.concat([nm]), 'Assigned to ' + nm); afterChange(false); } return; } if (e.target.id === 'dVert') { const r = ROWS.find(x => x.k === SK); if (r && e.target.value) { const from = r.v; setVert(r, e.target.value); if (SV !== '*' && !inV(Object.assign({}, r, { v: e.target.value }), SV)) SV = e.target.value; afterChange(false); } return; } if (e.target.id === 'dDue') { const r = ROWS.find(x => x.k === SK); if (r) { setDue(r, e.target.value); afterChange(false); } return; } if (e.target.id === 'dStatus') { const r = ROWS.find(x => x.k === SK); if (r) { setStatus(r, e.target.value); afterChange(false); } } if (e.target.id === 'showHold') renderAll(); if (e.target.id === 'pSel') { PS = e.target.value; SK = ''; renderAll(); } });
 $('#syncsec').addEventListener('input', e => { if (e.target.id === 'stepQ') { DRAFT.k = SK; DRAFT.step = e.target.value; } if (e.target.id === 'siteQ') { DRAFT.k = SK; DRAFT.site = e.target.value; } if (e.target.id === 'needQ') { DRAFT.k = SK; DRAFT.need = e.target.value; } if (e.target.id === 'eTitle') EDRAFT.title = e.target.value; if (e.target.id === 'eNotes') EDRAFT.notes = e.target.value; if (e.target.id === 'updTxt' || e.target.id === 'depTxt') { DRAFT.k = SK; DRAFT[e.target.id === 'updTxt' ? 'upd' : 'dep'] = e.target.value; DRAFT.focus = e.target.id; } });
 $('#syncsec').addEventListener('keydown', e => { if (e.target.id === 'updTxt' && e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); const b = $('#tdetail [data-act="updAdd"]'); b && b.click(); } });
+const clearDrop = () => document.querySelectorAll('.dropb,.dropa,.dragging').forEach(x => x.classList.remove('dropb', 'dropa', 'dragging'));
+$('#syncsec').addEventListener('dragstart', e => { const g = e.target.closest && e.target.closest('[data-grip]'); if (!g) return; const row = g.closest('[data-row]'); DRAGI = { kind: g.dataset.grip, id: row.dataset.rid, k: SK }; row.classList.add('dragging'); try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', row.dataset.rid); e.dataTransfer.setDragImage(row, 12, 12); } catch (x) {} });
+$('#syncsec').addEventListener('dragover', e => { if (!DRAGI) return; const row = e.target.closest && e.target.closest('[data-row="' + DRAGI.kind + '"]'); if (!row || row.dataset.rid === DRAGI.id) return; e.preventDefault(); const rc = row.getBoundingClientRect(), after = e.clientY > rc.top + rc.height / 2; document.querySelectorAll('.dropb,.dropa').forEach(x => x.classList.remove('dropb', 'dropa')); row.classList.add(after ? 'dropa' : 'dropb'); });
+$('#syncsec').addEventListener('drop', e => { if (!DRAGI) return; const row = e.target.closest && e.target.closest('[data-row="' + DRAGI.kind + '"]'); const d = DRAGI; DRAGI = null; if (!row || row.dataset.rid === d.id || d.k !== SK) { clearDrop(); return; } e.preventDefault(); const rc = row.getBoundingClientRect(), after = e.clientY > rc.top + rc.height / 2, r = ROWS.find(x => x.k === SK); clearDrop(); if (r) { moveItem(r, d.kind, d.id, row.dataset.rid, after); afterChange(false); } });
+$('#syncsec').addEventListener('dragend', () => { DRAGI = null; clearDrop(); });
 $('#orgToggle').onclick = () => { ORGOPEN = !ORGOPEN; localStorage.setItem('naigPmo.orgOpen', ORGOPEN ? '1' : '0'); renderOrg(); };
 
 /* ===== weekly summary ===== */
