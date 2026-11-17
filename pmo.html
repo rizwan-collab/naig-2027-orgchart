@@ -503,6 +503,13 @@ function canonName(n) {
   if (raw.split(/\s+/).length === 1) { const c = D.people.filter(x => key(String(x.name).split(/\s+/)[0]) === k); if (c.length === 1) return c[0].name; }
   return raw;
 }
+function createdMsOf(t, id) {
+  const v = t && (t.created || t.createdAt);
+  if (v) { const n = typeof v === 'number' ? v : Date.parse(v); if (n > 1e12 && n < 4e12) return n; }
+  const m = /^k(\d{13})/.exec(String(id || '')); if (m) { const n = +m[1]; if (n > 1e12 && n < 4e12) return n; }
+  return 0;
+}
+const fmtAdded = ms => { if (!ms) return ''; const d = new Date(ms), y = d.getFullYear() !== new Date().getFullYear(); return d.toLocaleDateString('en-US', y ? { month: 'short', day: 'numeric', year: 'numeric' } : { month: 'short', day: 'numeric' }); };
 const isCoreV = v => /core/i.test(v || '');
 function rollsToCore(name) {
   const p = D.people.find(x => key(x.name) === key(name)); let i = p && pid(p), g = 0;
@@ -533,12 +540,12 @@ function allRows() {
     r.hubDeps = []; Object.assign(r, extra || {}); every.push(r); return r;
   };
   ents(D.hubTasks).forEach(([id, t]) => { if (!t.title) return;
-    const r = mk('hub', id, hubVert(t), t.title, hubOwners(t), hubDue(t), t.status, t.notes || t.description || '', { hubDeps: hubDepsOf(t) });
+    const r = mk('hub', id, hubVert(t), t.title, hubOwners(t), hubDue(t), t.status, t.notes || t.description || '', { hubDeps: hubDepsOf(t), createdMs: createdMsOf(t, id), createdBy: t.createdBy || '' });
     if (!r.done && r.hubDeps.some(d => d.status === 'blocked')) { r.blocked = true; r.b = 0; }
     if (r.done && !OV[sk(r.k)]) return;   // done in the hub and untouched by me: not part of the working list
     rows.push(r); });
   ST.tasks.forEach(t => { if (t.week > w) return;
-    rows.push(mk('mine', t.id, vOf(t), t.title, (t.owners && typeof t.owners === 'object') ? Object.values(t.owners).filter(Boolean) : (t.owner ? [ownerName(t.owner)] : []), t.due || '', t.status, t.notes || '', { createdThisWeek: (t.createdAt || 0) >= wkMs() || (!t.createdAt && t.week === w) })); });
+    rows.push(mk('mine', t.id, vOf(t), t.title, (t.owners && typeof t.owners === 'object') ? Object.values(t.owners).filter(Boolean) : (t.owner ? [ownerName(t.owner)] : []), t.due || '', t.status, t.notes || '', { createdMs: createdMsOf(t, t.id), createdBy: t.createdBy || '', createdThisWeek: (t.createdAt || 0) >= wkMs() || (!t.createdAt && t.week === w) })); });
   /* Task-to-task prerequisites (ov/<task>/needs): a task with any unfinished prerequisite is blocked and cannot be closed on this page. */
   const byK = {}; every.forEach(r => byK[r.k] = r); ALLK = byK;
   every.forEach(r => { r.needs = (ovGet(r.k).needs || []).map(n => ({ id: n.id, k: n.k, t: byK[n.k] || null })); r.openNeeds = r.needs.filter(n => n.t && !n.t.done); r.blocksList = []; });
@@ -575,8 +582,8 @@ function pillsHtml(r) {
 function srowHtml(r, showV) {
   const na = attsOf(r).length;
   const last = r.updates.filter(u => !u.sys).slice(-1)[0];
-  return '<div class="srow' + brCls(rowBranch(r)) + (SK === r.k ? ' on' : '') + (r.done ? ' done' : '') + '" data-k="' + esc(r.k) + '"><div class="t"><span class="src ' + r.src + '">' + (r.src === 'mine' ? 'pmo' : r.src) + '</span>' + esc(r.title) + (na ? ' <span class="pill" title="Attachments">&#128206; ' + na + '</span>' : '') + '</div>'
-    + '<div class="m">' + esc(r.owners || 'No owner') + ' · <span style="' + (r.late ? 'color:var(--bad);font-weight:600' : '') + '">' + fmtD(r.due) + '</span>' + (showV ? ' · in ' + esc(r.v) : '') + '</div>'
+  return '<div class="srow' + brCls(rowBranch(r)) + (SK === r.k ? ' on' : '') + (r.done ? ' done' : '') + '" data-k="' + esc(r.k) + '"><div class="t">' + esc(r.title) + (na ? ' <span class="pill" title="Attachments">&#128206; ' + na + '</span>' : '') + '</div>'
+    + '<div class="m">' + esc(r.owners || 'No owner') + ' · <span style="' + (r.late ? 'color:var(--bad);font-weight:600' : '') + '">' + fmtD(r.due) + '</span>' + (showV ? ' · in ' + esc(r.v) : '') + (r.createdMs ? ' · <span title="When this task was created" style="font-size:11px">added ' + fmtAdded(r.createdMs) + '</span>' : '') + '</div>'
     + pillsHtml(r) + (last ? '<div class="lu">' + fmtDT(last.at) + ': ' + esc(String(last.text).slice(0, 120)) + '</div>' : '') + '</div>';
 }
 /* Person filter for the middle pane. '' = everyone, '@me' = my tasks incl. everything that rolls up to me, '@own' = assigned directly to me, 'n:<key>' = one person. */
@@ -638,7 +645,7 @@ function cleanupHtml(rows) {
   const dupKeys = new Set(groups.flat().map(r => r.k));
   const weak = open.filter(r => flagsOf(r).length).map(r => ({ r, f: flagsOf(r) })).sort((a, b) => b.f.length - a.f.length || (a.r.due || '9').localeCompare(b.r.due || '9'));
   const dupRows = groups.reduce((n, g) => n + g.length - 1, 0);
-  const row = (r, extra) => '<div class="srow' + brCls(rowBranch(r)) + '" data-k="' + esc(r.k) + '"><div class="t"><span class="src ' + r.src + '">' + (r.src === 'mine' ? 'pmo' : r.src) + '</span>' + esc(r.title) + '</div><div class="m">' + esc(r.owners || 'No owner') + ' · ' + fmtD(r.due) + '</div>' + (extra || '') + '</div>';
+  const row = (r, extra) => '<div class="srow' + brCls(rowBranch(r)) + '" data-k="' + esc(r.k) + '"><div class="t">' + esc(r.title) + '</div><div class="m">' + esc(r.owners || 'No owner') + ' · ' + fmtD(r.due) + '</div>' + (extra || '') + '</div>';
   let h = '<div class="cl-head"><b>Clean up ' + esc(SV === '*' ? 'all verticals' : SV) + '</b> <span class="pill">' + open.length + ' open</span> <span class="pill warn">' + dupRows + ' likely duplicates</span> <span class="pill warn">' + weak.length + ' to review</span> <button class="btn" data-cl="done">Done cleaning</button></div>'
     + '<div class="hint" style="color:var(--mut);font-size:12px;margin:4px 0 8px">Hiding and parking are shared with everyone using this page. The hub is not changed, and everything is reversible below.</div>';
   h += '<div class="gh">1. Likely duplicates (' + groups.length + ' groups)</div>';
@@ -726,7 +733,8 @@ function renderDetail() {
     + '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">' + (r.src === 'hub' ? 'Shared with everyone using this page; the hub task itself is not changed.' : 'Edits this task for everyone using this page.') + '</div></div>';
   const nb = r.openNeeds && r.openNeeds.length && !r.done;
   el.innerHTML = (ed ? editBox : '<div class="dt">' + esc(r.title) + ' <button class="btn noprint" data-act="editOpen" style="font-size:11px;padding:2px 8px;vertical-align:middle">Edit</button></div>')
-    + '<div class="m" style="color:var(--mut);font-size:12px"><span class="src ' + r.src + '">' + (r.src === 'mine' ? 'pmo' : r.src) + '</span>' + esc(r.v) + ' · ' + esc(r.owners || 'No owner') + ' · due ' + fmtD(r.due) + (r.deferred ? ' · moved to ' + fmtD(r.deferTo) : '') + '</div>'
+    + '<div class="m" style="color:var(--mut);font-size:12px">' + esc(r.v) + ' · ' + esc(r.owners || 'No owner') + ' · due ' + fmtD(r.due) + (r.deferred ? ' · moved to ' + fmtD(r.deferTo) : '') + '</div>'
+    + '<div class="m" style="color:var(--mut);font-size:11px">' + (r.createdMs ? 'Created ' + fmtAdded(r.createdMs) + ' ' + new Date(r.createdMs).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) + (r.createdBy ? ' by ' + esc(r.createdBy) : '') : 'Creation date not recorded') + '</div>'
     + (NOTICE && NOTICE.k === r.k ? '<div class="note-bad">' + esc(NOTICE.text) + '</div>' : '')
     + (nb ? '<div class="note-bad">Cannot be closed yet. Waiting on ' + r.openNeeds.length + ' task' + (r.openNeeds.length > 1 ? 's' : '') + ': ' + r.openNeeds.map(n => esc(n.t.title)).join('; ') + '</div>' : '')
     + (!ed && r.notes ? '<div class="upd sys" style="margin-top:6px">' + esc(String(r.notes).slice(0, 400)) + '</div>' : '')
