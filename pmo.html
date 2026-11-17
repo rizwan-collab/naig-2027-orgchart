@@ -575,7 +575,19 @@ function allRows() {
 
 /* ===== weekly sync ===== */
 const STEP_TEAMS = ['Legal', 'Finance', 'Sports', 'Registration', 'Technology', 'Marketing', 'Command Center'];   // steps owned by teams outside Logistics are tagged, not turned into their own cards
-const STEP_PRESETS = { 'Contract': [['Confirm timing with Sports', 'Sports'], ['Retrieve the contract from the site', ''], ['Legal review', 'Legal'], ['Send to Finance for approval', 'Finance'], ['Contract signed', '']] };
+const STEP_PRESETS = { 'Site contract': [
+  ['Request venue information (availability, rates, capacity, rules)', ''],
+  ['Review the contract terms and rates internally', ''],
+  ['Confirm dates and hours with Sports', 'Sports'],
+  ['Request the contract: send the venue our hours and days', ''],
+  ['Review the contract internally', ''],
+  ['Send the contract to Finance', 'Finance'],
+  ['Send the contract to Legal', 'Legal'],
+  ['Contract signed (our signature)', ''],
+  ['Contract counter-signed by the venue', ''],
+  ['Pay the deposit', 'Finance'],
+  ['File the signed contract and attach the link', '']] };
+const STEP_PRESET_WHEN = { 'Site contract': r => r.v === 'Site Management' };   // offered on Site Management cards only. Finance and Legal can run at the same time.
 const SITE_ST = { todo: 'To do', ordered: 'Ordered', received: 'Received', notneeded: 'Not needed' };
 const siteDone = t => !!t.done || t.status === 'notneeded';
 const PICKL = 'Pickler Universe';
@@ -801,7 +813,7 @@ function stepsHtml(r) {
   const rows = r.steps.map((t, i) => '<div class="site' + (t.done ? ' ok' : '') + '"><div class="sr"><input type="checkbox" data-stepchk="' + esc(t.id) + '"' + (t.done ? ' checked' : '') + '><span style="flex:1' + (t.done ? ';text-decoration:line-through;color:var(--mut)' : '') + '"><b style="font-weight:600">' + (i + 1) + '. ' + esc(t.text) + '</b></span>'
     + '<select data-stepteam="' + esc(t.id) + '" title="Team that owns this step"><option value="">Our team</option>' + STEP_TEAMS.map(x => '<option' + (t.team === x ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>'
     + '<button class="btn" data-act="stepDel" data-id="' + esc(t.id) + '" title="Remove this step">&times;</button></div></div>').join('');
-  const presets = Object.keys(STEP_PRESETS).filter(k => !STEP_PRESETS[k].every(p => r.steps.some(t => key(t.text) === key(p[0])))).map(k => '<button class="btn" data-act="stepPreset" data-p="' + esc(k) + '">Add the ' + esc(k.toLowerCase()) + ' steps</button>').join('');
+  const presets = Object.keys(STEP_PRESETS).filter(k => (!STEP_PRESET_WHEN[k] || STEP_PRESET_WHEN[k](r)) && !STEP_PRESETS[k].every(p => r.steps.some(t => key(t.text) === key(p[0])))).map(k => '<button class="btn' + (n ? '' : ' pri') + '" data-act="stepPreset" data-p="' + esc(k) + '">Add the ' + esc(k.toLowerCase()) + ' steps (' + STEP_PRESETS[k].length + ')</button>').join('');
   return '<h4>Steps' + (n ? ' (' + d + ' of ' + n + ' done)' : '') + '</h4>' + (n ? '<div class="bar"><i style="width:' + Math.round(100 * d / n) + '%"></i></div>' : '')
     + (first && first.team ? '<div class="m" style="margin-bottom:4px">Waiting on <b>' + esc(first.team) + '</b> for: ' + esc(first.text) + '</div>' : '')
     + (rows || '<div class="empty" style="padding:2px 0">No steps. Use steps for the small actions inside this task, such as confirm timing, retrieve the contract, Legal review, send to Finance.</div>')
