@@ -113,7 +113,8 @@ pre.summary{white-space:pre-wrap;background:#0f172a;color:#e2e8f0;border-radius:
 .sync{display:grid;grid-template-columns:230px minmax(320px,1fr) minmax(380px,1.1fr);gap:12px;align-items:start}
 @media(max-width:1150px){.sync{grid-template-columns:1fr}}
 .vbtn{display:block;width:100%;text-align:left;border:1px solid var(--line);border-left-width:6px;border-radius:8px;background:#fff;padding:8px 10px;margin-bottom:6px;cursor:pointer;font:inherit}
-.vbtn{background:#f1faf3}.vbtn:hover{background:#e6f5ea}.vbtn.on{background:#d3efdb;outline:2px solid #6cc788}
+.vbtn:hover{background:#f8fafc}.vbtn.on{background:#eff6ff;outline:2px solid #93c5fd}
+.vbtn.grn{background:#f1faf3}.vbtn.grn:hover{background:#e6f5ea}.vbtn.grn.on{background:#d3efdb;outline:2px solid #6cc788}
 .vbtn b{display:block;font-size:13px}.vbtn .vp{margin-top:3px;display:flex;flex-wrap:wrap;gap:4px}
 .smid #tlist{max-height:78vh;overflow:auto;padding-right:2px}
 .mh{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:6px}.mh b{font-size:16px}
@@ -664,14 +665,14 @@ function renderSync() {
   $('#selchip').innerHTML = SEL ? '<span class="chip">Filtered to ' + esc(selName()) + ' <a href="#" id="selClear">clear</a></span>' : '';
   // left: verticals
   const vs = D.verts.concat([NONV]).filter((v, i, a) => a.indexOf(v) === i).filter(v => D.verts.includes(v) || rows.some(r => r.v === v));
-  const vb = (v, label) => { const t = vStat(rows, v);
-    return '<button class="vbtn' + (SV === v ? ' on' : '') + '" data-v="' + esc(v) + '" style="border-left-color:' + (v === '*' ? '#1e3a8a' : vColor(v)) + '"><b>' + esc(label) + '</b><div class="vp"><span class="pill">' + t.open + ' open</span>'
+  const vb = (v, label, green) => { const t = vStat(rows, v);
+    return '<button class="vbtn' + (green ? ' grn' : brCls(vBranch(v))) + (SV === v ? ' on' : '') + '" data-v="' + esc(v) + '" style="border-left-color:' + (v === '*' ? '#1e3a8a' : vColor(v)) + '"><b>' + esc(label) + '</b><div class="vp"><span class="pill">' + t.open + ' open</span>'
       + (t.blocked ? '<span class="pill warn">' + t.blocked + ' blocked/dep</span>' : '') + (t.late ? '<span class="pill bad">' + t.late + ' overdue</span>' : '') + (t.incoming ? '<span class="pill warn">' + t.incoming + ' waiting on us</span>' : '') + (t.closed ? '<span class="pill good">' + t.closed + ' closed</span>' : '') + '</div></button>'; };
   const ORDER_V = [/site/i, /hotel/i, /f&b|f and b|food/i, /transport/i, /procure/i, /design/i], main = [];
   ORDER_V.forEach(re => { const v = vs.find(x => !main.includes(x) && !isCoreV(x) && x !== NONV && re.test(x)); if (v) main.push(v); });
   const core = vs.find(isCoreV), extra = vs.filter(v => !main.includes(v) && v !== core && v !== NONV);   // any vertical not in the fixed list still gets a tile
   $('#vlist').innerHTML = main.map(v => vb(v, v)).join('') + extra.map(v => vb(v, v)).join('')
-    + (core ? vb(core, 'Core Team') : '') + vb(NONV, NONV) + vb('*', 'All verticals');
+    + (core ? vb(core, 'Core Team', true) : '') + vb(NONV, NONV, true) + vb('*', 'All verticals', true);
   // middle: task list
   const vrows = rows.filter(r => inV(r, SV));
   const popts = personOptions(vrows);
