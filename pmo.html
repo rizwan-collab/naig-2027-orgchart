@@ -146,6 +146,8 @@ table.sm th:first-child,table.sm td:first-child{text-align:left}table.sm th{font
 .br-soh{background:#f3f8ff}.br-kir{background:#fffcea}
 .node.br-soh,.srow.br-soh,.vbtn.br-soh,.cogroup.br-soh{background:#f3f8ff}.node.br-kir,.srow.br-kir,.vbtn.br-kir,.cogroup.br-kir{background:#fffcea}
 .srow.on.br-soh,.vbtn.on.br-soh{background:#e3eeff}.srow.on.br-kir,.vbtn.on.br-kir{background:#fff4c2}
+.site{border:1px solid var(--line);border-radius:6px;padding:5px 7px;margin:4px 0;background:#fff}.site.ok{background:#f1faf3}.site .sr{display:flex;align-items:center;gap:6px}.site .sr b{flex:1}.site .sr input{width:auto}.site .sr select{width:auto;padding:2px 4px;font-size:12px}.site .sn{margin-top:4px;font-size:12px;padding:3px 6px}
+.bar{height:6px;background:#e2e8f0;border-radius:99px;overflow:hidden;margin:2px 0 6px}.bar i{display:block;height:100%;background:#4ea86a}
 .note-bad{background:#fee2e2;color:#7f1d1d;border-radius:6px;padding:6px 8px;font-size:12px;margin:6px 0}
 .cl-head{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.dgrp{border:1px dashed #cbd5e1;border-radius:8px;padding:6px;margin-bottom:8px;background:#fafafa}
 @media print{header,.banner,.noprint,#orgsec,#syncsec,.gate{display:none!important}body{background:#fff}section{border:0}pre.summary{background:#fff;color:#000;max-height:none}}
@@ -247,7 +249,7 @@ const key = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const ents = o => Array.isArray(o) ? o.map((v, i) => [String(i), v]).filter(x => x[1]) : Object.entries(o || {}).filter(x => x[1]);
 
 /* ===== live directory state (from Firebase) ===== */
-const D = { att: {}, attErr: '', side: {}, sideOf: {}, raw: null, hubTasks: null, people: [], byId: {}, alias: {}, kids: {}, roots: [], unplaced: [], finance: [], observers: [], verts: [], vcolor: {}, me: null, at: 0, live: false };
+const D = { venues: null, att: {}, attErr: '', side: {}, sideOf: {}, raw: null, hubTasks: null, people: [], byId: {}, alias: {}, kids: {}, roots: [], unplaced: [], finance: [], observers: [], verts: [], vcolor: {}, me: null, at: 0, live: false };
 const CACHE = 'naigPmo.firebaseCache.v1';   // last copy of what Firebase returned, so the page isn't blank offline. Never hand-edited.
 const PALETTE = ['#2c7a5c', '#2d6a9f', '#1a3a5c', '#7b3f00', '#5a3e85', '#0e7490', '#9d174d', '#4d7c0f', '#b45309', '#475569'];
 const pid = p => p.id || p._key;
@@ -471,6 +473,7 @@ function normOv(raw) {
   Object.entries(raw || {}).forEach(([k, o]) => { if (!o || typeof o !== 'object') return; const x = Object.assign({}, o);
     x.updates = ents(o.updates).map(([id, u]) => Object.assign({ id }, u)).sort((a, b) => (a.at || 0) - (b.at || 0));
     x.deps = ents(o.deps).map(([id, d]) => Object.assign({ id }, d)).sort((a, b) => (a.at || 0) - (b.at || 0));
+    x.sites = ents(o.sites).map(([id, t]) => Object.assign({ id }, t)).filter(t => t.name).sort((a, b) => (a.at || 0) - (b.at || 0));
     x.needs = ents(o.needs).map(([id, n]) => Object.assign({ id }, n)).filter(n => n.k).sort((a, b) => (a.at || 0) - (b.at || 0)); out[k] = x; });
   return out;
 }
@@ -560,6 +563,7 @@ function allRows() {
   const byK = {}; every.forEach(r => byK[r.k] = r); ALLK = byK;
   every.forEach(r => { r.needs = (ovGet(r.k).needs || []).map(n => ({ id: n.id, k: n.k, t: byK[n.k] || null })); r.openNeeds = r.needs.filter(n => n.t && !n.t.done); r.blocksList = []; });
   every.forEach(r => r.needs.forEach(n => { if (n.t && !r.done) n.t.blocksList.push(r); }));
+  every.forEach(r => { r.sites = ovGet(r.k).sites || []; r.openSites = r.sites.filter(t => !siteDone(t)); });   // a site is finished when ticked or marked Not needed
   every.forEach(r => { if (!r.done && r.openNeeds.length) { r.blocked = true; r.b = 0; } });
   const hubs = rows.filter(r => r.src === 'hub');
   hubs.forEach((r, i) => { const o = hubs.slice(0, i).find(x => x.v === r.v && !x.done && !r.done && x.tk.size && r.tk.size && (() => { let n = 0; r.tk.forEach(z => x.tk.has(z) && n++); return n / (x.tk.size + r.tk.size - n) >= .6; })()); if (o) r.dupOf = o.title; });
@@ -567,6 +571,9 @@ function allRows() {
 }
 
 /* ===== weekly sync ===== */
+const SITE_ST = { todo: 'To do', ordered: 'Ordered', received: 'Received', notneeded: 'Not needed' };
+const siteDone = t => !!t.done || t.status === 'notneeded';
+const SITE_PRESET = ['Northlake', 'Farmers Branch', 'RailRoad', 'Pickler'];   // standard sites, supplied by Azmina
 let ALLK = {}, NOTICE = null;   // ALLK: every task by key (including done and hidden), so prerequisites can be found
 let EDIT = '', EDRAFT = { title: '', notes: '' }, CL = false, PS = '', SV = '*', SK = '', ORDER = [], DRAFT = { k: '', upd: '', dep: '', focus: '' };
 const syncRows = () => { const m = matcher(SEL); return ROWS.filter(r => rowMatch(m, r)); };
@@ -592,7 +599,7 @@ function pillsHtml(r) {
 function srowHtml(r, showV) {
   const na = attsOf(r).length;
   const last = r.updates.filter(u => !u.sys).slice(-1)[0];
-  return '<div class="srow' + brCls(rowBranch(r)) + (SK === r.k ? ' on' : '') + (r.done ? ' done' : '') + '" data-k="' + esc(r.k) + '"><div class="t">' + esc(r.title) + (na ? ' <span class="pill" title="Attachments">&#128206; ' + na + '</span>' : '') + '</div>'
+  return '<div class="srow' + brCls(rowBranch(r)) + (SK === r.k ? ' on' : '') + (r.done ? ' done' : '') + '" data-k="' + esc(r.k) + '"><div class="t">' + esc(r.title) + (na ? ' <span class="pill" title="Attachments">&#128206; ' + na + '</span>' : '') + (r.sites && r.sites.length ? ' <span class="pill ' + (r.openSites.length ? 'warn' : 'good') + '" title="Sites done">' + (r.sites.length - r.openSites.length) + ' of ' + r.sites.length + ' sites</span>' : '') + '</div>'
     + '<div class="m">' + esc(r.owners || 'No owner') + ' · <span style="' + (r.late ? 'color:var(--bad);font-weight:600' : '') + '">' + fmtD(r.due) + '</span>' + (showV ? ' · in ' + esc(r.v) : '') + (r.createdMs ? ' · <span title="When this task was created" style="font-size:11px">added ' + fmtAdded(r.createdMs) + '</span>' : '') + '</div>'
     + pillsHtml(r) + (last ? '<div class="lu">' + fmtDT(last.at) + ': ' + esc(String(last.text).slice(0, 120)) + '</div>' : '') + '</div>';
 }
@@ -744,12 +751,13 @@ function renderDetail() {
   const editBox = '<div class="newbox"><label>Title</label><input id="eTitle" value="' + esc(ev.title) + '"><label>Notes</label><textarea id="eNotes">' + esc(ev.notes) + '</textarea>'
     + '<div class="acts"><button class="btn pri" data-act="editSave">Save</button><button class="btn" data-act="editCancel">Cancel</button>' + (r.src === 'hub' && r.edited ? '<button class="btn" data-act="editReset" title="Back to what the hub has">Reset to hub</button>' : '') + '</div>'
     + '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">' + (r.src === 'hub' ? 'Shared with everyone using this page; the hub task itself is not changed.' : 'Edits this task for everyone using this page.') + '</div></div>';
-  const nb = r.openNeeds && r.openNeeds.length && !r.done;
+  const nb = r.openNeeds && r.openNeeds.length && !r.done, ns = r.openSites && r.openSites.length && !r.done, blk = nb || ns;
   el.innerHTML = (ed ? editBox : '<div class="dt">' + esc(r.title) + ' <button class="btn noprint" data-act="editOpen" style="font-size:11px;padding:2px 8px;vertical-align:middle">Edit</button></div>')
     + '<div class="m" style="color:var(--mut);font-size:12px">' + esc(r.v) + ' · ' + esc(r.owners || 'No owner') + ' · due ' + fmtD(r.due) + (r.deferred ? ' · moved to ' + fmtD(r.deferTo) : '') + '</div>'
     + '<div class="m" style="color:var(--mut);font-size:11px">' + (r.createdMs ? 'Created ' + fmtAdded(r.createdMs) + ' ' + new Date(r.createdMs).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) + (r.createdBy ? ' by ' + esc(r.createdBy) : '') : 'Creation date not recorded') + '</div>'
     + (NOTICE && NOTICE.k === r.k ? '<div class="note-bad">' + esc(NOTICE.text) + '</div>' : '')
     + (nb ? '<div class="note-bad">Cannot be closed yet. Waiting on ' + r.openNeeds.length + ' task' + (r.openNeeds.length > 1 ? 's' : '') + ': ' + r.openNeeds.map(n => esc(n.t.title)).join('; ') + '</div>' : '')
+    + (ns ? '<div class="note-bad">Cannot be closed yet. ' + r.openSites.length + ' of ' + r.sites.length + ' site' + (r.sites.length > 1 ? 's' : '') + ' still open: ' + r.openSites.map(t => esc(t.name)).join(', ') + '</div>' : '')
     + (!ed && r.notes ? '<div class="upd sys" style="margin-top:6px">' + esc(String(r.notes).slice(0, 400)) + '</div>' : '')
     + (!ed && r.src === 'hub' && r.edited ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Edited here' + (r.hubT !== r.title ? ' (hub title: "' + esc(r.hubT) + '")' : '') + '.</div>' : '')
     + (r.src === 'hub' ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Hub task: status, updates, dependencies and moves are shared with everyone using this page. The hub task itself is not changed.</div>' : '')
@@ -759,11 +767,12 @@ function renderDetail() {
     + '<h4>Due by</h4><div class="row" style="grid-template-columns:1fr auto"><input type="date" id="dDue" value="' + esc(r.due || '') + '"><button class="btn" data-act="dueReset"' + ((r.src === 'mine' ? r.due : r.dueSet) ? '' : ' disabled') + ' title="' + (r.src === 'hub' ? 'Back to the hub date' : 'Clear the date') + '">' + (r.src === 'hub' ? 'Reset' : 'Clear') + '</button></div>'
     + '<div class="acts"><button class="btn" data-act="dueSet" data-d="' + addDays(todayS(), 1) + '">Tomorrow</button><button class="btn" data-act="dueSet" data-d="' + addDays(cur(), 4) + '">This Friday</button><button class="btn" data-act="dueSet" data-d="' + addDays(cur(), 11) + '">Next Friday</button></div>'
     + (r.dueSet ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Changed here' + (r.hubDue ? ' (hub says ' + fmtD(r.hubDue) + ')' : '') + '. Shared with everyone using this page; the hub task is not changed.</div>' : '')
-    + '<h4>Status</h4><select id="dStatus"><option value="open"' + (r.status === 'open' ? ' selected' : '') + '>Open</option><option value="progress"' + (r.status === 'progress' ? ' selected' : '') + '>In progress</option><option value="blocked"' + (r.status === 'blocked' ? ' selected' : '') + '>Blocked</option><option value="done"' + (r.status === 'done' ? ' selected' : '') + (nb ? ' disabled' : '') + '>Done' + (nb ? ' (blocked by prerequisites)' : '') + '</option></select>'
-    + '<div class="acts">' + (r.done ? '<button class="btn" data-act="reopen">Reopen</button>' : '<button class="btn pri" data-act="close"' + (nb ? ' disabled title="Finish the tasks it depends on first"' : '') + '>Close it</button>')
+    + '<h4>Status</h4><select id="dStatus"><option value="open"' + (r.status === 'open' ? ' selected' : '') + '>Open</option><option value="progress"' + (r.status === 'progress' ? ' selected' : '') + '>In progress</option><option value="blocked"' + (r.status === 'blocked' ? ' selected' : '') + '>Blocked</option><option value="done"' + (r.status === 'done' ? ' selected' : '') + (blk ? ' disabled' : '') + '>Done' + (blk ? ' (not finished yet)' : '') + '</option></select>'
+    + '<div class="acts">' + (r.done ? '<button class="btn" data-act="reopen">Reopen</button>' : '<button class="btn pri" data-act="close"' + (blk ? ' disabled title="Finish the prerequisites and sites first"' : '') + '>Close it</button>')
     + (r.deferred ? '<button class="btn" data-act="back">Bring back to this week</button>' : (!r.done ? '<button class="btn" data-act="move">Move to next week</button>' : ''))
     + '<button class="btn" data-act="next"' + (hasNext ? '' : ' disabled') + '>Next task ▸</button></div>'
     + '<h4>Add an update</h4><textarea id="updTxt" placeholder="What happened this week? (Ctrl+Enter to save)">' + esc(dv.upd) + '</textarea><div class="acts"><button class="btn pri" data-act="updAdd">Add update</button></div>'
+    + sitesHtml(r)
     + needsHtml(r)
     + (hd ? '<h4>Dependencies recorded in the hub</h4>' + hd + '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Edits and removals are shared with everyone using this page. The hub task itself is not changed.</div>' : '')
     + '<h4>Dependencies on other verticals and teams</h4>' + (deps || '<div class="empty" style="padding:2px 0">None.</div>')
@@ -773,6 +782,25 @@ function renderDetail() {
 }
 function reaches(a, b, seen) { seen = seen || new Set(); if (a === b) return true; if (seen.has(a)) return false; seen.add(a); const r = ALLK[a]; return !!r && r.needs.some(n => reaches(n.k, b, seen)); }
 let NEEDMAP = {};
+function siteCands(r) {
+  const have = new Set(r.sites.map(t => key(t.name))), seen = new Set(), out = [];
+  SITE_PRESET.concat(ents(D.venues).filter(([k, v]) => v && !v.archived && v.name).map(([k, v]) => String(v.name))).forEach(n => { const k = key(n); if (k && !have.has(k) && !seen.has(k)) { seen.add(k); out.push(n); } });
+  return out;
+}
+function sitesHtml(r) {
+  const n = r.sites.length, d = n - r.openSites.length, cands = siteCands(r), left = SITE_PRESET.filter(p => !r.sites.some(t => key(t.name) === key(p)));
+  const rows = r.sites.map(t => '<div class="site' + (siteDone(t) ? ' ok' : '') + '"><div class="sr"><input type="checkbox" data-sitechk="' + esc(t.id) + '"' + (t.done ? ' checked' : '') + '><b>' + esc(t.name) + '</b>'
+    + '<select data-sitest="' + esc(t.id) + '">' + Object.keys(SITE_ST).map(k => '<option value="' + k + '"' + ((t.status || 'todo') === k ? ' selected' : '') + '>' + SITE_ST[k] + '</option>').join('') + '</select>'
+    + '<button class="btn" data-act="siteDel" data-id="' + esc(t.id) + '" title="Remove this site">&times;</button></div>'
+    + '<input class="sn" data-sitenote="' + esc(t.id) + '" placeholder="Note (PO #, vendor, quantity…)" value="' + esc(t.note || '') + '"></div>').join('');
+  return '<h4>Sites' + (n ? ' (' + d + ' of ' + n + ' done)' : '') + '</h4>'
+    + (n ? '<div class="bar"><i style="width:' + Math.round(100 * d / n) + '%"></i></div>' : '')
+    + (rows || '<div class="empty" style="padding:2px 0">No sites on this task. Add the sites that need their own line, such as a purchase list for each site.</div>')
+    + '<div class="row" style="margin-top:6px;grid-template-columns:1fr auto"><input id="siteQ" list="siteList" autocomplete="off" placeholder="Add a site (pick or type a name)…" value="' + esc((DRAFT.k === r.k && DRAFT.site) || '') + '"><button class="btn" data-act="siteAdd">Add</button></div>'
+    + '<datalist id="siteList">' + cands.map(c => '<option value="' + esc(c) + '"></option>').join('') + '</datalist>'
+    + (left.length ? '<div class="acts"><button class="btn" data-act="siteAddAll">Add the ' + left.length + ' standard site' + (left.length > 1 ? 's' : '') + ': ' + left.map(esc).join(', ') + '</button></div>' : '')
+    + '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">The task cannot be closed until every site is ticked or marked Not needed. Shared with everyone using this page. The list also offers the live venues from the hub.</div>';
+}
 function needsHtml(r) {
   const openable = t => ROWS.some(x => x.k === t.k);
   const list = r.needs.map(n => { const t = n.t;
@@ -835,6 +863,7 @@ function setDue(r, d) {
 }
 function logSys(k, text) { W(ovPath(k) + '/updates/' + uid(), { at: Date.now(), text, sys: true, by: attWho() }); }
 function setStatus(r, st) {
+  if (st === 'done' && r.openSites && r.openSites.length) { NOTICE = { k: r.k, text: 'Not closed. These sites are still open: ' + r.openSites.map(t => t.name).join(', ') }; return false; }
   if (st === 'done' && r.openNeeds && r.openNeeds.length) { NOTICE = { k: r.k, text: 'Not closed. Finish these first: ' + r.openNeeds.map(n => n.t.title).join('; ') }; return false; }
   ovSet(r.k, 'status', st); ovSet(r.k, 'closedAt', st === 'done' ? Date.now() : null);
   logSys(r.k, 'Status: ' + ({ open: 'Open', progress: 'In progress', blocked: 'Blocked', done: 'Done' }[st]));
@@ -874,6 +903,15 @@ $('#syncsec').addEventListener('click', e => {
     if (act === 'reopen') { setStatus(r, 'open'); return afterChange(false); }
     if (act === 'hdepDel') { const t = a.dataset.t; ovSet(r.k, 'hdep/' + sk(t) + '/removed', true); logSys(r.k, 'Removed hub dependency: ' + t); return afterChange(false); }
     if (act === 'hdepBack') { e.preventDefault(); const t = a.dataset.t; ovSet(r.k, 'hdep/' + sk(t) + '/removed', null); logSys(r.k, 'Restored hub dependency: ' + t); return afterChange(false); }
+    if (act === 'siteAdd' || act === 'siteAddAll') {
+      const names = act === 'siteAddAll' ? SITE_PRESET.filter(p => !r.sites.some(t => key(t.name) === key(p))) : [($('#siteQ').value || '').trim().replace(/\s+/g, ' ')];
+      const cands = siteCands(r), canon = nm => cands.find(c => key(c) === key(nm)) || nm;   // typed names snap to the matching venue / standard site name
+      const add = names.map(canon).filter(nm => nm && key(nm) && !r.sites.some(t => key(t.name) === key(nm)));
+      if (!add.length) { NOTICE = { k: r.k, text: names[0] ? 'That site is already on this task.' : 'Type or pick a site name first.' }; return afterChange(false); }
+      add.forEach((nm, i) => W(ovPath(r.k) + '/sites/' + sk(key(nm)), { name: nm, done: false, status: 'todo', note: '', at: Date.now() + i, by: attWho() }));
+      logSys(r.k, 'Sites added: ' + add.join(', ')); DRAFT.site = ''; return afterChange(false);
+    }
+    if (act === 'siteDel') { const t = r.sites.find(x => x.id === a.dataset.id); if (t) { W(ovPath(r.k) + '/sites/' + t.id, null); logSys(r.k, 'Site removed: ' + t.name); } return afterChange(false); }
     if (act === 'needAdd') {
       const q = ($('#needQ').value || '').trim(); let k = NEEDMAP[q];
       if (!k) { const m = Object.entries(NEEDMAP).filter(([v]) => v.split(' — ')[0].toLowerCase() === q.toLowerCase()); if (m.length === 1) k = m[0][1]; }
@@ -904,8 +942,16 @@ $('#syncsec').addEventListener('click', e => {
   const row = e.target.closest('.srow'); if (row) { if (SK !== row.dataset.k) { EDIT = ''; NOTICE = null; } SK = row.dataset.k; renderAll(); return; }
   const vb = e.target.closest('.vbtn'); if (vb) { SV = vb.dataset.v; SK = ''; if (SV !== '*' && [...$('#fVert').options].some(o => o.value === SV)) $('#fVert').value = SV; renderAll(); }
 });
-$('#syncsec').addEventListener('change', e => { if (e.target.dataset && e.target.dataset.hdep) { const r = ROWS.find(x => x.k === SK), t = e.target.dataset.hdep, st = e.target.value; if (r && DEP_ST[st]) { const d = r.hubDeps.find(x => x.team === t); ovSet(r.k, 'hdep/' + sk(t) + '/status', d && st === d.hubStatus ? null : st); logSys(r.k, 'Hub dependency ' + t + ': ' + DEP_ST[st]); afterChange(false); } return; } if (e.target.id === 'ownAdd') { const r = ROWS.find(x => x.k === SK), nm = e.target.value; if (r && nm) { setOwners(r, r.ownerNames.concat([nm]), 'Assigned to ' + nm); afterChange(false); } return; } if (e.target.id === 'dVert') { const r = ROWS.find(x => x.k === SK); if (r && e.target.value) { const from = r.v; setVert(r, e.target.value); if (SV !== '*' && !inV(Object.assign({}, r, { v: e.target.value }), SV)) SV = e.target.value; afterChange(false); } return; } if (e.target.id === 'dDue') { const r = ROWS.find(x => x.k === SK); if (r) { setDue(r, e.target.value); afterChange(false); } return; } if (e.target.id === 'dStatus') { const r = ROWS.find(x => x.k === SK); if (r) { setStatus(r, e.target.value); afterChange(false); } } if (e.target.id === 'showHold') renderAll(); if (e.target.id === 'pSel') { PS = e.target.value; SK = ''; renderAll(); } });
-$('#syncsec').addEventListener('input', e => { if (e.target.id === 'needQ') { DRAFT.k = SK; DRAFT.need = e.target.value; } if (e.target.id === 'eTitle') EDRAFT.title = e.target.value; if (e.target.id === 'eNotes') EDRAFT.notes = e.target.value; if (e.target.id === 'updTxt' || e.target.id === 'depTxt') { DRAFT.k = SK; DRAFT[e.target.id === 'updTxt' ? 'upd' : 'dep'] = e.target.value; DRAFT.focus = e.target.id; } });
+$('#syncsec').addEventListener('change', e => {
+  const sd = e.target.dataset || {}, sr = (sd.sitechk || sd.sitest || sd.sitenote) ? ROWS.find(x => x.k === SK) : null;
+  if (sr) {
+    const id = sd.sitechk || sd.sitest || sd.sitenote, t = sr.sites.find(x => x.id === id), p = ovPath(sr.k) + '/sites/' + id; if (!t) return;
+    if (sd.sitechk) { const on = e.target.checked; W(p + '/done', on); if (!on && t.status === 'received') W(p + '/status', 'todo'); logSys(sr.k, 'Site ' + t.name + ': ' + (on ? 'done' : 'reopened')); }
+    if (sd.sitest) { const st = e.target.value; W(p + '/status', st); W(p + '/done', st === 'received'); logSys(sr.k, 'Site ' + t.name + ': ' + SITE_ST[st]); }
+    if (sd.sitenote) W(p + '/note', e.target.value.trim());
+    return afterChange(false);
+  } if (e.target.dataset && e.target.dataset.hdep) { const r = ROWS.find(x => x.k === SK), t = e.target.dataset.hdep, st = e.target.value; if (r && DEP_ST[st]) { const d = r.hubDeps.find(x => x.team === t); ovSet(r.k, 'hdep/' + sk(t) + '/status', d && st === d.hubStatus ? null : st); logSys(r.k, 'Hub dependency ' + t + ': ' + DEP_ST[st]); afterChange(false); } return; } if (e.target.id === 'ownAdd') { const r = ROWS.find(x => x.k === SK), nm = e.target.value; if (r && nm) { setOwners(r, r.ownerNames.concat([nm]), 'Assigned to ' + nm); afterChange(false); } return; } if (e.target.id === 'dVert') { const r = ROWS.find(x => x.k === SK); if (r && e.target.value) { const from = r.v; setVert(r, e.target.value); if (SV !== '*' && !inV(Object.assign({}, r, { v: e.target.value }), SV)) SV = e.target.value; afterChange(false); } return; } if (e.target.id === 'dDue') { const r = ROWS.find(x => x.k === SK); if (r) { setDue(r, e.target.value); afterChange(false); } return; } if (e.target.id === 'dStatus') { const r = ROWS.find(x => x.k === SK); if (r) { setStatus(r, e.target.value); afterChange(false); } } if (e.target.id === 'showHold') renderAll(); if (e.target.id === 'pSel') { PS = e.target.value; SK = ''; renderAll(); } });
+$('#syncsec').addEventListener('input', e => { if (e.target.id === 'siteQ') { DRAFT.k = SK; DRAFT.site = e.target.value; } if (e.target.id === 'needQ') { DRAFT.k = SK; DRAFT.need = e.target.value; } if (e.target.id === 'eTitle') EDRAFT.title = e.target.value; if (e.target.id === 'eNotes') EDRAFT.notes = e.target.value; if (e.target.id === 'updTxt' || e.target.id === 'depTxt') { DRAFT.k = SK; DRAFT[e.target.id === 'updTxt' ? 'upd' : 'dep'] = e.target.value; DRAFT.focus = e.target.id; } });
 $('#syncsec').addEventListener('keydown', e => { if (e.target.id === 'updTxt' && e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); const b = $('#tdetail [data-act="updAdd"]'); b && b.click(); } });
 $('#orgToggle').onclick = () => { ORGOPEN = !ORGOPEN; localStorage.setItem('naigPmo.orgOpen', ORGOPEN ? '1' : '0'); renderOrg(); };
 
@@ -922,6 +968,7 @@ function renderSummary() {
   L.push('NAIG 2027 Logistics — Weekly sync summary', 'Week of ' + fmtD(w) + ' – ' + fmtD(addDays(w, 6)) + (SEL ? '   (filter: ' + selName() + ')' : ''));
   L.push('', 'Closed this week: ' + t.closed + ' · Still open: ' + t.open + ' (blocked/dependent: ' + t.blocked + ', overdue: ' + t.late + ') · Moved to next week: ' + t.moved + ' · New: ' + made);
   const line = r => ' - ' + r.title + ' — ' + (r.owners || 'no owner') + (r.due ? ', due ' + fmtD(r.due) : '') + (r.late ? ' (OVERDUE)' : '') + (r.status === 'blocked' ? ' [BLOCKED]' : '') + (!r.done && r.openNeeds.length ? ' [needs first: ' + r.openNeeds.map(n => n.t.title).join('; ') + ']' : '') + r.deps.filter(d => !d.resolved).map(d => ' [waiting on ' + d.on + (d.note ? ': ' + d.note : '') + ']').join('');
+  const sl = r => r.sites.length ? '\n     sites: ' + (r.sites.length - r.openSites.length) + ' of ' + r.sites.length + ' done' + (r.openSites.length ? ' (open: ' + r.openSites.map(t => t.name + (t.status && t.status !== 'todo' ? ' [' + SITE_ST[t.status] + ']' : '') + (t.note ? ' - ' + t.note : '')).join('; ') + ')' : '') : '';
   const al = r => attsOf(r).map(a => '\n     link: ' + (a.name || 'attachment') + ' — ' + a.url).join('');
   const lu = r => { const u = r.updates.filter(x => !x.sys).slice(-1)[0]; return u ? '\n     update (' + fmtDT(u.at) + '): ' + u.text : ''; };
   vs.forEach(v => {
@@ -929,7 +976,7 @@ function renderSummary() {
     if (!a.length && !c.length && !m.length) return;
     L.push('', v.toUpperCase() + ' — ' + a.length + ' open, ' + c.length + ' closed this week');
     if (c.length) { L.push('  Closed:'); c.forEach(r => L.push(' ' + line(r).replace(/ \(OVERDUE\)/, ''))); }
-    if (a.length) { L.push('  Open:'); a.forEach(r => L.push(' ' + line(r) + lu(r) + al(r))); }
+    if (a.length) { L.push('  Open:'); a.forEach(r => L.push(' ' + line(r) + lu(r) + sl(r) + al(r))); }
     if (m.length) { L.push('  Moved to next week:'); m.forEach(r => L.push(' - ' + r.title)); }
   });
   const hdep = rows.filter(r => !r.done && r.hubDeps.some(d => d.status !== 'done'));
@@ -974,7 +1021,7 @@ function renderAll() {
   const had = document.activeElement && document.activeElement.id, pos = had && document.activeElement.selectionStart;
   ROWS = allRows(); HIDDEN = ROWS.filter(r => r.hidden); ROWS = ROWS.filter(r => !r.hidden);
   renderOrg(); renderSync(); renderSummary();
-  if ((had === 'updTxt' || had === 'depTxt' || had === 'eTitle' || had === 'eNotes' || had === 'needQ') && $('#' + had)) { const el = $('#' + had); el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} }
+  if ((had === 'updTxt' || had === 'depTxt' || had === 'eTitle' || had === 'eNotes' || had === 'needQ' || had === 'siteQ') && $('#' + had)) { const el = $('#' + had); el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} }
 }
 
 /* ===== connection / status ===== */
@@ -999,6 +1046,7 @@ function startData() {
   onValue(R('prospects'), s => { hideGate(); ingest('prospects', s.val()); }, e => fail('Directory', e));
   onValue(R('pmoSync/ov'), s => { OV = normOv(s.val()); D.ovErr = ''; renderAll(); }, e => { D.ovErr = (e && e.code) || 'denied'; renderAll(); });
   onValue(R('pmoSync/tasks'), s => { ST.tasks = ents(s.val()).map(([id, t]) => Object.assign({ id }, t)); D.pmoTasksLoaded = true; spawnRepeaters(); renderAll(); }, e => { D.ovErr = (e && e.code) || 'denied'; renderAll(); });
+  onValue(R('venues'), s => { D.venues = s.val() || {}; renderAll(); }, () => {});   // read-only: live venue names for the site picker
   onValue(R('pmoSync/placement'), s => { PLACE = s.val() || {}; if (D.raw) buildDirectory(D.raw); renderAll(); }, () => {});
   onValue(R('pmoSync/attachments'), s => { D.att = s.val() || {}; D.attErr = ''; renderAll(); }, e => { D.attErr = (e && e.code) || 'denied'; renderAll(); });
   onValue(R('tasks'), s => ingest('tasks', s.val()), e => { D.hubTasks = {}; D.tasksErr = (e && e.code) || 'denied'; renderAll(); });
