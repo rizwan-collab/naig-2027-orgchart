@@ -473,6 +473,7 @@ function normOv(raw) {
   Object.entries(raw || {}).forEach(([k, o]) => { if (!o || typeof o !== 'object') return; const x = Object.assign({}, o);
     x.updates = ents(o.updates).map(([id, u]) => Object.assign({ id }, u)).sort((a, b) => (a.at || 0) - (b.at || 0));
     x.deps = ents(o.deps).map(([id, d]) => Object.assign({ id }, d)).sort((a, b) => (a.at || 0) - (b.at || 0));
+    x.steps = ents(o.steps).map(([id, t]) => Object.assign({ id }, t)).filter(t => t.text).sort((a, b) => (a.at || 0) - (b.at || 0));
     { const seenS = new Set(); x.sites = ents(o.sites).map(([id, t]) => Object.assign({ id }, t, { name: siteCanon(t && t.name) })).filter(t => t.name).sort((a, b) => (a.at || 0) - (b.at || 0))
         .filter(t => { const k = key(t.name); if (seenS.has(k)) return false; seenS.add(k); return true; }); }
     x.needs = ents(o.needs).map(([id, n]) => Object.assign({ id }, n)).filter(n => n.k).sort((a, b) => (a.at || 0) - (b.at || 0)); out[k] = x; });
@@ -564,6 +565,7 @@ function allRows() {
   const byK = {}; every.forEach(r => byK[r.k] = r); ALLK = byK;
   every.forEach(r => { r.needs = (ovGet(r.k).needs || []).map(n => ({ id: n.id, k: n.k, t: byK[n.k] || null })); r.openNeeds = r.needs.filter(n => n.t && !n.t.done); r.blocksList = []; });
   every.forEach(r => r.needs.forEach(n => { if (n.t && !r.done) n.t.blocksList.push(r); }));
+  every.forEach(r => { r.steps = ovGet(r.k).steps || []; r.openSteps = r.steps.filter(t => !t.done); });   // steps: a checklist inside the task
   every.forEach(r => { r.sites = ovGet(r.k).sites || []; r.openSites = r.sites.filter(t => !siteDone(t)); });   // a site is finished when ticked or marked Not needed
   every.forEach(r => { if (!r.done && r.openNeeds.length) { r.blocked = true; r.b = 0; } });
   const hubs = rows.filter(r => r.src === 'hub');
@@ -572,6 +574,8 @@ function allRows() {
 }
 
 /* ===== weekly sync ===== */
+const STEP_TEAMS = ['Legal', 'Finance', 'Sports', 'Registration', 'Technology', 'Marketing', 'Command Center'];   // steps owned by teams outside Logistics are tagged, not turned into their own cards
+const STEP_PRESETS = { 'Contract': [['Confirm timing with Sports', 'Sports'], ['Retrieve the contract from the site', ''], ['Legal review', 'Legal'], ['Send to Finance for approval', 'Finance'], ['Contract signed', '']] };
 const SITE_ST = { todo: 'To do', ordered: 'Ordered', received: 'Received', notneeded: 'Not needed' };
 const siteDone = t => !!t.done || t.status === 'notneeded';
 const PICKL = 'Pickler Universe';
@@ -602,7 +606,7 @@ function pillsHtml(r) {
 function srowHtml(r, showV) {
   const na = attsOf(r).length;
   const last = r.updates.filter(u => !u.sys).slice(-1)[0];
-  return '<div class="srow' + brCls(rowBranch(r)) + (SK === r.k ? ' on' : '') + (r.done ? ' done' : '') + '" data-k="' + esc(r.k) + '"><div class="t">' + esc(r.title) + (na ? ' <span class="pill" title="Attachments">&#128206; ' + na + '</span>' : '') + (r.sites && r.sites.length ? ' <span class="pill ' + (r.openSites.length ? 'warn' : 'good') + '" title="Sites done">' + (r.sites.length - r.openSites.length) + ' of ' + r.sites.length + ' sites</span>' : '') + '</div>'
+  return '<div class="srow' + brCls(rowBranch(r)) + (SK === r.k ? ' on' : '') + (r.done ? ' done' : '') + '" data-k="' + esc(r.k) + '"><div class="t">' + esc(r.title) + (na ? ' <span class="pill" title="Attachments">&#128206; ' + na + '</span>' : '') + (r.steps && r.steps.length ? ' <span class="pill ' + (r.openSteps.length ? 'warn' : 'good') + '" title="Steps done">' + (r.steps.length - r.openSteps.length) + ' of ' + r.steps.length + ' steps</span>' : '') + (r.sites && r.sites.length ? ' <span class="pill ' + (r.openSites.length ? 'warn' : 'good') + '" title="Sites done">' + (r.sites.length - r.openSites.length) + ' of ' + r.sites.length + ' sites</span>' : '') + '</div>'
     + '<div class="m">' + esc(r.owners || 'No owner') + ' · <span style="' + (r.late ? 'color:var(--bad);font-weight:600' : '') + '">' + fmtD(r.due) + '</span>' + (showV ? ' · in ' + esc(r.v) : '') + (r.createdMs ? ' · <span title="When this task was created" style="font-size:11px">added ' + fmtAdded(r.createdMs) + '</span>' : '') + '</div>'
     + pillsHtml(r) + (last ? '<div class="lu">' + fmtDT(last.at) + ': ' + esc(String(last.text).slice(0, 120)) + '</div>' : '') + '</div>';
 }
@@ -754,12 +758,13 @@ function renderDetail() {
   const editBox = '<div class="newbox"><label>Title</label><input id="eTitle" value="' + esc(ev.title) + '"><label>Notes</label><textarea id="eNotes">' + esc(ev.notes) + '</textarea>'
     + '<div class="acts"><button class="btn pri" data-act="editSave">Save</button><button class="btn" data-act="editCancel">Cancel</button>' + (r.src === 'hub' && r.edited ? '<button class="btn" data-act="editReset" title="Back to what the hub has">Reset to hub</button>' : '') + '</div>'
     + '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">' + (r.src === 'hub' ? 'Shared with everyone using this page; the hub task itself is not changed.' : 'Edits this task for everyone using this page.') + '</div></div>';
-  const nb = r.openNeeds && r.openNeeds.length && !r.done, ns = r.openSites && r.openSites.length && !r.done, blk = nb || ns;
+  const nb = r.openNeeds && r.openNeeds.length && !r.done, ns = r.openSites && r.openSites.length && !r.done, np = r.openSteps && r.openSteps.length && !r.done, blk = nb || ns || np;
   el.innerHTML = (ed ? editBox : '<div class="dt">' + esc(r.title) + ' <button class="btn noprint" data-act="editOpen" style="font-size:11px;padding:2px 8px;vertical-align:middle">Edit</button></div>')
     + '<div class="m" style="color:var(--mut);font-size:12px">' + esc(r.v) + ' · ' + esc(r.owners || 'No owner') + ' · due ' + fmtD(r.due) + (r.deferred ? ' · moved to ' + fmtD(r.deferTo) : '') + '</div>'
     + '<div class="m" style="color:var(--mut);font-size:11px">' + (r.createdMs ? 'Created ' + fmtAdded(r.createdMs) + ' ' + new Date(r.createdMs).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) + (r.createdBy ? ' by ' + esc(r.createdBy) : '') : 'Creation date not recorded') + '</div>'
     + (NOTICE && NOTICE.k === r.k ? '<div class="note-bad">' + esc(NOTICE.text) + '</div>' : '')
     + (nb ? '<div class="note-bad">Cannot be closed yet. Waiting on ' + r.openNeeds.length + ' task' + (r.openNeeds.length > 1 ? 's' : '') + ': ' + r.openNeeds.map(n => esc(n.t.title)).join('; ') + '</div>' : '')
+    + (np ? '<div class="note-bad">Cannot be closed yet. ' + r.openSteps.length + ' of ' + r.steps.length + ' step' + (r.steps.length > 1 ? 's' : '') + ' still open: ' + r.openSteps.map(t => esc(t.text)).join('; ') + '</div>' : '')
     + (ns ? '<div class="note-bad">Cannot be closed yet. ' + r.openSites.length + ' of ' + r.sites.length + ' site' + (r.sites.length > 1 ? 's' : '') + ' still open: ' + r.openSites.map(t => esc(t.name)).join(', ') + '</div>' : '')
     + (!ed && r.notes ? '<div class="upd sys" style="margin-top:6px">' + esc(String(r.notes).slice(0, 400)) + '</div>' : '')
     + (!ed && r.src === 'hub' && r.edited ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Edited here' + (r.hubT !== r.title ? ' (hub title: "' + esc(r.hubT) + '")' : '') + '.</div>' : '')
@@ -775,6 +780,7 @@ function renderDetail() {
     + (r.deferred ? '<button class="btn" data-act="back">Bring back to this week</button>' : (!r.done ? '<button class="btn" data-act="move">Move to next week</button>' : ''))
     + '<button class="btn" data-act="next"' + (hasNext ? '' : ' disabled') + '>Next task ▸</button></div>'
     + '<h4>Add an update</h4><textarea id="updTxt" placeholder="What happened this week? (Ctrl+Enter to save)">' + esc(dv.upd) + '</textarea><div class="acts"><button class="btn pri" data-act="updAdd">Add update</button></div>'
+    + stepsHtml(r)
     + sitesHtml(r)
     + needsHtml(r)
     + (hd ? '<h4>Dependencies recorded in the hub</h4>' + hd + '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Edits and removals are shared with everyone using this page. The hub task itself is not changed.</div>' : '')
@@ -789,6 +795,19 @@ function siteCands(r) {
   const have = new Set(r.sites.map(t => key(t.name))), seen = new Set(), out = [];
   SITE_PRESET.concat(ents(D.venues).filter(([k, v]) => v && !v.archived && v.name).map(([k, v]) => siteCanon(v.name))).forEach(n => { const k = key(n); if (k && !have.has(k) && !seen.has(k)) { seen.add(k); out.push(n); } });
   return out;
+}
+function stepsHtml(r) {
+  const n = r.steps.length, d = n - r.openSteps.length, first = r.openSteps[0];
+  const rows = r.steps.map((t, i) => '<div class="site' + (t.done ? ' ok' : '') + '"><div class="sr"><input type="checkbox" data-stepchk="' + esc(t.id) + '"' + (t.done ? ' checked' : '') + '><span style="flex:1' + (t.done ? ';text-decoration:line-through;color:var(--mut)' : '') + '"><b style="font-weight:600">' + (i + 1) + '. ' + esc(t.text) + '</b></span>'
+    + '<select data-stepteam="' + esc(t.id) + '" title="Team that owns this step"><option value="">Our team</option>' + STEP_TEAMS.map(x => '<option' + (t.team === x ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>'
+    + '<button class="btn" data-act="stepDel" data-id="' + esc(t.id) + '" title="Remove this step">&times;</button></div></div>').join('');
+  const presets = Object.keys(STEP_PRESETS).filter(k => !STEP_PRESETS[k].every(p => r.steps.some(t => key(t.text) === key(p[0])))).map(k => '<button class="btn" data-act="stepPreset" data-p="' + esc(k) + '">Add the ' + esc(k.toLowerCase()) + ' steps</button>').join('');
+  return '<h4>Steps' + (n ? ' (' + d + ' of ' + n + ' done)' : '') + '</h4>' + (n ? '<div class="bar"><i style="width:' + Math.round(100 * d / n) + '%"></i></div>' : '')
+    + (first && first.team ? '<div class="m" style="margin-bottom:4px">Waiting on <b>' + esc(first.team) + '</b> for: ' + esc(first.text) + '</div>' : '')
+    + (rows || '<div class="empty" style="padding:2px 0">No steps. Use steps for the small actions inside this task, such as confirm timing, retrieve the contract, Legal review, send to Finance.</div>')
+    + '<div class="row" style="margin-top:6px;grid-template-columns:1fr auto"><input id="stepQ" autocomplete="off" placeholder="Add a step…" value="' + esc((DRAFT.k === r.k && DRAFT.step) || '') + '"><button class="btn" data-act="stepAdd">Add</button></div>'
+    + (presets ? '<div class="acts">' + presets + '</div>' : '')
+    + '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">The task cannot be closed until every step is ticked. Tag a step with Legal, Finance, Sports and so on when another team owns it. Shared with everyone using this page.</div>';
 }
 function sitesHtml(r) {
   const n = r.sites.length, d = n - r.openSites.length, cands = siteCands(r), left = SITE_PRESET.filter(p => !r.sites.some(t => key(t.name) === key(p)));
@@ -866,6 +885,7 @@ function setDue(r, d) {
 }
 function logSys(k, text) { W(ovPath(k) + '/updates/' + uid(), { at: Date.now(), text, sys: true, by: attWho() }); }
 function setStatus(r, st) {
+  if (st === 'done' && r.openSteps && r.openSteps.length) { NOTICE = { k: r.k, text: 'Not closed. These steps are still open: ' + r.openSteps.map(t => t.text).join('; ') }; return false; }
   if (st === 'done' && r.openSites && r.openSites.length) { NOTICE = { k: r.k, text: 'Not closed. These sites are still open: ' + r.openSites.map(t => t.name).join(', ') }; return false; }
   if (st === 'done' && r.openNeeds && r.openNeeds.length) { NOTICE = { k: r.k, text: 'Not closed. Finish these first: ' + r.openNeeds.map(n => n.t.title).join('; ') }; return false; }
   ovSet(r.k, 'status', st); ovSet(r.k, 'closedAt', st === 'done' ? Date.now() : null);
@@ -914,6 +934,14 @@ $('#syncsec').addEventListener('click', e => {
       add.forEach((nm, i) => W(ovPath(r.k) + '/sites/' + sk(key(nm)), { name: nm, done: false, status: 'todo', note: '', at: Date.now() + i, by: attWho() }));
       logSys(r.k, 'Sites added: ' + add.join(', ')); DRAFT.site = ''; return afterChange(false);
     }
+    if (act === 'stepAdd' || act === 'stepPreset') {
+      const list = act === 'stepPreset' ? (STEP_PRESETS[a.dataset.p] || []).filter(p => !r.steps.some(t => key(t.text) === key(p[0]))) : [[($('#stepQ').value || '').trim().replace(/\s+/g, ' '), '']];
+      const add = list.filter(p => p[0] && !r.steps.some(t => key(t.text) === key(p[0])));
+      if (!add.length) { NOTICE = { k: r.k, text: list[0] && list[0][0] ? 'That step is already on this task.' : 'Type a step first.' }; return afterChange(false); }
+      add.forEach((p, i) => W(ovPath(r.k) + '/steps/' + uid(), { text: p[0], team: p[1] || '', done: false, at: Date.now() + i, by: attWho() }));
+      logSys(r.k, 'Steps added: ' + add.map(p => p[0]).join('; ')); DRAFT.step = ''; return afterChange(false);
+    }
+    if (act === 'stepDel') { const t = r.steps.find(x => x.id === a.dataset.id); if (t) { W(ovPath(r.k) + '/steps/' + t.id, null); logSys(r.k, 'Step removed: ' + t.text); } return afterChange(false); }
     if (act === 'siteDel') { const t = r.sites.find(x => x.id === a.dataset.id); if (t) { W(ovPath(r.k) + '/sites/' + t.id, null); logSys(r.k, 'Site removed: ' + t.name); } return afterChange(false); }
     if (act === 'needAdd') {
       const q = ($('#needQ').value || '').trim(); let k = NEEDMAP[q];
@@ -946,6 +974,13 @@ $('#syncsec').addEventListener('click', e => {
   const vb = e.target.closest('.vbtn'); if (vb) { SV = vb.dataset.v; SK = ''; if (SV !== '*' && [...$('#fVert').options].some(o => o.value === SV)) $('#fVert').value = SV; renderAll(); }
 });
 $('#syncsec').addEventListener('change', e => {
+  const sp = e.target.dataset || {};
+  if (sp.stepchk || sp.stepteam) {
+    const r = ROWS.find(x => x.k === SK), t = r && r.steps.find(x => x.id === (sp.stepchk || sp.stepteam)); if (!t) return; const p = ovPath(r.k) + '/steps/' + t.id;
+    if (sp.stepchk) { const on = e.target.checked; W(p + '/done', on); logSys(r.k, 'Step ' + (on ? 'done' : 'reopened') + ': ' + t.text + (t.team ? ' (' + t.team + ')' : '')); }
+    else { W(p + '/team', e.target.value || ''); logSys(r.k, 'Step owner: ' + t.text + ' is with ' + (e.target.value || 'our team')); }
+    return afterChange(false);
+  }
   const sd = e.target.dataset || {}, sr = (sd.sitechk || sd.sitest || sd.sitenote) ? ROWS.find(x => x.k === SK) : null;
   if (sr) {
     const id = sd.sitechk || sd.sitest || sd.sitenote, t = sr.sites.find(x => x.id === id), p = ovPath(sr.k) + '/sites/' + id; if (!t) return;
@@ -954,7 +989,7 @@ $('#syncsec').addEventListener('change', e => {
     if (sd.sitenote) W(p + '/note', e.target.value.trim());
     return afterChange(false);
   } if (e.target.dataset && e.target.dataset.hdep) { const r = ROWS.find(x => x.k === SK), t = e.target.dataset.hdep, st = e.target.value; if (r && DEP_ST[st]) { const d = r.hubDeps.find(x => x.team === t); ovSet(r.k, 'hdep/' + sk(t) + '/status', d && st === d.hubStatus ? null : st); logSys(r.k, 'Hub dependency ' + t + ': ' + DEP_ST[st]); afterChange(false); } return; } if (e.target.id === 'ownAdd') { const r = ROWS.find(x => x.k === SK), nm = e.target.value; if (r && nm) { setOwners(r, r.ownerNames.concat([nm]), 'Assigned to ' + nm); afterChange(false); } return; } if (e.target.id === 'dVert') { const r = ROWS.find(x => x.k === SK); if (r && e.target.value) { const from = r.v; setVert(r, e.target.value); if (SV !== '*' && !inV(Object.assign({}, r, { v: e.target.value }), SV)) SV = e.target.value; afterChange(false); } return; } if (e.target.id === 'dDue') { const r = ROWS.find(x => x.k === SK); if (r) { setDue(r, e.target.value); afterChange(false); } return; } if (e.target.id === 'dStatus') { const r = ROWS.find(x => x.k === SK); if (r) { setStatus(r, e.target.value); afterChange(false); } } if (e.target.id === 'showHold') renderAll(); if (e.target.id === 'pSel') { PS = e.target.value; SK = ''; renderAll(); } });
-$('#syncsec').addEventListener('input', e => { if (e.target.id === 'siteQ') { DRAFT.k = SK; DRAFT.site = e.target.value; } if (e.target.id === 'needQ') { DRAFT.k = SK; DRAFT.need = e.target.value; } if (e.target.id === 'eTitle') EDRAFT.title = e.target.value; if (e.target.id === 'eNotes') EDRAFT.notes = e.target.value; if (e.target.id === 'updTxt' || e.target.id === 'depTxt') { DRAFT.k = SK; DRAFT[e.target.id === 'updTxt' ? 'upd' : 'dep'] = e.target.value; DRAFT.focus = e.target.id; } });
+$('#syncsec').addEventListener('input', e => { if (e.target.id === 'stepQ') { DRAFT.k = SK; DRAFT.step = e.target.value; } if (e.target.id === 'siteQ') { DRAFT.k = SK; DRAFT.site = e.target.value; } if (e.target.id === 'needQ') { DRAFT.k = SK; DRAFT.need = e.target.value; } if (e.target.id === 'eTitle') EDRAFT.title = e.target.value; if (e.target.id === 'eNotes') EDRAFT.notes = e.target.value; if (e.target.id === 'updTxt' || e.target.id === 'depTxt') { DRAFT.k = SK; DRAFT[e.target.id === 'updTxt' ? 'upd' : 'dep'] = e.target.value; DRAFT.focus = e.target.id; } });
 $('#syncsec').addEventListener('keydown', e => { if (e.target.id === 'updTxt' && e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); const b = $('#tdetail [data-act="updAdd"]'); b && b.click(); } });
 $('#orgToggle').onclick = () => { ORGOPEN = !ORGOPEN; localStorage.setItem('naigPmo.orgOpen', ORGOPEN ? '1' : '0'); renderOrg(); };
 
@@ -971,6 +1006,7 @@ function renderSummary() {
   L.push('NAIG 2027 Logistics — Weekly sync summary', 'Week of ' + fmtD(w) + ' – ' + fmtD(addDays(w, 6)) + (SEL ? '   (filter: ' + selName() + ')' : ''));
   L.push('', 'Closed this week: ' + t.closed + ' · Still open: ' + t.open + ' (blocked/dependent: ' + t.blocked + ', overdue: ' + t.late + ') · Moved to next week: ' + t.moved + ' · New: ' + made);
   const line = r => ' - ' + r.title + ' — ' + (r.owners || 'no owner') + (r.due ? ', due ' + fmtD(r.due) : '') + (r.late ? ' (OVERDUE)' : '') + (r.status === 'blocked' ? ' [BLOCKED]' : '') + (!r.done && r.openNeeds.length ? ' [needs first: ' + r.openNeeds.map(n => n.t.title).join('; ') + ']' : '') + r.deps.filter(d => !d.resolved).map(d => ' [waiting on ' + d.on + (d.note ? ': ' + d.note : '') + ']').join('');
+  const stl = r => r.steps.length ? '\n     steps: ' + (r.steps.length - r.openSteps.length) + ' of ' + r.steps.length + ' done' + (r.openSteps.length ? ' (next: ' + r.openSteps[0].text + (r.openSteps[0].team ? ' [' + r.openSteps[0].team + ']' : '') + ')' : '') : '';
   const sl = r => r.sites.length ? '\n     sites: ' + (r.sites.length - r.openSites.length) + ' of ' + r.sites.length + ' done' + (r.openSites.length ? ' (open: ' + r.openSites.map(t => t.name + (t.status && t.status !== 'todo' ? ' [' + SITE_ST[t.status] + ']' : '') + (t.note ? ' - ' + t.note : '')).join('; ') + ')' : '') : '';
   const al = r => attsOf(r).map(a => '\n     link: ' + (a.name || 'attachment') + ' — ' + a.url).join('');
   const lu = r => { const u = r.updates.filter(x => !x.sys).slice(-1)[0]; return u ? '\n     update (' + fmtDT(u.at) + '): ' + u.text : ''; };
@@ -979,7 +1015,7 @@ function renderSummary() {
     if (!a.length && !c.length && !m.length) return;
     L.push('', v.toUpperCase() + ' — ' + a.length + ' open, ' + c.length + ' closed this week');
     if (c.length) { L.push('  Closed:'); c.forEach(r => L.push(' ' + line(r).replace(/ \(OVERDUE\)/, ''))); }
-    if (a.length) { L.push('  Open:'); a.forEach(r => L.push(' ' + line(r) + lu(r) + sl(r) + al(r))); }
+    if (a.length) { L.push('  Open:'); a.forEach(r => L.push(' ' + line(r) + lu(r) + stl(r) + sl(r) + al(r))); }
     if (m.length) { L.push('  Moved to next week:'); m.forEach(r => L.push(' - ' + r.title)); }
   });
   const hdep = rows.filter(r => !r.done && r.hubDeps.some(d => d.status !== 'done'));
@@ -1024,7 +1060,7 @@ function renderAll() {
   const had = document.activeElement && document.activeElement.id, pos = had && document.activeElement.selectionStart;
   ROWS = allRows(); HIDDEN = ROWS.filter(r => r.hidden); ROWS = ROWS.filter(r => !r.hidden);
   renderOrg(); renderSync(); renderSummary();
-  if ((had === 'updTxt' || had === 'depTxt' || had === 'eTitle' || had === 'eNotes' || had === 'needQ' || had === 'siteQ') && $('#' + had)) { const el = $('#' + had); el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} }
+  if ((had === 'updTxt' || had === 'depTxt' || had === 'eTitle' || had === 'eNotes' || had === 'needQ' || had === 'siteQ' || had === 'stepQ') && $('#' + had)) { const el = $('#' + had); el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} }
 }
 
 /* ===== connection / status ===== */
