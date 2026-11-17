@@ -596,7 +596,7 @@ const SITE_PRESET = ['Northlake', 'Farmers Branch', 'RailRoad', PICKL];   // sta
 let ALLK = {}, NOTICE = null;   // ALLK: every task by key (including done and hidden), so prerequisites can be found
 let EDIT = '', EDRAFT = { title: '', notes: '' }, CL = false, PS = '', SV = '*', SK = '', ORDER = [], DRAFT = { k: '', upd: '', dep: '', focus: '' };
 const syncRows = () => { const m = matcher(SEL); return ROWS.filter(r => rowMatch(m, r)); };
-const inV = (r, v) => v === '*' || r.v === v || (isCoreV(v) && r.core);
+const inV = (r, v) => v === '*' || r.v === v;   // Core Team shows only tasks tagged Core Team. A task in another vertical is not repeated here, even if a Core Team person owns it.
 const BNAME = ['Blocked or waiting on a dependency', 'Overdue', 'Due in the next 7 days', 'Later', 'No due date'];
 const vStat = (rows, v) => {
   const g = rows.filter(r => inV(r, v)), act = g.filter(r => !r.done && !r.deferred);
@@ -632,7 +632,7 @@ function personFilter() {
   const k = PS.slice(2), cp = coreRollup(k);
   return cp ? r => rowMatch(cp, r) : r => r.ownerNames.some(n => key(n) === k);
 }
-/* In the Core Team view, picking a Core Team person shows everything that rolls up to them (Rizwan = all, Sohail and Azmina = Sohail's branch, Kiran and Shan = Kiran's branch). */
+/* In the Core Team view, picking a Core Team person shows the Core Team tasks that roll up to them (Rizwan = all, Sohail and Azmina = Sohail's branch, Kiran and Shan = Kiran's branch). */
 function coreRollup(k) {
   if (!isCoreV(SV)) return null;
   const p = D.people.find(x => key(x.name) === k);
@@ -1039,7 +1039,7 @@ function renderSummary() {
   $('#tiles').innerHTML = tile(t.closed, 'Closed this week', 'good') + tile(t.open, 'Still open', '') + tile(t.blocked, 'Blocked or waiting on a dependency', t.blocked ? 'warn' : '') + tile(t.late, 'Overdue', t.late ? 'bad' : '') + tile(t.moved, 'Moved to next week', '') + tile(made, 'New tasks this week', '') + tile(upd, 'Updates logged', '');
   const vs = D.verts.concat([NONV]).filter((v, i, a) => a.indexOf(v) === i).filter(v => rows.some(r => r.v === v));
   const tr = (n, s, cls) => '<tr class="' + (cls || '') + '"><td>' + esc(n) + '</td><td>' + s.open + '</td><td>' + s.blocked + '</td><td>' + s.late + '</td><td>' + s.closed + '</td><td>' + s.moved + '</td></tr>';
-  $('#sumtable').innerHTML = '<table class="sm"><tr><th>Vertical</th><th>Still open</th><th>Blocked / dependent</th><th>Overdue</th><th>Closed this week</th><th>Moved to next week</th></tr>' + vs.map(v => tr(isCoreV(v) ? v + ' (incl. everything that rolls up to Core Team; rows overlap)' : v, vStat(rows, v))).join('') + tr('All', t, 'tot') + '</table>';
+  $('#sumtable').innerHTML = '<table class="sm"><tr><th>Vertical</th><th>Still open</th><th>Blocked / dependent</th><th>Overdue</th><th>Closed this week</th><th>Moved to next week</th></tr>' + vs.map(v => tr(v, vStat(rows, v))).join('') + tr('All', t, 'tot') + '</table>';
   L.push('NAIG 2027 Logistics — Weekly sync summary', 'Week of ' + fmtD(w) + ' – ' + fmtD(addDays(w, 6)) + (SEL ? '   (filter: ' + selName() + ')' : ''));
   L.push('', 'Closed this week: ' + t.closed + ' · Still open: ' + t.open + ' (blocked/dependent: ' + t.blocked + ', overdue: ' + t.late + ') · Moved to next week: ' + t.moved + ' · New: ' + made);
   const line = r => ' - ' + r.title + ' — ' + (r.owners || 'no owner') + (r.due ? ', due ' + fmtD(r.due) : '') + (r.late ? ' (OVERDUE)' : '') + (r.status === 'blocked' ? ' [BLOCKED]' : '') + (!r.done && r.openNeeds.length ? ' [needs first: ' + r.openNeeds.map(n => n.t.title).join('; ') + ']' : '') + r.deps.filter(d => !d.resolved).map(d => ' [waiting on ' + d.on + (d.note ? ': ' + d.note : '') + ']').join('');
