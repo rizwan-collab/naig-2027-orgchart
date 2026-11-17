@@ -584,22 +584,29 @@ function personFilter() {
   if (!PS) return () => true;
   if (PS === '@me') { const m = matcher(pid(D.me)); return r => rowMatch(m, r); }   // rolls up to me: mine, plus everyone I support or who reports up to me
   if (PS === '@own') return r => r.ownerNames.some(n => key(n) === meKey());
-  const k = PS.slice(2); return r => r.ownerNames.some(n => key(n) === k);
+  const k = PS.slice(2), cp = coreRollup(k);
+  return cp ? r => rowMatch(cp, r) : r => r.ownerNames.some(n => key(n) === k);
+}
+/* In the Core Team view, picking a Core Team person shows everything that rolls up to them (Rizwan = all, Sohail and Azmina = Sohail's branch, Kiran and Shan = Kiran's branch). */
+function coreRollup(k) {
+  if (!isCoreV(SV)) return null;
+  const p = D.people.find(x => key(x.name) === k);
+  return p && isCoreV(p.vertical) ? matcher(pid(p)) : null;
 }
 function personOptions(vrows) {
   Object.keys(PLABEL).forEach(k => delete PLABEL[k]); PLABEL['@me'] = 'my tasks (incl. my verticals)'; PLABEL['@own'] = 'assigned directly to me';
-  const open = vrows.filter(r => !r.done && !r.deferred), cnt = k => open.filter(r => r.ownerNames.some(n => key(n) === k)).length;
+  const open = vrows.filter(r => !r.done && !r.deferred), cnt = k => { const cp = coreRollup(k); return open.filter(r => cp ? rowMatch(cp, r) : r.ownerNames.some(n => key(n) === k)).length; };
   const names = new Map();
   D.people.filter(p => SV === '*' || String(p.vertical || '').trim() === SV).forEach(p => names.set(key(p.name), p.name));
-  vrows.forEach(r => r.ownerNames.forEach(n => { if (key(n) && !names.has(key(n))) names.set(key(n), n); }));
+  if (!isCoreV(SV)) vrows.forEach(r => r.ownerNames.forEach(n => { if (key(n) && !names.has(key(n))) names.set(key(n), n); }));   // Core Team lists only Core Team people
   const list = [...names.entries()].sort((a, b) => a[1].localeCompare(b[1]));
   let h = '<option value="">Everyone' + (SV === '*' ? '' : ' in ' + esc(SV)) + ' (' + open.length + ')</option>';
   if (D.me) {
     const mgr = teamMgr(), mm = matcher(pid(D.me)), tm = open.filter(r => rowMatch(mm, r)).length;
     h += '<optgroup label="Mine"><option value="@me">My tasks' + (mgr ? ' — incl. everything under ' + esc(mgr.name) : '') + ' (' + tm + ')</option>'
-      + '<option value="@own">Assigned directly to me (' + cnt(meKey()) + ')</option></optgroup>';
+      + '<option value="@own">Assigned directly to me (' + open.filter(r => r.ownerNames.some(n => key(n) === meKey())).length + ')</option></optgroup>';
   }
-  h += '<optgroup label="By person">' + list.map(([k, n]) => (PLABEL['n:' + k] = n, '') + '<option value="n:' + esc(k) + '">' + esc(n) + ' (' + cnt(k) + ')</option>').join('') + '</optgroup>';
+  h += '<optgroup label="' + (isCoreV(SV) ? 'Core Team (each sees everything under them)' : 'By person') + '">' + list.map(([k, n]) => (PLABEL['n:' + k] = n, '') + '<option value="n:' + esc(k) + '">' + esc(n) + ' (' + cnt(k) + ')</option>').join('') + '</optgroup>';
   return h;
 }
 const PLABEL = {};
