@@ -146,6 +146,7 @@ table.sm th:first-child,table.sm td:first-child{text-align:left}table.sm th{font
 .node.br-soh,.srow.br-soh,.vbtn.br-soh,.cogroup.br-soh{background:#f3f8ff}.node.br-kir,.srow.br-kir,.vbtn.br-kir,.cogroup.br-kir{background:#fff5f5}
 .srow.on.br-soh,.vbtn.on.br-soh{background:#e3eeff}.srow.on.br-kir,.vbtn.on.br-kir{background:#ffe6e6}
 .legend{display:inline-flex;gap:6px;font-weight:400}.legend .lg{font-size:11px;border:1px solid #cbd5e1;border-radius:99px;padding:1px 10px;color:var(--ink)}
+.note-bad{background:#fee2e2;color:#7f1d1d;border-radius:6px;padding:6px 8px;font-size:12px;margin:6px 0}
 .cl-head{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.dgrp{border:1px dashed #cbd5e1;border-radius:8px;padding:6px;margin-bottom:8px;background:#fafafa}
 @media print{header,.banner,.noprint,#orgsec,#syncsec,.gate{display:none!important}body{background:#fff}section{border:0}pre.summary{background:#fff;color:#000;max-height:none}}
 </style>
@@ -469,7 +470,8 @@ function normOv(raw) {
   const out = {};
   Object.entries(raw || {}).forEach(([k, o]) => { if (!o || typeof o !== 'object') return; const x = Object.assign({}, o);
     x.updates = ents(o.updates).map(([id, u]) => Object.assign({ id }, u)).sort((a, b) => (a.at || 0) - (b.at || 0));
-    x.deps = ents(o.deps).map(([id, d]) => Object.assign({ id }, d)).sort((a, b) => (a.at || 0) - (b.at || 0)); out[k] = x; });
+    x.deps = ents(o.deps).map(([id, d]) => Object.assign({ id }, d)).sort((a, b) => (a.at || 0) - (b.at || 0));
+    x.needs = ents(o.needs).map(([id, n]) => Object.assign({ id }, n)).filter(n => n.k).sort((a, b) => (a.at || 0) - (b.at || 0)); out[k] = x; });
   return out;
 }
 /* The hub's own dependency lists (copied from classic.html: _CROSS_TEAMS and _LOGISTICS_STREAMS). These are code constants in the hub, not database records.
@@ -503,7 +505,7 @@ function canonName(n) {
 }
 const isCoreV = v => /core/i.test(v || '');
 function allRows() {
-  const td = todayS(), w = cur(), wk = addDays(td, 7), rows = [];
+  const td = todayS(), w = cur(), wk = addDays(td, 7), rows = [], every = [];
   const mk = (src, id, v, title, ownerNames, due, rawStatus, notes, extra) => {
     const hubV0 = v; const hubDue0 = due; ownerNames = ownerNames.map(canonName); const k = src + ':' + id, o = ovGet(k), hs = String(rawStatus || '').toLowerCase().replace(/[^a-z]/g, '');
     if (o.vertBy && vAll().includes(o.vertBy)) v = o.vertBy;   // vertical moved on this page (shared); the hub task's own vertical is not changed
@@ -521,7 +523,7 @@ function allRows() {
     r.b = r.blocked ? 0 : r.late ? 1 : due && due <= wk ? 2 : due ? 3 : 4;
     r.tk = toks(title);
     r.core = isCoreV(v) || ownerNames.some(n => { const p = D.people.find(x => key(x.name) === key(n)); return p && isCoreV(p.vertical); });
-    r.hubDeps = []; return Object.assign(r, extra || {});
+    r.hubDeps = []; Object.assign(r, extra || {}); every.push(r); return r;
   };
   ents(D.hubTasks).forEach(([id, t]) => { if (!t.title) return;
     const r = mk('hub', id, hubVert(t), t.title, hubOwners(t), hubDue(t), t.status, t.notes || t.description || '', { hubDeps: hubDepsOf(t) });
@@ -530,16 +532,22 @@ function allRows() {
     rows.push(r); });
   ST.tasks.forEach(t => { if (t.week > w) return;
     rows.push(mk('mine', t.id, vOf(t), t.title, t.owner ? [ownerName(t.owner)] : [], t.due || '', t.status, t.notes || '', { createdThisWeek: (t.createdAt || 0) >= wkMs() || (!t.createdAt && t.week === w) })); });
+  /* Task-to-task prerequisites (ov/<task>/needs): a task with any unfinished prerequisite is blocked and cannot be closed on this page. */
+  const byK = {}; every.forEach(r => byK[r.k] = r); ALLK = byK;
+  every.forEach(r => { r.needs = (ovGet(r.k).needs || []).map(n => ({ id: n.id, k: n.k, t: byK[n.k] || null })); r.openNeeds = r.needs.filter(n => n.t && !n.t.done); r.blocksList = []; });
+  every.forEach(r => r.needs.forEach(n => { if (n.t && !r.done) n.t.blocksList.push(r); }));
+  every.forEach(r => { if (!r.done && r.openNeeds.length) { r.blocked = true; r.b = 0; } });
   const hubs = rows.filter(r => r.src === 'hub');
   hubs.forEach((r, i) => { const o = hubs.slice(0, i).find(x => x.v === r.v && !x.done && !r.done && x.tk.size && r.tk.size && (() => { let n = 0; r.tk.forEach(z => x.tk.has(z) && n++); return n / (x.tk.size + r.tk.size - n) >= .6; })()); if (o) r.dupOf = o.title; });
   return rows.filter(r => !r.hold || showHold());
 }
 
 /* ===== weekly sync ===== */
+let ALLK = {}, NOTICE = null;   // ALLK: every task by key (including done and hidden), so prerequisites can be found
 let EDIT = '', EDRAFT = { title: '', owner: '', notes: '' }, CL = false, PS = '', SV = '*', SK = '', ORDER = [], DRAFT = { k: '', upd: '', dep: '', focus: '' };
 const syncRows = () => { const m = matcher(SEL); return ROWS.filter(r => rowMatch(m, r)); };
 const inV = (r, v) => v === '*' || r.v === v || (isCoreV(v) && r.core);
-const BNAME = ['Blocked or waiting on another vertical', 'Overdue', 'Due in the next 7 days', 'Later', 'No due date'];
+const BNAME = ['Blocked or waiting on a dependency', 'Overdue', 'Due in the next 7 days', 'Later', 'No due date'];
 const vStat = (rows, v) => {
   const g = rows.filter(r => inV(r, v)), act = g.filter(r => !r.done && !r.deferred);
   return { open: act.length, blocked: act.filter(r => r.blocked).length, late: act.filter(r => r.late).length, closed: g.filter(r => r.closedThisWeek).length, moved: g.filter(r => r.deferred).length,
@@ -547,8 +555,8 @@ const vStat = (rows, v) => {
 };
 function pillsHtml(r) {
   let h = '';
-  if (r.done) h += '<span class="pill good">Done</span>';
-  else { if (r.status === 'blocked') h += '<span class="pill bad">Blocked</span>'; if (r.status === 'progress') h += '<span class="pill blue">In progress</span>';
+  if (r.done) { h += '<span class="pill good">Done</span>'; if (r.openNeeds && r.openNeeds.length) h += '<span class="pill warn" title="A task it depends on was reopened">prerequisite reopened</span>'; }
+  else { if (r.status === 'blocked') h += '<span class="pill bad">Blocked</span>'; if (r.openNeeds && r.openNeeds.length) h += '<span class="pill bad" title="' + esc(r.openNeeds.map(n => n.t.title).join('; ')) + '">needs ' + r.openNeeds.length + ' task' + (r.openNeeds.length > 1 ? 's' : '') + ' first</span>'; if (r.status === 'progress') h += '<span class="pill blue">In progress</span>';
     r.deps.filter(d => !d.resolved).forEach(d => h += '<span class="pill warn">waiting on ' + esc(d.on) + '</span>');
     (r.hubDeps || []).filter(d => d.status !== 'done').forEach(d => h += '<span class="pill ' + (d.status === 'blocked' ? 'bad' : 'warn') + '" title="From the hub: ' + DEP_ST[d.status] + '">needs ' + esc(d.team) + '</span>');
     if (r.late) h += '<span class="pill bad">Overdue</span>'; }
@@ -631,7 +639,7 @@ function cleanupHtml(rows) {
 }
 function clAction(a, k, g) {
   const r = ROWS.find(x => x.k === k) || HIDDEN.find(x => x.k === k);
-  if (a === 'close' && r) setStatus(r, 'done');
+  if (a === 'close' && r && !setStatus(r, 'done')) alert(NOTICE.text);
   if (a === 'park') { ovSet(k, 'parked', true); logSys(k, 'Parked during clean up'); }
   if (a === 'hide') { ovSet(k, 'hidden', true); ovSet(k, 'hiddenWhy', 'hidden in clean up'); logSys(k, 'Hidden in clean up'); }
   if (a === 'restore') { ovSet(k, 'hidden', null); ovSet(k, 'hiddenWhy', null); logSys(k, 'Restored'); }
@@ -699,8 +707,11 @@ function renderDetail() {
   const editBox = '<div class="newbox"><label>Title</label><input id="eTitle" value="' + esc(ev.title) + '"><label>Owner</label><select id="eOwner">' + eopts + '</select><label>Notes</label><textarea id="eNotes">' + esc(ev.notes) + '</textarea>'
     + '<div class="acts"><button class="btn pri" data-act="editSave">Save</button><button class="btn" data-act="editCancel">Cancel</button>' + (r.src === 'hub' && r.edited ? '<button class="btn" data-act="editReset" title="Back to what the hub has">Reset to hub</button>' : '') + '</div>'
     + '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">' + (r.src === 'hub' ? 'Shared with everyone using this page; the hub task itself is not changed.' : 'Edits this task for everyone using this page.') + '</div></div>';
+  const nb = r.openNeeds && r.openNeeds.length && !r.done;
   el.innerHTML = (ed ? editBox : '<div class="dt">' + esc(r.title) + ' <button class="btn noprint" data-act="editOpen" style="font-size:11px;padding:2px 8px;vertical-align:middle">Edit</button></div>')
     + '<div class="m" style="color:var(--mut);font-size:12px"><span class="src ' + r.src + '">' + (r.src === 'mine' ? 'pmo' : r.src) + '</span>' + esc(r.v) + ' · ' + esc(r.owners || 'No owner') + ' · due ' + fmtD(r.due) + (r.deferred ? ' · moved to ' + fmtD(r.deferTo) : '') + '</div>'
+    + (NOTICE && NOTICE.k === r.k ? '<div class="note-bad">' + esc(NOTICE.text) + '</div>' : '')
+    + (nb ? '<div class="note-bad">Cannot be closed yet. Waiting on ' + r.openNeeds.length + ' task' + (r.openNeeds.length > 1 ? 's' : '') + ': ' + r.openNeeds.map(n => esc(n.t.title)).join('; ') + '</div>' : '')
     + (!ed && r.notes ? '<div class="upd sys" style="margin-top:6px">' + esc(String(r.notes).slice(0, 400)) + '</div>' : '')
     + (!ed && r.src === 'hub' && r.edited ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Edited here' + (r.hubT !== r.title ? ' (hub title: "' + esc(r.hubT) + '")' : '') + '.</div>' : '')
     + (r.src === 'hub' ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Hub task: status, updates, dependencies and moves are shared with everyone using this page. The hub task itself is not changed.</div>' : '')
@@ -709,16 +720,35 @@ function renderDetail() {
     + '<h4>Due by</h4><div class="row" style="grid-template-columns:1fr auto"><input type="date" id="dDue" value="' + esc(r.due || '') + '"><button class="btn" data-act="dueReset"' + ((r.src === 'mine' ? r.due : r.dueSet) ? '' : ' disabled') + ' title="' + (r.src === 'hub' ? 'Back to the hub date' : 'Clear the date') + '">' + (r.src === 'hub' ? 'Reset' : 'Clear') + '</button></div>'
     + '<div class="acts"><button class="btn" data-act="dueSet" data-d="' + addDays(todayS(), 1) + '">Tomorrow</button><button class="btn" data-act="dueSet" data-d="' + addDays(cur(), 4) + '">This Friday</button><button class="btn" data-act="dueSet" data-d="' + addDays(cur(), 11) + '">Next Friday</button></div>'
     + (r.dueSet ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Changed here' + (r.hubDue ? ' (hub says ' + fmtD(r.hubDue) + ')' : '') + '. Shared with everyone using this page; the hub task is not changed.</div>' : '')
-    + '<h4>Status</h4><select id="dStatus"><option value="open"' + (r.status === 'open' ? ' selected' : '') + '>Open</option><option value="progress"' + (r.status === 'progress' ? ' selected' : '') + '>In progress</option><option value="blocked"' + (r.status === 'blocked' ? ' selected' : '') + '>Blocked</option><option value="done"' + (r.status === 'done' ? ' selected' : '') + '>Done</option></select>'
-    + '<div class="acts">' + (r.done ? '<button class="btn" data-act="reopen">Reopen</button>' : '<button class="btn pri" data-act="close">Close it</button>')
+    + '<h4>Status</h4><select id="dStatus"><option value="open"' + (r.status === 'open' ? ' selected' : '') + '>Open</option><option value="progress"' + (r.status === 'progress' ? ' selected' : '') + '>In progress</option><option value="blocked"' + (r.status === 'blocked' ? ' selected' : '') + '>Blocked</option><option value="done"' + (r.status === 'done' ? ' selected' : '') + (nb ? ' disabled' : '') + '>Done' + (nb ? ' (blocked by prerequisites)' : '') + '</option></select>'
+    + '<div class="acts">' + (r.done ? '<button class="btn" data-act="reopen">Reopen</button>' : '<button class="btn pri" data-act="close"' + (nb ? ' disabled title="Finish the tasks it depends on first"' : '') + '>Close it</button>')
     + (r.deferred ? '<button class="btn" data-act="back">Bring back to this week</button>' : (!r.done ? '<button class="btn" data-act="move">Move to next week</button>' : ''))
     + '<button class="btn" data-act="next"' + (hasNext ? '' : ' disabled') + '>Next task ▸</button></div>'
     + '<h4>Add an update</h4><textarea id="updTxt" placeholder="What happened this week? (Ctrl+Enter to save)">' + esc(dv.upd) + '</textarea><div class="acts"><button class="btn pri" data-act="updAdd">Add update</button></div>'
+    + needsHtml(r)
     + (hd ? '<h4>Dependencies recorded in the hub (read-only)</h4>' + hd : '')
     + '<h4>Dependencies on other verticals and teams</h4>' + (deps || '<div class="empty" style="padding:2px 0">None.</div>')
     + '<div class="row" style="margin-top:6px"><select id="depV"><option value="">Waiting on…</option>' + dopts + '</select><input id="depTxt" placeholder="What do we need from them?" value="' + esc(dv.dep) + '"></div><div class="acts"><button class="btn" data-act="depAdd">Add dependency</button></div>'
     + attachHtml(r)
     + '<h4>History</h4>' + ups;
+}
+function reaches(a, b, seen) { seen = seen || new Set(); if (a === b) return true; if (seen.has(a)) return false; seen.add(a); const r = ALLK[a]; return !!r && r.needs.some(n => reaches(n.k, b, seen)); }
+let NEEDMAP = {};
+function needsHtml(r) {
+  const openable = t => ROWS.some(x => x.k === t.k);
+  const list = r.needs.map(n => { const t = n.t;
+    return '<div class="dep' + (t && t.done ? ' ok' : '') + '"><span>' + (t ? (t.done ? '&#10003; ' : '') + (openable(t) ? '<a href="#" data-open="' + esc(t.k) + '">' + esc(t.title) + '</a>' : esc(t.title)) + ' <small style="color:var(--mut)">' + esc(t.v) + ' · ' + esc(t.owners || 'No owner') + (t.hidden ? ' · hidden' : '') + '</small>' : '<i>task no longer found, so it does not block</i>')
+      + '</span><span>' + (t ? '<span class="pill ' + (t.done ? 'good' : t.blocked ? 'bad' : '') + '">' + (t.done ? 'Done' : t.blocked ? 'Blocked' : 'Open') + '</span> ' : '') + '<button class="btn" data-act="needDel" data-id="' + esc(n.id) + '">×</button></span></div>'; }).join('');
+  const cands = ROWS.filter(x => x.k !== r.k && !x.done && !r.needs.some(n => n.k === x.k) && !reaches(x.k, r.k)).sort((a, b) => a.v.localeCompare(b.v) || a.title.localeCompare(b.title));
+  NEEDMAP = {}; const seen = {};
+  const opts = cands.map(x => { let v = x.title + ' — ' + x.v + (x.owners ? ' — ' + x.owners : ''); if (seen[v]) v += ' #' + (++seen[v]); else seen[v] = 1; NEEDMAP[v] = x.k; return '<option value="' + esc(v) + '"></option>'; }).join('');
+  const blocks = r.blocksList.map(b => '<div class="dep"><span>' + (openable(b) ? '<a href="#" data-open="' + esc(b.k) + '">' + esc(b.title) + '</a>' : esc(b.title)) + ' <small style="color:var(--mut)">' + esc(b.v) + ' · ' + esc(b.owners || 'No owner') + '</small></span></div>').join('');
+  const dv = DRAFT.k === r.k ? DRAFT : {};
+  return '<h4>Depends on tasks' + (r.needs.length ? ' (' + r.openNeeds.length + ' of ' + r.needs.length + ' not done)' : '') + '</h4>'
+    + (list || '<div class="empty" style="padding:2px 0">None. This task can be closed any time.</div>')
+    + '<div class="row" style="margin-top:6px;grid-template-columns:1fr auto"><input id="needQ" list="needList" autocomplete="off" placeholder="Search for a task this one needs first…" value="' + esc(dv.need || '') + '"><button class="btn" data-act="needAdd">Add</button></div><datalist id="needList">' + opts + '</datalist>'
+    + '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">This task cannot be closed on this page until every task above is Done. Shared with everyone using this page.</div>'
+    + (blocks ? '<h4>Waiting on this task (' + r.blocksList.length + ')</h4>' + blocks : '');
 }
 function setEdit(r, title, ownerVal, notes) {
   title = (title || '').trim(); if (!title) return false;
@@ -746,12 +776,16 @@ function setDue(r, d) {
 }
 function logSys(k, text) { W(ovPath(k) + '/updates/' + uid(), { at: Date.now(), text, sys: true, by: attWho() }); }
 function setStatus(r, st) {
+  if (st === 'done' && r.openNeeds && r.openNeeds.length) { NOTICE = { k: r.k, text: 'Not closed. Finish these first: ' + r.openNeeds.map(n => n.t.title).join('; ') }; return false; }
   ovSet(r.k, 'status', st); ovSet(r.k, 'closedAt', st === 'done' ? Date.now() : null);
   logSys(r.k, 'Status: ' + ({ open: 'Open', progress: 'In progress', blocked: 'Blocked', done: 'Done' }[st]));
+  return true;
 }
 function afterChange(advance) { if (advance) { const i = ORDER.indexOf(SK); SK = ORDER[i + 1] || ORDER[i - 1] || ''; } renderAll(); }
 $('#syncsec').addEventListener('click', e => {
   if (e.target.id === 'selClear') { e.preventDefault(); SEL = null; renderAll(); return; }
+  const lk = e.target.closest('[data-open]');
+  if (lk) { e.preventDefault(); const t = ROWS.find(x => x.k === lk.dataset.open); if (t) { EDIT = ''; NOTICE = null; CL = false; PS = ''; SV = t.v; SK = t.k; renderAll(); } return; }
   const cl = e.target.closest('[data-cl]');
   if (cl) {
     const c = cl.dataset.cl, k = cl.dataset.k;
@@ -766,7 +800,7 @@ $('#syncsec').addEventListener('click', e => {
   }
   const a = e.target.closest('[data-act]');
   if (a) {
-    const r = ROWS.find(x => x.k === SK); if (!r) return; const act = a.dataset.act;
+    const r = ROWS.find(x => x.k === SK); if (!r) return; const act = a.dataset.act; NOTICE = null;
     if (act === 'editOpen') { EDIT = r.k; EDRAFT = { title: r.title, owner: (D.people.find(p => key(p.name) === key(r.ownerNames[0])) || {}).id || (D.people.find(p => key(p.name) === key(r.ownerNames[0])) || {})._key || (r.ownerNames[0] ? '~' + r.ownerNames[0] : ''), notes: r.notes || '' }; return renderAll(); }
     if (act === 'editCancel') { EDIT = ''; return renderAll(); }
     if (act === 'editSave') { if (!setEdit(r, $('#eTitle').value, $('#eOwner').value, $('#eNotes').value)) { $('#eTitle').focus(); return; } EDIT = ''; return afterChange(false); }
@@ -774,8 +808,17 @@ $('#syncsec').addEventListener('click', e => {
     if (act === 'vertReset') { setVert(r, r.hubV); return afterChange(false); }
     if (act === 'dueSet') { setDue(r, a.dataset.d); return afterChange(false); }
     if (act === 'dueReset') { setDue(r, ''); return afterChange(false); }
-    if (act === 'close') { setStatus(r, 'done'); return afterChange(true); }
+    if (act === 'close') { return afterChange(setStatus(r, 'done')); }
     if (act === 'reopen') { setStatus(r, 'open'); return afterChange(false); }
+    if (act === 'needAdd') {
+      const q = ($('#needQ').value || '').trim(); let k = NEEDMAP[q];
+      if (!k) { const m = Object.entries(NEEDMAP).filter(([v]) => v.split(' — ')[0].toLowerCase() === q.toLowerCase()); if (m.length === 1) k = m[0][1]; }
+      if (!k) { NOTICE = { k: r.k, text: q ? 'Pick a task from the list that appears as you type.' : 'Type to search for the task this one depends on.' }; return afterChange(false); }
+      const t = ALLK[k]; if (!t) return afterChange(false);
+      if (reaches(k, r.k)) { NOTICE = { k: r.k, text: 'Not added: that would create a loop (it already depends on this task).' }; return afterChange(false); }
+      W(ovPath(r.k) + '/needs/' + uid(), { k, at: Date.now(), by: attWho() }); logSys(r.k, 'Depends on task: ' + t.title); DRAFT.need = ''; return afterChange(false);
+    }
+    if (act === 'needDel') { const n = r.needs.find(x => x.id === a.dataset.id); if (n) { W(ovPath(r.k) + '/needs/' + n.id, null); logSys(r.k, 'No longer depends on: ' + (n.t ? n.t.title : 'a removed task')); } return afterChange(false); }
     if (act === 'move') { const dt = nextMon(); ovSet(r.k, 'deferTo', dt); logSys(r.k, 'Moved to next week (' + fmtD(dt) + ')'); return afterChange(true); }
     if (act === 'back') { ovSet(r.k, 'deferTo', null); logSys(r.k, 'Brought back to this week'); return afterChange(false); }
     if (act === 'next') { const i = ORDER.indexOf(SK); if (ORDER[i + 1]) { SK = ORDER[i + 1]; renderAll(); } return; }
@@ -794,11 +837,11 @@ $('#syncsec').addEventListener('click', e => {
     if (act === 'depDel') { const d = r.deps[+a.dataset.i]; if (d) W(ovPath(r.k) + '/deps/' + d.id, null); return afterChange(false); }
     return;
   }
-  const row = e.target.closest('.srow'); if (row) { if (SK !== row.dataset.k) EDIT = ''; SK = row.dataset.k; renderAll(); return; }
+  const row = e.target.closest('.srow'); if (row) { if (SK !== row.dataset.k) { EDIT = ''; NOTICE = null; } SK = row.dataset.k; renderAll(); return; }
   const vb = e.target.closest('.vbtn'); if (vb) { SV = vb.dataset.v; SK = ''; if (SV !== '*' && [...$('#fVert').options].some(o => o.value === SV)) $('#fVert').value = SV; renderAll(); }
 });
 $('#syncsec').addEventListener('change', e => { if (e.target.id === 'eOwner') { EDRAFT.owner = e.target.value; return; } if (e.target.id === 'dVert') { const r = ROWS.find(x => x.k === SK); if (r && e.target.value) { const from = r.v; setVert(r, e.target.value); if (SV !== '*' && !inV(Object.assign({}, r, { v: e.target.value }), SV)) SV = e.target.value; afterChange(false); } return; } if (e.target.id === 'dDue') { const r = ROWS.find(x => x.k === SK); if (r) { setDue(r, e.target.value); afterChange(false); } return; } if (e.target.id === 'dStatus') { const r = ROWS.find(x => x.k === SK); if (r) { setStatus(r, e.target.value); afterChange(false); } } if (e.target.id === 'showHold') renderAll(); if (e.target.id === 'pSel') { PS = e.target.value; SK = ''; renderAll(); } });
-$('#syncsec').addEventListener('input', e => { if (e.target.id === 'eTitle') EDRAFT.title = e.target.value; if (e.target.id === 'eNotes') EDRAFT.notes = e.target.value; if (e.target.id === 'eOwner') EDRAFT.owner = e.target.value; if (e.target.id === 'updTxt' || e.target.id === 'depTxt') { DRAFT.k = SK; DRAFT[e.target.id === 'updTxt' ? 'upd' : 'dep'] = e.target.value; DRAFT.focus = e.target.id; } });
+$('#syncsec').addEventListener('input', e => { if (e.target.id === 'needQ') { DRAFT.k = SK; DRAFT.need = e.target.value; } if (e.target.id === 'eTitle') EDRAFT.title = e.target.value; if (e.target.id === 'eNotes') EDRAFT.notes = e.target.value; if (e.target.id === 'eOwner') EDRAFT.owner = e.target.value; if (e.target.id === 'updTxt' || e.target.id === 'depTxt') { DRAFT.k = SK; DRAFT[e.target.id === 'updTxt' ? 'upd' : 'dep'] = e.target.value; DRAFT.focus = e.target.id; } });
 $('#syncsec').addEventListener('keydown', e => { if (e.target.id === 'updTxt' && e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); const b = $('#tdetail [data-act="updAdd"]'); b && b.click(); } });
 $('#orgToggle').onclick = () => { ORGOPEN = !ORGOPEN; localStorage.setItem('naigPmo.orgOpen', ORGOPEN ? '1' : '0'); renderOrg(); };
 
@@ -814,7 +857,7 @@ function renderSummary() {
   $('#sumtable').innerHTML = '<table class="sm"><tr><th>Vertical</th><th>Still open</th><th>Blocked / dependent</th><th>Overdue</th><th>Closed this week</th><th>Moved to next week</th></tr>' + vs.map(v => tr(isCoreV(v) ? v + ' (incl. tasks owned by Core Team in other verticals; rows overlap)' : v, vStat(rows, v))).join('') + tr('All', t, 'tot') + '</table>';
   L.push('NAIG 2027 Logistics — Weekly sync summary', 'Week of ' + fmtD(w) + ' – ' + fmtD(addDays(w, 6)) + (SEL ? '   (filter: ' + selName() + ')' : ''));
   L.push('', 'Closed this week: ' + t.closed + ' · Still open: ' + t.open + ' (blocked/dependent: ' + t.blocked + ', overdue: ' + t.late + ') · Moved to next week: ' + t.moved + ' · New: ' + made);
-  const line = r => ' - ' + r.title + ' — ' + (r.owners || 'no owner') + (r.due ? ', due ' + fmtD(r.due) : '') + (r.late ? ' (OVERDUE)' : '') + (r.status === 'blocked' ? ' [BLOCKED]' : '') + r.deps.filter(d => !d.resolved).map(d => ' [waiting on ' + d.on + (d.note ? ': ' + d.note : '') + ']').join('');
+  const line = r => ' - ' + r.title + ' — ' + (r.owners || 'no owner') + (r.due ? ', due ' + fmtD(r.due) : '') + (r.late ? ' (OVERDUE)' : '') + (r.status === 'blocked' ? ' [BLOCKED]' : '') + (!r.done && r.openNeeds.length ? ' [needs first: ' + r.openNeeds.map(n => n.t.title).join('; ') + ']' : '') + r.deps.filter(d => !d.resolved).map(d => ' [waiting on ' + d.on + (d.note ? ': ' + d.note : '') + ']').join('');
   const al = r => attsOf(r).map(a => '\n     link: ' + (a.name || 'attachment') + ' — ' + a.url).join('');
   const lu = r => { const u = r.updates.filter(x => !x.sys).slice(-1)[0]; return u ? '\n     update (' + fmtDT(u.at) + '): ' + u.text : ''; };
   vs.forEach(v => {
@@ -827,6 +870,8 @@ function renderSummary() {
   });
   const hdep = rows.filter(r => !r.done && r.hubDeps.some(d => d.status !== 'done'));
   const dep = rows.filter(r => !r.done && r.deps.some(d => !d.resolved));
+  const tdep = rows.filter(r => !r.done && r.openNeeds.length);
+  if (tdep.length) { L.push('', 'TASK DEPENDENCIES (cannot close until done)'); tdep.forEach(r => r.openNeeds.forEach(n => L.push(' - ' + r.v + ': "' + r.title + '" needs "' + n.t.title + '" (' + n.t.v + ', ' + (n.t.owners || 'no owner') + ')'))); }
   if (dep.length) { L.push('', 'CROSS-VERTICAL DEPENDENCIES'); dep.forEach(r => r.deps.filter(d => !d.resolved).forEach(d => L.push(' - ' + r.v + ': "' + r.title + '" is waiting on ' + d.on + (d.note ? ' (' + d.note + ')' : '')))); }
   if (hdep.length) { L.push('', 'DEPENDENCIES RECORDED IN THE HUB'); hdep.forEach(r => r.hubDeps.filter(d => d.status !== 'done').forEach(d => L.push(' - ' + r.v + ': "' + r.title + '" needs ' + d.team + ' [' + DEP_ST[d.status] + ']'))); }
   $('#summary').textContent = L.join('\n');
@@ -865,7 +910,7 @@ function renderAll() {
   const had = document.activeElement && document.activeElement.id, pos = had && document.activeElement.selectionStart;
   ROWS = allRows(); HIDDEN = ROWS.filter(r => r.hidden); ROWS = ROWS.filter(r => !r.hidden);
   renderOrg(); renderSync(); renderSummary();
-  if ((had === 'updTxt' || had === 'depTxt' || had === 'eTitle' || had === 'eNotes') && $('#' + had)) { const el = $('#' + had); el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} }
+  if ((had === 'updTxt' || had === 'depTxt' || had === 'eTitle' || had === 'eNotes' || had === 'needQ') && $('#' + had)) { const el = $('#' + had); el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} }
 }
 
 /* ===== connection / status ===== */
