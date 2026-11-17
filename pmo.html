@@ -503,6 +503,11 @@ function canonName(n) {
   return raw;
 }
 const isCoreV = v => /core/i.test(v || '');
+function rollsToCore(name) {
+  const p = D.people.find(x => key(x.name) === key(name)); let i = p && pid(p), g = 0;
+  while (i && g++ < 30) { const q = D.byId[i]; if (!q) return false; if (isCoreV(q.vertical)) return true; i = D.parent[i]; }
+  return false;
+}
 function allRows() {
   const td = todayS(), w = cur(), wk = addDays(td, 7), rows = [], every = [];
   const mk = (src, id, v, title, ownerNames, due, rawStatus, notes, extra) => {
@@ -522,7 +527,7 @@ function allRows() {
     r.closedThisWeek = r.done && r.closedAt >= wkMs();
     r.b = r.blocked ? 0 : r.late ? 1 : due && due <= wk ? 2 : due ? 3 : 4;
     r.tk = toks(title);
-    r.core = isCoreV(v) || ownerNames.some(n => { const p = D.people.find(x => key(x.name) === key(n)); return p && isCoreV(p.vertical); });
+    r.core = isCoreV(v) || ownerNames.some(rollsToCore);   // a task rolls up to Core Team if its owner is on Core Team or reports (at any depth) to someone who is
     r.hubDeps = []; Object.assign(r, extra || {}); every.push(r); return r;
   };
   ents(D.hubTasks).forEach(([id, t]) => { if (!t.title) return;
@@ -572,17 +577,17 @@ function srowHtml(r, showV) {
     + '<div class="m">' + esc(r.owners || 'No owner') + ' · <span style="' + (r.late ? 'color:var(--bad);font-weight:600' : '') + '">' + fmtD(r.due) + '</span>' + (showV ? ' · in ' + esc(r.v) : '') + '</div>'
     + pillsHtml(r) + (last ? '<div class="lu">' + fmtDT(last.at) + ': ' + esc(String(last.text).slice(0, 120)) + '</div>' : '') + '</div>';
 }
-/* Person filter for the middle pane. '' = everyone, '@me' = my tasks, '@team' = my branch (me + everyone I support), 'n:<key>' = one person. */
+/* Person filter for the middle pane. '' = everyone, '@me' = my tasks incl. everything that rolls up to me, '@own' = assigned directly to me, 'n:<key>' = one person. */
 const meKey = () => D.me ? key(D.me.name) : '';
 const teamMgr = () => D.me ? (D.byId[D.sideOf[pid(D.me)]] || null) : null;
 function personFilter() {
   if (!PS) return () => true;
-  if (PS === '@me') return r => r.ownerNames.some(n => key(n) === meKey());
-  if (PS === '@team') { const m = matcher(pid(D.me)); return r => rowMatch(m, r); }
+  if (PS === '@me') { const m = matcher(pid(D.me)); return r => rowMatch(m, r); }   // rolls up to me: mine, plus everyone I support or who reports up to me
+  if (PS === '@own') return r => r.ownerNames.some(n => key(n) === meKey());
   const k = PS.slice(2); return r => r.ownerNames.some(n => key(n) === k);
 }
 function personOptions(vrows) {
-  Object.keys(PLABEL).forEach(k => delete PLABEL[k]); PLABEL['@me'] = 'my tasks'; PLABEL['@team'] = 'my team';
+  Object.keys(PLABEL).forEach(k => delete PLABEL[k]); PLABEL['@me'] = 'my tasks (incl. my verticals)'; PLABEL['@own'] = 'assigned directly to me';
   const open = vrows.filter(r => !r.done && !r.deferred), cnt = k => open.filter(r => r.ownerNames.some(n => key(n) === k)).length;
   const names = new Map();
   D.people.filter(p => SV === '*' || String(p.vertical || '').trim() === SV).forEach(p => names.set(key(p.name), p.name));
@@ -591,8 +596,8 @@ function personOptions(vrows) {
   let h = '<option value="">Everyone' + (SV === '*' ? '' : ' in ' + esc(SV)) + ' (' + open.length + ')</option>';
   if (D.me) {
     const mgr = teamMgr(), mm = matcher(pid(D.me)), tm = open.filter(r => rowMatch(mm, r)).length;
-    h += '<optgroup label="Mine"><option value="@me">My tasks — ' + esc(D.me.name) + ' (' + cnt(meKey()) + ')</option>'
-      + '<option value="@team">My team' + (mgr ? ' — everyone under ' + esc(mgr.name) : '') + ' (' + tm + ')</option></optgroup>';
+    h += '<optgroup label="Mine"><option value="@me">My tasks' + (mgr ? ' — incl. everything under ' + esc(mgr.name) : '') + ' (' + tm + ')</option>'
+      + '<option value="@own">Assigned directly to me (' + cnt(meKey()) + ')</option></optgroup>';
   }
   h += '<optgroup label="By person">' + list.map(([k, n]) => (PLABEL['n:' + k] = n, '') + '<option value="n:' + esc(k) + '">' + esc(n) + ' (' + cnt(k) + ')</option>').join('') + '</optgroup>';
   return h;
@@ -657,14 +662,14 @@ function renderSync() {
   const ORDER_V = [/site/i, /hotel/i, /f&b|f and b|food/i, /transport/i, /procure/i, /design/i], main = [];
   ORDER_V.forEach(re => { const v = vs.find(x => !main.includes(x) && !isCoreV(x) && re.test(x)); if (v) main.push(v); });
   const more = vs.filter(v => !main.includes(v));
-  const vopts = [['*', 'All verticals']].concat(more.map(v => [v, isCoreV(v) ? 'Core Team (incl. tasks owned by Core Team)' : v])).map(([v, l]) => { const t = vStat(rows, v); return '<option value="' + esc(v) + '"' + (SV === v ? ' selected' : '') + '>' + esc(l) + ' (' + t.open + ' open)</option>'; }).join('');
+  const vopts = [['*', 'All verticals']].concat(more.map(v => [v, isCoreV(v) ? 'Core Team (everything that rolls up to Core Team)' : v])).map(([v, l]) => { const t = vStat(rows, v); return '<option value="' + esc(v) + '"' + (SV === v ? ' selected' : '') + '>' + esc(l) + ' (' + t.open + ' open)</option>'; }).join('');
   const inMore = SV === '*' || more.includes(SV);
   $('#vlist').innerHTML = main.map(v => vb(v, v)).join('')
     + '<select id="vSel" class="vsel' + (inMore ? ' on' : '') + '" title="All verticals, Core Team and other views">' + (inMore ? '' : '<option value="" selected>All verticals, Core Team…</option>') + vopts + '</select>';
   // middle: task list
   const vrows = rows.filter(r => inV(r, SV));
   const popts = personOptions(vrows);
-  if (PS && !(PS in PLABEL) || (PS === '@me' || PS === '@team') && !D.me) PS = '';
+  if (PS && !(PS in PLABEL) || (PS === '@me' || PS === '@own') && !D.me) PS = '';
   const pf = personFilter();
   const act = rows.filter(r => inV(r, SV) && pf(r) && !r.done && !r.deferred).sort((a, b) => a.b - b.b || (a.due || '9').localeCompare(b.due || '9'));
   const incoming = SV === '*' ? [] : rows.filter(r => !r.done && !r.deferred && pf(r) && r.v !== SV && r.deps.some(d => !d.resolved && d.on === SV));
@@ -883,7 +888,7 @@ function renderSummary() {
   $('#tiles').innerHTML = tile(t.closed, 'Closed this week', 'good') + tile(t.open, 'Still open', '') + tile(t.blocked, 'Blocked or waiting on a dependency', t.blocked ? 'warn' : '') + tile(t.late, 'Overdue', t.late ? 'bad' : '') + tile(t.moved, 'Moved to next week', '') + tile(made, 'New tasks this week', '') + tile(upd, 'Updates logged', '');
   const vs = D.verts.concat(['Unsorted', 'Other']).filter((v, i, a) => a.indexOf(v) === i).filter(v => rows.some(r => r.v === v));
   const tr = (n, s, cls) => '<tr class="' + (cls || '') + '"><td>' + esc(n) + '</td><td>' + s.open + '</td><td>' + s.blocked + '</td><td>' + s.late + '</td><td>' + s.closed + '</td><td>' + s.moved + '</td></tr>';
-  $('#sumtable').innerHTML = '<table class="sm"><tr><th>Vertical</th><th>Still open</th><th>Blocked / dependent</th><th>Overdue</th><th>Closed this week</th><th>Moved to next week</th></tr>' + vs.map(v => tr(isCoreV(v) ? v + ' (incl. tasks owned by Core Team in other verticals; rows overlap)' : v, vStat(rows, v))).join('') + tr('All', t, 'tot') + '</table>';
+  $('#sumtable').innerHTML = '<table class="sm"><tr><th>Vertical</th><th>Still open</th><th>Blocked / dependent</th><th>Overdue</th><th>Closed this week</th><th>Moved to next week</th></tr>' + vs.map(v => tr(isCoreV(v) ? v + ' (incl. everything that rolls up to Core Team; rows overlap)' : v, vStat(rows, v))).join('') + tr('All', t, 'tot') + '</table>';
   L.push('NAIG 2027 Logistics — Weekly sync summary', 'Week of ' + fmtD(w) + ' – ' + fmtD(addDays(w, 6)) + (SEL ? '   (filter: ' + selName() + ')' : ''));
   L.push('', 'Closed this week: ' + t.closed + ' · Still open: ' + t.open + ' (blocked/dependent: ' + t.blocked + ', overdue: ' + t.late + ') · Moved to next week: ' + t.moved + ' · New: ' + made);
   const line = r => ' - ' + r.title + ' — ' + (r.owners || 'no owner') + (r.due ? ', due ' + fmtD(r.due) : '') + (r.late ? ' (OVERDUE)' : '') + (r.status === 'blocked' ? ' [BLOCKED]' : '') + (!r.done && r.openNeeds.length ? ' [needs first: ' + r.openNeeds.map(n => n.t.title).join('; ') + ']' : '') + r.deps.filter(d => !d.resolved).map(d => ' [waiting on ' + d.on + (d.note ? ': ' + d.note : '') + ']').join('');
