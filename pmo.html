@@ -113,6 +113,7 @@ pre.summary{white-space:pre-wrap;background:#0f172a;color:#e2e8f0;border-radius:
 .sync{display:grid;grid-template-columns:230px minmax(320px,1fr) minmax(380px,1.1fr);gap:12px;align-items:start}
 @media(max-width:1150px){.sync{grid-template-columns:1fr}}
 .vbtn{display:block;width:100%;text-align:left;border:1px solid var(--line);border-left-width:6px;border-radius:8px;background:#fff;padding:8px 10px;margin-bottom:6px;cursor:pointer;font:inherit}
+.vsel{margin-top:2px;border-width:1px;font-weight:600}.vsel.on{outline:2px solid #93c5fd;background:#eff6ff}
 .vbtn:hover{background:#f8fafc}.vbtn.on{background:#eff6ff;outline:2px solid #93c5fd}
 .vbtn b{display:block;font-size:13px}.vbtn .vp{margin-top:3px;display:flex;flex-wrap:wrap;gap:4px}
 .smid #tlist{max-height:78vh;overflow:auto;padding-right:2px}
@@ -142,10 +143,9 @@ pre.summary{white-space:pre-wrap;background:#0f172a;color:#e2e8f0;border-radius:
 table.sm{border-collapse:collapse;width:100%;font-size:13px}table.sm th,table.sm td{border-bottom:1px solid var(--line);padding:5px 8px;text-align:right}
 table.sm th:first-child,table.sm td:first-child{text-align:left}table.sm th{font-size:11px;text-transform:uppercase;color:var(--mut)}table.sm tr.tot td{font-weight:700}
 #orgToggle{padding:2px 10px}
-.br-soh{background:#f3f8ff}.br-kir{background:#fff5f5}
-.node.br-soh,.srow.br-soh,.vbtn.br-soh,.cogroup.br-soh{background:#f3f8ff}.node.br-kir,.srow.br-kir,.vbtn.br-kir,.cogroup.br-kir{background:#fff5f5}
-.srow.on.br-soh,.vbtn.on.br-soh{background:#e3eeff}.srow.on.br-kir,.vbtn.on.br-kir{background:#ffe6e6}
-.legend{display:inline-flex;gap:6px;font-weight:400}.legend .lg{font-size:11px;border:1px solid #cbd5e1;border-radius:99px;padding:1px 10px;color:var(--ink)}
+.br-soh{background:#f3f8ff}.br-kir{background:#fffcea}
+.node.br-soh,.srow.br-soh,.vbtn.br-soh,.cogroup.br-soh{background:#f3f8ff}.node.br-kir,.srow.br-kir,.vbtn.br-kir,.cogroup.br-kir{background:#fffcea}
+.srow.on.br-soh,.vbtn.on.br-soh{background:#e3eeff}.srow.on.br-kir,.vbtn.on.br-kir{background:#fff4c2}
 .note-bad{background:#fee2e2;color:#7f1d1d;border-radius:6px;padding:6px 8px;font-size:12px;margin:6px 0}
 .cl-head{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.dgrp{border:1px dashed #cbd5e1;border-radius:8px;padding:6px;margin-bottom:8px;background:#fafafa}
 @media print{header,.banner,.noprint,#orgsec,#syncsec,.gate{display:none!important}body{background:#fff}section{border:0}pre.summary{background:#fff;color:#000;max-height:none}}
@@ -167,7 +167,6 @@ table.sm th:first-child,table.sm td:first-child{text-align:left}table.sm th{font
 <section id="orgsec">
   <h2><button class="btn" id="orgToggle">▸ Show org</button> Org <span class="hint" id="orgSum"></span></h2>
   <div id="orgbody" hidden>
-    <div style="margin-bottom:6px"><span class="legend noprint"><span class="lg br-soh">Sohail's org</span><span class="lg br-kir">Kiran's org</span></span></div>
     <div class="hint" style="margin-bottom:6px;color:var(--mut);font-size:12px">Live from the hub Directory. Click any box to filter the weekly sync and summary to that branch; click again to clear.</div>
     <div class="tree" id="tree"></div>
     <div class="filterbar" id="filterbar"></div>
@@ -179,7 +178,7 @@ table.sm th:first-child,table.sm td:first-child{text-align:left}table.sm th{font
 
 <section id="syncsec">
   <h2>Weekly sync <span class="hint" id="syncHint"></span>
-    <span id="selchip"></span> <span class="legend noprint"><span class="lg br-soh">Sohail's org</span><span class="lg br-kir">Kiran's org</span></span>
+    <span id="selchip"></span>
     <span style="flex:1"></span>
     <label class="chk noprint" style="margin:0"><input type="checkbox" id="showHold"><span>Show on hold / parked</span></label></h2>
   <div class="sync">
@@ -655,7 +654,13 @@ function renderSync() {
   const vb = (v, label) => { const t = vStat(rows, v);
     return '<button class="vbtn' + brCls(v === '*' ? '' : vBranch(v)) + (SV === v ? ' on' : '') + '" data-v="' + esc(v) + '" style="border-left-color:' + (v === '*' ? '#1e3a8a' : vColor(v)) + '"><b>' + esc(label) + '</b><div class="vp"><span class="pill">' + t.open + ' open</span>'
       + (t.blocked ? '<span class="pill warn">' + t.blocked + ' blocked/dep</span>' : '') + (t.late ? '<span class="pill bad">' + t.late + ' overdue</span>' : '') + (t.incoming ? '<span class="pill warn">' + t.incoming + ' waiting on us</span>' : '') + (t.closed ? '<span class="pill good">' + t.closed + ' closed</span>' : '') + '</div></button>'; };
-  $('#vlist').innerHTML = vb('*', 'All verticals') + vs.map(v => vb(v, isCoreV(v) ? v + ' (incl. all tasks owned by Core Team)' : v)).join('');
+  const ORDER_V = [/site/i, /hotel/i, /f&b|f and b|food/i, /transport/i, /procure/i, /design/i], main = [];
+  ORDER_V.forEach(re => { const v = vs.find(x => !main.includes(x) && !isCoreV(x) && re.test(x)); if (v) main.push(v); });
+  const more = vs.filter(v => !main.includes(v));
+  const vopts = [['*', 'All verticals']].concat(more.map(v => [v, isCoreV(v) ? 'Core Team (incl. tasks owned by Core Team)' : v])).map(([v, l]) => { const t = vStat(rows, v); return '<option value="' + esc(v) + '"' + (SV === v ? ' selected' : '') + '>' + esc(l) + ' (' + t.open + ' open)</option>'; }).join('');
+  const inMore = SV === '*' || more.includes(SV);
+  $('#vlist').innerHTML = main.map(v => vb(v, v)).join('')
+    + '<select id="vSel" class="vsel' + (inMore ? ' on' : '') + '" title="All verticals, Core Team and other views">' + (inMore ? '' : '<option value="" selected>All verticals, Core Team…</option>') + vopts + '</select>';
   // middle: task list
   const vrows = rows.filter(r => inV(r, SV));
   const popts = personOptions(vrows);
@@ -864,7 +869,7 @@ $('#syncsec').addEventListener('click', e => {
   const row = e.target.closest('.srow'); if (row) { if (SK !== row.dataset.k) { EDIT = ''; NOTICE = null; } SK = row.dataset.k; renderAll(); return; }
   const vb = e.target.closest('.vbtn'); if (vb) { SV = vb.dataset.v; SK = ''; if (SV !== '*' && [...$('#fVert').options].some(o => o.value === SV)) $('#fVert').value = SV; renderAll(); }
 });
-$('#syncsec').addEventListener('change', e => { if (e.target.id === 'ownAdd') { const r = ROWS.find(x => x.k === SK), nm = e.target.value; if (r && nm) { setOwners(r, r.ownerNames.concat([nm]), 'Assigned to ' + nm); afterChange(false); } return; } if (e.target.id === 'dVert') { const r = ROWS.find(x => x.k === SK); if (r && e.target.value) { const from = r.v; setVert(r, e.target.value); if (SV !== '*' && !inV(Object.assign({}, r, { v: e.target.value }), SV)) SV = e.target.value; afterChange(false); } return; } if (e.target.id === 'dDue') { const r = ROWS.find(x => x.k === SK); if (r) { setDue(r, e.target.value); afterChange(false); } return; } if (e.target.id === 'dStatus') { const r = ROWS.find(x => x.k === SK); if (r) { setStatus(r, e.target.value); afterChange(false); } } if (e.target.id === 'showHold') renderAll(); if (e.target.id === 'pSel') { PS = e.target.value; SK = ''; renderAll(); } });
+$('#syncsec').addEventListener('change', e => { if (e.target.id === 'vSel') { if (e.target.value !== '') { SV = e.target.value; SK = ''; CL = false; renderAll(); } return; } if (e.target.id === 'ownAdd') { const r = ROWS.find(x => x.k === SK), nm = e.target.value; if (r && nm) { setOwners(r, r.ownerNames.concat([nm]), 'Assigned to ' + nm); afterChange(false); } return; } if (e.target.id === 'dVert') { const r = ROWS.find(x => x.k === SK); if (r && e.target.value) { const from = r.v; setVert(r, e.target.value); if (SV !== '*' && !inV(Object.assign({}, r, { v: e.target.value }), SV)) SV = e.target.value; afterChange(false); } return; } if (e.target.id === 'dDue') { const r = ROWS.find(x => x.k === SK); if (r) { setDue(r, e.target.value); afterChange(false); } return; } if (e.target.id === 'dStatus') { const r = ROWS.find(x => x.k === SK); if (r) { setStatus(r, e.target.value); afterChange(false); } } if (e.target.id === 'showHold') renderAll(); if (e.target.id === 'pSel') { PS = e.target.value; SK = ''; renderAll(); } });
 $('#syncsec').addEventListener('input', e => { if (e.target.id === 'needQ') { DRAFT.k = SK; DRAFT.need = e.target.value; } if (e.target.id === 'eTitle') EDRAFT.title = e.target.value; if (e.target.id === 'eNotes') EDRAFT.notes = e.target.value; if (e.target.id === 'updTxt' || e.target.id === 'depTxt') { DRAFT.k = SK; DRAFT[e.target.id === 'updTxt' ? 'upd' : 'dep'] = e.target.value; DRAFT.focus = e.target.id; } });
 $('#syncsec').addEventListener('keydown', e => { if (e.target.id === 'updTxt' && e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); const b = $('#tdetail [data-act="updAdd"]'); b && b.click(); } });
 $('#orgToggle').onclick = () => { ORGOPEN = !ORGOPEN; localStorage.setItem('naigPmo.orgOpen', ORGOPEN ? '1' : '0'); renderOrg(); };
