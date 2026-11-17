@@ -509,13 +509,14 @@ function allRows() {
   const mk = (src, id, v, title, ownerNames, due, rawStatus, notes, extra) => {
     const hubV0 = v; const hubDue0 = due; ownerNames = ownerNames.map(canonName); const k = src + ':' + id, o = ovGet(k), hs = String(rawStatus || '').toLowerCase().replace(/[^a-z]/g, '');
     if (o.vertBy && vAll().includes(o.vertBy)) v = o.vertBy;   // vertical moved on this page (shared); the hub task's own vertical is not changed
-    const hubT0 = title, hubO0 = ownerNames.join(', '), hubN0 = notes;
+    const hubT0 = title, hubO0 = ownerNames.join(', '), hubN0 = notes, hubOwn0 = ownerNames.slice();
     if (o.titleBy) title = String(o.titleBy);                                   // edits made on this page (shared); the hub task itself is not changed
-    if (typeof o.ownerBy === 'string') ownerNames = o.ownerBy ? [o.ownerBy] : [];
+    if (typeof o.ownerBy === 'string') ownerNames = o.ownerBy ? [o.ownerBy] : [];                      // older single-owner edit
+    if (o.ownersBy && typeof o.ownersBy === 'object') ownerNames = Object.values(o.ownersBy).filter(Boolean).map(canonName);   // "Assigned to" on this page (shared); several people allowed
     if (typeof o.notesBy === 'string') notes = o.notesBy;
     if (/^\d{4}-\d{2}-\d{2}$/.test(o.dueBy || '')) due = o.dueBy;   // "Due by" set on this page (shared); the hub task's own date is not changed
     const status = o.status || (hs === 'blocked' ? 'blocked' : /progress|doing|started/.test(hs) ? 'progress' : hs === 'done' ? 'done' : 'open');
-    const deps = o.deps || [], r = { k, src, id, v, title, ownerNames, owners: ownerNames.join(', '), due, hubDue: hubDue0, hubT: hubT0, hubO: hubO0, hubN: hubN0, edited: title !== hubT0 || ownerNames.join(', ') !== hubO0 || notes !== hubN0, dueSet: due !== hubDue0, hubV: hubV0, vSet: v !== hubV0, status, notes, updates: o.updates || [], deps,
+    const deps = o.deps || [], r = { k, src, id, v, title, ownerNames, owners: ownerNames.join(', '), due, hubDue: hubDue0, hubT: hubT0, hubO: hubO0, hubOwn: hubOwn0, hubN: hubN0, edited: title !== hubT0 || notes !== hubN0, reassigned: ownerNames.join(', ') !== hubO0, dueSet: due !== hubDue0, hubV: hubV0, vSet: v !== hubV0, status, notes, updates: o.updates || [], deps,
       waiting: deps.some(d => !d.resolved), hold: hs === 'onhold' || holdRe.test(title) || !!o.parked, deferTo: o.deferTo || '', closedAt: o.closedAt || 0, hidden: !!o.hidden, hiddenWhy: o.hiddenWhy || '' };
     r.done = status === 'done'; r.deferred = !r.done && !!r.deferTo && r.deferTo > w;
     r.blocked = !r.done && (status === 'blocked' || r.waiting); r.late = !r.done && !!due && due < td;
@@ -531,7 +532,7 @@ function allRows() {
     if (r.done && !OV[sk(r.k)]) return;   // done in the hub and untouched by me: not part of the working list
     rows.push(r); });
   ST.tasks.forEach(t => { if (t.week > w) return;
-    rows.push(mk('mine', t.id, vOf(t), t.title, t.owner ? [ownerName(t.owner)] : [], t.due || '', t.status, t.notes || '', { createdThisWeek: (t.createdAt || 0) >= wkMs() || (!t.createdAt && t.week === w) })); });
+    rows.push(mk('mine', t.id, vOf(t), t.title, (t.owners && typeof t.owners === 'object') ? Object.values(t.owners).filter(Boolean) : (t.owner ? [ownerName(t.owner)] : []), t.due || '', t.status, t.notes || '', { createdThisWeek: (t.createdAt || 0) >= wkMs() || (!t.createdAt && t.week === w) })); });
   /* Task-to-task prerequisites (ov/<task>/needs): a task with any unfinished prerequisite is blocked and cannot be closed on this page. */
   const byK = {}; every.forEach(r => byK[r.k] = r); ALLK = byK;
   every.forEach(r => { r.needs = (ovGet(r.k).needs || []).map(n => ({ id: n.id, k: n.k, t: byK[n.k] || null })); r.openNeeds = r.needs.filter(n => n.t && !n.t.done); r.blocksList = []; });
@@ -544,7 +545,7 @@ function allRows() {
 
 /* ===== weekly sync ===== */
 let ALLK = {}, NOTICE = null;   // ALLK: every task by key (including done and hidden), so prerequisites can be found
-let EDIT = '', EDRAFT = { title: '', owner: '', notes: '' }, CL = false, PS = '', SV = '*', SK = '', ORDER = [], DRAFT = { k: '', upd: '', dep: '', focus: '' };
+let EDIT = '', EDRAFT = { title: '', notes: '' }, CL = false, PS = '', SV = '*', SK = '', ORDER = [], DRAFT = { k: '', upd: '', dep: '', focus: '' };
 const syncRows = () => { const m = matcher(SEL); return ROWS.filter(r => rowMatch(m, r)); };
 const inV = (r, v) => v === '*' || r.v === v || (isCoreV(v) && r.core);
 const BNAME = ['Blocked or waiting on a dependency', 'Overdue', 'Due in the next 7 days', 'Later', 'No due date'];
@@ -701,10 +702,9 @@ function renderDetail() {
   const deps = r.deps.map((d, i) => '<div class="dep' + (d.resolved ? ' ok' : '') + '"><span>' + (d.resolved ? '✓ ' : '') + 'Waiting on <b>' + esc(d.on) + '</b>' + (d.note ? ': ' + esc(d.note) : '') + '</span><span><button class="btn" data-act="depTog" data-i="' + i + '">' + (d.resolved ? 'Reopen' : 'Resolved') + '</button> <button class="btn" data-act="depDel" data-i="' + i + '">×</button></span></div>').join('');
   const dopts = '<optgroup label="Logistics verticals">' + D.verts.filter(v => v !== r.v).map(v => '<option>' + esc(v) + '</option>').join('') + '</optgroup><optgroup label="Other teams">' + CROSS_TEAMS.map(v => '<option>' + esc(v) + '</option>').join('') + '</optgroup>';
   const hd = (r.hubDeps || []).map(d => '<div class="dep' + (d.status === 'done' ? ' ok' : '') + '"><span><span class="src">hub</span><b>' + esc(d.team) + '</b> <small style="color:var(--mut)">' + d.kind.toLowerCase() + '</small></span><span class="pill ' + (d.status === 'blocked' ? 'bad' : d.status === 'done' ? 'good' : d.status === 'inprogress' ? 'blue' : '') + '">' + DEP_ST[d.status] + '</span></div>').join('');
-  const ed = EDIT === r.k, ownerVal = r.ownerNames[0] ? ((D.people.find(p => key(p.name) === key(r.ownerNames[0])) || {}).id || (D.people.find(p => key(p.name) === key(r.ownerNames[0])) || {})._key || '~' + r.ownerNames[0]) : '';
-  const ev = ed ? EDRAFT : { title: r.title, owner: ownerVal, notes: r.notes };
-  const eopts = '<option value="">No owner</option>' + D.people.slice().sort((a, b) => String(a.name).localeCompare(String(b.name))).map(p => '<option value="' + esc(pid(p)) + '"' + (ev.owner === pid(p) ? ' selected' : '') + '>' + esc(p.name + ' — ' + roleOf(p)) + '</option>').join('') + (ev.owner && ev.owner.startsWith('~') ? '<option value="' + esc(ev.owner) + '" selected>' + esc(ev.owner.slice(1)) + ' (not in Directory)</option>' : '');
-  const editBox = '<div class="newbox"><label>Title</label><input id="eTitle" value="' + esc(ev.title) + '"><label>Owner</label><select id="eOwner">' + eopts + '</select><label>Notes</label><textarea id="eNotes">' + esc(ev.notes) + '</textarea>'
+  const ed = EDIT === r.k;
+  const ev = ed ? EDRAFT : { title: r.title, notes: r.notes };
+  const editBox = '<div class="newbox"><label>Title</label><input id="eTitle" value="' + esc(ev.title) + '"><label>Notes</label><textarea id="eNotes">' + esc(ev.notes) + '</textarea>'
     + '<div class="acts"><button class="btn pri" data-act="editSave">Save</button><button class="btn" data-act="editCancel">Cancel</button>' + (r.src === 'hub' && r.edited ? '<button class="btn" data-act="editReset" title="Back to what the hub has">Reset to hub</button>' : '') + '</div>'
     + '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">' + (r.src === 'hub' ? 'Shared with everyone using this page; the hub task itself is not changed.' : 'Edits this task for everyone using this page.') + '</div></div>';
   const nb = r.openNeeds && r.openNeeds.length && !r.done;
@@ -715,6 +715,7 @@ function renderDetail() {
     + (!ed && r.notes ? '<div class="upd sys" style="margin-top:6px">' + esc(String(r.notes).slice(0, 400)) + '</div>' : '')
     + (!ed && r.src === 'hub' && r.edited ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Edited here' + (r.hubT !== r.title ? ' (hub title: "' + esc(r.hubT) + '")' : '') + '.</div>' : '')
     + (r.src === 'hub' ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Hub task: status, updates, dependencies and moves are shared with everyone using this page. The hub task itself is not changed.</div>' : '')
+    + assignHtml(r)
     + '<h4>Vertical</h4><div class="row" style="grid-template-columns:1fr auto"><select id="dVert">' + vAll().filter((x, i, a) => a.indexOf(x) === i && (x !== 'Unsorted' || r.v === 'Unsorted')).map(x => '<option' + (x === r.v ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select><button class="btn" data-act="vertReset"' + (r.src === 'hub' && r.vSet ? '' : ' disabled') + ' title="Back to where the hub puts it">Reset</button></div>'
     + (r.vSet && r.src === 'hub' ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Moved here from ' + esc(r.hubV) + '. Shared with everyone using this page; the hub task is not changed.</div>' : '')
     + '<h4>Due by</h4><div class="row" style="grid-template-columns:1fr auto"><input type="date" id="dDue" value="' + esc(r.due || '') + '"><button class="btn" data-act="dueReset"' + ((r.src === 'mine' ? r.due : r.dueSet) ? '' : ' disabled') + ' title="' + (r.src === 'hub' ? 'Back to the hub date' : 'Clear the date') + '">' + (r.src === 'hub' ? 'Reset' : 'Clear') + '</button></div>'
@@ -750,15 +751,35 @@ function needsHtml(r) {
     + '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">This task cannot be closed on this page until every task above is Done. Shared with everyone using this page.</div>'
     + (blocks ? '<h4>Waiting on this task (' + r.blocksList.length + ')</h4>' + blocks : '');
 }
-function setEdit(r, title, ownerVal, notes) {
+function setEdit(r, title, notes) {
   title = (title || '').trim(); if (!title) return false;
-  const p = ownerVal && !ownerVal.startsWith('~') ? D.byId[ownerVal] : null, ownerNm = ownerVal ? (p ? p.name : ownerVal.slice(1)) : '';
-  const ch = []; if (title !== r.title) ch.push('title'); if (ownerNm !== r.ownerNames.join(', ')) ch.push('owner'); if ((notes || '') !== (r.notes || '')) ch.push('notes');
+  const ch = []; if (title !== r.title) ch.push('title'); if ((notes || '') !== (r.notes || '')) ch.push('notes');
   if (!ch.length) return true;
-  if (r.src === 'mine') { W('tasks/' + r.id + '/title', title); W('tasks/' + r.id + '/owner', ownerVal && p ? ownerVal : ''); W('tasks/' + r.id + '/notes', notes || ''); }
-  else { ovSet(r.k, 'titleBy', title !== r.hubT ? title : null); ovSet(r.k, 'ownerBy', ownerNm !== r.hubO ? ownerNm : null); ovSet(r.k, 'notesBy', (notes || '') !== (r.hubN || '') ? (notes || '') : null); }
-  logSys(r.k, 'Edited ' + ch.join(', ') + (ch.includes('title') ? ' (title was "' + r.title.slice(0, 60) + '")' : '') + (ch.includes('owner') ? ' (owner was ' + (r.owners || 'none') + ')' : ''));
+  if (r.src === 'mine') { W('tasks/' + r.id + '/title', title); W('tasks/' + r.id + '/notes', notes || ''); }
+  else { ovSet(r.k, 'titleBy', title !== r.hubT ? title : null); ovSet(r.k, 'notesBy', (notes || '') !== (r.hubN || '') ? (notes || '') : null); }
+  logSys(r.k, 'Edited ' + ch.join(', ') + (ch.includes('title') ? ' (title was "' + r.title.slice(0, 60) + '")' : ''));
   return true;
+}
+/* Assigned to: any number of people. Hub tasks: shared overlay (ov/<task>/ownersBy). Tasks created on this page: their own record (owners). */
+const ownMap = names => { const m = {}; names.forEach(n => { m[sk(key(n))] = n; }); return Object.keys(m).length ? m : { _none: '' }; };
+function setOwners(r, names, why) {
+  names = names.filter((n, i, a) => n && a.findIndex(x => key(x) === key(n)) === i);
+  if (names.map(key).sort().join('|') === r.ownerNames.map(key).sort().join('|')) return;
+  if (r.src === 'mine') { W('tasks/' + r.id + '/owners', ownMap(names)); W('tasks/' + r.id + '/owner', ''); }
+  else {
+    const same = names.map(key).sort().join('|') === (r.hubOwn || []).map(key).sort().join('|');
+    ovSet(r.k, 'ownersBy', same ? null : ownMap(names)); ovSet(r.k, 'ownerBy', null);
+  }
+  logSys(r.k, why + ' (now: ' + (names.join(', ') || 'unassigned') + ')');
+}
+function assignHtml(r) {
+  const have = new Set(r.ownerNames.map(key));
+  const chips = r.ownerNames.map(n => '<span class="chip">' + esc(n) + ' <a href="#" data-act="ownDel" data-n="' + esc(key(n)) + '" title="Remove">&times;</a></span>').join('') || '<span class="empty" style="padding:0">Unassigned</span>';
+  const opts = D.people.filter(p => !have.has(key(p.name))).sort((a, b) => String(a.name).localeCompare(String(b.name))).map(p => '<option value="' + esc(p.name) + '">' + esc(p.name + ' — ' + roleOf(p)) + '</option>').join('');
+  const me = D.me && !have.has(key(D.me.name));
+  return '<h4>Assigned to' + (r.ownerNames.length > 1 ? ' (' + r.ownerNames.length + ' people)' : '') + '</h4><div style="line-height:2">' + chips + '</div>'
+    + '<div class="row" style="margin-top:4px;grid-template-columns:1fr auto"><select id="ownAdd"><option value="">Add a person…</option>' + opts + '</select>' + (me ? '<button class="btn" data-act="ownMe">Assign to me</button>' : '<span></span>') + '</div>'
+    + (r.src === 'hub' && r.reassigned ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Changed here (hub says ' + esc(r.hubO || 'no owner') + '). Shared with everyone using this page; the hub task is not changed. <a href="#" data-act="ownReset">Reset to hub</a></div>' : '');
 }
 function setVert(r, v) {
   if (v && !vAll().includes(v)) return;
@@ -801,9 +822,12 @@ $('#syncsec').addEventListener('click', e => {
   const a = e.target.closest('[data-act]');
   if (a) {
     const r = ROWS.find(x => x.k === SK); if (!r) return; const act = a.dataset.act; NOTICE = null;
-    if (act === 'editOpen') { EDIT = r.k; EDRAFT = { title: r.title, owner: (D.people.find(p => key(p.name) === key(r.ownerNames[0])) || {}).id || (D.people.find(p => key(p.name) === key(r.ownerNames[0])) || {})._key || (r.ownerNames[0] ? '~' + r.ownerNames[0] : ''), notes: r.notes || '' }; return renderAll(); }
+    if (act === 'editOpen') { EDIT = r.k; EDRAFT = { title: r.title, notes: r.notes || '' }; return renderAll(); }
     if (act === 'editCancel') { EDIT = ''; return renderAll(); }
-    if (act === 'editSave') { if (!setEdit(r, $('#eTitle').value, $('#eOwner').value, $('#eNotes').value)) { $('#eTitle').focus(); return; } EDIT = ''; return afterChange(false); }
+    if (act === 'editSave') { if (!setEdit(r, $('#eTitle').value, $('#eNotes').value)) { $('#eTitle').focus(); return; } EDIT = ''; return afterChange(false); }
+    if (act === 'ownDel') { e.preventDefault(); const gone = r.ownerNames.find(n => key(n) === a.dataset.n); setOwners(r, r.ownerNames.filter(n => key(n) !== a.dataset.n), 'Unassigned ' + gone); return afterChange(false); }
+    if (act === 'ownMe') { setOwners(r, r.ownerNames.concat([D.me.name]), 'Assigned to ' + D.me.name); return afterChange(false); }
+    if (act === 'ownReset') { e.preventDefault(); ovSet(r.k, 'ownersBy', null); ovSet(r.k, 'ownerBy', null); logSys(r.k, 'Assignment reset to the hub owners'); return afterChange(false); }
     if (act === 'editReset') { ovSet(r.k, 'titleBy', null); ovSet(r.k, 'ownerBy', null); ovSet(r.k, 'notesBy', null); logSys(r.k, 'Edits reset to the hub version'); EDIT = ''; return afterChange(false); }
     if (act === 'vertReset') { setVert(r, r.hubV); return afterChange(false); }
     if (act === 'dueSet') { setDue(r, a.dataset.d); return afterChange(false); }
@@ -840,8 +864,8 @@ $('#syncsec').addEventListener('click', e => {
   const row = e.target.closest('.srow'); if (row) { if (SK !== row.dataset.k) { EDIT = ''; NOTICE = null; } SK = row.dataset.k; renderAll(); return; }
   const vb = e.target.closest('.vbtn'); if (vb) { SV = vb.dataset.v; SK = ''; if (SV !== '*' && [...$('#fVert').options].some(o => o.value === SV)) $('#fVert').value = SV; renderAll(); }
 });
-$('#syncsec').addEventListener('change', e => { if (e.target.id === 'eOwner') { EDRAFT.owner = e.target.value; return; } if (e.target.id === 'dVert') { const r = ROWS.find(x => x.k === SK); if (r && e.target.value) { const from = r.v; setVert(r, e.target.value); if (SV !== '*' && !inV(Object.assign({}, r, { v: e.target.value }), SV)) SV = e.target.value; afterChange(false); } return; } if (e.target.id === 'dDue') { const r = ROWS.find(x => x.k === SK); if (r) { setDue(r, e.target.value); afterChange(false); } return; } if (e.target.id === 'dStatus') { const r = ROWS.find(x => x.k === SK); if (r) { setStatus(r, e.target.value); afterChange(false); } } if (e.target.id === 'showHold') renderAll(); if (e.target.id === 'pSel') { PS = e.target.value; SK = ''; renderAll(); } });
-$('#syncsec').addEventListener('input', e => { if (e.target.id === 'needQ') { DRAFT.k = SK; DRAFT.need = e.target.value; } if (e.target.id === 'eTitle') EDRAFT.title = e.target.value; if (e.target.id === 'eNotes') EDRAFT.notes = e.target.value; if (e.target.id === 'eOwner') EDRAFT.owner = e.target.value; if (e.target.id === 'updTxt' || e.target.id === 'depTxt') { DRAFT.k = SK; DRAFT[e.target.id === 'updTxt' ? 'upd' : 'dep'] = e.target.value; DRAFT.focus = e.target.id; } });
+$('#syncsec').addEventListener('change', e => { if (e.target.id === 'ownAdd') { const r = ROWS.find(x => x.k === SK), nm = e.target.value; if (r && nm) { setOwners(r, r.ownerNames.concat([nm]), 'Assigned to ' + nm); afterChange(false); } return; } if (e.target.id === 'dVert') { const r = ROWS.find(x => x.k === SK); if (r && e.target.value) { const from = r.v; setVert(r, e.target.value); if (SV !== '*' && !inV(Object.assign({}, r, { v: e.target.value }), SV)) SV = e.target.value; afterChange(false); } return; } if (e.target.id === 'dDue') { const r = ROWS.find(x => x.k === SK); if (r) { setDue(r, e.target.value); afterChange(false); } return; } if (e.target.id === 'dStatus') { const r = ROWS.find(x => x.k === SK); if (r) { setStatus(r, e.target.value); afterChange(false); } } if (e.target.id === 'showHold') renderAll(); if (e.target.id === 'pSel') { PS = e.target.value; SK = ''; renderAll(); } });
+$('#syncsec').addEventListener('input', e => { if (e.target.id === 'needQ') { DRAFT.k = SK; DRAFT.need = e.target.value; } if (e.target.id === 'eTitle') EDRAFT.title = e.target.value; if (e.target.id === 'eNotes') EDRAFT.notes = e.target.value; if (e.target.id === 'updTxt' || e.target.id === 'depTxt') { DRAFT.k = SK; DRAFT[e.target.id === 'updTxt' ? 'upd' : 'dep'] = e.target.value; DRAFT.focus = e.target.id; } });
 $('#syncsec').addEventListener('keydown', e => { if (e.target.id === 'updTxt' && e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); const b = $('#tdetail [data-act="updAdd"]'); b && b.click(); } });
 $('#orgToggle').onclick = () => { ORGOPEN = !ORGOPEN; localStorage.setItem('naigPmo.orgOpen', ORGOPEN ? '1' : '0'); renderOrg(); };
 
