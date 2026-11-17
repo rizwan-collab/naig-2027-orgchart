@@ -480,6 +480,15 @@ const CROSS_TEAMS = ['Sports', 'Registration', 'Finance', 'Legal', 'HR / IVS', '
 const HUB_STREAMS = ['Core Team', 'Food & Beverage', 'Hotels & Accommodations', 'Transportation', 'Site Management', 'Equipment & Signage'];
 const DEP_ST = { todo: 'To do', inprogress: 'In progress', blocked: 'Blocked', done: 'Done' };
 /* Dependencies already recorded on a hub task (verticalDependencies = other teams, workstreamDependencies = logistics streams). Read-only. */
+/* Overrides for the hub's own dependencies live in ov/<task>/hdep/<team>: { removed: true } and/or { status }. The hub record is never written. */
+function applyHubDepOv(deps, o) {
+  const h = (o && o.hdep) || {}, kept = [], gone = [];
+  deps.forEach(d => { const x = h[sk(d.team)] || {}, base = Object.assign({}, d, { hubStatus: d.status });
+    if (x.removed) { gone.push(base); return; }
+    if (DEP_ST[x.status]) base.status = x.status;
+    base.changed = base.status !== d.status; kept.push(base); });
+  return { kept, gone };
+}
 function hubDepsOf(t) {
   const out = [], seen = new Set();
   [['verticalDependencies', CROSS_TEAMS, 'Team'], ['workstreamDependencies', HUB_STREAMS, 'Stream']].forEach(([f, ok, kind]) => {
@@ -540,7 +549,8 @@ function allRows() {
     r.hubDeps = []; Object.assign(r, extra || {}); every.push(r); return r;
   };
   ents(D.hubTasks).forEach(([id, t]) => { if (!t.title) return;
-    const r = mk('hub', id, hubVert(t), t.title, hubOwners(t), hubDue(t), t.status, t.notes || t.description || '', { hubDeps: hubDepsOf(t), createdMs: createdMsOf(t, id), createdBy: t.createdBy || '' });
+    const r = mk('hub', id, hubVert(t), t.title, hubOwners(t), hubDue(t), t.status, t.notes || t.description || '', { hubDeps: [], hubDepsAll: hubDepsOf(t), createdMs: createdMsOf(t, id), createdBy: t.createdBy || '' });
+    { const ap = applyHubDepOv(r.hubDepsAll, ovGet(r.k)); r.hubDeps = ap.kept; r.hubDepsGone = ap.gone; }
     if (!r.done && r.hubDeps.some(d => d.status === 'blocked')) { r.blocked = true; r.b = 0; }
     if (r.done && !OV[sk(r.k)]) return;   // done in the hub and untouched by me: not part of the working list
     rows.push(r); });
@@ -688,11 +698,12 @@ function renderSync() {
   const act = rows.filter(r => inV(r, SV) && pf(r) && !r.done && !r.deferred).sort((a, b) => a.b - b.b || (a.due || '9').localeCompare(b.due || '9'));
   const incoming = SV === '*' ? [] : rows.filter(r => !r.done && !r.deferred && pf(r) && r.v !== SV && r.deps.some(d => !d.resolved && d.on === SV));
   const closed = rows.filter(r => inV(r, SV) && pf(r) && r.closedThisWeek), moved = rows.filter(r => inV(r, SV) && pf(r) && r.deferred);
-  ORDER = act.map(r => r.k);
+  const SHOWN = [1, 2, 3, 4, 0];   // blocked / dependency group goes last among open tasks, just before Closed
+  ORDER = SHOWN.flatMap(b => act.filter(r => r.b === b)).map(r => r.k);   // 'Next task' follows what is on screen
   $('#mhead').innerHTML = '<select id="pSel" style="margin-bottom:8px" title="Filter this vertical by person">' + popts + '</select><div class="mh"><b>' + esc(SV === '*' ? 'All verticals + Core Team + Non-Vertical' : SV) + (PS ? ' · ' + esc(PLABEL[PS])  : '') + '</b><span class="pill">' + act.length + ' open</span><button class="btn noprint" data-cl="start" style="margin-left:auto">Clean up</button>' + (closed.length ? '<span class="pill good">' + closed.length + ' closed this week</span>' : '') + (moved.length ? '<span class="pill">' + moved.length + ' moved to next week</span>' : '') + '</div>';
   let h = '';
+  SHOWN.forEach(b => { const g = act.filter(r => r.b === b); if (g.length) h += '<div class="gh">' + BNAME[b] + ' (' + g.length + ')</div>' + g.map(r => srowHtml(r, SV === '*')).join(''); });
   if (incoming.length) h += '<div class="gh warn">Other verticals are waiting on ' + esc(SV) + ' (' + incoming.length + ')</div>' + incoming.map(r => srowHtml(r, true)).join('');
-  for (let b = 0; b < 5; b++) { const g = act.filter(r => r.b === b); if (g.length) h += '<div class="gh">' + BNAME[b] + ' (' + g.length + ')</div>' + g.map(r => srowHtml(r, SV === '*')).join(''); }
   if (closed.length) h += '<div class="gh">Closed this week (' + closed.length + ')</div>' + closed.map(r => srowHtml(r, SV === '*')).join('');
   if (moved.length) h += '<div class="gh">Moved to next week (' + moved.length + ')</div>' + moved.map(r => srowHtml(r, SV === '*')).join('');
   $('#pSel').value = PS;
@@ -725,7 +736,9 @@ function renderDetail() {
   const ups = r.updates.slice().reverse().map(u => '<div class="upd' + (u.sys ? ' sys' : '') + '"><small>' + fmtDT(u.at) + '</small> ' + esc(u.text) + '</div>').join('') || '<div class="empty" style="padding:2px 0">No updates yet.</div>';
   const deps = r.deps.map((d, i) => '<div class="dep' + (d.resolved ? ' ok' : '') + '"><span>' + (d.resolved ? '✓ ' : '') + 'Waiting on <b>' + esc(d.on) + '</b>' + (d.note ? ': ' + esc(d.note) : '') + '</span><span><button class="btn" data-act="depTog" data-i="' + i + '">' + (d.resolved ? 'Reopen' : 'Resolved') + '</button> <button class="btn" data-act="depDel" data-i="' + i + '">×</button></span></div>').join('');
   const dopts = '<optgroup label="Logistics verticals">' + D.verts.filter(v => v !== r.v).map(v => '<option>' + esc(v) + '</option>').join('') + '</optgroup><optgroup label="Other teams">' + CROSS_TEAMS.map(v => '<option>' + esc(v) + '</option>').join('') + '</optgroup>';
-  const hd = (r.hubDeps || []).map(d => '<div class="dep' + (d.status === 'done' ? ' ok' : '') + '"><span><span class="src">hub</span><b>' + esc(d.team) + '</b> <small style="color:var(--mut)">' + d.kind.toLowerCase() + '</small></span><span class="pill ' + (d.status === 'blocked' ? 'bad' : d.status === 'done' ? 'good' : d.status === 'inprogress' ? 'blue' : '') + '">' + DEP_ST[d.status] + '</span></div>').join('');
+  const hdStatus = d => '<select data-hdep="' + esc(d.team) + '" style="width:auto;padding:2px 4px;font-size:12px">' + Object.keys(DEP_ST).map(k => '<option value="' + k + '"' + (k === d.status ? ' selected' : '') + '>' + DEP_ST[k] + (k === d.hubStatus ? ' (hub)' : '') + '</option>').join('') + '</select>';
+  const hd = (r.hubDeps || []).map(d => '<div class="dep' + (d.status === 'done' ? ' ok' : '') + '"><span><b>' + esc(d.team) + '</b> <small style="color:var(--mut)">' + d.kind.toLowerCase() + (d.changed ? ' · changed here (hub: ' + DEP_ST[d.hubStatus] + ')' : '') + '</small></span><span>' + hdStatus(d) + ' <button class="btn" data-act="hdepDel" data-t="' + esc(d.team) + '" title="Remove this dependency">&times;</button></span></div>').join('')
+    + ((r.hubDepsGone || []).length ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Removed here: ' + r.hubDepsGone.map(d => esc(d.team) + ' <a href="#" data-act="hdepBack" data-t="' + esc(d.team) + '">restore</a>').join(' · ') + '</div>' : '');
   const ed = EDIT === r.k;
   const ev = ed ? EDRAFT : { title: r.title, notes: r.notes };
   const editBox = '<div class="newbox"><label>Title</label><input id="eTitle" value="' + esc(ev.title) + '"><label>Notes</label><textarea id="eNotes">' + esc(ev.notes) + '</textarea>'
@@ -752,7 +765,7 @@ function renderDetail() {
     + '<button class="btn" data-act="next"' + (hasNext ? '' : ' disabled') + '>Next task ▸</button></div>'
     + '<h4>Add an update</h4><textarea id="updTxt" placeholder="What happened this week? (Ctrl+Enter to save)">' + esc(dv.upd) + '</textarea><div class="acts"><button class="btn pri" data-act="updAdd">Add update</button></div>'
     + needsHtml(r)
-    + (hd ? '<h4>Dependencies recorded in the hub (read-only)</h4>' + hd : '')
+    + (hd ? '<h4>Dependencies recorded in the hub</h4>' + hd + '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Edits and removals are shared with everyone using this page. The hub task itself is not changed.</div>' : '')
     + '<h4>Dependencies on other verticals and teams</h4>' + (deps || '<div class="empty" style="padding:2px 0">None.</div>')
     + '<div class="row" style="margin-top:6px"><select id="depV"><option value="">Waiting on…</option>' + dopts + '</select><input id="depTxt" placeholder="What do we need from them?" value="' + esc(dv.dep) + '"></div><div class="acts"><button class="btn" data-act="depAdd">Add dependency</button></div>'
     + attachHtml(r)
@@ -859,6 +872,8 @@ $('#syncsec').addEventListener('click', e => {
     if (act === 'dueReset') { setDue(r, ''); return afterChange(false); }
     if (act === 'close') { return afterChange(setStatus(r, 'done')); }
     if (act === 'reopen') { setStatus(r, 'open'); return afterChange(false); }
+    if (act === 'hdepDel') { const t = a.dataset.t; ovSet(r.k, 'hdep/' + sk(t) + '/removed', true); logSys(r.k, 'Removed hub dependency: ' + t); return afterChange(false); }
+    if (act === 'hdepBack') { e.preventDefault(); const t = a.dataset.t; ovSet(r.k, 'hdep/' + sk(t) + '/removed', null); logSys(r.k, 'Restored hub dependency: ' + t); return afterChange(false); }
     if (act === 'needAdd') {
       const q = ($('#needQ').value || '').trim(); let k = NEEDMAP[q];
       if (!k) { const m = Object.entries(NEEDMAP).filter(([v]) => v.split(' — ')[0].toLowerCase() === q.toLowerCase()); if (m.length === 1) k = m[0][1]; }
@@ -889,7 +904,7 @@ $('#syncsec').addEventListener('click', e => {
   const row = e.target.closest('.srow'); if (row) { if (SK !== row.dataset.k) { EDIT = ''; NOTICE = null; } SK = row.dataset.k; renderAll(); return; }
   const vb = e.target.closest('.vbtn'); if (vb) { SV = vb.dataset.v; SK = ''; if (SV !== '*' && [...$('#fVert').options].some(o => o.value === SV)) $('#fVert').value = SV; renderAll(); }
 });
-$('#syncsec').addEventListener('change', e => { if (e.target.id === 'ownAdd') { const r = ROWS.find(x => x.k === SK), nm = e.target.value; if (r && nm) { setOwners(r, r.ownerNames.concat([nm]), 'Assigned to ' + nm); afterChange(false); } return; } if (e.target.id === 'dVert') { const r = ROWS.find(x => x.k === SK); if (r && e.target.value) { const from = r.v; setVert(r, e.target.value); if (SV !== '*' && !inV(Object.assign({}, r, { v: e.target.value }), SV)) SV = e.target.value; afterChange(false); } return; } if (e.target.id === 'dDue') { const r = ROWS.find(x => x.k === SK); if (r) { setDue(r, e.target.value); afterChange(false); } return; } if (e.target.id === 'dStatus') { const r = ROWS.find(x => x.k === SK); if (r) { setStatus(r, e.target.value); afterChange(false); } } if (e.target.id === 'showHold') renderAll(); if (e.target.id === 'pSel') { PS = e.target.value; SK = ''; renderAll(); } });
+$('#syncsec').addEventListener('change', e => { if (e.target.dataset && e.target.dataset.hdep) { const r = ROWS.find(x => x.k === SK), t = e.target.dataset.hdep, st = e.target.value; if (r && DEP_ST[st]) { const d = r.hubDeps.find(x => x.team === t); ovSet(r.k, 'hdep/' + sk(t) + '/status', d && st === d.hubStatus ? null : st); logSys(r.k, 'Hub dependency ' + t + ': ' + DEP_ST[st]); afterChange(false); } return; } if (e.target.id === 'ownAdd') { const r = ROWS.find(x => x.k === SK), nm = e.target.value; if (r && nm) { setOwners(r, r.ownerNames.concat([nm]), 'Assigned to ' + nm); afterChange(false); } return; } if (e.target.id === 'dVert') { const r = ROWS.find(x => x.k === SK); if (r && e.target.value) { const from = r.v; setVert(r, e.target.value); if (SV !== '*' && !inV(Object.assign({}, r, { v: e.target.value }), SV)) SV = e.target.value; afterChange(false); } return; } if (e.target.id === 'dDue') { const r = ROWS.find(x => x.k === SK); if (r) { setDue(r, e.target.value); afterChange(false); } return; } if (e.target.id === 'dStatus') { const r = ROWS.find(x => x.k === SK); if (r) { setStatus(r, e.target.value); afterChange(false); } } if (e.target.id === 'showHold') renderAll(); if (e.target.id === 'pSel') { PS = e.target.value; SK = ''; renderAll(); } });
 $('#syncsec').addEventListener('input', e => { if (e.target.id === 'needQ') { DRAFT.k = SK; DRAFT.need = e.target.value; } if (e.target.id === 'eTitle') EDRAFT.title = e.target.value; if (e.target.id === 'eNotes') EDRAFT.notes = e.target.value; if (e.target.id === 'updTxt' || e.target.id === 'depTxt') { DRAFT.k = SK; DRAFT[e.target.id === 'updTxt' ? 'upd' : 'dep'] = e.target.value; DRAFT.focus = e.target.id; } });
 $('#syncsec').addEventListener('keydown', e => { if (e.target.id === 'updTxt' && e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); const b = $('#tdetail [data-act="updAdd"]'); b && b.click(); } });
 $('#orgToggle').onclick = () => { ORGOPEN = !ORGOPEN; localStorage.setItem('naigPmo.orgOpen', ORGOPEN ? '1' : '0'); renderOrg(); };
