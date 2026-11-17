@@ -507,9 +507,13 @@ function allRows() {
   const mk = (src, id, v, title, ownerNames, due, rawStatus, notes, extra) => {
     const hubV0 = v; const hubDue0 = due; ownerNames = ownerNames.map(canonName); const k = src + ':' + id, o = ovGet(k), hs = String(rawStatus || '').toLowerCase().replace(/[^a-z]/g, '');
     if (o.vertBy && vAll().includes(o.vertBy)) v = o.vertBy;   // vertical moved on this page (shared); the hub task's own vertical is not changed
+    const hubT0 = title, hubO0 = ownerNames.join(', '), hubN0 = notes;
+    if (o.titleBy) title = String(o.titleBy);                                   // edits made on this page (shared); the hub task itself is not changed
+    if (typeof o.ownerBy === 'string') ownerNames = o.ownerBy ? [o.ownerBy] : [];
+    if (typeof o.notesBy === 'string') notes = o.notesBy;
     if (/^\d{4}-\d{2}-\d{2}$/.test(o.dueBy || '')) due = o.dueBy;   // "Due by" set on this page (shared); the hub task's own date is not changed
     const status = o.status || (hs === 'blocked' ? 'blocked' : /progress|doing|started/.test(hs) ? 'progress' : hs === 'done' ? 'done' : 'open');
-    const deps = o.deps || [], r = { k, src, id, v, title, ownerNames, owners: ownerNames.join(', '), due, hubDue: hubDue0, dueSet: due !== hubDue0, hubV: hubV0, vSet: v !== hubV0, status, notes, updates: o.updates || [], deps,
+    const deps = o.deps || [], r = { k, src, id, v, title, ownerNames, owners: ownerNames.join(', '), due, hubDue: hubDue0, hubT: hubT0, hubO: hubO0, hubN: hubN0, edited: title !== hubT0 || ownerNames.join(', ') !== hubO0 || notes !== hubN0, dueSet: due !== hubDue0, hubV: hubV0, vSet: v !== hubV0, status, notes, updates: o.updates || [], deps,
       waiting: deps.some(d => !d.resolved), hold: hs === 'onhold' || holdRe.test(title) || !!o.parked, deferTo: o.deferTo || '', closedAt: o.closedAt || 0, hidden: !!o.hidden, hiddenWhy: o.hiddenWhy || '' };
     r.done = status === 'done'; r.deferred = !r.done && !!r.deferTo && r.deferTo > w;
     r.blocked = !r.done && (status === 'blocked' || r.waiting); r.late = !r.done && !!due && due < td;
@@ -532,7 +536,7 @@ function allRows() {
 }
 
 /* ===== weekly sync ===== */
-let CL = false, PS = '', SV = '*', SK = '', ORDER = [], DRAFT = { k: '', upd: '', dep: '', focus: '' };
+let EDIT = '', EDRAFT = { title: '', owner: '', notes: '' }, CL = false, PS = '', SV = '*', SK = '', ORDER = [], DRAFT = { k: '', upd: '', dep: '', focus: '' };
 const syncRows = () => { const m = matcher(SEL); return ROWS.filter(r => rowMatch(m, r)); };
 const inV = (r, v) => v === '*' || r.v === v || (isCoreV(v) && r.core);
 const BNAME = ['Blocked or waiting on another vertical', 'Overdue', 'Due in the next 7 days', 'Later', 'No due date'];
@@ -689,9 +693,16 @@ function renderDetail() {
   const deps = r.deps.map((d, i) => '<div class="dep' + (d.resolved ? ' ok' : '') + '"><span>' + (d.resolved ? '✓ ' : '') + 'Waiting on <b>' + esc(d.on) + '</b>' + (d.note ? ': ' + esc(d.note) : '') + '</span><span><button class="btn" data-act="depTog" data-i="' + i + '">' + (d.resolved ? 'Reopen' : 'Resolved') + '</button> <button class="btn" data-act="depDel" data-i="' + i + '">×</button></span></div>').join('');
   const dopts = '<optgroup label="Logistics verticals">' + D.verts.filter(v => v !== r.v).map(v => '<option>' + esc(v) + '</option>').join('') + '</optgroup><optgroup label="Other teams">' + CROSS_TEAMS.map(v => '<option>' + esc(v) + '</option>').join('') + '</optgroup>';
   const hd = (r.hubDeps || []).map(d => '<div class="dep' + (d.status === 'done' ? ' ok' : '') + '"><span><span class="src">hub</span><b>' + esc(d.team) + '</b> <small style="color:var(--mut)">' + d.kind.toLowerCase() + '</small></span><span class="pill ' + (d.status === 'blocked' ? 'bad' : d.status === 'done' ? 'good' : d.status === 'inprogress' ? 'blue' : '') + '">' + DEP_ST[d.status] + '</span></div>').join('');
-  el.innerHTML = '<div class="dt">' + esc(r.title) + '</div>'
+  const ed = EDIT === r.k, ownerVal = r.ownerNames[0] ? ((D.people.find(p => key(p.name) === key(r.ownerNames[0])) || {}).id || (D.people.find(p => key(p.name) === key(r.ownerNames[0])) || {})._key || '~' + r.ownerNames[0]) : '';
+  const ev = ed ? EDRAFT : { title: r.title, owner: ownerVal, notes: r.notes };
+  const eopts = '<option value="">No owner</option>' + D.people.slice().sort((a, b) => String(a.name).localeCompare(String(b.name))).map(p => '<option value="' + esc(pid(p)) + '"' + (ev.owner === pid(p) ? ' selected' : '') + '>' + esc(p.name + ' — ' + roleOf(p)) + '</option>').join('') + (ev.owner && ev.owner.startsWith('~') ? '<option value="' + esc(ev.owner) + '" selected>' + esc(ev.owner.slice(1)) + ' (not in Directory)</option>' : '');
+  const editBox = '<div class="newbox"><label>Title</label><input id="eTitle" value="' + esc(ev.title) + '"><label>Owner</label><select id="eOwner">' + eopts + '</select><label>Notes</label><textarea id="eNotes">' + esc(ev.notes) + '</textarea>'
+    + '<div class="acts"><button class="btn pri" data-act="editSave">Save</button><button class="btn" data-act="editCancel">Cancel</button>' + (r.src === 'hub' && r.edited ? '<button class="btn" data-act="editReset" title="Back to what the hub has">Reset to hub</button>' : '') + '</div>'
+    + '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">' + (r.src === 'hub' ? 'Shared with everyone using this page; the hub task itself is not changed.' : 'Edits this task for everyone using this page.') + '</div></div>';
+  el.innerHTML = (ed ? editBox : '<div class="dt">' + esc(r.title) + ' <button class="btn noprint" data-act="editOpen" style="font-size:11px;padding:2px 8px;vertical-align:middle">Edit</button></div>')
     + '<div class="m" style="color:var(--mut);font-size:12px"><span class="src ' + r.src + '">' + (r.src === 'mine' ? 'pmo' : r.src) + '</span>' + esc(r.v) + ' · ' + esc(r.owners || 'No owner') + ' · due ' + fmtD(r.due) + (r.deferred ? ' · moved to ' + fmtD(r.deferTo) : '') + '</div>'
-    + (r.notes ? '<div class="upd sys" style="margin-top:6px">' + esc(String(r.notes).slice(0, 400)) + '</div>' : '')
+    + (!ed && r.notes ? '<div class="upd sys" style="margin-top:6px">' + esc(String(r.notes).slice(0, 400)) + '</div>' : '')
+    + (!ed && r.src === 'hub' && r.edited ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Edited here' + (r.hubT !== r.title ? ' (hub title: "' + esc(r.hubT) + '")' : '') + '.</div>' : '')
     + (r.src === 'hub' ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Hub task: status, updates, dependencies and moves are shared with everyone using this page. The hub task itself is not changed.</div>' : '')
     + '<h4>Vertical</h4><div class="row" style="grid-template-columns:1fr auto"><select id="dVert">' + vAll().filter((x, i, a) => a.indexOf(x) === i && (x !== 'Unsorted' || r.v === 'Unsorted')).map(x => '<option' + (x === r.v ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select><button class="btn" data-act="vertReset"' + (r.src === 'hub' && r.vSet ? '' : ' disabled') + ' title="Back to where the hub puts it">Reset</button></div>'
     + (r.vSet && r.src === 'hub' ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Moved here from ' + esc(r.hubV) + '. Shared with everyone using this page; the hub task is not changed.</div>' : '')
@@ -708,6 +719,16 @@ function renderDetail() {
     + '<div class="row" style="margin-top:6px"><select id="depV"><option value="">Waiting on…</option>' + dopts + '</select><input id="depTxt" placeholder="What do we need from them?" value="' + esc(dv.dep) + '"></div><div class="acts"><button class="btn" data-act="depAdd">Add dependency</button></div>'
     + attachHtml(r)
     + '<h4>History</h4>' + ups;
+}
+function setEdit(r, title, ownerVal, notes) {
+  title = (title || '').trim(); if (!title) return false;
+  const p = ownerVal && !ownerVal.startsWith('~') ? D.byId[ownerVal] : null, ownerNm = ownerVal ? (p ? p.name : ownerVal.slice(1)) : '';
+  const ch = []; if (title !== r.title) ch.push('title'); if (ownerNm !== r.ownerNames.join(', ')) ch.push('owner'); if ((notes || '') !== (r.notes || '')) ch.push('notes');
+  if (!ch.length) return true;
+  if (r.src === 'mine') { W('tasks/' + r.id + '/title', title); W('tasks/' + r.id + '/owner', ownerVal && p ? ownerVal : ''); W('tasks/' + r.id + '/notes', notes || ''); }
+  else { ovSet(r.k, 'titleBy', title !== r.hubT ? title : null); ovSet(r.k, 'ownerBy', ownerNm !== r.hubO ? ownerNm : null); ovSet(r.k, 'notesBy', (notes || '') !== (r.hubN || '') ? (notes || '') : null); }
+  logSys(r.k, 'Edited ' + ch.join(', ') + (ch.includes('title') ? ' (title was "' + r.title.slice(0, 60) + '")' : '') + (ch.includes('owner') ? ' (owner was ' + (r.owners || 'none') + ')' : ''));
+  return true;
 }
 function setVert(r, v) {
   if (v && !vAll().includes(v)) return;
@@ -746,6 +767,10 @@ $('#syncsec').addEventListener('click', e => {
   const a = e.target.closest('[data-act]');
   if (a) {
     const r = ROWS.find(x => x.k === SK); if (!r) return; const act = a.dataset.act;
+    if (act === 'editOpen') { EDIT = r.k; EDRAFT = { title: r.title, owner: (D.people.find(p => key(p.name) === key(r.ownerNames[0])) || {}).id || (D.people.find(p => key(p.name) === key(r.ownerNames[0])) || {})._key || (r.ownerNames[0] ? '~' + r.ownerNames[0] : ''), notes: r.notes || '' }; return renderAll(); }
+    if (act === 'editCancel') { EDIT = ''; return renderAll(); }
+    if (act === 'editSave') { if (!setEdit(r, $('#eTitle').value, $('#eOwner').value, $('#eNotes').value)) { $('#eTitle').focus(); return; } EDIT = ''; return afterChange(false); }
+    if (act === 'editReset') { ovSet(r.k, 'titleBy', null); ovSet(r.k, 'ownerBy', null); ovSet(r.k, 'notesBy', null); logSys(r.k, 'Edits reset to the hub version'); EDIT = ''; return afterChange(false); }
     if (act === 'vertReset') { setVert(r, r.hubV); return afterChange(false); }
     if (act === 'dueSet') { setDue(r, a.dataset.d); return afterChange(false); }
     if (act === 'dueReset') { setDue(r, ''); return afterChange(false); }
@@ -769,11 +794,11 @@ $('#syncsec').addEventListener('click', e => {
     if (act === 'depDel') { const d = r.deps[+a.dataset.i]; if (d) W(ovPath(r.k) + '/deps/' + d.id, null); return afterChange(false); }
     return;
   }
-  const row = e.target.closest('.srow'); if (row) { SK = row.dataset.k; renderAll(); return; }
+  const row = e.target.closest('.srow'); if (row) { if (SK !== row.dataset.k) EDIT = ''; SK = row.dataset.k; renderAll(); return; }
   const vb = e.target.closest('.vbtn'); if (vb) { SV = vb.dataset.v; SK = ''; if (SV !== '*' && [...$('#fVert').options].some(o => o.value === SV)) $('#fVert').value = SV; renderAll(); }
 });
-$('#syncsec').addEventListener('change', e => { if (e.target.id === 'dVert') { const r = ROWS.find(x => x.k === SK); if (r && e.target.value) { const from = r.v; setVert(r, e.target.value); if (SV !== '*' && !inV(Object.assign({}, r, { v: e.target.value }), SV)) SV = e.target.value; afterChange(false); } return; } if (e.target.id === 'dDue') { const r = ROWS.find(x => x.k === SK); if (r) { setDue(r, e.target.value); afterChange(false); } return; } if (e.target.id === 'dStatus') { const r = ROWS.find(x => x.k === SK); if (r) { setStatus(r, e.target.value); afterChange(false); } } if (e.target.id === 'showHold') renderAll(); if (e.target.id === 'pSel') { PS = e.target.value; SK = ''; renderAll(); } });
-$('#syncsec').addEventListener('input', e => { if (e.target.id === 'updTxt' || e.target.id === 'depTxt') { DRAFT.k = SK; DRAFT[e.target.id === 'updTxt' ? 'upd' : 'dep'] = e.target.value; DRAFT.focus = e.target.id; } });
+$('#syncsec').addEventListener('change', e => { if (e.target.id === 'eOwner') { EDRAFT.owner = e.target.value; return; } if (e.target.id === 'dVert') { const r = ROWS.find(x => x.k === SK); if (r && e.target.value) { const from = r.v; setVert(r, e.target.value); if (SV !== '*' && !inV(Object.assign({}, r, { v: e.target.value }), SV)) SV = e.target.value; afterChange(false); } return; } if (e.target.id === 'dDue') { const r = ROWS.find(x => x.k === SK); if (r) { setDue(r, e.target.value); afterChange(false); } return; } if (e.target.id === 'dStatus') { const r = ROWS.find(x => x.k === SK); if (r) { setStatus(r, e.target.value); afterChange(false); } } if (e.target.id === 'showHold') renderAll(); if (e.target.id === 'pSel') { PS = e.target.value; SK = ''; renderAll(); } });
+$('#syncsec').addEventListener('input', e => { if (e.target.id === 'eTitle') EDRAFT.title = e.target.value; if (e.target.id === 'eNotes') EDRAFT.notes = e.target.value; if (e.target.id === 'eOwner') EDRAFT.owner = e.target.value; if (e.target.id === 'updTxt' || e.target.id === 'depTxt') { DRAFT.k = SK; DRAFT[e.target.id === 'updTxt' ? 'upd' : 'dep'] = e.target.value; DRAFT.focus = e.target.id; } });
 $('#syncsec').addEventListener('keydown', e => { if (e.target.id === 'updTxt' && e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); const b = $('#tdetail [data-act="updAdd"]'); b && b.click(); } });
 $('#orgToggle').onclick = () => { ORGOPEN = !ORGOPEN; localStorage.setItem('naigPmo.orgOpen', ORGOPEN ? '1' : '0'); renderOrg(); };
 
@@ -840,7 +865,7 @@ function renderAll() {
   const had = document.activeElement && document.activeElement.id, pos = had && document.activeElement.selectionStart;
   ROWS = allRows(); HIDDEN = ROWS.filter(r => r.hidden); ROWS = ROWS.filter(r => !r.hidden);
   renderOrg(); renderSync(); renderSummary();
-  if ((had === 'updTxt' || had === 'depTxt') && $('#' + had)) { const el = $('#' + had); el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} }
+  if ((had === 'updTxt' || had === 'depTxt' || had === 'eTitle' || had === 'eNotes') && $('#' + had)) { const el = $('#' + had); el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} }
 }
 
 /* ===== connection / status ===== */
