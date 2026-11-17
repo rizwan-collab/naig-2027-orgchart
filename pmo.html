@@ -14,6 +14,7 @@
        tasks/<id>           tasks created on this page (and their weekly repeats)
        attachments/<task>/  Drive links
        placement/<name>     "Fix placement" overrides to the org chart
+       ws/...               Team workspaces: fleet, routes, headcounts, food, procurement items, sites, hotels
      Writes need the database rules to allow naig2027/pmoSync for signed-in users. If they don't, a red banner says so and nothing is shared.
   3. Only view preferences (org open/closed, cached directory) stay in each browser.
   Lives in the hub repo as pmo.html and is linked from the hub nav (lead, core and admin tiers). Same origin as the hub, so the hub's Google sign-in carries over.
@@ -150,6 +151,22 @@ table.sm th:first-child,table.sm td:first-child{text-align:left}table.sm th{font
 .bar{height:6px;background:#e2e8f0;border-radius:99px;overflow:hidden;margin:2px 0 6px}.bar i{display:block;height:100%;background:#4ea86a}
 .note-bad{background:#fee2e2;color:#7f1d1d;border-radius:6px;padding:6px 8px;font-size:12px;margin:6px 0}
 .cl-head{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.dgrp{border:1px dashed #cbd5e1;border-radius:8px;padding:6px;margin-bottom:8px;background:#fafafa}
+.ws table.tb{border-collapse:collapse;width:100%;font-size:13px}.ws table.tb th,.ws table.tb td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}.ws table.tb th{font-size:11px;text-transform:uppercase;color:var(--mut)}.ws table.tb tr.sel td{background:#eff6ff}
+.ws input,.ws select{width:auto;padding:4px 6px;font-size:13px}.ws .rg input,.ws .rg select{font-size:13px}
+.wtabs{display:flex;gap:6px;margin:0 0 12px;flex-wrap:wrap}.wtabs button{border:1px solid var(--line);background:#fff;border-radius:8px 8px 0 0;padding:6px 14px;cursor:pointer;font:inherit;font-weight:600}.wtabs button.on{background:#eff6ff;outline:2px solid #93c5fd}
+.ws section.p{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}.ws section.p>h3{margin:0 0 10px;font-size:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.ws section.p>h3 .hint{font-weight:400;color:var(--mut);font-size:12px}
+.ws .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:1100px){.ws .two{grid-template-columns:1fr}}
+.syncbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:13px}
+.rcard{border:1px solid var(--line);border-left-width:6px;border-radius:10px;padding:10px;margin-bottom:10px;background:#fff}.rcard.ok{border-left-color:#4ea86a}.rcard.short{border-left-color:#dc2626;background:#fffafa}
+.rh{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}.rg{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}.rg label{font-size:11px;color:var(--mut);display:flex;flex-direction:column;gap:2px}
+.rs{margin:8px 0 4px;font-size:12px;color:var(--mut);display:flex;flex-wrap:wrap;gap:6px;align-items:center}.rc{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--mut);margin-top:6px}.rc b{color:var(--ink)}
+.ws .why2{font-size:11px;color:var(--warn)}.ws .why2.b{color:var(--bad)}.ws .late{color:var(--bad);font-weight:600}.ws .dec{background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:8px;font-size:13px}.ws .no{border-radius:6px;padding:6px 8px;font-size:12px}
+.ws .leg{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;font-size:11px;align-items:center;color:var(--mut)}
+.ws table.mx{border-collapse:separate;border-spacing:0;width:100%;font-size:12px}.ws table.mx th,.ws table.mx td{padding:6px 5px;border-bottom:1px solid var(--line);text-align:center;vertical-align:middle}.ws table.mx th{font-size:11px;font-weight:700;color:#334155;border-top:4px solid #cbd5e1}.ws table.mx td:first-child,.ws table.mx th:first-child{text-align:left}
+.ws .cell{display:block;border-radius:6px;padding:4px 2px;font-size:11px;font-weight:600;border:1px solid transparent;margin-bottom:3px}.ws .cell.done{background:#dcfce7;color:#15803d}.ws .cell.progress{background:#dbeafe;color:#1e40af}.ws .cell.blocked{background:#fee2e2;color:#b91c1c;border-color:#fca5a5}.ws .cell.waiting{background:repeating-linear-gradient(135deg,#f1f5f9,#f1f5f9 5px,#e8edf3 5px,#e8edf3 10px);color:#64748b}.ws .cell.ready{background:#fef3c7;color:#b45309}
+.ws td select[data-p^="ready/"]{font-size:11px;padding:1px 3px;max-width:104px}
+.ps{cursor:pointer;border:1px solid #cbd5e1;border-radius:6px;padding:2px 6px;font-size:11px;font-weight:600;display:inline-block;min-width:70px;text-align:center}.ps.Need{background:#f1f5f9;color:#475569}.ps.Quote{background:#fef3c7;color:#b45309}.ps.Ordered{background:#dbeafe;color:#1e40af}.ps.Delivered{background:#dcfce7;color:#15803d}
+@media print{#wssec{display:none!important}}
 @media print{header,.banner,.noprint,#orgsec,#syncsec,.gate{display:none!important}body{background:#fff}section{border:0}pre.summary{background:#fff;color:#000;max-height:none}}
 </style>
 </head>
@@ -208,6 +225,11 @@ table.sm th:first-child,table.sm td:first-child{text-align:left}table.sm th{font
     </div>
     <div id="tdetail"></div>
   </div>
+</section>
+
+<section id="wssec" class="ws">
+  <h2><button class="btn" id="wsToggle">▾ Hide</button> Team workspaces <span class="hint">plan Transportation, F&amp;B and Procurement with live totals, see Site readiness, and compare Hotels. Shared with everyone using this page.</span></h2>
+  <div id="wsbody"></div>
 </section>
 
 <section id="sumsec">
@@ -1092,11 +1114,191 @@ function fillForm() {
   if (o) $('#fOwner').value = o; if (v) $('#fVert').value = v;
 }
 let formKey = '';
+/* ===== Team workspaces: Transportation, F&B, Procurement, Site readiness, Hotels. Shared with everyone through naig2027/pmoSync/ws. Nothing here changes a task card unless you press "Apply to cards". ===== */
+let WS = {}, WSTAB = localStorage.getItem('naigPmo.wsTab') || 'transport', WSOPEN = localStorage.getItem('naigPmo.wsOpen') !== '0', WSPEND = false;
+const wl = o => ents(o).map(([id, v]) => Object.assign({ id }, v)).sort((a, b) => (a.at || 0) - (b.at || 0));
+const wn = v => { const n = Number(v); return isFinite(n) ? n : 0; };
+const wsW = (p, v) => W('ws/' + p, v === undefined ? null : v);
+const wsId = p => p + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+const wsSites = () => wl(WS.sites), wsConf = () => wsSites().filter(s => s.st !== 'candidate');
+const WSDEF = { pct: 70, window: 3, layover: 10, shifts: 2 };
+const wcfg = k => (WS.cfg && WS.cfg[k] != null && WS.cfg[k] !== '') ? wn(WS.cfg[k]) : WSDEF[k];
+const wplural = (w, n) => String(w).toLowerCase() + (n === 1 ? '' : /(s|ch|sh|x)$/i.test(w) ? 'es' : 's');
+const WPC = ['Need', 'Quote', 'Ordered', 'Delivered'];
+const STD_SITES = [['Northlake', 'confirmed'], ['Farmers Branch', 'confirmed'], ['Fort Worth', 'confirmed'], ['McKinney', 'confirmed'], [PICKL, 'confirmed'], ['RailRoad', 'candidate'], ['Lake Park', 'candidate'], ['Skinner (Mansfield)', 'candidate']];
+function siteAl(s) { const k = key(s.n); if (/pickl/.test(k)) return ['pickl']; if (/skinner|mansfield/.test(k)) return ['skinner', 'mansfield']; if (/farmersbranch/.test(k)) return ['farmersbranch', 'ryse']; if (/fortworth/.test(k)) return ['fortworth', 'gateway']; return [k]; }
+const rowHasSite = (r, s) => { const al = siteAl(s); return al.some(a => key(r.title).includes(a)) || (r.sites || []).some(x => al.some(a => key(x.name).includes(a))); };
+
+function wsRcalc(r, fl) {
+  const ty = fl.find(f => f.id === r.type) || { n: 'vehicle', seats: 0 }, seats = wn(ty.seats), min = wn(r.min), head = Math.max(wn(r.head) || 1, 1), asg = wn(r.asg), sites = Object.keys(r.sites || {});
+  const rt = 2 * min + wcfg('layover');
+  const demand = sites.reduce((a, s) => a + wn((WS.head || {})[s]), 0) * wcfg('pct') / 100 / Math.max(wcfg('window'), .5) + wn(r.extra);
+  const tripsNeed = seats ? demand / seats : 0, headNeed = tripsNeed > 0 ? 60 / tripsNeed : Infinity;
+  const need = seats && rt ? Math.ceil(rt / Math.min(head, headNeed) - 1e-9) : 0, cap = (rt ? Math.min(60 / head, asg * 60 / rt) : 0) * seats, msgs = [];
+  if (!seats) msgs.push('Pick a vehicle type with seats');
+  else if (cap + .01 < demand) { if (head > headNeed) msgs.push('Every ' + head + ' min only carries ' + Math.round(60 / head * seats) + ' seats an hour. Run every ' + Math.floor(headNeed) + ' min or less to carry ' + Math.round(demand) + ' people'); if (asg < need) msgs.push('Need ' + need + ' ' + wplural(ty.n, need) + ', have ' + asg + ' (short ' + (need - asg) + ')'); }
+  else if (asg < need) msgs.push('Need ' + need + ' ' + wplural(ty.n, need) + ' to run every ' + head + ' min, have ' + asg);
+  return { ty, seats, rt, demand, headNeed, need, cap, asg, head, msgs, ok: !!seats && asg >= need && cap + .01 >= demand };
+}
+function wsTp() {
+  const fl = wl(WS.fleet), rs = wl(WS.routes).map(r => Object.assign({ r }, wsRcalc(r, fl)));
+  const types = fl.map(f => { const mine = rs.filter(x => x.r.type === f.id), used = mine.reduce((a, x) => a + wn(x.r.asg), 0), rec = mine.reduce((a, x) => a + x.need, 0), total = wn(f.total); return { f, used, rec, total, spare: total - used, gap: rec - total, n: mine.length }; });
+  return { fl, rs, types, demand: rs.reduce((a, x) => a + x.demand, 0), cap: rs.reduce((a, x) => a + x.cap, 0), okN: rs.filter(x => x.ok).length, used: types.reduce((a, t) => a + t.used, 0), total: types.reduce((a, t) => a + t.total, 0),
+    drivers: rs.reduce((a, x) => a + wn(x.r.asg), 0) * wcfg('shifts'), short: types.reduce((a, t) => a + Math.max(0, t.gap), 0) };
+}
+const wsItems = s => wl(WS.proc).filter(p => p.q && p.q[s.id]);
+const wsLow = s => { const it = wsItems(s); return it.length ? Math.min(...it.map(p => Math.max(0, WPC.indexOf(p.q[s.id].st)))) : -1; };
+function wsSyncPlan() {
+  const out = [], A = wsTp();
+  wsConf().forEach(s => {
+    const routes = A.rs.filter(x => x.r.sites && x.r.sites[s.id]), onRoute = routes.length > 0, covered = onRoute && routes.every(x => x.ok);
+    ROWS.filter(r => /shuttle|transport/i.test(r.title) && rowHasSite(r, s)).forEach(r => r.steps.forEach(st => {
+      if (st.done) return; if (/shuttle loop|on a (shuttle )?route|add the site to/i.test(st.text) && onRoute) out.push({ r, st, s, why: 'it is on a route' }); else if (/vehicles and drivers|confirm vehicles/i.test(st.text) && covered) out.push({ r, st, s, why: 'every route to it has enough vehicles' }); }));
+    const lo = wsLow(s), n = wsItems(s).length;
+    if (n) ROWS.filter(r => /equip|purchase|procure|canop|golf|tent|table|chair/i.test(r.title) && rowHasSite(r, s)).forEach(r => r.steps.forEach(st => {
+      if (st.done) return; let ok = false, why = ''; if (/equipment list|purchase list|build the equipment/i.test(st.text)) { ok = true; why = 'items are listed in Procurement'; } else if (/quote/i.test(st.text)) { ok = lo >= 1; why = 'every item has a quote'; } else if (/\bPO\b|purchase order|\border/i.test(st.text)) { ok = lo >= 2; why = 'every item is ordered'; } else if (/deliver/i.test(st.text)) { ok = lo >= 3; why = 'every item is delivered'; }
+      if (ok) out.push({ r, st, s, why }); }));
+  });
+  return out;
+}
+/* Site readiness: five columns, worked out from the workspaces and the cards. A choice made in the cell (Done, In progress...) overrides it. */
+const WCOLS = [['contract', 'Contract', 'Site Management'], ['plan', 'Site plan', 'Venue Design'], ['food', 'Food plan', 'F&B'], ['equip', 'Equipment', 'Procurement'], ['ship', 'Shuttle plan', 'Transportation']];
+function wsAuto(s, col) {
+  const A = wsTp();
+  if (col === 'contract') { const r = ROWS.filter(x => rowHasSite(x, s) && x.steps.some(t => /contract signed/i.test(t.text))).sort((a, b) => (b.v === 'Site Management') - (a.v === 'Site Management'))[0]; if (!r) return { st: 'none', label: 'No card' };
+    const n = r.steps.length, d = n - r.openSteps.length; return { st: d === n ? 'done' : r.status === 'blocked' ? 'blocked' : d > 0 ? 'progress' : 'ready', label: d + '/' + n + ' steps', k: r.k }; }
+  if (col === 'plan') { const r = ROWS.filter(x => /site plan|layout/i.test(x.title) && (x.sites || []).some(y => siteAl(s).some(a => key(y.name).includes(a))))[0]; if (!r) return { st: 'none', label: 'No card' }; const e = r.sites.find(y => siteAl(s).some(a => key(y.name).includes(a))); return { st: siteDone(e) ? 'done' : 'ready', label: siteDone(e) ? 'plan done' : 'not started', k: r.k }; }
+  if (col === 'food') { const f = (WS.food || {})[s.id] || {}, d = [0, 1, 2, 3].filter(i => (f.steps || {})[i]).length; if (!f.meals && !d) return { st: 'none', label: 'No plan yet' }; return { st: d === 4 ? 'done' : d > 0 ? 'progress' : 'ready', label: d + '/4 steps' }; }
+  if (col === 'equip') { const lo = wsLow(s); if (lo < 0) return { st: 'none', label: 'No items' }; return { st: lo >= 3 ? 'done' : lo >= 1 ? 'progress' : 'ready', label: 'lowest: ' + WPC[lo] }; }
+  const rs = A.rs.filter(x => x.r.sites && x.r.sites[s.id]); if (!rs.length) return { st: 'none', label: 'Not on a route' }; const ok = rs.every(x => x.ok); return { st: ok ? 'done' : 'blocked', label: ok ? 'covered' : 'short of vehicles' };
+}
+const WSTATE = { done: 'Done', progress: 'In progress', blocked: 'Blocked', ready: 'Ready to start', none: 'None', waiting: 'Waiting' };
+function wsCell(s, col) { const a = wsAuto(s, col[0]), ov = ((WS.ready || {})[s.id] || {})[col[0]], st = ov || a.st;
+  return { st, a, ov, html: `<td><span class="cell ${st === 'none' ? 'waiting' : st}">${esc(ov ? WSTATE[ov] : a.label)}${ov ? '<div style="font-weight:400;font-size:10px">set by hand</div>' : (a.st !== 'none' ? '<div style="font-weight:400;font-size:10px">' + esc(WSTATE[a.st]) + '</div>' : '')}</span>
+    <select data-w="set" data-t="so" data-p="ready/${esc(s.id)}/${col[0]}" title="Set this by hand"><option value="">Automatic</option>${['done', 'progress', 'blocked', 'ready', 'waiting'].map(k => `<option value="${k}" ${ov === k ? 'selected' : ''}>${WSTATE[k]}</option>`).join('')}</select>${a.k ? ` <button class="btn" data-w="open" data-k="${esc(a.k)}" title="Open the card">card</button>` : ''}</td>` }; }
+
+const wNum = (p, v, w, extra) => `<input type="number" data-w="set" data-t="n" data-p="${esc(p)}" value="${esc(v == null ? '' : v)}" style="width:${w || 70}px" ${extra || ''}>`;
+const wTxt = (p, v, w, ph) => `<input data-w="set" data-t="s" data-p="${esc(p)}" value="${esc(v || '')}" style="width:${w || 140}px" ${ph ? 'placeholder="' + esc(ph) + '"' : ''}>`;
+const wTile = (n, l, c) => `<div class="tile ${c || ''}"><b>${n}</b><span>${l}</span></div>`;
+const wNeedSites = () => `<div class="empty" style="padding:8px 0">Add your sites first. <button class="btn pri" data-w="act" data-a="stdsites">Use the standard sites (5 confirmed, 3 candidates)</button> or add them on the Site readiness tab.</div>`;
+
+function wsTransport() {
+  const A = wsTp(), cs = wsConf(); if (!cs.length) return wNeedSites();
+  const tiles = `<div class="tiles">${wTile(Math.round(A.demand), 'People to move each hour at the peak')}${wTile(Math.round(A.cap), 'Seats an hour we are providing', A.rs.length ? (A.cap + 1 >= A.demand ? 'good' : 'bad') : '')}${wTile(A.okN + ' of ' + A.rs.length, 'Routes with enough vehicles', A.rs.length && A.okN === A.rs.length ? 'good' : 'warn')}${wTile(A.used + ' of ' + A.total, 'Vehicles assigned of the total')}${wTile(A.short ? 'Short ' + A.short : (A.rs.length ? 'Enough' : '—'), A.short ? 'Vehicles short if every route runs as needed' : (A.rs.length && A.okN < A.rs.length ? 'The total is enough, but ' + (A.rs.length - A.okN) + ' route' + (A.rs.length - A.okN === 1 ? ' needs' : 's need') + ' more vehicles assigned' : 'Fleet covers every route'), A.short ? 'bad' : A.rs.length ? (A.okN < A.rs.length ? 'warn' : 'good') : '')}${wTile(A.drivers, 'Drivers needed (' + wcfg('shifts') + ' shifts per vehicle)')}</div>`;
+  const assum = `<section class="p"><h3>1. What we need to move <span class="hint">edit any number and everything below recalculates</span></h3><div class="two"><div><div class="m" style="margin-bottom:4px">People on site at the busiest time</div><table class="tb"><tr>${cs.map(s => `<th>${esc(s.n)}</th>`).join('')}</tr><tr>${cs.map(s => `<td>${wNum('head/' + s.id, (WS.head || {})[s.id], 80)}</td>`).join('')}</tr></table></div>
+    <div class="acts" style="align-items:flex-end;gap:12px"><label class="m">Share who ride the shuttle at the peak (%)<br>${wNum('cfg/pct', wcfg('pct'), 70)}</label><label class="m">Peak lasts (hours)<br>${wNum('cfg/window', wcfg('window'), 70)}</label><label class="m">Time lost per round trip (min)<br>${wNum('cfg/layover', wcfg('layover'), 70)}</label><label class="m">Driver shifts per vehicle<br>${wNum('cfg/shifts', wcfg('shifts'), 70)}</label></div></div></section>`;
+  const fleet = `<section class="p"><h3>2. Our vehicles, in total <span class="hint">routes below draw from these</span> <button class="btn" data-w="act" data-a="fladd">+ Add a vehicle type</button>${A.fl.length ? '' : ' <button class="btn pri" data-w="act" data-a="flusual">Add motorcoach, mini bus and van</button>'}</h3>${A.fl.length ? `<table class="tb"><tr><th>Type</th><th>Seats each</th><th>How many we have or can book</th><th></th></tr>${A.fl.map(f => `<tr><td>${wTxt('fleet/' + f.id + '/n', f.n, 160)}</td><td>${wNum('fleet/' + f.id + '/seats', f.seats, 70)}</td><td>${wNum('fleet/' + f.id + '/total', f.total, 80)}</td><td><button class="btn" data-w="act" data-a="fldel" data-id="${f.id}" title="Remove this vehicle type">&times;</button></td></tr>`).join('')}</table>` : '<div class="empty">No vehicle types yet. Seats and totals are blank until you enter your real numbers.</div>'}</section>`;
+  const routes = A.rs.map(x => { const r = x.r; return `<div class="rcard ${x.ok ? 'ok' : 'short'}"><div class="rh">${wTxt('routes/' + r.id + '/n', r.n, 320)}<span style="flex:1"></span>${x.ok ? '<span class="pill good">Enough</span>' : '<span class="pill bad">Not enough</span>'}<button class="btn" data-w="act" data-a="rtuse" data-id="${r.id}" title="Set the frequency and vehicles to what this route needs">Use what is needed</button><button class="btn" data-w="act" data-a="rtdel" data-id="${r.id}" title="Remove this route">&times;</button></div>
+    <div class="rg"><label>From${wTxt('routes/' + r.id + '/from', r.from, 130)}</label><label>To${wTxt('routes/' + r.id + '/to', r.to, 130)}</label><label>One-way (min)${wNum('routes/' + r.id + '/min', r.min, 64)}</label><label>Run every (min)${wNum('routes/' + r.id + '/head', r.head, 64)}</label><label>Hours${wTxt('routes/' + r.id + '/hrs', r.hrs, 96)}</label>
+    <label>Vehicle<select data-w="set" data-t="s" data-p="routes/${r.id}/type">${A.fl.map(f => `<option value="${f.id}" ${f.id === r.type ? 'selected' : ''}>${esc(f.n)} (${wn(f.seats)})</option>`).join('')}${A.fl.some(f => f.id === r.type) ? '' : '<option value="" selected>Pick…</option>'}</select></label><label>Vehicles assigned${wNum('routes/' + r.id + '/asg', r.asg, 64)}</label><label>Extra people an hour${wNum('routes/' + r.id + '/extra', r.extra, 64)}</label></div>
+    <div class="rs">Sites served: ${cs.map(s => `<label class="chip" style="cursor:pointer"><input type="checkbox" data-w="chk" data-p="routes/${r.id}/sites/${esc(s.id)}" ${(r.sites || {})[s.id] ? 'checked' : ''} style="width:auto"> ${esc(s.n)}</label>`).join(' ')}</div>
+    <div class="rc"><span><b>${Math.round(x.demand)}</b> people an hour</span><span>round trip <b>${x.rt}</b> min</span><span>need <b>${x.need}</b> vehicle${x.need === 1 ? '' : 's'}, assigned <b>${x.asg}</b></span><span>carries <b>${Math.round(x.cap)}</b> seats an hour</span></div>${x.msgs.length ? `<div class="why2 b" style="margin-top:4px">${x.msgs.map(esc).join('. ')}.</div>` : '<div class="m" style="color:var(--good);margin-top:4px">This route is covered.</div>'}</div>`; }).join('');
+  const plan = `<section class="p"><h3>3. Routes <span class="hint">pick the vehicle type and how many; it counts against the total above</span> <button class="btn pri" data-w="act" data-a="rtadd">+ Add a route</button></h3>${routes || '<div class="empty">No routes yet. Add one.</div>'}</section>`;
+  const chk = A.types.length ? `<section class="p"><h3>4. Do the routes fit our vehicles? <span class="hint">updates as you change anything above</span></h3><table class="tb"><tr><th>Vehicle</th><th>We have</th><th>Assigned to routes</th><th>Left over</th><th>Routes need (to run as planned)</th><th>Verdict</th><th style="width:26%">Use of the total</th></tr>${A.types.map(t => { const pc = t.total ? Math.min(100, Math.round(100 * t.used / t.total)) : (t.used ? 100 : 0), bad = t.spare < 0 || t.gap > 0;
+    return `<tr><td><b>${esc(t.f.n)}</b><div class="m">${wn(t.f.seats)} seats, ${t.n} route${t.n === 1 ? '' : 's'}</div></td><td>${t.total}</td><td>${t.used}</td><td class="${t.spare < 0 ? 'late' : ''}">${t.spare}</td><td>${t.rec}</td><td>${t.spare < 0 ? `<span class="pill bad">Assigned ${-t.spare} more than we have</span>` : t.gap > 0 ? `<span class="pill warn">Short ${t.gap} to run every route as needed</span>` : '<span class="pill good">Enough</span>'}</td><td><div class="bar" style="height:10px"><i style="width:${pc}%;background:${bad ? '#dc2626' : '#4ea86a'}"></i></div><div class="m">${t.used} of ${t.total} in use</div></td></tr>`; }).join('')}</table></section>` : '';
+  return tiles + assum + fleet + plan + chk + wsSyncBox('Shuttle', ['shuttle|transport']);
+}
+function wsSyncBox(area) {
+  const plan = wsSyncPlan().filter(x => area === 'Shuttle' ? /shuttle|transport/i.test(x.r.title) : !/shuttle|transport/i.test(x.r.title));
+  return `<section class="p"><h3>Update the cards <span class="hint">nothing changes until you press Apply, and it only ticks steps, never unticks</span></h3>${plan.length ? `<table class="tb"><tr><th>Card</th><th>Step that would be ticked</th><th>Because</th><th></th></tr>${plan.map(x => `<tr><td><b>${esc(x.s.n)}</b>: ${esc(x.r.title.slice(0, 58))}</td><td>${esc(x.st.text)}</td><td>${esc(x.why)}</td><td><button class="btn" data-w="open" data-k="${esc(x.r.k)}">Open card</button></td></tr>`).join('')}</table><div class="acts"><button class="btn pri" data-w="act" data-a="syncapply" data-area="${area}">Apply ${plan.length} change${plan.length === 1 ? '' : 's'} to the cards</button></div>`
+    : `<div class="empty" style="padding:4px 0">No card has a step that matches yet. The workspace links to a card when its title names the site and its steps include wording like ${area === 'Shuttle' ? '"add the site to a shuttle loop" or "confirm vehicles and drivers"' : '"build the equipment list", "collect quotes", "PO" or "delivery"'}. Add those steps to a card with the Steps checklist and they will show here.</div>`}</section>`;
+}
+function wsFood() {
+  const cs = wsConf(); if (!cs.length) return wNeedSites();
+  const F = s => (WS.food || {})[s.id] || {}, tot = cs.reduce((a, s) => a + wn(F(s).meals) * wn(F(s).days), 0), oth = wl(WS.foodx).reduce((a, o) => a + wn(o.qty), 0), nm = ['Type confirmed', 'Quantities agreed', 'Ordered or deposit paid', 'Delivery times set'];
+  const rows = cs.map(s => { const f = F(s), by = f.by || '', soon = by && f.mode === 'Venue vendor' && by <= addDays(todayS(), 7);
+    return `<tr><td><b>${esc(s.n)}</b></td><td><select data-w="set" data-t="s" data-p="food/${s.id}/mode"><option ${f.mode !== 'Venue vendor' ? 'selected' : ''}>Buyout</option><option ${f.mode === 'Venue vendor' ? 'selected' : ''}>Venue vendor</option></select></td><td>${wNum('food/' + s.id + '/meals', f.meals, 70)}</td><td>${wNum('food/' + s.id + '/days', f.days, 50)}</td><td><b>${wn(f.meals) * wn(f.days)}</b></td>
+    <td><input type="date" data-w="set" data-t="so" data-p="food/${s.id}/by" value="${esc(by)}" style="width:128px">${by ? `<div class="m ${soon ? 'late' : ''}">${fmtD(by)}</div>` : ''}</td><td>${wNum('food/' + s.id + '/dep', f.dep, 56)}</td><td>${wTxt('food/' + s.id + '/vendor', f.vendor, 104)}</td><td>${wTxt('food/' + s.id + '/note', f.note, 140)}</td>
+    ${[0, 1, 2, 3].map(i => `<td style="text-align:center"><input type="checkbox" data-w="chk" data-p="food/${s.id}/steps/${i}" ${(f.steps || {})[i] ? 'checked' : ''} title="${nm[i]}" style="width:auto"></td>`).join('')}</tr>`; }).join('');
+  const other = wl(WS.foodx).map(o => `<tr><td>${wTxt('foodx/' + o.id + '/n', o.n, 240)}</td><td>${wNum('foodx/' + o.id + '/qty', o.qty, 80)}</td><td>${wTxt('foodx/' + o.id + '/unit', o.unit, 80)}</td><td>${wTxt('foodx/' + o.id + '/note', o.note, 260)}</td><td><button class="btn" data-w="act" data-a="fodel" data-id="${o.id}">&times;</button></td></tr>`).join('');
+  return `<div class="syncbar"><span class="m">The four tick boxes are this workspace's own progress for each site. They feed the Site readiness table. Your F&B task cards are not changed from here.</span></div>
+  <div class="tiles">${wTile(tot, 'Site meals (meals a day × days)')}${wTile(oth, 'Other lines')}${wTile(tot + oth, 'Everything to plan for')}${wTile(cs.filter(s => F(s).mode === 'Venue vendor').length, 'Sites tied to a venue vendor')}</div>
+  <section class="p" style="overflow-x:auto"><h3>Meals by site</h3><table class="tb"><tr><th>Site</th><th>Menu type</th><th>Meals a day</th><th>Days</th><th>Total</th><th>Order by</th><th>Deposit %</th><th>Vendor</th><th>Notes</th>${nm.map(n => `<th style="writing-mode:vertical-rl;transform:rotate(180deg);height:112px;font-size:11px">${n}</th>`).join('')}</tr>${rows}</table></section>
+  <section class="p"><h3>Other food lines <span class="hint">anything that is not a site</span> <button class="btn pri" data-w="act" data-a="foadd">+ Add a line</button></h3><table class="tb"><tr><th>Item</th><th>Quantity</th><th>Unit</th><th>Notes</th><th></th></tr>${other || '<tr><td colspan="5" class="m">None.</td></tr>'}</table></section>`;
+}
+function wsProc() {
+  const cs = wsConf(); if (!cs.length) return wNeedSites(); const items = wl(WS.proc);
+  const rows = items.map(p => { const tot = cs.reduce((a, s) => a + (p.q && p.q[s.id] ? wn(p.q[s.id].qty) : 0), 0);
+    return `<tr><td>${wTxt('proc/' + p.id + '/n', p.n, 150)}</td>${cs.map(s => { const q = p.q && p.q[s.id]; return `<td>${q ? `<input type="number" data-w="qty" data-p="proc/${p.id}/q/${s.id}" value="${esc(q.qty)}" style="width:56px"> <span class="ps ${esc(q.st)}" data-w="act" data-a="pcyc" data-id="${p.id}" data-site="${esc(s.id)}" title="Click to move it along">${esc(q.st)}</span>` : `<button class="btn" data-w="act" data-a="pcadd" data-id="${p.id}" data-site="${esc(s.id)}" title="Needed at ${esc(s.n)}">+</button>`}</td>`; }).join('')}<td><b>${tot}</b></td><td><button class="btn" data-w="act" data-a="prdel" data-id="${p.id}" title="Remove this item">&times;</button></td></tr>`; }).join('');
+  const link = cs.map(s => { const it = wsItems(s), lo = wsLow(s); return `<tr><td><b>${esc(s.n)}</b></td><td>${it.length}</td><td>${lo < 0 ? '—' : `<span class="ps ${WPC[lo]}">${WPC[lo]}</span>`}</td></tr>`; }).join('');
+  return `<section class="p" style="overflow-x:auto"><h3>Items by site <span class="hint">type a quantity, click the status to move it along (Need, Quote, Ordered, Delivered), + to add it at a site</span></h3><table class="tb"><tr><th>Item</th>${cs.map(s => `<th>${esc(s.n)}</th>`).join('')}<th>Total</th><th></th></tr>${rows || `<tr><td colspan="${cs.length + 3}" class="m">No items yet. Add the first one below.</td></tr>`}
+    <tr><td colspan="${cs.length + 3}"><input id="wsNewItem" placeholder="Add an item (for example: Tables, Chairs, Golf carts, Tents)" style="width:320px"> <button class="btn pri" data-w="act" data-a="pradd">+ Add item</button></td></tr></table></section>
+  <section class="p"><h3>How far each site has got</h3><table class="tb"><tr><th>Site</th><th>Items</th><th>Furthest every item has reached</th></tr>${link}</table></section>` + wsSyncBox('Equipment');
+}
+function wsReady() {
+  const all = wsSites(), conf = all.filter(s => s.st !== 'candidate'), cand = all.filter(s => s.st === 'candidate');
+  const tbl = list => `<table class="mx"><tr><th>Site</th>${WCOLS.map(c => `<th>${c[1]}<div class="m" style="font-weight:400">${c[2]}</div></th>`).join('')}<th>Ready</th></tr>${list.map(s => { const cells = WCOLS.map(c => wsCell(s, c)), d = cells.filter(x => x.st === 'done').length;
+    return `<tr><td><b>${esc(s.n)}</b><div class="m">${s.st === 'candidate' ? 'Candidate' : 'Confirmed'} <button class="btn" data-w="act" data-a="sitest" data-id="${esc(s.id)}" title="Switch confirmed or candidate">${s.st === 'candidate' ? 'Confirm' : 'Make candidate'}</button> <button class="btn" data-w="act" data-a="sitedel" data-id="${esc(s.id)}" title="Remove this site">&times;</button></div></td>${cells.map(x => x.html).join('')}<td><b>${Math.round(100 * d / WCOLS.length)}%</b><div class="bar"><i style="width:${100 * d / WCOLS.length}%"></i></div></td></tr>`; }).join('')}</table>`;
+  return `<section class="p" style="overflow-x:auto"><h3>Confirmed sites <span class="hint">${conf.length} sites. Each cell is worked out from the workspaces and the cards; pick a value in the cell to set it by hand.</span></h3>${conf.length ? tbl(conf) : wNeedSites()}
+    <div class="leg"><span class="cell done" style="display:inline;padding:2px 8px">Done</span><span class="cell progress" style="display:inline;padding:2px 8px">In progress</span><span class="cell ready" style="display:inline;padding:2px 8px">Ready to start</span><span class="cell waiting" style="display:inline;padding:2px 8px">Nothing yet</span><span class="cell blocked" style="display:inline;padding:2px 8px">Blocked or short</span></div></section>
+  ${cand.length ? `<section class="p" style="overflow-x:auto"><h3>Candidate sites <span class="hint">not confirmed, so not counted</span></h3>${tbl(cand)}</section>` : ''}
+  <section class="p"><h3>Add a site</h3><div class="acts" style="margin:0"><input id="wsNewSite" placeholder="Site name" style="width:240px"><select id="wsNewSiteSt" style="width:auto"><option value="confirmed">Confirmed</option><option value="candidate">Candidate</option></select><button class="btn pri" data-w="act" data-a="siteadd">+ Add site</button>${all.length ? '' : '<button class="btn" data-w="act" data-a="stdsites">Use the standard sites</button>'}</div>
+  <div class="m" style="margin-top:6px">A card counts for a site when its title or its site list names it. Contract looks for a card with a "Contract signed" step. Site plan looks at a card named Site plans or Layouts that lists the site. Food, Equipment and Shuttle come from the workspaces on the other tabs.</div></section>`;
+}
+function wsHotels() {
+  const hs = wl(WS.hotels), pick = hs.find(h => h.id === WS.hotelpick), need = wn(WS.hotelneed);
+  const rows = hs.map(h => { const meets = need && wn(h.rooms) >= need;
+    return `<tr class="${pick && pick.id === h.id ? 'sel' : ''}"><td>${wTxt('hotels/' + h.id + '/n', h.n, 160)}</td><td>${wNum('hotels/' + h.id + '/rooms', h.rooms, 80)}${h.rooms != null && h.rooms !== '' && need ? `<div>${meets ? '<span class="pill good">meets target</span>' : '<span class="pill bad">short by ' + (need - wn(h.rooms)) + '</span>'}</div>` : ''}</td><td>${wTxt('hotels/' + h.id + '/rate', h.rate, 90, '$ per night')}</td><td>${wNum('hotels/' + h.id + '/drive', h.drive, 70)}</td>
+      <td><select data-w="set" data-t="s" data-p="hotels/${h.id}/meet">${['Unknown', 'Yes', 'No'].map(x => `<option ${(h.meet || 'Unknown') === x ? 'selected' : ''}>${x}</option>`).join('')}</select></td><td>${wTxt('hotels/' + h.id + '/note', h.note, 170, 'notes')}</td>
+      <td>${pick && pick.id === h.id ? '<span class="pill good">Selected hub</span>' : `<button class="btn pri" data-w="act" data-a="hsel" data-id="${h.id}">Select as hub</button>`} <button class="btn" data-w="act" data-a="hdel" data-id="${h.id}" title="Remove this hotel">&times;</button></td></tr>`; }).join('');
+  return `<div class="m" style="margin:0 0 8px">One hotel hosts the Command Center, Registration check-in and goodie bag storage. Enter what each hotel in conversation offers, compare them side by side, then select one. Selecting it also ticks "Decide which hotel is the hub" on the hotel card, if there is one.</div>
+  <div class="m">Rooms needed: ${wNum('hotelneed', WS.hotelneed, 80)} <button class="btn pri" data-w="act" data-a="hadd" style="margin-left:10px">+ Add a hotel</button></div>
+  <div style="overflow-x:auto;margin-top:8px"><table class="tb"><tr><th>Hotel</th><th>Rooms offered</th><th>Rate</th><th>Drive to the farthest site (min)</th><th>Meeting space for the Command Center</th><th>Notes</th><th></th></tr>${rows || '<tr><td colspan="7" class="m">No hotels yet. Add the ones you are talking to.</td></tr>'}</table></div>
+  ${pick ? `<div class="dec" style="margin-top:10px"><b>${esc(pick.n)} is the hub.</b></div>` : '<div class="no" style="margin-top:10px;background:#fef3c7;color:#78350f">No hub chosen yet.</div>'}`;
+}
+function renderWs() {
+  const el = $('#wsbody'); if (!el) return; $('#wsToggle').textContent = WSOPEN ? '▾ Hide' : '▸ Show'; el.hidden = !WSOPEN; if (!WSOPEN) return;
+  const a = document.activeElement; if (a && el.contains(a) && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)) { WSPEND = true; return; }   // do not redraw under someone who is typing; it redraws when they leave the field
+  WSPEND = false;
+  const tabs = [['transport', 'Transportation'], ['fb', 'Food and Beverage'], ['procure', 'Procurement'], ['ready', 'Site readiness'], ['hotels', 'Hotels']];
+  const body = { transport: wsTransport, fb: wsFood, procure: wsProc, ready: wsReady, hotels: wsHotels }[WSTAB] || wsTransport;
+  el.innerHTML = `<div class="wtabs">${tabs.map(([k, n]) => `<button class="${WSTAB === k ? 'on' : ''}" data-w="tab" data-id="${k}">${n}</button>`).join('')}</div>${body()}`;
+}
+function wsAct(a, id, d) {
+  const sites = wsSites();
+  if (a === 'stdsites') STD_SITES.forEach(([n, st], i) => wsW('sites/' + sk(key(n)), { n, st, at: Date.now() + i }));
+  else if (a === 'siteadd') { const nm = (($('#wsNewSite') || {}).value || '').trim().replace(/\s+/g, ' '); if (!nm) { toast2('Type a site name first.'); return; } const nn = siteCanon(nm), idk = sk(key(nn)); if (sites.some(s => s.id === idk)) { toast2(nn + ' is already on the list.'); return; } wsW('sites/' + idk, { n: nn, st: $('#wsNewSiteSt').value, at: Date.now() }); }
+  else if (a === 'sitest') { const s = sites.find(x => x.id === id); if (s) wsW('sites/' + id + '/st', s.st === 'candidate' ? 'confirmed' : 'candidate'); }
+  else if (a === 'sitedel') { if (confirm('Remove this site from the workspaces for everyone? Its numbers stay saved but are hidden.')) wsW('sites/' + id, null); }
+  else if (a === 'flusual') [['Motorcoach', 56], ['Mini bus', 28], ['Van', 12]].forEach(([n, seats], i) => wsW('fleet/' + wsId('f'), { n, seats, total: 0, at: Date.now() + i }));
+  else if (a === 'fladd') wsW('fleet/' + wsId('f'), { n: 'New vehicle type', seats: 20, total: 0, at: Date.now() });
+  else if (a === 'fldel') { const n = wl(WS.routes).filter(r => r.type === id).length; if (n) { toast2('Cannot remove it: ' + n + ' route' + (n > 1 ? 's use' : ' uses') + ' it. Change those routes first.'); return; } wsW('fleet/' + id, null); }
+  else if (a === 'rtadd') { const fl = wl(WS.fleet); if (!fl.length) { toast2('Add a vehicle type first.'); return; } wsW('routes/' + wsId('r'), { n: 'New route', from: 'Hub hotel', to: '', min: 30, head: 30, type: fl[0].id, asg: 1, extra: 0, hrs: '', at: Date.now() }); }
+  else if (a === 'rtdel') { if (confirm('Remove this route for everyone?')) wsW('routes/' + id, null); }
+  else if (a === 'rtuse') { const r = wl(WS.routes).find(x => x.id === id), c = wsRcalc(r, wl(WS.fleet)); if (!c.seats) { toast2('Pick a vehicle type with seats first.'); return; } const hd = isFinite(c.headNeed) && r.head > c.headNeed ? Math.max(1, Math.floor(c.headNeed)) : r.head; wsW('routes/' + id + '/head', hd); wsW('routes/' + id + '/asg', wsRcalc(Object.assign({}, r, { head: hd }), wl(WS.fleet)).need); }
+  else if (a === 'foadd') wsW('foodx/' + wsId('o'), { n: 'New line', qty: 0, unit: 'meals', note: '', at: Date.now() });
+  else if (a === 'fodel') wsW('foodx/' + id, null);
+  else if (a === 'pradd') { const nm = (($('#wsNewItem') || {}).value || '').trim(); if (!nm) { toast2('Type an item name first.'); return; } if (wl(WS.proc).some(p => key(p.n) === key(nm))) { toast2(nm + ' is already on the list.'); return; } wsW('proc/' + wsId('i'), { n: nm, at: Date.now() }); }
+  else if (a === 'prdel') { if (confirm('Remove this item for everyone?')) wsW('proc/' + id, null); }
+  else if (a === 'pcadd') wsW('proc/' + id + '/q/' + d.site, { qty: 1, st: 'Need' });
+  else if (a === 'pcyc') { const p = wl(WS.proc).find(x => x.id === id), q = p && p.q && p.q[d.site]; if (q) wsW('proc/' + id + '/q/' + d.site + '/st', WPC[(Math.max(0, WPC.indexOf(q.st)) + 1) % 4]); }
+  else if (a === 'hadd') wsW('hotels/' + wsId('h'), { n: 'New hotel', rooms: null, rate: '', drive: null, meet: 'Unknown', note: '', at: Date.now() });
+  else if (a === 'hdel') { if (confirm('Remove this hotel for everyone?')) { wsW('hotels/' + id, null); if (WS.hotelpick === id) wsW('hotelpick', null); } }
+  else if (a === 'hsel') { const h = wl(WS.hotels).find(x => x.id === id); wsW('hotelpick', id); const r = ROWS.find(x => x.steps.some(s => /decide which hotel is the hub/i.test(s.text))), st = r && r.steps.find(s => /decide which hotel is the hub/i.test(s.text));
+    if (st && !st.done) { W(ovPath(r.k) + '/steps/' + st.id + '/done', true); logSys(r.k, 'Step done: ' + st.text + ' (' + h.n + ' selected in Team workspaces)'); toast2(h.n + ' selected as the hub. Ticked "' + st.text.slice(0, 40) + '" on its card.'); } else toast2(h.n + ' selected as the hub.'); }
+  else if (a === 'syncapply') { const list = wsSyncPlan().filter(x => d.area === 'Shuttle' ? /shuttle|transport/i.test(x.r.title) : !/shuttle|transport/i.test(x.r.title)); list.forEach(x => { W(ovPath(x.r.k) + '/steps/' + x.st.id + '/done', true); logSys(x.r.k, 'Step done: ' + x.st.text + ' (Team workspaces: ' + x.why + ')'); }); toast2('Ticked ' + list.length + ' step' + (list.length === 1 ? '' : 's') + ' on the cards.'); }
+}
+function toast2(m) { let t = $('#wsToast'); if (!t) { t = document.createElement('div'); t.id = 'wsToast'; t.style.cssText = 'position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#0f172a;color:#fff;padding:8px 14px;border-radius:8px;font-size:13px;z-index:60;max-width:80vw'; document.body.appendChild(t); } t.textContent = m; t.style.display = 'block'; clearTimeout(t._x); t._x = setTimeout(() => t.style.display = 'none', 3600); }
+$('#wssec').addEventListener('click', e => {
+  const t = e.target.closest('[data-w]'); if (!t) return; const w = t.dataset.w;
+  if (w === 'tab') { WSTAB = t.dataset.id; localStorage.setItem('naigPmo.wsTab', WSTAB); renderWs(); }
+  else if (w === 'open') { const r = ROWS.find(x => x.k === t.dataset.k); if (r) { EDIT = ''; NOTICE = null; CL = false; PS = ''; SV = r.v; SK = r.k; renderAll(); $('#syncsec').scrollIntoView({ behavior: 'smooth' }); } }
+  else if (w === 'act') wsAct(t.dataset.a, t.dataset.id, t.dataset);
+});
+$('#wssec').addEventListener('change', e => {
+  const t = e.target.closest('[data-w]'); if (!t) return; const w = t.dataset.w, p = t.dataset.p;
+  if (w === 'set') { let v; if (t.dataset.t === 'n') v = t.value === '' ? null : wn(t.value); else if (t.dataset.t === 'so') v = t.value === '' ? null : t.value; else v = t.value.trim(); wsW(p, v); }
+  else if (w === 'chk') wsW(p, t.checked ? true : null);
+  else if (w === 'qty') { const n = wn(t.value); wsW(p + '/qty', t.value === '' || n <= 0 ? null : n); if (t.value === '' || n <= 0) wsW(p, null); }
+});
+$('#wssec').addEventListener('focusout', () => setTimeout(() => { if (WSPEND) renderWs(); }, 120));
+$('#wsToggle').onclick = () => { WSOPEN = !WSOPEN; localStorage.setItem('naigPmo.wsOpen', WSOPEN ? '1' : '0'); renderWs(); };
+
 function renderAll() {
   const k = D.people.length + '|' + D.verts.join(','); if (k !== formKey) { formKey = k; fillForm(); }
   const had = document.activeElement && document.activeElement.id, pos = had && document.activeElement.selectionStart;
   ROWS = allRows(); HIDDEN = ROWS.filter(r => r.hidden); ROWS = ROWS.filter(r => !r.hidden);
-  renderOrg(); renderSync(); renderSummary();
+  renderOrg(); renderSync(); renderWs(); renderSummary();
   if ((had === 'updTxt' || had === 'depTxt' || had === 'eTitle' || had === 'eNotes' || had === 'needQ' || had === 'siteQ' || had === 'stepQ') && $('#' + had)) { const el = $('#' + had); el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} }
 }
 
@@ -1123,6 +1325,7 @@ function startData() {
   onValue(R('pmoSync/ov'), s => { OV = normOv(s.val()); D.ovErr = ''; renderAll(); }, e => { D.ovErr = (e && e.code) || 'denied'; renderAll(); });
   onValue(R('pmoSync/tasks'), s => { ST.tasks = ents(s.val()).map(([id, t]) => Object.assign({ id }, t)); D.pmoTasksLoaded = true; spawnRepeaters(); renderAll(); }, e => { D.ovErr = (e && e.code) || 'denied'; renderAll(); });
   onValue(R('venues'), s => { D.venues = s.val() || {}; renderAll(); }, () => {});   // read-only: live venue names for the site picker
+  onValue(R('pmoSync/ws'), s => { WS = s.val() || {}; renderAll(); }, () => {});
   onValue(R('pmoSync/placement'), s => { PLACE = s.val() || {}; if (D.raw) buildDirectory(D.raw); renderAll(); }, () => {});
   onValue(R('pmoSync/attachments'), s => { D.att = s.val() || {}; D.attErr = ''; renderAll(); }, e => { D.attErr = (e && e.code) || 'denied'; renderAll(); });
   onValue(R('tasks'), s => ingest('tasks', s.val()), e => { D.hubTasks = {}; D.tasksErr = (e && e.code) || 'denied'; renderAll(); });
