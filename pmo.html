@@ -113,8 +113,7 @@ pre.summary{white-space:pre-wrap;background:#0f172a;color:#e2e8f0;border-radius:
 .sync{display:grid;grid-template-columns:230px minmax(320px,1fr) minmax(380px,1.1fr);gap:12px;align-items:start}
 @media(max-width:1150px){.sync{grid-template-columns:1fr}}
 .vbtn{display:block;width:100%;text-align:left;border:1px solid var(--line);border-left-width:6px;border-radius:8px;background:#fff;padding:8px 10px;margin-bottom:6px;cursor:pointer;font:inherit}
-.vsel{margin-top:2px;border-width:1px;font-weight:600}.vsel.on{outline:2px solid #93c5fd;background:#eff6ff}
-.vbtn:hover{background:#f8fafc}.vbtn.on{background:#eff6ff;outline:2px solid #93c5fd}
+.vbtn{background:#f1faf3}.vbtn:hover{background:#e6f5ea}.vbtn.on{background:#d3efdb;outline:2px solid #6cc788}
 .vbtn b{display:block;font-size:13px}.vbtn .vp{margin-top:3px;display:flex;flex-wrap:wrap;gap:4px}
 .smid #tlist{max-height:78vh;overflow:auto;padding-right:2px}
 .mh{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:6px}.mh b{font-size:16px}
@@ -346,7 +345,7 @@ function hubVert(t) {
   for (const re of KWS) if (re.test(text)) { v = D.verts.find(x => re.test(x)); if (v) return v; }
   const o = hubOwners(t).map(n => D.people.find(p => key(p.name) === key(n))).find(Boolean);
   if (o && o.vertical && !/core/i.test(o.vertical)) return o.vertical;
-  return 'Unsorted';
+  return NONV;
 }
 const toks = s => new Set(String(s).toLowerCase().replace(/\(.*?\)/g, '').replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w.length > 2));
 const sim = (a, b) => { const A = toks(a), B = toks(b); if (!A.size || !B.size) return 0; let i = 0; A.forEach(x => B.has(x) && i++); return i / (A.size + B.size - i); };
@@ -454,9 +453,10 @@ function renderOrg() {
 
 /* ===== my tasks (local) + overlay ===== */
 const ownerName = id => (personById(id) || {}).name || 'No owner';
-const vList = () => D.verts.concat(['Other']);
-const vAll = () => D.verts.concat(['Unsorted', 'Other']);
-const vOf = t => vList().includes(t.vert) ? t.vert : 'Other';
+const NONV = 'Non-Vertical Tasks';
+const vList = () => D.verts.concat([NONV]);
+const vAll = () => D.verts.concat([NONV]);
+const vOf = t => vList().includes(t.vert) ? t.vert : NONV;   // old 'Other' values land here too
 const vColor = v => D.vcolor[v] || '#64748b';
 
 /* Everything done in the weekly sync (status, updates, dependencies, moves, closes, hiding) is shared through naig2027/pmoSync/ov, keyed by task.
@@ -512,7 +512,8 @@ function allRows() {
   const td = todayS(), w = cur(), wk = addDays(td, 7), rows = [], every = [];
   const mk = (src, id, v, title, ownerNames, due, rawStatus, notes, extra) => {
     const hubV0 = v; const hubDue0 = due; ownerNames = ownerNames.map(canonName); const k = src + ':' + id, o = ovGet(k), hs = String(rawStatus || '').toLowerCase().replace(/[^a-z]/g, '');
-    if (o.vertBy && vAll().includes(o.vertBy)) v = o.vertBy;   // vertical moved on this page (shared); the hub task's own vertical is not changed
+    const vb0 = (o.vertBy === 'Unsorted' || o.vertBy === 'Other') ? NONV : o.vertBy;   // older overrides used these names
+    if (vb0 && vAll().includes(vb0)) v = vb0;   // vertical moved on this page (shared); the hub task's own vertical is not changed
     const hubT0 = title, hubO0 = ownerNames.join(', '), hubN0 = notes, hubOwn0 = ownerNames.slice();
     if (o.titleBy) title = String(o.titleBy);                                   // edits made on this page (shared); the hub task itself is not changed
     if (typeof o.ownerBy === 'string') ownerNames = o.ownerBy ? [o.ownerBy] : [];                      // older single-owner edit
@@ -662,17 +663,15 @@ function renderSync() {
   $('#syncHint').textContent = 'Pick a vertical, work the list top to bottom, log updates on the right.';
   $('#selchip').innerHTML = SEL ? '<span class="chip">Filtered to ' + esc(selName()) + ' <a href="#" id="selClear">clear</a></span>' : '';
   // left: verticals
-  const vs = D.verts.concat(['Unsorted', 'Other']).filter((v, i, a) => a.indexOf(v) === i).filter(v => D.verts.includes(v) || rows.some(r => r.v === v));
+  const vs = D.verts.concat([NONV]).filter((v, i, a) => a.indexOf(v) === i).filter(v => D.verts.includes(v) || rows.some(r => r.v === v));
   const vb = (v, label) => { const t = vStat(rows, v);
-    return '<button class="vbtn' + brCls(v === '*' ? '' : vBranch(v)) + (SV === v ? ' on' : '') + '" data-v="' + esc(v) + '" style="border-left-color:' + (v === '*' ? '#1e3a8a' : vColor(v)) + '"><b>' + esc(label) + '</b><div class="vp"><span class="pill">' + t.open + ' open</span>'
+    return '<button class="vbtn' + (SV === v ? ' on' : '') + '" data-v="' + esc(v) + '" style="border-left-color:' + (v === '*' ? '#1e3a8a' : vColor(v)) + '"><b>' + esc(label) + '</b><div class="vp"><span class="pill">' + t.open + ' open</span>'
       + (t.blocked ? '<span class="pill warn">' + t.blocked + ' blocked/dep</span>' : '') + (t.late ? '<span class="pill bad">' + t.late + ' overdue</span>' : '') + (t.incoming ? '<span class="pill warn">' + t.incoming + ' waiting on us</span>' : '') + (t.closed ? '<span class="pill good">' + t.closed + ' closed</span>' : '') + '</div></button>'; };
   const ORDER_V = [/site/i, /hotel/i, /f&b|f and b|food/i, /transport/i, /procure/i, /design/i], main = [];
-  ORDER_V.forEach(re => { const v = vs.find(x => !main.includes(x) && !isCoreV(x) && re.test(x)); if (v) main.push(v); });
-  const more = vs.filter(v => !main.includes(v));
-  const vopts = [['*', 'All verticals']].concat(more.map(v => [v, isCoreV(v) ? 'Core Team (everything that rolls up to Core Team)' : v])).map(([v, l]) => { const t = vStat(rows, v); return '<option value="' + esc(v) + '"' + (SV === v ? ' selected' : '') + '>' + esc(l) + ' (' + t.open + ' open)</option>'; }).join('');
-  const inMore = SV === '*' || more.includes(SV);
-  $('#vlist').innerHTML = main.map(v => vb(v, v)).join('')
-    + '<select id="vSel" class="vsel' + (inMore ? ' on' : '') + '" title="All verticals, Core Team and other views">' + (inMore ? '' : '<option value="" selected>All verticals, Core Team…</option>') + vopts + '</select>';
+  ORDER_V.forEach(re => { const v = vs.find(x => !main.includes(x) && !isCoreV(x) && x !== NONV && re.test(x)); if (v) main.push(v); });
+  const core = vs.find(isCoreV), extra = vs.filter(v => !main.includes(v) && v !== core && v !== NONV);   // any vertical not in the fixed list still gets a tile
+  $('#vlist').innerHTML = main.map(v => vb(v, v)).join('') + extra.map(v => vb(v, v)).join('')
+    + (core ? vb(core, 'Core Team') : '') + vb(NONV, NONV) + vb('*', 'All verticals');
   // middle: task list
   const vrows = rows.filter(r => inV(r, SV));
   const popts = personOptions(vrows);
@@ -733,7 +732,7 @@ function renderDetail() {
     + (!ed && r.src === 'hub' && r.edited ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Edited here' + (r.hubT !== r.title ? ' (hub title: "' + esc(r.hubT) + '")' : '') + '.</div>' : '')
     + (r.src === 'hub' ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Hub task: status, updates, dependencies and moves are shared with everyone using this page. The hub task itself is not changed.</div>' : '')
     + assignHtml(r)
-    + '<h4>Vertical</h4><div class="row" style="grid-template-columns:1fr auto"><select id="dVert">' + vAll().filter((x, i, a) => a.indexOf(x) === i && (x !== 'Unsorted' || r.v === 'Unsorted')).map(x => '<option' + (x === r.v ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select><button class="btn" data-act="vertReset"' + (r.src === 'hub' && r.vSet ? '' : ' disabled') + ' title="Back to where the hub puts it">Reset</button></div>'
+    + '<h4>Vertical</h4><div class="row" style="grid-template-columns:1fr auto"><select id="dVert">' + vAll().filter((x, i, a) => a.indexOf(x) === i && true).map(x => '<option' + (x === r.v ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select><button class="btn" data-act="vertReset"' + (r.src === 'hub' && r.vSet ? '' : ' disabled') + ' title="Back to where the hub puts it">Reset</button></div>'
     + (r.vSet && r.src === 'hub' ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Moved here from ' + esc(r.hubV) + '. Shared with everyone using this page; the hub task is not changed.</div>' : '')
     + '<h4>Due by</h4><div class="row" style="grid-template-columns:1fr auto"><input type="date" id="dDue" value="' + esc(r.due || '') + '"><button class="btn" data-act="dueReset"' + ((r.src === 'mine' ? r.due : r.dueSet) ? '' : ' disabled') + ' title="' + (r.src === 'hub' ? 'Back to the hub date' : 'Clear the date') + '">' + (r.src === 'hub' ? 'Reset' : 'Clear') + '</button></div>'
     + '<div class="acts"><button class="btn" data-act="dueSet" data-d="' + addDays(todayS(), 1) + '">Tomorrow</button><button class="btn" data-act="dueSet" data-d="' + addDays(cur(), 4) + '">This Friday</button><button class="btn" data-act="dueSet" data-d="' + addDays(cur(), 11) + '">Next Friday</button></div>'
@@ -881,7 +880,7 @@ $('#syncsec').addEventListener('click', e => {
   const row = e.target.closest('.srow'); if (row) { if (SK !== row.dataset.k) { EDIT = ''; NOTICE = null; } SK = row.dataset.k; renderAll(); return; }
   const vb = e.target.closest('.vbtn'); if (vb) { SV = vb.dataset.v; SK = ''; if (SV !== '*' && [...$('#fVert').options].some(o => o.value === SV)) $('#fVert').value = SV; renderAll(); }
 });
-$('#syncsec').addEventListener('change', e => { if (e.target.id === 'vSel') { if (e.target.value !== '') { SV = e.target.value; SK = ''; CL = false; renderAll(); } return; } if (e.target.id === 'ownAdd') { const r = ROWS.find(x => x.k === SK), nm = e.target.value; if (r && nm) { setOwners(r, r.ownerNames.concat([nm]), 'Assigned to ' + nm); afterChange(false); } return; } if (e.target.id === 'dVert') { const r = ROWS.find(x => x.k === SK); if (r && e.target.value) { const from = r.v; setVert(r, e.target.value); if (SV !== '*' && !inV(Object.assign({}, r, { v: e.target.value }), SV)) SV = e.target.value; afterChange(false); } return; } if (e.target.id === 'dDue') { const r = ROWS.find(x => x.k === SK); if (r) { setDue(r, e.target.value); afterChange(false); } return; } if (e.target.id === 'dStatus') { const r = ROWS.find(x => x.k === SK); if (r) { setStatus(r, e.target.value); afterChange(false); } } if (e.target.id === 'showHold') renderAll(); if (e.target.id === 'pSel') { PS = e.target.value; SK = ''; renderAll(); } });
+$('#syncsec').addEventListener('change', e => { if (e.target.id === 'ownAdd') { const r = ROWS.find(x => x.k === SK), nm = e.target.value; if (r && nm) { setOwners(r, r.ownerNames.concat([nm]), 'Assigned to ' + nm); afterChange(false); } return; } if (e.target.id === 'dVert') { const r = ROWS.find(x => x.k === SK); if (r && e.target.value) { const from = r.v; setVert(r, e.target.value); if (SV !== '*' && !inV(Object.assign({}, r, { v: e.target.value }), SV)) SV = e.target.value; afterChange(false); } return; } if (e.target.id === 'dDue') { const r = ROWS.find(x => x.k === SK); if (r) { setDue(r, e.target.value); afterChange(false); } return; } if (e.target.id === 'dStatus') { const r = ROWS.find(x => x.k === SK); if (r) { setStatus(r, e.target.value); afterChange(false); } } if (e.target.id === 'showHold') renderAll(); if (e.target.id === 'pSel') { PS = e.target.value; SK = ''; renderAll(); } });
 $('#syncsec').addEventListener('input', e => { if (e.target.id === 'needQ') { DRAFT.k = SK; DRAFT.need = e.target.value; } if (e.target.id === 'eTitle') EDRAFT.title = e.target.value; if (e.target.id === 'eNotes') EDRAFT.notes = e.target.value; if (e.target.id === 'updTxt' || e.target.id === 'depTxt') { DRAFT.k = SK; DRAFT[e.target.id === 'updTxt' ? 'upd' : 'dep'] = e.target.value; DRAFT.focus = e.target.id; } });
 $('#syncsec').addEventListener('keydown', e => { if (e.target.id === 'updTxt' && e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); const b = $('#tdetail [data-act="updAdd"]'); b && b.click(); } });
 $('#orgToggle').onclick = () => { ORGOPEN = !ORGOPEN; localStorage.setItem('naigPmo.orgOpen', ORGOPEN ? '1' : '0'); renderOrg(); };
@@ -893,7 +892,7 @@ function renderSummary() {
   $('#sumHint').textContent = 'Week of ' + fmtD(w) + ' – ' + fmtD(addDays(w, 6)) + (SEL ? ' · filtered to ' + selName() : '');
   const tile = (n, lbl, cls) => '<div class="tile ' + (cls || '') + '"><b>' + n + '</b><span>' + lbl + '</span></div>';
   $('#tiles').innerHTML = tile(t.closed, 'Closed this week', 'good') + tile(t.open, 'Still open', '') + tile(t.blocked, 'Blocked or waiting on a dependency', t.blocked ? 'warn' : '') + tile(t.late, 'Overdue', t.late ? 'bad' : '') + tile(t.moved, 'Moved to next week', '') + tile(made, 'New tasks this week', '') + tile(upd, 'Updates logged', '');
-  const vs = D.verts.concat(['Unsorted', 'Other']).filter((v, i, a) => a.indexOf(v) === i).filter(v => rows.some(r => r.v === v));
+  const vs = D.verts.concat([NONV]).filter((v, i, a) => a.indexOf(v) === i).filter(v => rows.some(r => r.v === v));
   const tr = (n, s, cls) => '<tr class="' + (cls || '') + '"><td>' + esc(n) + '</td><td>' + s.open + '</td><td>' + s.blocked + '</td><td>' + s.late + '</td><td>' + s.closed + '</td><td>' + s.moved + '</td></tr>';
   $('#sumtable').innerHTML = '<table class="sm"><tr><th>Vertical</th><th>Still open</th><th>Blocked / dependent</th><th>Overdue</th><th>Closed this week</th><th>Moved to next week</th></tr>' + vs.map(v => tr(isCoreV(v) ? v + ' (incl. everything that rolls up to Core Team; rows overlap)' : v, vStat(rows, v))).join('') + tr('All', t, 'tot') + '</table>';
   L.push('NAIG 2027 Logistics — Weekly sync summary', 'Week of ' + fmtD(w) + ' – ' + fmtD(addDays(w, 6)) + (SEL ? '   (filter: ' + selName() + ')' : ''));
