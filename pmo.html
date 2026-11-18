@@ -127,6 +127,14 @@ pre.summary{white-space:pre-wrap;background:#0f172a;color:#e2e8f0;border-radius:
 .newbox{border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:10px;background:#f8fafc}
 .gh{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);margin:10px 2px 4px}
 .gh.warn{color:var(--warn)}
+details.grp{margin:0}
+details.grp>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:9px 4px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#4b5563;border-bottom:1px solid #eef0f3;user-select:none}
+details.grp>summary::-webkit-details-marker{display:none}
+details.grp>summary::before{content:"";border-left:6px solid #6b7280;border-top:4px solid transparent;border-bottom:4px solid transparent;transition:transform .12s}
+details.grp[open]>summary::before{transform:rotate(90deg)}
+details.grp>summary.warn{color:var(--warn)}details.grp>summary.bad{color:#b91c1c}
+details.grp>.gbody{padding:8px 0 4px}
+.gtools{display:flex;gap:8px;justify-content:flex-end;margin:0 0 2px}.gtools a{font-size:11px;color:var(--mut);text-decoration:underline;cursor:pointer}
 .srow{border:1px solid var(--line);border-radius:8px;padding:7px 10px;margin-bottom:5px;background:#fff;cursor:pointer}
 .srow:hover{background:#f8fafc}.srow.on{outline:2px solid #3b82f6;background:#eff6ff}.srow.done .t{text-decoration:line-through;color:var(--mut)}
 .srow .t{font-weight:500}.srow .m{font-size:12px;color:var(--mut)}.srow .ps{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px}
@@ -652,6 +660,7 @@ let ALLK = {}, NOTICE = null;   // ALLK: every task by key (including done and h
 let EDIT = '', EDRAFT = { title: '', notes: '' }, CL = false, PS = '', SV = '*', SK = '', ORDER = [], DRAFT = { k: '', upd: '', dep: '', focus: '' };
 const syncRows = () => { const m = matcher(SEL); return ROWS.filter(r => rowMatch(m, r)); };
 const inV = (r, v) => v === '*' || (v === NEWV ? !!r.newUntriaged : r.v === v);   // Core Team shows only tasks tagged Core Team. A task in another vertical is not repeated here, even if a Core Team person owns it.
+const GOPEN = new Set();   // which task groups the user has opened (kept across re-renders)
 const BNAME = ['Blocked or waiting on a dependency', 'Overdue', 'Due in the next 7 days', 'Later', 'No due date'];
 const vStat = (rows, v) => {
   const g = rows.filter(r => inV(r, v)), act = g.filter(r => !r.done && !r.deferred);
@@ -784,11 +793,14 @@ function renderSync() {
   const SHOWN = [1, 2, 3, 4, 0];   // blocked / dependency group goes last among open tasks, just before Closed
   ORDER = SHOWN.flatMap(b => act.filter(r => r.b === b)).map(r => r.k);   // 'Next task' follows what is on screen
   $('#mhead').innerHTML = '<select id="pSel" style="margin-bottom:8px" title="Filter this vertical by person">' + popts + '</select><div class="mh"><b>' + esc(SV === '*' ? 'ALL TASK' : SV) + (PS ? ' · ' + esc(PLABEL[PS])  : '') + '</b><span class="pill">' + act.length + ' open</span><button class="btn noprint" data-cl="start" style="margin-left:auto">Clean up</button>' + (closed.length ? '<span class="pill good">' + closed.length + ' closed this week</span>' : '') + (moved.length ? '<span class="pill">' + moved.length + ' moved to next week</span>' : '') + '</div>';
+  /* Expandable groups, same idea as the hub's Tasks tab: one line per group with a count, click to open. Collapsed by default; the group holding the selected task stays open. */
+  const grp = (key, label, n, body, cls) => '<details class="grp" data-g="' + key + '"' + (GOPEN.has(key) || (SK && body.includes('data-k="' + esc(SK) + '"')) ? ' open' : '') + '><summary' + (cls ? ' class="' + cls + '"' : '') + '>' + esc(label) + ' · ' + n + '</summary><div class="gbody">' + body + '</div></details>';
   let h = '';
-  SHOWN.forEach(b => { const g = act.filter(r => r.b === b); if (g.length) h += '<div class="gh">' + BNAME[b] + ' (' + g.length + ')</div>' + g.map(r => srowHtml(r, SV === '*')).join(''); });
-  if (incoming.length) h += '<div class="gh warn">Other verticals are waiting on ' + esc(SV) + ' (' + incoming.length + ')</div>' + incoming.map(r => srowHtml(r, true)).join('');
-  if (closed.length) h += '<div class="gh">Closed this week (' + closed.length + ')</div>' + closed.map(r => srowHtml(r, SV === '*')).join('');
-  if (moved.length) h += '<div class="gh">Moved to next week (' + moved.length + ')</div>' + moved.map(r => srowHtml(r, SV === '*')).join('');
+  SHOWN.forEach(b => { const g = act.filter(r => r.b === b); if (g.length) h += grp('b' + b, BNAME[b], g.length, g.map(r => srowHtml(r, SV === '*')).join(''), b === 0 || b === 1 ? 'bad' : ''); });
+  if (incoming.length) h += grp('incoming', 'Other verticals are waiting on ' + SV, incoming.length, incoming.map(r => srowHtml(r, true)).join(''), 'warn');
+  if (closed.length) h += grp('closed', 'Closed this week', closed.length, closed.map(r => srowHtml(r, SV === '*')).join(''));
+  if (moved.length) h += grp('moved', 'Moved to next week', moved.length, moved.map(r => srowHtml(r, SV === '*')).join(''));
+  if (h) h = '<div class="gtools noprint"><a data-gall="1">Expand all</a><a data-gall="0">Collapse all</a></div>' + h;
   $('#pSel').value = PS;
   if (CL) { $('#tlist').innerHTML = cleanupHtml(rows.filter(r => inV(r, SV) && pf(r))); renderDetail(); return; }
   $('#tlist').innerHTML = h || '<div class="empty">' + (D.tasksErr ? 'The hub refused the tasks read (' + esc(D.tasksErr) + ').' : D.hubTasks ? 'No open tasks here.' : 'Waiting for hub tasks…') + '</div>';
@@ -1410,6 +1422,9 @@ document.addEventListener('click', async e => {
   if (!fail) { CATCHNOTE = 'Pushed ' + ok + ' task' + (ok === 1 ? '' : 's') + ' to the hub.'; renderCatch(); setTimeout(() => { CATCHNOTE = ''; renderCatch(); }, 8000); }
 });
 
+$('#tlist').addEventListener('toggle', e => { const d = e.target; if (!d.dataset || !d.dataset.g) return; if (d.open) GOPEN.add(d.dataset.g); else GOPEN.delete(d.dataset.g); }, true);
+$('#tlist').addEventListener('click', e => { const a = e.target.closest && e.target.closest('[data-gall]'); if (!a) return; e.preventDefault();
+  const on = a.dataset.gall === '1'; document.querySelectorAll('#tlist details.grp').forEach(d => { d.open = on; }); });
 function renderAll() {
   const k = D.people.length + '|' + D.verts.join(','); if (k !== formKey) { formKey = k; fillForm(); }
   const had = document.activeElement && document.activeElement.id, pos = had && document.activeElement.selectionStart;
