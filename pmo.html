@@ -790,7 +790,7 @@ function renderSync() {
   const act = rows.filter(r => inV(r, SV) && pf(r) && !r.done && !r.deferred).sort((a, b) => a.b - b.b || (a.due || '9').localeCompare(b.due || '9'));
   const incoming = SV === '*' ? [] : rows.filter(r => !r.done && !r.deferred && pf(r) && r.v !== SV && r.deps.some(d => !d.resolved && d.on === SV));
   const closed = rows.filter(r => inV(r, SV) && pf(r) && r.closedThisWeek), moved = rows.filter(r => inV(r, SV) && pf(r) && r.deferred);
-  const SHOWN = [1, 2, 3, 4, 0];   // blocked / dependency group goes last among open tasks, just before Closed
+  const SHOWN = [2, 1, 3, 4, 0];   // Due in the next 7 days, Overdue, Later, No due date (Azmina's order); blocked / dependency goes last, just before Closed
   ORDER = SHOWN.flatMap(b => act.filter(r => r.b === b)).map(r => r.k);   // 'Next task' follows what is on screen
   $('#mhead').innerHTML = '<select id="pSel" style="margin-bottom:8px" title="Filter this vertical by person">' + popts + '</select><div class="mh"><b>' + esc(SV === '*' ? 'ALL TASK' : SV) + (PS ? ' · ' + esc(PLABEL[PS])  : '') + '</b><span class="pill">' + act.length + ' open</span><button class="btn noprint" data-cl="start" style="margin-left:auto">Clean up</button>' + (closed.length ? '<span class="pill good">' + closed.length + ' closed this week</span>' : '') + (moved.length ? '<span class="pill">' + moved.length + ' moved to next week</span>' : '') + '</div>';
   /* Expandable groups, same idea as the hub's Tasks tab: one line per group with a count, click to open. Collapsed by default; the group holding the selected task stays open. */
