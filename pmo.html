@@ -481,10 +481,11 @@ function renderOrg() {
 /* ===== my tasks (local) + overlay ===== */
 const ownerName = id => (personById(id) || {}).name || 'No owner';
 const NONV = 'Non-Vertical Tasks';
-const NEWV = 'Not assigned (new)';
+const NEWV = 'Unassigned';
 /* Tasks created in the hub after the Site Management cleanup (17 Nov 2026, about 2 PM Central) that nobody has triaged on this page yet. Triaged = assigned someone, moved a vertical, marked assigned, parked, hidden, moved, or given a status here. */
 const NEWSINCE = Date.parse('2026-11-17T20:00:00Z');
-const triagedOv = o => !!(o && (o.triaged || o.ownersBy || o.ownerBy || o.vertBy || o.hidden || o.parked || o.status || o.deferTo));
+const byRizwan = t => { const c = String(t.createdBy || ''); return !c || /rizwan/i.test(c); };   // created by Rizwan, or the hub did not record who (Drive Monitor and scripts). Tasks someone else created are not held here.
+const triagedOv = o => !!(o && (o.triaged || o.vertBy || o.hidden || o.parked));   // routed = given a vertical on this page, confirmed as already right, parked or hidden
 const vList = () => D.verts.concat([NONV]);
 const vAll = () => D.verts.concat([NONV]);
 const vOf = t => vList().includes(t.vert) ? t.vert : NONV;   // old 'Other' values land here too
@@ -583,7 +584,7 @@ function allRows() {
   };
   ents(D.hubTasks).forEach(([id, t]) => { if (!t.title) return;
     const r = mk('hub', id, hubVert(t), t.title, hubOwners(t), hubDue(t), t.status, t.notes || t.description || '', { hubDeps: [], hubDepsAll: hubDepsOf(t), createdMs: createdMsOf(t, id), createdBy: t.createdBy || '' });
-    r.newUntriaged = !r.done && r.createdMs >= NEWSINCE && !triagedOv(ovGet(r.k));
+    r.newUntriaged = !r.done && r.createdMs >= NEWSINCE && byRizwan(t) && !triagedOv(ovGet(r.k));
     { const ap = applyHubDepOv(r.hubDepsAll, ovGet(r.k)); r.hubDeps = ap.kept; r.hubDepsGone = ap.gone; }
     if (!r.done && r.hubDeps.some(d => d.status === 'blocked')) { r.blocked = true; r.b = 0; }
     if (r.done && !OV[sk(r.k)]) return;   // done in the hub and untouched by me: not part of the working list
@@ -639,7 +640,7 @@ function pillsHtml(r) {
     r.deps.filter(d => !d.resolved).forEach(d => h += '<span class="pill warn">waiting on ' + esc(d.on) + '</span>');
     (r.hubDeps || []).filter(d => d.status !== 'done').forEach(d => h += '<span class="pill ' + (d.status === 'blocked' ? 'bad' : 'warn') + '" title="From the hub: ' + DEP_ST[d.status] + '">needs ' + esc(d.team) + '</span>');
     if (r.late) h += '<span class="pill bad">Overdue</span>'; }
-  if (r.newUntriaged) h += '<span class="pill warn" title="Created in the hub, not assigned here yet">new, not assigned</span>';
+  if (r.newUntriaged) h += '<span class="pill warn" title="Created by Rizwan, not routed to a vertical yet">unassigned</span>';
   if (r.deferred) h += '<span class="pill">moved to ' + fmtD(r.deferTo) + '</span>';
   if (r.hold) h += '<span class="pill">on hold</span>';
   if (r.dupOf) h += '<span class="dup">possible duplicate of "' + esc(r.dupOf) + '"</span>';
@@ -805,7 +806,7 @@ function renderDetail() {
   el.innerHTML = (ed ? editBox : '<div class="dt">' + esc(r.title) + ' <button class="btn noprint" data-act="editOpen" style="font-size:11px;padding:2px 8px;vertical-align:middle">Edit</button></div>')
     + '<div class="m" style="color:var(--mut);font-size:12px">' + esc(r.v) + ' · ' + esc(r.owners || 'No owner') + ' · due ' + fmtD(r.due) + (r.deferred ? ' · moved to ' + fmtD(r.deferTo) : '') + '</div>'
     + '<div class="m" style="color:var(--mut);font-size:11px">' + (r.createdMs ? 'Created ' + fmtAdded(r.createdMs) + ' ' + new Date(r.createdMs).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) + (r.createdBy ? ' by ' + esc(r.createdBy) : '') : 'Creation date not recorded') + '</div>'
-    + (r.newUntriaged ? '<div class="note-bad" style="background:#fff7ed;color:#9a3412">New from the hub' + (r.createdBy ? ' (' + esc(r.createdBy) + ')' : '') + ' and not assigned yet. Set <b>Assigned to</b> and <b>Vertical</b> below, or confirm it is already right. <button class="btn pri" data-act="triage">Mark as assigned</button></div>' : '')
+    + (r.newUntriaged ? '<div class="note-bad" style="background:#fff7ed;color:#9a3412"><b>Unassigned.</b> Created by ' + esc(r.createdBy || 'Rizwan') + ' and not routed yet. Pick the vertical it belongs to:<div class="acts" style="margin-top:6px">' + D.verts.filter(v => v !== NONV).map(v => '<button class="btn" data-act="route" data-v="' + esc(v) + '">' + esc(v) + '</button>').join('') + '<button class="btn" data-act="triage" title="It is already in the right place">Already right</button></div></div>' : '')
     + (NOTICE && NOTICE.k === r.k ? '<div class="note-bad">' + esc(NOTICE.text) + '</div>' : '')
     + (nb ? '<div class="note-bad">Cannot be closed yet. Waiting on ' + r.openNeeds.length + ' task' + (r.openNeeds.length > 1 ? 's' : '') + ': ' + r.openNeeds.map(n => esc(n.t.title)).join('; ') + '</div>' : '')
     + (np ? '<div class="note-bad">Cannot be closed yet. ' + r.openSteps.length + ' of ' + r.steps.length + ' step' + (r.steps.length > 1 ? 's' : '') + ' still open: ' + r.openSteps.map(t => esc(t.text)).join('; ') + '</div>' : '')
@@ -984,7 +985,8 @@ $('#syncsec').addEventListener('click', e => {
     if (act === 'vertReset') { setVert(r, r.hubV); return afterChange(false); }
     if (act === 'dueSet') { setDue(r, a.dataset.d); return afterChange(false); }
     if (act === 'dueReset') { setDue(r, ''); return afterChange(false); }
-    if (act === 'triage') { ovSet(r.k, 'triaged', true); logSys(r.k, 'Marked as assigned (new from the hub)'); return afterChange(true); }
+    if (act === 'route') { const v = a.dataset.v; if (vAll().includes(v)) { setVert(r, v); ovSet(r.k, 'triaged', true); if (SV !== '*' && SV !== v) SV = v; } return afterChange(false); }
+    if (act === 'triage') { ovSet(r.k, 'triaged', true); logSys(r.k, 'Confirmed in place (was unassigned)'); return afterChange(true); }
     if (act === 'close') { return afterChange(setStatus(r, 'done')); }
     if (act === 'reopen') { setStatus(r, 'open'); return afterChange(false); }
     if (act === 'hdepDel') { const t = a.dataset.t; ovSet(r.k, 'hdep/' + sk(t) + '/removed', true); logSys(r.k, 'Removed hub dependency: ' + t); return afterChange(false); }
