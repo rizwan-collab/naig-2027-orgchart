@@ -228,7 +228,7 @@ table.sm th:first-child,table.sm td:first-child{text-align:left}table.sm th{font
 </section>
 
 <section id="wssec" class="ws">
-  <h2><button class="btn" id="wsToggle">▾ Hide</button> Team workspaces <span class="hint">plan Transportation, F&amp;B and Procurement with live totals, see Site readiness, and compare Hotels. Shared with everyone using this page.</span></h2>
+  <h2><button class="btn" id="wsToggle">▸ Show</button> Team workspaces <span class="hint">hidden until you open it: the transportation schedule (day, time, people, buses), F&amp;B, Procurement, Site readiness and Hotels. Shared with everyone using this page.</span></h2>
   <div id="wsbody"></div>
 </section>
 
@@ -1115,7 +1115,7 @@ function fillForm() {
 }
 let formKey = '';
 /* ===== Team workspaces: Transportation, F&B, Procurement, Site readiness, Hotels. Shared with everyone through naig2027/pmoSync/ws. Nothing here changes a task card unless you press "Apply to cards". ===== */
-let WS = {}, WSTAB = localStorage.getItem('naigPmo.wsTab') || 'transport', WSOPEN = localStorage.getItem('naigPmo.wsOpen') !== '0', WSPEND = false;
+let WS = {}, WSTAB = localStorage.getItem('naigPmo.wsTab') || 'transport', WSOPEN = localStorage.getItem('naigPmo.wsOpen') === '1', WSPEND = false;
 const wl = o => ents(o).map(([id, v]) => Object.assign({ id }, v)).sort((a, b) => (a.at || 0) - (b.at || 0));
 const wn = v => { const n = Number(v); return isFinite(n) ? n : 0; };
 const wsW = (p, v) => W('ws/' + p, v === undefined ? null : v);
@@ -1182,6 +1182,34 @@ const wTxt = (p, v, w, ph) => `<input data-w="set" data-t="s" data-p="${esc(p)}"
 const wTile = (n, l, c) => `<div class="tile ${c || ''}"><b>${n}</b><span>${l}</span></div>`;
 const wNeedSites = () => `<div class="empty" style="padding:8px 0">Add your sites first. <button class="btn pri" data-w="act" data-a="stdsites">Use the standard sites (5 confirmed, 3 candidates)</button> or add them on the Site readiness tab.</div>`;
 
+/* ===== Transportation schedule: one row per route, day and time slot. Vehicles in use at the same time are counted against the fleet total. ===== */
+const WDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const tmin = t => { const m = /^(\d{1,2}):(\d{2})/.exec(String(t || '')); return m ? +m[1] * 60 + +m[2] : null; };
+const slotName = sl => { const a = tmin(sl.start); return a == null ? '' : a < 720 ? 'Morning' : a < 1020 ? 'Afternoon' : 'Evening'; };
+const hhmm = t => { const m = tmin(t); if (m == null) return ''; const h = Math.floor(m / 60), mm = m % 60; return (h % 12 || 12) + (mm ? ':' + String(mm).padStart(2, '0') : '') + (h < 12 ? 'a' : 'p'); };
+function wsSlot(sl, A) {
+  const rc = A.rs.find(x => x.r.id === sl.route), fl = A.fl.find(f => f.id === (sl.type || (rc && rc.r.type))), seats = fl ? wn(fl.seats) : 0, a = tmin(sl.start), b = tmin(sl.end), dur = a != null && b != null ? b - a : 0, rt = rc ? rc.rt : 0;
+  const trips = rt ? Math.max(1, Math.floor(dur / rt)) : 1, people = wn(sl.people), count = wn(sl.count), need = seats && dur > 0 ? Math.ceil(people / (seats * trips)) : 0;
+  const msgs = []; if (!rc) msgs.push('Pick a route'); else if (!fl) msgs.push('Pick a vehicle type'); else if (dur <= 0) msgs.push('End time must be after the start'); else if (count < need) msgs.push('Need ' + need + ' ' + wplural(fl.n, need) + ' for ' + people + ' people (each makes ' + trips + ' trip' + (trips === 1 ? '' : 's') + '), have ' + count);
+  return { rc, fl, seats, dur, rt, trips, people, count, need, a, b, ok: !!rc && !!fl && dur > 0 && count >= need, msgs };
+}
+function wsSchedule(A) {
+  const day = d => WDAYS.indexOf(d), list = wl(WS.sched).sort((x, y) => day(x.day) - day(y.day) || (tmin(x.start) || 0) - (tmin(y.start) || 0)).map(sl => Object.assign({ sl }, wsSlot(sl, A)));
+  const days = [...new Set(list.map(x => x.sl.day))].sort((x, y) => day(x) - day(y));
+  const peak = (d, tid) => { const ev = []; list.filter(x => x.sl.day === d && (x.sl.type || (x.rc && x.rc.r.type)) === tid && x.dur > 0).forEach(x => { ev.push([x.a, x.count]); ev.push([x.b, -x.count]); }); ev.sort((p, q) => p[0] - q[0] || p[1] - q[1]); let cur = 0, mx = 0; ev.forEach(e => { cur += e[1]; if (cur > mx) mx = cur; }); return mx; };
+  const fit = days.map(d => ({ d, cells: A.types.map(t => { const p = peak(d, t.f.id); return { t, p, over: p > t.total }; }) }));
+  const total = list.reduce((a, x) => a + x.people, 0), bad = list.filter(x => !x.ok).length, overs = fit.reduce((a, r) => a + r.cells.filter(c => c.over).length, 0);
+  const rows = list.map(x => { const sl = x.sl; return `<tr class="${x.ok ? '' : 'sel'}"><td><select data-w="set" data-t="s" data-p="sched/${sl.id}/day">${WDAYS.map(d => `<option ${sl.day === d ? 'selected' : ''}>${d}</option>`).join('')}</select></td>
+    <td><input type="time" data-w="set" data-t="so" data-p="sched/${sl.id}/start" value="${esc(sl.start || '')}" style="width:104px"> to <input type="time" data-w="set" data-t="so" data-p="sched/${sl.id}/end" value="${esc(sl.end || '')}" style="width:104px"><div class="m">${slotName(sl)} ${sl.start && sl.end ? hhmm(sl.start) + '–' + hhmm(sl.end) : ''}</div></td>
+    <td><select data-w="set" data-t="s" data-p="sched/${sl.id}/route">${A.rs.map(r => `<option value="${r.r.id}" ${sl.route === r.r.id ? 'selected' : ''}>${esc(r.r.n)}</option>`).join('')}${A.rs.some(r => r.r.id === sl.route) ? '' : '<option value="" selected>Pick…</option>'}</select></td>
+    <td>${wNum('sched/' + sl.id + '/people', sl.people, 70)}</td><td><select data-w="set" data-t="s" data-p="sched/${sl.id}/type">${A.fl.map(f => `<option value="${f.id}" ${(sl.type || (x.rc && x.rc.r.type)) === f.id ? 'selected' : ''}>${esc(f.n)} (${wn(f.seats)})</option>`).join('')}</select></td>
+    <td>${wNum('sched/' + sl.id + '/count', sl.count, 60)}<div class="m">needs ${x.need}</div></td><td>${x.ok ? '<span class="pill good">Enough</span>' : `<span class="pill bad">${esc(x.msgs[0] || 'Not enough')}</span>`}</td>
+    <td>${wTxt('sched/' + sl.id + '/note', sl.note, 120, 'note')}</td><td style="white-space:nowrap"><button class="btn" data-w="act" data-a="sldup" data-id="${sl.id}" title="Copy this slot, then change the day">copy</button> <button class="btn" data-w="act" data-a="sldel" data-id="${sl.id}" title="Remove">&times;</button></td></tr>`; }).join('');
+  const f = fit.length ? `<table class="tb" style="margin-top:12px"><tr><th>Day</th>${A.types.map(t => `<th>${esc(t.f.n)}: most in use at once / we have</th>`).join('')}</tr>${fit.map(r => `<tr><td><b>${r.d}</b></td>${r.cells.map(c => `<td><span class="${c.over ? 'late' : ''}">${c.p} of ${c.t.total}</span> ${c.over ? '<span class="pill bad">over by ' + (c.p - c.t.total) + '</span>' : c.p ? '<span class="pill good">fits</span>' : ''}</td>`).join('')}</tr>`).join('')}</table>` : '';
+  return `<section class="p" style="overflow-x:auto"><h3>5. Schedule: day by day <span class="hint">route, day, time slot, people, and how many buses or shuttles. Slots that overlap in time share the same fleet.</span> <button class="btn pri" data-w="act" data-a="sladd">+ Add a time slot</button></h3>
+    ${list.length ? `<div class="tiles" style="margin-bottom:8px">${wTile(list.length, 'Time slots planned')}${wTile(total, 'People to move across all slots')}${wTile(bad ? bad + ' short' : 'All covered', 'Slots with enough vehicles', bad ? 'bad' : 'good')}${wTile(overs ? overs + ' over' : 'Fits', 'Days where overlapping slots use more than we have', overs ? 'bad' : 'good')}</div>
+    <table class="tb"><tr><th>Day</th><th>Time</th><th>Route</th><th>People</th><th>Vehicle</th><th>How many</th><th>Check</th><th>Note</th><th></th></tr>${rows}</table>${f}` : '<div class="empty">No time slots yet. Add one for each route, day and time (for example: Friday 6:00 to 10:00 on the hub route, 300 people, 5 motorcoaches). Add routes and vehicle types above first.</div>'}</section>`;
+}
 function wsTransport() {
   const A = wsTp(), cs = wsConf(); if (!cs.length) return wNeedSites();
   const tiles = `<div class="tiles">${wTile(Math.round(A.demand), 'People to move each hour at the peak')}${wTile(Math.round(A.cap), 'Seats an hour we are providing', A.rs.length ? (A.cap + 1 >= A.demand ? 'good' : 'bad') : '')}${wTile(A.okN + ' of ' + A.rs.length, 'Routes with enough vehicles', A.rs.length && A.okN === A.rs.length ? 'good' : 'warn')}${wTile(A.used + ' of ' + A.total, 'Vehicles assigned of the total')}${wTile(A.short ? 'Short ' + A.short : (A.rs.length ? 'Enough' : '—'), A.short ? 'Vehicles short if every route runs as needed' : (A.rs.length && A.okN < A.rs.length ? 'The total is enough, but ' + (A.rs.length - A.okN) + ' route' + (A.rs.length - A.okN === 1 ? ' needs' : 's need') + ' more vehicles assigned' : 'Fleet covers every route'), A.short ? 'bad' : A.rs.length ? (A.okN < A.rs.length ? 'warn' : 'good') : '')}${wTile(A.drivers, 'Drivers needed (' + wcfg('shifts') + ' shifts per vehicle)')}</div>`;
@@ -1196,7 +1224,7 @@ function wsTransport() {
   const plan = `<section class="p"><h3>3. Routes <span class="hint">pick the vehicle type and how many; it counts against the total above</span> <button class="btn pri" data-w="act" data-a="rtadd">+ Add a route</button></h3>${routes || '<div class="empty">No routes yet. Add one.</div>'}</section>`;
   const chk = A.types.length ? `<section class="p"><h3>4. Do the routes fit our vehicles? <span class="hint">updates as you change anything above</span></h3><table class="tb"><tr><th>Vehicle</th><th>We have</th><th>Assigned to routes</th><th>Left over</th><th>Routes need (to run as planned)</th><th>Verdict</th><th style="width:26%">Use of the total</th></tr>${A.types.map(t => { const pc = t.total ? Math.min(100, Math.round(100 * t.used / t.total)) : (t.used ? 100 : 0), bad = t.spare < 0 || t.gap > 0;
     return `<tr><td><b>${esc(t.f.n)}</b><div class="m">${wn(t.f.seats)} seats, ${t.n} route${t.n === 1 ? '' : 's'}</div></td><td>${t.total}</td><td>${t.used}</td><td class="${t.spare < 0 ? 'late' : ''}">${t.spare}</td><td>${t.rec}</td><td>${t.spare < 0 ? `<span class="pill bad">Assigned ${-t.spare} more than we have</span>` : t.gap > 0 ? `<span class="pill warn">Short ${t.gap} to run every route as needed</span>` : '<span class="pill good">Enough</span>'}</td><td><div class="bar" style="height:10px"><i style="width:${pc}%;background:${bad ? '#dc2626' : '#4ea86a'}"></i></div><div class="m">${t.used} of ${t.total} in use</div></td></tr>`; }).join('')}</table></section>` : '';
-  return tiles + assum + fleet + plan + chk + wsSyncBox('Shuttle', ['shuttle|transport']);
+  return tiles + assum + fleet + plan + chk + (A.rs.length && A.fl.length ? wsSchedule(A) : '<section class="p"><h3>5. Schedule: day by day</h3><div class="empty">Add a vehicle type and at least one route first. Then you can plan each day and time slot here.</div></section>') + wsSyncBox('Shuttle', ['shuttle|transport']);
 }
 function wsSyncBox(area) {
   const plan = wsSyncPlan().filter(x => area === 'Shuttle' ? /shuttle|transport/i.test(x.r.title) : !/shuttle|transport/i.test(x.r.title));
@@ -1266,6 +1294,9 @@ function wsAct(a, id, d) {
   else if (a === 'rtadd') { const fl = wl(WS.fleet); if (!fl.length) { toast2('Add a vehicle type first.'); return; } wsW('routes/' + wsId('r'), { n: 'New route', from: 'Hub hotel', to: '', min: 30, head: 30, type: fl[0].id, asg: 1, extra: 0, hrs: '', at: Date.now() }); }
   else if (a === 'rtdel') { if (confirm('Remove this route for everyone?')) wsW('routes/' + id, null); }
   else if (a === 'rtuse') { const r = wl(WS.routes).find(x => x.id === id), c = wsRcalc(r, wl(WS.fleet)); if (!c.seats) { toast2('Pick a vehicle type with seats first.'); return; } const hd = isFinite(c.headNeed) && r.head > c.headNeed ? Math.max(1, Math.floor(c.headNeed)) : r.head; wsW('routes/' + id + '/head', hd); wsW('routes/' + id + '/asg', wsRcalc(Object.assign({}, r, { head: hd }), wl(WS.fleet)).need); }
+  else if (a === 'sladd') { const A = wsTp(); if (!A.rs.length || !A.fl.length) { toast2('Add a vehicle type and a route first.'); return; } const r = A.rs[0].r; wsW('sched/' + wsId('s'), { day: 'Friday', start: '06:00', end: '10:00', route: r.id, type: r.type, people: 0, count: 0, note: '', at: Date.now() }); }
+  else if (a === 'sldup') { const x = wl(WS.sched).find(q => q.id === id); if (x) { const n = Object.assign({}, x); delete n.id; n.at = Date.now(); wsW('sched/' + wsId('s'), n); } }
+  else if (a === 'sldel') wsW('sched/' + id, null);
   else if (a === 'foadd') wsW('foodx/' + wsId('o'), { n: 'New line', qty: 0, unit: 'meals', note: '', at: Date.now() });
   else if (a === 'fodel') wsW('foodx/' + id, null);
   else if (a === 'pradd') { const nm = (($('#wsNewItem') || {}).value || '').trim(); if (!nm) { toast2('Type an item name first.'); return; } if (wl(WS.proc).some(p => key(p.n) === key(nm))) { toast2(nm + ' is already on the list.'); return; } wsW('proc/' + wsId('i'), { n: nm, at: Date.now() }); }
