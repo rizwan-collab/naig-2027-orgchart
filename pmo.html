@@ -200,6 +200,8 @@ table.sm th:first-child,table.sm td:first-child{text-align:left}table.sm th{font
   </div>
 </section>
 
+<section id="catchsec" hidden></section>
+
 <section id="syncsec">
   <h2>Weekly sync <span class="hint" id="syncHint"></span>
     <span id="selchip"></span>
@@ -1366,11 +1368,53 @@ $('#wssec').addEventListener('change', e => {
 $('#wssec').addEventListener('focusout', () => setTimeout(() => { if (WSPEND) renderWs(); }, 120));
 $('#wsToggle').onclick = () => { WSOPEN = !WSOPEN; localStorage.setItem('naigPmo.wsOpen', WSOPEN ? '1' : '0'); renderWs(); };
 
+/* ===== Catch-up: PMO changes the hub tasks do not have yet =====
+   Changes made on this page before hub write-through existed (or while the hub refused writes) live only in pmoSync/ov. This lists them
+   and pushes them to the hub tasks only when the button is clicked. Same six fields, same hubSave() path, so each push is logged and undoable. */
+const HUBST = { open: 'todo', progress: 'inprogress', blocked: 'blocked', done: 'done' };
+function catchDiffs() {
+  const out = [];
+  ROWS.forEach(r => {
+    if (r.src !== 'hub') return;
+    const raw = (D.hubTasks && D.hubTasks[r.id]) || {}, o = ovGet(r.k), patch = {}, clear = [], what = [], shown = [];
+    if (r.reassigned) { const n = r.ownerNames; patch.owner = n[0] || ''; patch.owners = n.length ? n : null; clear.push('ownersBy', 'ownerBy'); what.push('owner'); shown.push('Assigned to: ' + (r.hubO || 'nobody') + ' → ' + (n.join(', ') || 'nobody')); }
+    if (r.vSet && o.vertBy) { patch.department = r.v; if (raw.vertical) patch.vertical = r.v; clear.push('vertBy'); what.push('area'); shown.push('Vertical: ' + r.hubV + ' → ' + r.v); }
+    if (r.dueSet && r.due) { patch.due = r.due; if (raw.dueDate) patch.dueDate = r.due; clear.push('dueBy'); what.push('due'); shown.push('Due: ' + (r.hubDue || 'none') + ' → ' + r.due); }
+    if (o.status && HUBST[o.status] && HUBST[o.status] !== String(raw.status || 'todo').toLowerCase()) { patch.status = HUBST[o.status]; clear.push('status'); what.push('status'); shown.push('Status: ' + (raw.status || 'todo') + ' → ' + patch.status); }
+    if (o.titleBy && o.titleBy !== r.hubT) { patch.title = r.title; clear.push('titleBy'); what.push('title'); shown.push('Title: "' + String(r.hubT).slice(0, 50) + '" → "' + r.title.slice(0, 50) + '"'); }
+    if (typeof o.notesBy === 'string' && o.notesBy !== (r.hubN || '')) { patch.notes = o.notesBy; clear.push('notesBy'); what.push('notes'); shown.push('Notes edited'); }
+    if (what.length) out.push({ r, patch, clear, what, shown });
+  });
+  return out;
+}
+let CATCH = [], CATCHBUSY = false, CATCHNOTE = '';
+function renderCatch() {
+  const el = $('#catchsec'); if (!el) return;
+  CATCH = (S.email && D.live) ? catchDiffs() : [];
+  if (!CATCH.length && !CATCHBUSY) { if (CATCHNOTE) { el.hidden = false; el.innerHTML = '<div class="banner" style="background:#dcfce7;color:#14532d;border-radius:8px;padding:10px 14px">' + esc(CATCHNOTE) + '</div>'; } else { el.hidden = true; el.innerHTML = ''; } return; }
+  const open = el.querySelector('details[open]') ? ' open' : '';
+  el.hidden = false;
+  el.innerHTML = '<div class="banner" style="background:#e0f2fe;color:#0c4a6e;border-radius:8px;padding:10px 14px"><b>' + CATCH.length + ' task' + (CATCH.length === 1 ? '' : 's') + ' changed on this page ' + (CATCH.length === 1 ? 'has' : 'have') + ' not reached the hub yet.</b> '
+    + '<button class="btn pri" id="catchGo"' + (CATCHBUSY ? ' disabled' : '') + '>' + (CATCHBUSY ? 'Pushing…' : 'Push these to the hub') + '</button> <span id="catchMsg" class="m"></span>'
+    + '<details' + open + '><summary>See exactly what will change in the hub</summary><div style="max-height:260px;overflow:auto;margin-top:6px">'
+    + CATCH.map(c => '<div style="padding:3px 0;border-top:1px solid #bae6fd"><b>' + esc(c.r.hubT || c.r.title) + '</b>' + c.shown.map(x => '<div class="m" style="margin-left:10px">' + esc(x) + '</div>').join('') + '</div>').join('')
+    + '</div></details><div class="m" style="margin-top:4px">Only assigned to, vertical, due date, status, title and notes. Each push is logged in the hub activity log and in pmoSync/hubLog with the old values.</div></div>';
+}
+document.addEventListener('click', async e => {
+  if (e.target.id !== 'catchGo' || CATCHBUSY) return;
+  const list = CATCH.slice(); if (!list.length) return;
+  CATCHBUSY = true; let ok = 0, fail = 0; renderCatch();
+  for (const c of list) { const done = await hubSave(c.r, c.patch, c.what.join(', ') + ' (catch-up)', c.clear); if (done) ok++; else { fail++; break; } }   // stop at the first refusal
+  CATCHBUSY = false; renderCatch();
+  const m = $('#catchMsg'); if (m) m.textContent = (fail ? ok + ' pushed, then the hub refused. Nothing was lost; see the red bar.' : '');
+  if (!fail) { CATCHNOTE = 'Pushed ' + ok + ' task' + (ok === 1 ? '' : 's') + ' to the hub.'; renderCatch(); setTimeout(() => { CATCHNOTE = ''; renderCatch(); }, 8000); }
+});
+
 function renderAll() {
   const k = D.people.length + '|' + D.verts.join(','); if (k !== formKey) { formKey = k; fillForm(); }
   const had = document.activeElement && document.activeElement.id, pos = had && document.activeElement.selectionStart;
   ROWS = allRows(); HIDDEN = ROWS.filter(r => r.hidden); ROWS = ROWS.filter(r => !r.hidden);
-  renderOrg(); renderSync(); renderWs(); renderSummary();
+  renderOrg(); renderCatch(); renderSync(); renderWs(); renderSummary();
   if ((had === 'updTxt' || had === 'depTxt' || had === 'eTitle' || had === 'eNotes' || had === 'needQ' || had === 'siteQ' || had === 'stepQ') && $('#' + had)) { const el = $('#' + had); el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} }
 }
 
