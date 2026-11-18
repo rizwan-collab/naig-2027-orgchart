@@ -8,8 +8,11 @@
   RULES FOR THIS PAGE
   1. People and the org chart ALWAYS come from the hub Directory in Firebase (naig2027/prospects), live.
      No names are hardcoded here. If Firebase can't be read, the page says so; it never falls back to made-up data.
-  2. The hub's own data (people, tasks) is READ-ONLY here; this page never writes to naig2027/tasks or prospects.
-     So this page and the hub are NOT two-way synced: hub changes appear here live, but edits made here stay here (in pmoSync).
+  2. People (prospects) are READ-ONLY here. Hub TASKS are read live AND written for six fields only, the same way the hub's own
+     task drawer saves them: assigned to (owner, owners), vertical (department), due date, status, title and notes. Every such write
+     also adds a hub activityLog entry and a before/after record in pmoSync/hubLog (undo trail). Everything else (steps, sites,
+     dependencies, parking, hiding, updates) stays in pmoSync. If a hub write is refused, the change is kept in pmoSync, a red
+     banner says so, and nothing is lost.
      Everything the weekly sync adds is SHARED with everyone using the page and lives under ONE new path, naig2027/pmoSync:
        ov/<task>/...        status, closed date, moved-to-next-week, hidden/parked, updates, dependencies on other teams
        tasks/<id>           tasks created on this page (and their weekly repeats)
@@ -249,9 +252,9 @@ table.sm th:first-child,table.sm td:first-child{text-align:left}table.sm th{font
 </main>
 
 <script type="module">
-// Writes go only to naig2027/pmoSync/* (see header). The hub's own records are never written.
+// Writes go to naig2027/pmoSync/*, plus six fields of hub tasks through hubSave() (see header). Nothing else in the hub is written.
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, onValue, set, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, getRedirectResult, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 /* Same Firebase project as the hub (public web config, copied from the hub's index.html). */
@@ -292,6 +295,26 @@ function W(path, val) {
 }
 function wfail(e) { const c = (e && e.code) || '';
   D.writeErr = /permission/i.test(c + ((e && e.message) || '')) ? 'permission denied. Rizwan needs to allow signed-in users to write to naig2027/pmoSync in the Firebase database rules' : (c || String(e)); status(); }
+/* Hub write-through. Mirrors what the hub's own task drawer saves (index.html doSave): update() on tasks/<id> with the hub's field names,
+   an activityLog entry, and `updated`. The pmoSync overlay is written first by the caller, so a refused hub write never loses the change;
+   on success the overlay field is cleared and the hub record becomes the single truth again. */
+const HUB_FIELDS = ['owner', 'owners', 'due', 'dueDate', 'department', 'vertical', 'status', 'title', 'notes'];
+async function hubSave(r, patch, what, clear) {
+  if (r.src !== 'hub' || !S.email) return false;
+  const raw = (D.hubTasks && D.hubTasks[r.id]) || {};
+  patch = Object.assign({}, patch);
+  Object.keys(patch).forEach(k => { if (!HUB_FIELDS.includes(k)) delete patch[k]; });
+  const prev = {}; Object.keys(patch).forEach(k => { prev[k] = raw[k] === undefined ? null : raw[k]; });
+  const now = Date.now();
+  try { await update(R('tasks/' + r.id), Object.assign({}, patch, { updated: new Date(now).toISOString() })); }
+  catch (e) { D.hubErr = /permission/i.test(((e && e.code) || '') + ((e && e.message) || '')) ? 'the hub refused the write (permission denied)' : ((e && e.code) || String(e)); status(); return false; }
+  D.hubErr = ''; status();
+  const aid = 'act' + now + Math.random().toString(36).slice(2, 6);
+  set(R('activityLog/' + aid), { action: 'update', entityKey: 'tasks/' + r.id, entityName: r.hubT || r.title, id: aid, text: 'Task ' + what + ': ' + (r.hubT || r.title) + ' (changed on the PMO page)', ts: now, type: 'task', who: attWho(), whoEmail: S.email || '' }).catch(() => {});
+  W('hubLog/' + aid, { at: now, by: attWho(), id: r.id, title: r.hubT || r.title, what, prev, next: patch });
+  (clear || []).forEach(f => ovSet(r.k, f, null));
+  return true;
+}
 const EQUIP_LABEL = 'Procurement';
 const isSidePmo = p => /pmo/i.test(p.roleType || '') && /core/i.test(p.vertical || '');
 const isTbd = p => /^\s*TBD\b/i.test(p.name || '');
@@ -564,13 +587,13 @@ function allRows() {
   const mk = (src, id, v, title, ownerNames, due, rawStatus, notes, extra) => {
     const hubV0 = v; const hubDue0 = due; ownerNames = ownerNames.map(canonName); const k = src + ':' + id, o = ovGet(k), hs = String(rawStatus || '').toLowerCase().replace(/[^a-z]/g, '');
     const vb0 = (o.vertBy === 'Unsorted' || o.vertBy === 'Other') ? NONV : o.vertBy;   // older overrides used these names
-    if (vb0 && vAll().includes(vb0)) v = vb0;   // vertical moved on this page (shared); the hub task's own vertical is not changed
+    if (vb0 && vAll().includes(vb0)) v = vb0;   // vertical moved on this page (shared); then hubSave() writes it to the hub task
     const hubT0 = title, hubO0 = ownerNames.join(', '), hubN0 = notes, hubOwn0 = ownerNames.slice();
-    if (o.titleBy) title = String(o.titleBy);                                   // edits made on this page (shared); the hub task itself is not changed
+    if (o.titleBy) title = String(o.titleBy);                                   // edits made on this page (shared); then hubSave() writes it to the hub task
     if (typeof o.ownerBy === 'string') ownerNames = o.ownerBy ? [o.ownerBy] : [];                      // older single-owner edit
     if (o.ownersBy && typeof o.ownersBy === 'object') ownerNames = Object.values(o.ownersBy).filter(Boolean).map(canonName);   // "Assigned to" on this page (shared); several people allowed
     if (typeof o.notesBy === 'string') notes = o.notesBy;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(o.dueBy || '')) due = o.dueBy;   // "Due by" set on this page (shared); the hub task's own date is not changed
+    if (/^\d{4}-\d{2}-\d{2}$/.test(o.dueBy || '')) due = o.dueBy;   // "Due by" set on this page (shared); then hubSave() writes it to the hub task
     const status = o.status || (hs === 'blocked' ? 'blocked' : /progress|doing|started/.test(hs) ? 'progress' : hs === 'done' ? 'done' : 'open');
     const deps = o.deps || [], r = { k, src, id, v, title, ownerNames, owners: ownerNames.join(', '), due, hubDue: hubDue0, hubT: hubT0, hubO: hubO0, hubOwn: hubOwn0, hubN: hubN0, edited: title !== hubT0 || notes !== hubN0, reassigned: ownerNames.join(', ') !== hubO0, dueSet: due !== hubDue0, hubV: hubV0, vSet: v !== hubV0, status, notes, updates: o.updates || [], deps,
       waiting: deps.some(d => !d.resolved), hold: hs === 'onhold' || holdRe.test(title) || !!o.parked, deferTo: o.deferTo || '', closedAt: o.closedAt || 0, hidden: !!o.hidden, hiddenWhy: o.hiddenWhy || '' };
@@ -801,7 +824,7 @@ function renderDetail() {
   const ev = ed ? EDRAFT : { title: r.title, notes: r.notes };
   const editBox = '<div class="newbox"><label>Title</label><input id="eTitle" value="' + esc(ev.title) + '"><label>Notes</label><textarea id="eNotes">' + esc(ev.notes) + '</textarea>'
     + '<div class="acts"><button class="btn pri" data-act="editSave">Save</button><button class="btn" data-act="editCancel">Cancel</button>' + (r.src === 'hub' && r.edited ? '<button class="btn" data-act="editReset" title="Back to what the hub has">Reset to hub</button>' : '') + '</div>'
-    + '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">' + (r.src === 'hub' ? 'Shared with everyone using this page; the hub task itself is not changed.' : 'Edits this task for everyone using this page.') + '</div></div>';
+    + '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">' + (r.src === 'hub' ? 'Saved to the hub task too, and shared with everyone using this page.' : 'Edits this task for everyone using this page.') + '</div></div>';
   const nb = r.openNeeds && r.openNeeds.length && !r.done, ns = r.openSites && r.openSites.length && !r.done, np = r.openSteps && r.openSteps.length && !r.done, blk = nb || ns || np;
   el.innerHTML = (ed ? editBox : '<div class="dt">' + esc(r.title) + ' <button class="btn noprint" data-act="editOpen" style="font-size:11px;padding:2px 8px;vertical-align:middle">Edit</button></div>')
     + '<div class="m" style="color:var(--mut);font-size:12px">' + esc(r.v) + ' · ' + esc(r.owners || 'No owner') + ' · due ' + fmtD(r.due) + (r.deferred ? ' · moved to ' + fmtD(r.deferTo) : '') + '</div>'
@@ -813,13 +836,13 @@ function renderDetail() {
     + (ns ? '<div class="note-bad">Cannot be closed yet. ' + r.openSites.length + ' of ' + r.sites.length + ' site' + (r.sites.length > 1 ? 's' : '') + ' still open: ' + r.openSites.map(t => esc(t.name)).join(', ') + '</div>' : '')
     + (!ed && r.notes ? '<div class="upd sys" style="margin-top:6px">' + esc(String(r.notes).slice(0, 400)) + '</div>' : '')
     + (!ed && r.src === 'hub' && r.edited ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Edited here' + (r.hubT !== r.title ? ' (hub title: "' + esc(r.hubT) + '")' : '') + '.</div>' : '')
-    + (r.src === 'hub' ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Hub task: status, updates, dependencies and moves are shared with everyone using this page. The hub task itself is not changed.</div>' : '')
+    + (r.src === 'hub' ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Hub task: status, vertical, due date, assigned to, title and notes are also saved to the hub task. Updates, steps, sites and dependencies stay on this page, shared with everyone using it.</div>' : '')
     + assignHtml(r)
     + '<h4>Vertical</h4><div class="row" style="grid-template-columns:1fr auto"><select id="dVert">' + vAll().filter((x, i, a) => a.indexOf(x) === i && true).map(x => '<option' + (x === r.v ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select><button class="btn" data-act="vertReset"' + (r.src === 'hub' && r.vSet ? '' : ' disabled') + ' title="Back to where the hub puts it">Reset</button></div>'
-    + (r.vSet && r.src === 'hub' ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Moved here from ' + esc(r.hubV) + '. Shared with everyone using this page; the hub task is not changed.</div>' : '')
+    + (r.vSet && r.src === 'hub' ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Moved here from ' + esc(r.hubV) + ', and the hub task has not been updated to match.</div>' : '')
     + '<h4>Due by</h4><div class="row" style="grid-template-columns:1fr auto"><input type="date" id="dDue" value="' + esc(r.due || '') + '"><button class="btn" data-act="dueReset"' + ((r.src === 'mine' ? r.due : r.dueSet) ? '' : ' disabled') + ' title="' + (r.src === 'hub' ? 'Back to the hub date' : 'Clear the date') + '">' + (r.src === 'hub' ? 'Reset' : 'Clear') + '</button></div>'
     + '<div class="acts"><button class="btn" data-act="dueSet" data-d="' + addDays(todayS(), 1) + '">Tomorrow</button><button class="btn" data-act="dueSet" data-d="' + addDays(cur(), 4) + '">This Friday</button><button class="btn" data-act="dueSet" data-d="' + addDays(cur(), 11) + '">Next Friday</button></div>'
-    + (r.dueSet ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Changed here' + (r.hubDue ? ' (hub says ' + fmtD(r.hubDue) + ')' : '') + '. Shared with everyone using this page; the hub task is not changed.</div>' : '')
+    + (r.dueSet ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Changed here' + (r.hubDue ? ' (hub says ' + fmtD(r.hubDue) + ')' : '') + '. The hub task has not been updated to match.</div>' : '')
     + '<h4>Status</h4><select id="dStatus"><option value="open"' + (r.status === 'open' ? ' selected' : '') + '>Open</option><option value="progress"' + (r.status === 'progress' ? ' selected' : '') + '>In progress</option><option value="blocked"' + (r.status === 'blocked' ? ' selected' : '') + '>Blocked</option><option value="done"' + (r.status === 'done' ? ' selected' : '') + (blk ? ' disabled' : '') + '>Done' + (blk ? ' (not finished yet)' : '') + '</option></select>'
     + '<div class="acts">' + (r.done ? '<button class="btn" data-act="reopen">Reopen</button>' : '<button class="btn pri" data-act="close"' + (blk ? ' disabled title="Finish the prerequisites and sites first"' : '') + '>Close it</button>')
     + (r.deferred ? '<button class="btn" data-act="back">Bring back to this week</button>' : (!r.done ? '<button class="btn" data-act="move">Move to next week</button>' : ''))
@@ -908,6 +931,7 @@ function setEdit(r, title, notes) {
   if (!ch.length) return true;
   if (r.src === 'mine') { W('tasks/' + r.id + '/title', title); W('tasks/' + r.id + '/notes', notes || ''); }
   else { ovSet(r.k, 'titleBy', title !== r.hubT ? title : null); ovSet(r.k, 'notesBy', (notes || '') !== (r.hubN || '') ? (notes || '') : null); }
+  if (r.src === 'hub') hubSave(r, { title, notes: notes || '' }, 'edited (' + ch.join(', ') + ')', ['titleBy', 'notesBy']);
   logSys(r.k, 'Edited ' + ch.join(', ') + (ch.includes('title') ? ' (title was "' + r.title.slice(0, 60) + '")' : ''));
   return true;
 }
@@ -921,6 +945,7 @@ function setOwners(r, names, why) {
     const same = names.map(key).sort().join('|') === (r.hubOwn || []).map(key).sort().join('|');
     ovSet(r.k, 'ownersBy', same ? null : ownMap(names)); ovSet(r.k, 'ownerBy', null);
   }
+  if (r.src === 'hub') hubSave(r, { owner: names[0] || '', owners: names.length ? names : null }, 'owner ' + (names.join(', ') || 'none'), ['ownersBy', 'ownerBy']);
   logSys(r.k, why + ' (now: ' + (names.join(', ') || 'unassigned') + ')');
 }
 function assignHtml(r) {
@@ -930,20 +955,22 @@ function assignHtml(r) {
   const me = D.me && !have.has(key(D.me.name));
   return '<h4>Assigned to' + (r.ownerNames.length > 1 ? ' (' + r.ownerNames.length + ' people)' : '') + '</h4><div style="line-height:2">' + chips + '</div>'
     + '<div class="row" style="margin-top:4px;grid-template-columns:1fr auto"><select id="ownAdd"><option value="">Add a person…</option>' + opts + '</select>' + (me ? '<button class="btn" data-act="ownMe">Assign to me</button>' : '<span></span>') + '</div>'
-    + (r.src === 'hub' && r.reassigned ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Changed here (hub says ' + esc(r.hubO || 'no owner') + '). Shared with everyone using this page; the hub task is not changed. <a href="#" data-act="ownReset">Reset to hub</a></div>' : '');
+    + (r.src === 'hub' && r.reassigned ? '<div class="m" style="color:var(--mut);font-size:11px;margin-top:4px">Changed here (hub says ' + esc(r.hubO || 'no owner') + '). The hub task has not been updated to match. <a href="#" data-act="ownReset">Reset to hub</a></div>' : '');
 }
 function setVert(r, v) {
   if (v && !vAll().includes(v)) return;
   if (v === r.v) return;
   if (r.src === 'mine') W('tasks/' + r.id + '/vert', v);   // a task created on this page: its own record
-  else ovSet(r.k, 'vertBy', v && v !== r.hubV ? v : null);  // a hub task: shared overlay, hub copy untouched
+  else ovSet(r.k, 'vertBy', v && v !== r.hubV ? v : null);  // a hub task: overlay first (never lost), then hubSave() writes the hub copy
+  if (r.src === 'hub') { const raw = (D.hubTasks && D.hubTasks[r.id]) || {}; ovSet(r.k, 'triaged', true); if (v && v !== r.hubV) hubSave(r, raw.vertical ? { department: v, vertical: v } : { department: v }, 'area ' + v, ['vertBy']); }
   logSys(r.k, v ? 'Moved from ' + r.v + ' to ' + v : 'Vertical reset to ' + r.hubV);
 }
 function setDue(r, d) {
   if (d && !/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
   if (d === r.due) return;
   if (r.src === 'mine') { W('tasks/' + r.id + '/due', d || ''); }   // a task created on this page: its own record
-  else ovSet(r.k, 'dueBy', d || null);                              // a hub task: shared overlay, hub copy untouched
+  else ovSet(r.k, 'dueBy', d || null);                              // a hub task: overlay first (never lost), then hubSave() writes the hub copy
+  if (r.src === 'hub' && d) { const raw = (D.hubTasks && D.hubTasks[r.id]) || {}; hubSave(r, raw.dueDate ? { due: d, dueDate: d } : { due: d }, 'due ' + d, ['dueBy']); }
   logSys(r.k, d ? 'Due by set to ' + fmtD(d) + (r.due ? ' (was ' + fmtD(r.due) + ')' : '') : (r.src === 'hub' ? 'Due by reset to the hub date' : 'Due date cleared'));
 }
 function logSys(k, text) { W(ovPath(k) + '/updates/' + uid(), { at: Date.now(), text, sys: true, by: attWho() }); }
@@ -952,6 +979,7 @@ function setStatus(r, st) {
   if (st === 'done' && r.openSites && r.openSites.length) { NOTICE = { k: r.k, text: 'Not closed. These sites are still open: ' + r.openSites.map(t => t.name).join(', ') }; return false; }
   if (st === 'done' && r.openNeeds && r.openNeeds.length) { NOTICE = { k: r.k, text: 'Not closed. Finish these first: ' + r.openNeeds.map(n => n.t.title).join('; ') }; return false; }
   ovSet(r.k, 'status', st); ovSet(r.k, 'closedAt', st === 'done' ? Date.now() : null);
+  if (r.src === 'hub') hubSave(r, { status: { open: 'todo', progress: 'inprogress', blocked: 'blocked', done: 'done' }[st] }, 'status ' + st, ['status']);
   logSys(r.k, 'Status: ' + ({ open: 'Open', progress: 'In progress', blocked: 'Blocked', done: 'Done' }[st]));
   return true;
 }
@@ -1355,7 +1383,8 @@ function status() {
   else if (D.people.length) { el.className = 'live bad'; el.textContent = 'Offline'; b.className = 'banner'; b.textContent = 'Not connected. Showing the last copy that Firebase returned (' + new Date(D.at).toLocaleString() + '). This is not live.'; }
   else { el.className = 'live bad'; el.textContent = 'Not connected'; b.className = 'banner'; b.textContent = 'No directory loaded. People only ever come from the hub Firebase Directory, so sign in to load them.'; }
   if (D.ovErr) { b.className = 'banner'; b.textContent = 'Could not read the shared weekly-sync data (' + D.ovErr + '). Rizwan may need to allow signed-in users to read naig2027/pmoSync in the database rules.'; }
-  if (D.writeErr) { b.className = 'banner'; b.style.background = '#fee2e2'; b.style.color = '#7f1d1d'; b.textContent = 'Your last change did NOT save, so it was not shared: ' + D.writeErr + '.'; } else b.style.background = b.style.color = '';
+  if (D.hubErr) { b.className = 'banner'; b.style.background = '#fee2e2'; b.style.color = '#7f1d1d'; b.textContent = 'Saved on this page only. The hub task was NOT changed: ' + D.hubErr + '. Rizwan may need to allow signed-in users to write to naig2027/tasks.'; }
+  if (D.writeErr) { b.className = 'banner'; b.style.background = '#fee2e2'; b.style.color = '#7f1d1d'; b.textContent = 'Your last change did NOT save, so it was not shared: ' + D.writeErr + '.'; } else if (!D.hubErr) b.style.background = b.style.color = '';
 }
 function ingest(kind, val) {
   if (kind === 'prospects') { D.raw = val || {}; D.live = true; D.at = Date.now(); buildDirectory(D.raw); try { localStorage.setItem(CACHE, JSON.stringify({ at: D.at, prospects: D.raw })); } catch (e) {} }
