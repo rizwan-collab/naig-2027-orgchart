@@ -94,6 +94,7 @@ header .btn{background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,25
 /* tasks */
 .vgroup{border:1px solid var(--line);border-left-width:5px;border-radius:8px;margin-bottom:10px}
 .vgroup>h3{margin:0;padding:8px 12px;font-size:13px;display:flex;gap:8px;align-items:center;background:#f8fafc;border-radius:0 8px 0 0}
+.vtag{display:inline-block;font-size:10.5px;font-weight:700;border-radius:99px;padding:0 8px;margin-left:6px;border:1px solid;vertical-align:1px;white-space:nowrap}
 .pill{font-size:11px;border-radius:99px;padding:1px 8px;background:#e2e8f0;color:#334155}
 .pill.bad{background:#fee2e2;color:var(--bad)}.pill.warn{background:#fef3c7;color:var(--warn)}.pill.good{background:#dcfce7;color:var(--good)}
 .task{display:grid;grid-template-columns:22px 1fr auto;gap:8px;padding:8px 12px;border-top:1px solid var(--line);align-items:start}
@@ -683,8 +684,8 @@ function pillsHtml(r) {
 function srowHtml(r, showV) {
   const na = attsOf(r).length;
   const last = r.updates.filter(u => !u.sys).slice(-1)[0];
-  return '<div class="srow' + brCls(rowBranch(r)) + (SK === r.k ? ' on' : '') + (r.done ? ' done' : '') + '" data-k="' + esc(r.k) + '"><div class="t">' + esc(r.title) + (na ? ' <span class="pill" title="Attachments">&#128206; ' + na + '</span>' : '') + (r.steps && r.steps.length ? ' <span class="pill ' + (r.openSteps.length ? 'warn' : 'good') + '" title="Steps done">' + (r.steps.length - r.openSteps.length) + ' of ' + r.steps.length + ' steps</span>' : '') + (r.sites && r.sites.length ? ' <span class="pill ' + (r.openSites.length ? 'warn' : 'good') + '" title="Sites done">' + (r.sites.length - r.openSites.length) + ' of ' + r.sites.length + ' sites</span>' : '') + '</div>'
-    + '<div class="m">' + esc(r.owners || 'No owner') + ' · <span style="' + (r.late ? 'color:var(--bad);font-weight:600' : '') + '">' + fmtD(r.due) + '</span>' + (showV ? ' · in ' + esc(r.v) : '') + (r.createdMs ? ' · <span title="When this task was created" style="font-size:11px">added ' + fmtAdded(r.createdMs) + '</span>' : '') + '</div>'
+  return '<div class="srow' + brCls(rowBranch(r)) + (SK === r.k ? ' on' : '') + (r.done ? ' done' : '') + '" data-k="' + esc(r.k) + '"><div class="t">' + esc(r.title) + ' <span class="vtag" title="Vertical: ' + esc(r.v) + '" style="color:' + vColor(r.v) + ';border-color:' + vColor(r.v) + ';background:color-mix(in srgb,' + vColor(r.v) + ' 12%,white)">' + esc(r.v) + '</span>' + (na ? ' <span class="pill" title="Attachments">&#128206; ' + na + '</span>' : '') + (r.steps && r.steps.length ? ' <span class="pill ' + (r.openSteps.length ? 'warn' : 'good') + '" title="Steps done">' + (r.steps.length - r.openSteps.length) + ' of ' + r.steps.length + ' steps</span>' : '') + (r.sites && r.sites.length ? ' <span class="pill ' + (r.openSites.length ? 'warn' : 'good') + '" title="Sites done">' + (r.sites.length - r.openSites.length) + ' of ' + r.sites.length + ' sites</span>' : '') + '</div>'
+    + '<div class="m">' + esc(r.owners || 'No owner') + ' · <span style="' + (r.late ? 'color:var(--bad);font-weight:600' : '') + '">' + fmtD(r.due) + '</span>' + (r.createdMs ? ' · <span title="When this task was created" style="font-size:11px">added ' + fmtAdded(r.createdMs) + '</span>' : '') + '</div>'
     + pillsHtml(r) + (last ? '<div class="lu">' + fmtDT(last.at) + ': ' + esc(String(last.text).slice(0, 120)) + '</div>' : '') + '</div>';
 }
 /* Person filter for the middle pane. '' = everyone, '@me' = my tasks incl. everything that rolls up to me, '@own' = assigned directly to me, 'n:<key>' = one person. */
