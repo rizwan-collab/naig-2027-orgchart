@@ -315,7 +315,7 @@ body.fpPrinting .fpPrintHead{display:flex;justify-content:space-between;font-siz
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getDatabase, ref, onValue, update, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signInAnonymously, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 const app = initializeApp({apiKey:"AIzaSyC16ftKuUYRkwexYYUuk0i5fYsxxVzI_eU",authDomain:"naig-2027.firebaseapp.com",databaseURL:"https://naig-2027-default-rtdb.firebaseio.com",projectId:"naig-2027",storageBucket:"naig-2027.appspot.com",messagingSenderId:"97335869563",appId:"1:97335869563:web:1a15a49205c103333e22de"});
 const db = getDatabase(app), auth = getAuth(app);
@@ -329,7 +329,7 @@ const PATHS = { tasks:'tasks', venues:'venues', hotels:'hotels', prospects:'pros
  plan:'plan', sportsPlan:'sportsPlan', slotRegions:'slotRegions', headcount:'headcount', teamModel:'teamModel/sports', supportRules:'headcountModel/supportRules',
  scope:'scope', loops:'loops', flights:'flights', jk:'jamatkhanas', transportation:'transportation', transportModel:'transportModel', drivers:'drivers',
  food:'food', intake:'intake', rnr:'rnr', vendors:'vendors', docs:'docs', driveIndex:'settings/driveIndex', decks:'settings/decks', arrivals:'arrivals', scenarios:'settings/scenarios', publicRef:'public/venueRef/venues' };
-const S = { m2m:{}, loaded:new Set(), user:null, perms:null, gUser:null };
+const S = { m2m:{}, loaded:new Set(), user:null, perms:null, gUser:null, anon:false, anonTried:false };
 Object.keys(PATHS).forEach(k => S[k] = {});
 window._tasksData = S.tasks; window._venuesData = S.venues;
 const PREVIEW = /v2\.html$/.test(location.pathname);
@@ -371,7 +371,18 @@ function permsFor(p){ const ov = ((S.access||{}).overrides||{})[p.id] || {}; con
  return { tabs:new Set(tabs), edit: typeof ov.edit === 'boolean' ? ov.edit : b.edit, tier, manage: !!b.manage }; }
 function resolve(){
  const g = S.gUser, gate = $('#gate');
- if (!g) { gate.style.display = 'grid'; $('#gateMsg').textContent = 'Sign in with the Google account on your Directory record.'; $('#gateBtn').hidden = false; return; }
+ if (!g) {
+  if (S.anon) { // Guest view: read-only, everything except the Budget tab. No Google sign-in needed to look.
+   if (!S.loaded.has('prospects')) { gate.style.display = 'grid'; $('#gateMsg').textContent = 'Loading the hub…'; $('#gateBtn').hidden = true; return; }
+   S.user = { id:'anon', name:'Guest' };
+   S.perms = { tabs:new Set(ALLTABS.filter(t => t !== 'budget')), edit:false, tier:'public', manage:false };
+   gate.style.display = 'none';
+   document.body.classList.toggle('ro', true);
+   $('#who').textContent = 'Guest · viewing only';
+   $('#outBtn').textContent = 'Sign in to edit';
+   buildNav(); route();
+   return; }
+  gate.style.display = 'grid'; $('#gateMsg').textContent = 'Sign in with the Google account on your Directory record.'; $('#gateBtn').hidden = false; return; }
  if (!S.loaded.has('prospects')) { gate.style.display = 'grid'; $('#gateMsg').textContent = 'Signed in as ' + g.email + '. Loading the hub…'; $('#gateBtn').hidden = true; return; }
  const list = arr(S.prospects), k = e => String(e||'').trim().toLowerCase();
  const p = list.find(x => k(x.email) === g.email) || list.find(x => x.altEmails && String(x.altEmails).toLowerCase().split(/[,;\s]+/).includes(g.email));
@@ -384,18 +395,28 @@ function resolve(){
  S.user = p; S.perms = permsFor(p); gate.style.display = 'none';
  document.body.classList.toggle('ro', !S.perms.edit);
  $('#who').textContent = (p.name || g.email) + ' · ' + S.perms.tier;
+ $('#outBtn').textContent = 'Sign out';
  buildNav(); route();
 }
-onAuthStateChanged(auth, u => { S.gUser = (u && !u.isAnonymous) ? { uid:u.uid, email:(u.email||'').toLowerCase(), name:u.displayName||'' } : null; if (S.gUser) startData(); resolve(); });
+onAuthStateChanged(auth, u => {
+ S.anon = !!(u && u.isAnonymous);
+ S.gUser = (u && !u.isAnonymous) ? { uid:u.uid, email:(u.email||'').toLowerCase(), name:u.displayName||'' } : null;
+ if (!u && !S.anonTried) { // No session at all: open a read-only anonymous session. Only when nobody is signed in — never replaces a Google sign-in (see sportsplan.html, fixed 16 Oct 2026).
+  S.anonTried = true;
+  signInAnonymously(auth).catch(e => { const m = $('#gateMsg'); if (m) { m.textContent = 'Could not open the hub (' + ((e && e.code) || e) + '). Try signing in.'; $('#gateBtn').hidden = false; } });
+  return; }
+ if (S.gUser || S.anon) startData();
+ resolve(); });
 getRedirectResult(auth).catch(e => { const m = $('#gateMsg'); if (m) { m.textContent = 'Sign-in did not work (' + ((e && e.code) || e) + '). Try again, or allow pop-ups for this site.'; $('#gateBtn').hidden = false; } });
 const gateSay = (t, btn) => { $('#gateMsg').textContent = t; $('#gateBtn').hidden = !btn; };
-$('#gateBtn').onclick = () => { const pr = new GoogleAuthProvider(); pr.setCustomParameters({ prompt:'select_account' });
+const googleSignIn = () => { const pr = new GoogleAuthProvider(); pr.setCustomParameters({ prompt:'select_account' });
  gateSay('Finish signing in in the Google window…', false);
  signInWithPopup(auth, pr).then(() => gateSay('Signed in. Loading the hub…', false)).catch(e => { const c = (e && e.code) || '';
   if (c === 'auth/popup-blocked' || c === 'auth/operation-not-supported-in-this-environment') { gateSay('Opening Google sign-in…', false); signInWithRedirect(auth, pr); return; }
-  if (c === 'auth/popup-closed-by-user' || c === 'auth/cancelled-popup-request') { gateSay('The Google window closed before sign-in finished. Try again, and allow pop-ups for this site if your browser asks.', true); return; }
+  if (c === 'auth/popup-closed-by-user' || c === 'auth/cancelled-popup-request') { if (S.anon) { $('#gate').style.display = 'none'; toast('Sign-in cancelled — you are still viewing the hub.'); return; } gateSay('The Google window closed before sign-in finished. Try again, and allow pop-ups for this site if your browser asks.', true); return; }
   gateSay('Sign-in did not work (' + (c || e) + '). Try again, or open the hub in Chrome on a computer.', true); }); };
-$('#outBtn').onclick = () => signOut(auth).then(() => location.reload());
+$('#gateBtn').onclick = googleSignIn;
+$('#outBtn').onclick = () => { if (S.anon) { $('#gate').style.display = 'grid'; $('#gateMsg').textContent = 'Sign in with the Google account on your Directory record.'; $('#gateBtn').hidden = false; return; } signOut(auth).then(() => location.reload()); };
 
 /* ══════════ live data ══════════ */
 let started = false;
@@ -404,7 +425,7 @@ function startData(){
  Object.entries(PATHS).forEach(([k, p]) => onValue(R(p), s => { S[k] = s.val() || {}; S.loaded.add(k);
   if (k === 'tasks') window._tasksData = S.tasks; if (k === 'venues') window._venuesData = S.venues;
   if (k === 'prospects' || k === 'access' || k === 'accessRequests') resolve(); ENG.dirty = true; rerender(k); },
-  e => { S.loaded.add(k); console.warn('[hub] read refused', p, e && e.code); if (k === 'prospects') { $('#gate').style.display = 'grid'; $('#gateMsg').textContent = 'Signed in as ' + ((S.gUser && S.gUser.email) || '') + ', but the hub could not read the Directory (' + ((e && e.code) || 'denied') + '). Contact Rizwan.'; $('#outBtn') && ($('#gateBtn').hidden = true); } }));
+  e => { S.loaded.add(k); console.warn('[hub] read refused', p, e && e.code); if (k === 'prospects') { $('#gate').style.display = 'grid'; $('#gateMsg').textContent = 'Signed in as ' + ((S.gUser && S.gUser.email) || (S.anon ? 'Guest view' : '')) + ', but the hub could not read the Directory (' + ((e && e.code) || 'denied') + '). Contact Rizwan.'; $('#outBtn') && ($('#gateBtn').hidden = true); } }));
  ['2027-03-24','2027-03-25','2027-03-26','2027-03-27','2027-03-28','2027-03-29'].forEach(d => onValue(R('m2m/' + d), s => { S.m2m[d] = s.val() || {}; rerender('m2m'); }, () => {}));
  setInterval(backgroundJobs, 5000);
  onValue(ref(db, '.info/connected'), s => { const on = s.val() !== false; S.live = on; const el = $('#liveDot'); if (el) el.innerHTML = on ? '<span style="color:#4cc79a">●</span> Live, synced' : '<span style="color:#ff8a80">●</span> Offline, changes will sync when back'; }, () => {});
@@ -1022,7 +1043,7 @@ OPEN.trnew = kind => { const T = TRV[kind]; openDrawer('Add to ' + T.label.toLow
  $('#trAdd').onclick = async () => { const { patch } = readForm({}); if (!patch[T.fields[0]]) { toast('Fill in the first field.'); return; } patch.updated = new Date().toISOString(); if (await save(T.path + '/k' + Date.now(), patch, 'transport', patch[T.fields[0]], T.label + ': added ' + patch[T.fields[0]])) closeDrawer(); }; };
 
 /* ══════════ money lock (same PIN and hash as the classic hub; the PIN is never stored in plain text) ══════════ */
-const unlocked = () => { try { return sessionStorage.getItem('naigBudgetUnlocked') === '1'; } catch(e) { return false; } };
+const unlocked = () => { try { return !S.anon && sessionStorage.getItem('naigBudgetUnlocked') === '1'; } catch(e) { return false; } };
 async function pinCheck(pin){ const h = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('naig2027-budget-v1:' + pin)))].map(b => b.toString(16).padStart(2,'0')).join('');
  return h === String((S.access || {}).budgetPinHash || ''); }
 function pinHTML(msg){ return '<div class="card"><h2>' + esc(msg || 'Amounts are locked') + '</h2><p class="hint">Enter the Budget PIN to show money on this page. It stays unlocked until you close the tab.</p><form class="pin" id="pinF"><input type="password" inputmode="numeric" autocomplete="off" id="pinI" aria-label="Budget PIN"><button class="btn pri" type="submit">Unlock</button><span class="sm" id="pinM"></span></form></div>'; }
@@ -1069,7 +1090,7 @@ RENDER.intake = () => { fstate('intake', { view:'rentals' }); const kind = KINDS
   groups:[ { k:'status', label:'Status', get:r => r.status || 'Requested', order:K.status }, { k:'venue', label:'Venue', get:r => r.venue || 'No venue' }, { k:'none', label:'None', get:() => '' } ],
   views:[['rentals','Rentals'],['signage','Signage']], csv:() => csv('naig-' + kind, [['Item',title],['Status','status'],['Venue','venue'],['Days',r => dayList(r).join('; ')]].concat(K.fields.filter(f => !['item','signType','venue','days'].includes(f[0])).map(f => [f[1], f[0]])), applyF('intake', rows, cfg)) };
  const { bar, groups } = filtered('intake', rows, cfg);
- if (canEdit() || S.user) { $('#topR').innerHTML = '<button class="btn pri" data-open="inew|' + kind + '" type="button">New ' + K.label.toLowerCase() + ' request</button>'; }
+ if (canEdit() || (S.user && !S.anon)) { $('#topR').innerHTML = '<button class="btn pri" data-open="inew|' + kind + '" type="button">New ' + K.label.toLowerCase() + ' request</button>'; }
  $('#view').innerHTML = bar + '<div class="card"><div class="tw"><table><thead><tr><th>' + (kind === 'rentals' ? 'Item' : 'Sign') + '</th><th class="n">Qty</th><th>Venue</th><th>' + (kind === 'rentals' ? 'Days' : 'Where') + '</th><th>Vertical</th><th>Requested by</th><th>Status</th></tr></thead><tbody>'
   + groups.map(([g, rs]) => (g ? '<tr class="tot"><td colspan="7">' + esc(g) + ' · ' + rs.length + '</td></tr>' : '') + rs.map(r => '<tr class="cl" data-open="intake|' + kind + '~' + esc(r._id) + '"><td><b>' + esc(title(r)) + '</b>' + (r.size ? '<br><small>' + esc(r.size) + '</small>' : '') + '</td><td class="n">' + esc(r.qty || '') + '</td><td>' + esc(r.venue || '') + '</td><td class="sm">' + esc(kind === 'rentals' ? dayList(r).join(', ') : (r.spot || '')) + '</td><td class="sm">' + esc(r.vertical || '') + '</td><td class="sm">' + esc(r.requestedBy || '') + '</td><td><span class="pill">' + esc(r.status || 'Requested') + '</span></td></tr>').join('')).join('')
   + '</tbody></table></div>' + (rows.length ? '' : '<div class="empty">No ' + K.label.toLowerCase() + ' requests yet.</div>') + '</div>'; };
