@@ -635,20 +635,20 @@ document.addEventListener('click', e => { if (!e.target.closest('details.fx')) {
 function filtered(pk, rows, cfg){ fstate(pk, cfg.def || {}); FCFG[pk] = cfg; const out = applyF(pk, rows, cfg); return { st:FS[pk], out, bar:fbarHTML(pk, rows, cfg, out.length), groups:groupF(pk, out, cfg) }; }
 
 /* ══════════ tasks helpers ══════════ */
-const ST = { todo:['To do',''], inprogress:['In progress','info'], blocked:['Blocked','bad'], onhold:['On hold','warn'], done:['Done','good'] };
+const ST = { todo:['To do',''], inprogress:['In progress','info'], blocked:['Blocked','bad'], onhold:['On hold','warn'], done:['Done','good'], cancelled:['Cancelled',''] };
 const stPill = s => { const x = ST[s] || [s || '—','']; return '<span class="pill ' + x[1] + '">' + esc(x[0]) + '</span>'; };
 const taskList = () => ents(S.tasks).filter(([k,t]) => t.title).map(([k,t]) => Object.assign({ _id:k }, t));
 const due = t => String(t.due || t.dueDate || '').slice(0,10);
 const ownersOf = t => { const a = []; if (t.owner) a.push(t.owner); (Array.isArray(t.owners) ? t.owners : []).forEach(o => { if (o && !a.includes(o)) a.push(o); }); return a; };
 const area = t => t.vertical || t.department || t.scopeArea || 'Other';
-const isOpen = t => t.status !== 'done';
+const isOpen = t => t.status !== 'done' && t.status !== 'cancelled';
 const onHold = t => t.status === 'onhold' || /^\s*(ON HOLD|PARKED)\b/i.test(t.title || '');
 const isMine = t => S.user && ownersOf(t).some(o => key(o) === key(me()));
 const tagsOf = t => String(t.tags || '').split(/[,;]/).map(s => s.trim()).filter(Boolean);
-function bucket(t){ const d = due(t), td = today(); if (t.status === 'done') return 'done'; if (onHold(t)) return 'onhold'; if (t.status === 'blocked') return 'blocked';
+function bucket(t){ const d = due(t), td = today(); if (t.status === 'done') return 'done'; if (t.status === 'cancelled') return 'cancelled'; if (onHold(t)) return 'onhold'; if (t.status === 'blocked') return 'blocked';
  if (!d) return 'nodate'; if (d < td) return 'overdue'; if (d <= addDays(td, 7)) return 'week'; return 'later'; }
-const BK = { blocked:['Blocked','bad'], overdue:['Overdue','bad'], week:['Due in 7 days','warn'], later:['Later',''], nodate:['No due date',''], onhold:['On hold or parked',''], done:['Done','good'] };
-const BKO = ['Blocked','Overdue','Due in 7 days','Later','No due date','On hold or parked','Done'];
+const BK = { blocked:['Blocked','bad'], overdue:['Overdue','bad'], week:['Due in 7 days','warn'], later:['Later',''], nodate:['No due date',''], onhold:['On hold or parked',''], done:['Done','good'], cancelled:['Cancelled',''] };
+const BKO = ['Blocked','Overdue','Due in 7 days','Later','No due date','On hold or parked','Done','Cancelled'];
 const venueNames = () => arr(S.venues).filter(v => !v.archived && v.name).map(v => v.name).sort();
 const taskVenues = t => { const s = (t.title + ' ' + (t.notes || '')).toLowerCase(); return arr(S.venues).filter(v => v.name && !v.archived).map(v => v.name).filter(n => { const w = n.toLowerCase().replace(/\(.*\)/,'').replace(/^(the )/,'').split(/[ —-]/).filter(x => x.length > 3).slice(0,2).join(' '); return w && s.includes(w); }); };
 function taskRow(t){ const b = bucket(t), d = due(t), sx = ST[t.status] || [t.status || '', ''];
@@ -662,7 +662,7 @@ const PAGES = [
  { g:'Overview' },
  { k:'home', label:'Today', tab:'dashboard', title:'Today', sub:() => daysTo() },
  { g:'Work' },
- { k:'tasks', label:'Tasks', tab:'tasks', title:'Tasks', sub:() => 'Every task, with filters. Done items are hidden unless you turn them on.', badge:() => { const n = taskList().filter(t => ['overdue','blocked'].includes(bucket(t))).length; return n ? [n,'bad'] : null; } },
+ { k:'tasks', label:'Tasks', tab:'tasks', title:'Tasks', sub:() => 'Every task, with filters. Done and cancelled items are hidden unless you turn them on.', badge:() => { const n = taskList().filter(t => ['overdue','blocked'].includes(bucket(t))).length; return n ? [n,'bad'] : null; } },
  { id:'pmo', label:'PMO weekly sync', tab:'tasks', tiers:['admin','core','lead'], href:'pmo.html' },   // link-only entry: no k, so the router never tries to render it
  { k:'plan', label:'Milestones', tab:'plan', title:'Milestones', sub:() => 'Project plan milestones by phase and department.' },
  { k:'gantt', label:'Gantt', tab:'plan', title:'Gantt', sub:() => 'Every task and milestone on one timeline, with owners, progress and dependencies.' },
@@ -792,13 +792,15 @@ RENDER.home = () => {
 };
 
 /* ══════════ TASKS ══════════ */
+/* A Done/Cancelled filter pick implies showing those tasks: the "Show done" toggle would otherwise hide them (that is the old "WHEN > Done shows 0" bug). */
+const donePicked = t => { const f = ((FS.tasks || {}).f) || {}; return (f.due || []).includes(BK[bucket(t)][0]) || (f.status || []).includes((ST[t.status] || [t.status])[0]); };
 const TCFG = {
  placeholder:'Search titles, notes, owners', def:{ sort:'due', group:'due', view:'list' },
  text:t => t.title + ' ' + (t.notes || '') + ' ' + ownersOf(t).join(' ') + ' ' + (t.tags || ''),
- facets:[ { k:'due', label:'When', get:t => BK[bucket(t)][0], order:BKO }, { k:'status', label:'Status', get:t => (ST[t.status] || [t.status])[0], order:['To do','In progress','Blocked','On hold','Done'] },
+ facets:[ { k:'due', label:'When', get:t => BK[bucket(t)][0], order:BKO }, { k:'status', label:'Status', get:t => (ST[t.status] || [t.status])[0], order:['To do','In progress','Blocked','On hold','Done','Cancelled'] },
   { k:'owner', label:'Owner', get:t => ownersOf(t).length ? ownersOf(t) : '' }, { k:'area', label:'Area', get:area }, { k:'priority', label:'Priority', get:t => String(t.priority || '').toLowerCase() || '', order:['high','medium','low'] },
   { k:'venue', label:'Venue', get:taskVenues }, { k:'tag', label:'Tag', get:tagsOf } ],
- toggles:[ { k:'mine', label:'Mine', test:(t, on) => !on || isMine(t) }, { k:'done', label:'Show done', test:(t, on) => on || isOpen(t) } ],
+ toggles:[ { k:'mine', label:'Mine', test:(t, on) => !on || isMine(t) }, { k:'done', label:'Show done & cancelled', test:(t, on) => on || isOpen(t) || donePicked(t) } ],
  sorts:[ { k:'due', label:'Due date', get:t => due(t) || '9999' }, { k:'updated', label:'Last updated', get:t => String(t.updated || '') }, { k:'priority', label:'Priority', get:t => ({ high:0, medium:1, low:2 })[String(t.priority || '').toLowerCase()] ?? 3 }, { k:'title', label:'Title', get:t => t.title }, { k:'owner', label:'Owner', get:t => ownersOf(t)[0] || 'zz' } ],
  groups:[ { k:'due', label:'When', get:t => BK[bucket(t)][0], order:BKO }, { k:'owner', label:'Owner', get:t => ownersOf(t)[0] || 'No owner' }, { k:'area', label:'Area', get:area }, { k:'status', label:'Status', get:t => (ST[t.status] || [t.status])[0] }, { k:'none', label:'None', get:() => '' } ],
  views:[['list','List'],['table','Table']],
@@ -1863,16 +1865,16 @@ function gtItems(){
 }
 function gtFilter(items, st){
  const q = (st.q || '').toLowerCase();
- return items.filter(x => (st.done || x.b !== 'done') && (st.ms !== false || x.kind !== 'ms') && (!st.area || x.area === st.area) && (!st.owner || x.owners.includes(st.owner)) && (!st.mine || x.owners.some(o => key(o) === key(me()))) && (!q || (x.title + ' ' + x.owner + ' ' + x.area).toLowerCase().includes(q)));
+ return items.filter(x => (st.done || (x.b !== 'done' && x.b !== 'cancelled')) && (st.ms !== false || x.kind !== 'ms') && (!st.area || x.area === st.area) && (!st.owner || x.owners.includes(st.owner)) && (!st.mine || x.owners.some(o => key(o) === key(me()))) && (!q || (x.title + ' ' + x.owner + ' ' + x.area).toLowerCase().includes(q)));
 }
-const GT_COL = { done:'#2e9d5b', overdue:'#d64545', blocked:'#d64545', week:'#d9932b', later:'#4a78c2', nodate:'#8a8f98', onhold:'#9a8f7a' };
+const GT_COL = { done:'#2e9d5b', overdue:'#d64545', blocked:'#d64545', week:'#d9932b', later:'#4a78c2', nodate:'#8a8f98', onhold:'#9a8f7a', cancelled:'#8a8f98' };
 RENDER.gantt = () => {
  const st = Object.assign({ group:'area', zoom:'week', done:false, ms:true }, GT.load());
  const all = gtItems(), items = gtFilter(all, st), td = today();
- const open = all.filter(x => x.kind === 'task' && x.b !== 'done'), od = open.filter(x => x.b === 'overdue'), bl = open.filter(x => x.status === 'blocked'), soon = open.filter(x => x.end >= td && x.end <= addDays(td, 14));
+ const open = all.filter(x => x.kind === 'task' && x.b !== 'done' && x.b !== 'cancelled'), od = open.filter(x => x.b === 'overdue'), bl = open.filter(x => x.status === 'blocked'), soon = open.filter(x => x.end >= td && x.end <= addDays(td, 14));
  const tAll = all.filter(x => x.kind === 'task'), pctAll = Math.round(tAll.reduce((a, x) => a + x.pct, 0) / Math.max(1, tAll.length));
  const byId = {}; all.forEach(x => byId[x.id] = x);
- const lateDeps = items.filter(x => x.deps.some(d => byId[d] && byId[d].end > x.start && byId[d].b !== 'done'));
+ const lateDeps = items.filter(x => x.deps.some(d => byId[d] && byId[d].end > x.start && byId[d].b !== 'done' && byId[d].b !== 'cancelled'));
  const areas = [...new Set(all.map(x => x.area))].sort(), owners = [...new Set(all.flatMap(x => x.owners))].sort();
  if (canEdit()) $('#topR').innerHTML = '<button class="btn" id="gtCsv" type="button">Export CSV</button> <button class="btn" id="gtPrint" type="button">Print</button> <button class="btn pri" id="gtNew" type="button">New task</button>';
  else $('#topR').innerHTML = '<button class="btn" id="gtCsv" type="button">Export CSV</button> <button class="btn" id="gtPrint" type="button">Print</button>';
@@ -1882,7 +1884,7 @@ RENDER.gantt = () => {
  h += '<div class="card gtBar">' + sel('gtGroup', 'Group by', [['area','Area'],['owner','Owner'],['status','Status'],['none','No grouping']], st.group) + sel('gtZoom', 'Zoom', [['day','Days'],['week','Weeks'],['month','Months']], st.zoom)
   + sel('gtArea', 'Area', [['', 'All areas']].concat(areas), st.area) + sel('gtOwner', 'Owner', [['', 'Everyone']].concat(owners), st.owner)
   + '<label class="gtF"><span>Search</span><input id="gtQ" value="' + esc(st.q || '') + '" placeholder="Task, owner or area"></label>'
-  + '<label class="chk"><input type="checkbox" id="gtMine"' + (st.mine ? ' checked' : '') + '> Only mine</label><label class="chk"><input type="checkbox" id="gtDone"' + (st.done ? ' checked' : '') + '> Show done</label><label class="chk"><input type="checkbox" id="gtMs"' + (st.ms !== false ? ' checked' : '') + '> Milestones</label>'
+  + '<label class="chk"><input type="checkbox" id="gtMine"' + (st.mine ? ' checked' : '') + '> Only mine</label><label class="chk"><input type="checkbox" id="gtDone"' + (st.done ? ' checked' : '') + '> Show done & cancelled</label><label class="chk"><input type="checkbox" id="gtMs"' + (st.ms !== false ? ' checked' : '') + '> Milestones</label>'
   + '<button class="btn" id="gtToday" type="button">Today</button></div>';
  // timeline
  const px = { day:28, week:10, month:4 }[st.zoom] || 10;
@@ -1910,7 +1912,7 @@ RENDER.gantt = () => {
   else bars += '<div class="gtBarI' + (canEdit() ? ' ed' : '') + '" data-gtid="' + esc(r.id) + '" style="left:' + x1 + 'px;top:' + (y + 6) + 'px;width:' + Math.max(px, x2 - x1) + 'px;border-color:' + c + ';background:' + c + '33" title="' + esc(r.title + ' · ' + fmtD(r.start) + ' to ' + fmtD(r.end) + ' · ' + r.pct + '%') + '"><i style="width:' + r.pct + '%;background:' + c + '"></i><span>' + esc(r.title) + '</span>' + (canEdit() ? '<b class="gtHl"></b><b class="gtHr"></b>' : '') + '</div>';
  });
  let arrows = '';
- rows.forEach(r => { if (r.hdr || !r.deps) return; r.deps.forEach(d => { const a = pos[d], b = pos[r.id]; if (!a || !b) return; const bad = byId[d] && byId[d].end > r.start && byId[d].b !== 'done', mx = Math.max(a.x2 + 6, b.x1 - 8);
+ rows.forEach(r => { if (r.hdr || !r.deps) return; r.deps.forEach(d => { const a = pos[d], b = pos[r.id]; if (!a || !b) return; const bad = byId[d] && byId[d].end > r.start && byId[d].b !== 'done' && byId[d].b !== 'cancelled', mx = Math.max(a.x2 + 6, b.x1 - 8);
   arrows += '<path d="M' + a.x2 + ' ' + a.y + ' H' + mx + ' V' + b.y + ' H' + (b.x1 - 2) + '" fill="none" stroke="' + (bad ? '#d64545' : '#8a8f98') + '" stroke-width="1.5" marker-end="url(#gtArr' + (bad ? 'R' : '') + ')"/>'; }); });
  const tdx = xOf(td), gw = xOf('2027-03-25');
  h += '<div class="card gtWrap"><div class="gtLeft"><div class="gtLh">Task</div><div class="gtLb" style="height:' + H + 'px">' + left + '</div></div><div class="gtRight" id="gtScroll"><div class="gtScale" style="width:' + W + 'px">' + scale + '</div><div class="gtBody" style="width:' + W + 'px;height:' + H + 'px">' + grid
@@ -1940,7 +1942,7 @@ RENDER.gantt = () => {
  $$('.gtBarI').forEach(el => gtDrag(el, px));
 };
 function gtOpen(ref){ const [kind, id] = ref.split('|'); if (kind === 'ms') { OPEN.ms(id); return; } const t = S.tasks[id]; if (!t) return; const ed = canEdit(), dis = ed ? '' : ' disabled';
- const others = taskList().filter(x => x._id !== id && x.status !== 'done' || gtDeps(t).includes(x._id)).filter(x => x._id !== id).sort((a, b) => (area(a) === area(t) ? 0 : 1) - (area(b) === area(t) ? 0 : 1) || String(a.title).localeCompare(String(b.title)));
+ const others = taskList().filter(x => x._id !== id && x.status !== 'done' && x.status !== 'cancelled' || gtDeps(t).includes(x._id)).filter(x => x._id !== id).sort((a, b) => (area(a) === area(t) ? 0 : 1) - (area(b) === area(t) ? 0 : 1) || String(a.title).localeCompare(String(b.title)));
  const deps = gtDeps(t), x = gtItems().find(i => i.id === id) || {};
  openDrawer(noMoney(t.title), '<p class="hint" style="margin-top:12px">' + stPill(t.status) + ' · ' + esc(area(t)) + (ownersOf(t).length ? ' · ' + esc(ownersOf(t).join(', ')) : '') + '</p>'
   + '<div class="g2"><div><label class="l">Start</label><input type="date" id="gtS" value="' + esc(x.start || '') + '"' + dis + '></div><div><label class="l">Due</label><input type="date" id="gtD" value="' + esc(due(t)) + '"' + dis + '></div></div>'
@@ -1993,7 +1995,7 @@ RENDER.raci = () => {
  if (ed) $$('[data-rc]').forEach(r => r.onclick = () => raciOpen(r.dataset.rc));
  $('#rcNew') && ($('#rcNew').onclick = () => raciOpen(null));
  $('#rcAdd') && ($('#rcAdd').onclick = async () => { const p = {}; missing.forEach((a, i) => { p['r' + Date.now() + '_' + i] = { name:a, order:rows.length + i + 1, R:[], A:'', C:[], I:[] }; }); await save('plan/raci/rows', p, 'raci', 'RACI', 'Added ' + missing.length + ' workstream rows from task areas'); });
- $('#rcSug') && ($('#rcSug').onclick = async () => { const p = {}; let n = 0; rows.forEach(r => { if (raciArr(r.R).length) return; const cnt = {}; taskList().filter(t => area(t) === r.name && t.status !== 'done').forEach(t => ownersOf(t).forEach(o => cnt[o] = (cnt[o] || 0) + 1)); const top = Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 3).map(x => x[0]); if (top.length) { p[r._id + '/R'] = top; n++; } });
+ $('#rcSug') && ($('#rcSug').onclick = async () => { const p = {}; let n = 0; rows.forEach(r => { if (raciArr(r.R).length) return; const cnt = {}; taskList().filter(t => area(t) === r.name && t.status !== 'done' && t.status !== 'cancelled').forEach(t => ownersOf(t).forEach(o => cnt[o] = (cnt[o] || 0) + 1)); const top = Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 3).map(x => x[0]); if (top.length) { p[r._id + '/R'] = top; n++; } });
   if (!n) { toast('Every row already has someone responsible, or no task owners to suggest.'); return; } await save('plan/raci/rows', p, 'raci', 'RACI', 'Suggested Responsible for ' + n + ' rows from task owners'); });
  $('#rcCsv').onclick = () => csv('naig-raci', [['Workstream','name'], ['Responsible', r => raciArr(r.R).join('; ')], ['Accountable','A'], ['Consulted', r => raciArr(r.C).join('; ')], ['Informed', r => raciArr(r.I).join('; ')], ['Notes','notes']], rows);
  $('#rcPrint').onclick = () => window.print();
