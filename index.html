@@ -368,14 +368,20 @@ function defTier(p){ const rt = String(p.roleType||'').toLowerCase(), v = String
 function permsFor(p){ const ov = ((S.access||{}).overrides||{})[p.id] || {}; const tier = ov.tier || defTier(p); const b = TIERS[tier] || TIERS.viewer;
  let tabs = b.tabs === '*' ? ALLTABS.slice() : b.tabs === '-budget' ? ALLTABS.filter(t => t !== 'budget') : b.tabs.slice();
  if (Array.isArray(ov.tabs)) tabs = ov.tabs.slice();
- return { tabs:new Set(tabs), edit: typeof ov.edit === 'boolean' ? ov.edit : b.edit, tier, manage: !!b.manage }; }
+ /* Budget: no PIN any more. Admin and Core tiers see it automatically; anyone else only when an admin enables it for them on the Access page. */
+ const budget = tier === 'admin' || tier === 'core' || ov.budget === true;
+ if (budget && !tabs.includes('budget')) tabs.push('budget');
+ if (!budget) tabs = tabs.filter(t => t !== 'budget');
+ /* Vertical scope: admin/core and anyone given 'all' see the whole budget; everyone else sees only their own vertical. */
+ const budgetScope = (tier === 'admin' || tier === 'core' || ov.budgetScope === 'all') ? 'all' : (p.vertical || '');
+ return { tabs:new Set(tabs), edit: typeof ov.edit === 'boolean' ? ov.edit : b.edit, tier, manage: !!b.manage, budget, budgetScope }; }
 function resolve(){
  const g = S.gUser, gate = $('#gate');
  if (!g) {
   if (S.anon) { // Guest view: read-only, everything except the Budget tab. No Google sign-in needed to look.
    if (!S.loaded.has('prospects')) { gate.style.display = 'grid'; $('#gateMsg').textContent = 'Loading the hub…'; $('#gateBtn').hidden = true; return; }
    S.user = { id:'anon', name:'Guest' };
-   S.perms = { tabs:new Set(ALLTABS.filter(t => t !== 'budget')), edit:false, tier:'public', manage:false };
+   S.perms = { tabs:new Set(ALLTABS.filter(t => t !== 'budget')), edit:false, tier:'public', manage:false, budget:false, budgetScope:'' };
    gate.style.display = 'none';
    document.body.classList.toggle('ro', true);
    $('#who').textContent = 'Guest · viewing only';
@@ -681,10 +687,10 @@ const PAGES = [
  { k:'siteplan', label:'Site plans', tab:'venues', title:'Site plans', sub:() => 'Floor plans for indoor sites and satellite views for outdoor sites. Place tents, food, medical and more, then print for the plotting exercise.' },
  { k:'map', label:'Map and travel', tab:'transport', title:'Map and travel', sub:() => 'Venues, hotels, jamatkhanas and airports, with drive times.' },
  { k:'flights', label:'Flights and pickups', tab:'transport', title:'Flights and pickups', sub:() => 'Athlete arrivals and everyone we pick up, with live flight status.', badge:() => { const n = arr(S.arrivals).filter(a => a.pickup === 'Yes' && !a.assigned && a.status !== 'Cancelled').length; return n ? [n, 'warn'] : null; } },
- { k:'food', label:'Food', tab:'budget', alt:'venues', title:'Food', sub:() => 'What we serve, day by meal. Costs need the Budget PIN.' },
+ { k:'food', label:'Food', tab:'budget', alt:'venues', title:'Food', sub:() => 'What we serve, day by meal. Costs show when budget numbers are on.' },
  { k:'intake', label:'Rentals and signage', tab:'vendors', title:'Rentals and signage', sub:() => 'Requests and trackers. No prices here.' },
  { g:'Money' },
- { k:'budget', label:'Budget', tab:'budget', title:'Budget', sub:() => 'PIN protected. Categories, venue costs and vendors.' },
+ { k:'budget', label:'Budget', tab:'budget', title:'Budget', sub:() => 'Categories, venue costs and vendors. Numbers stay hidden until you show them.' },
  { g:'Reference' },
  { k:'docs', label:'Documents', tab:'docs', title:'Documents', sub:() => 'Contracts, proposals and plans, linked to Drive.' },
  { k:'drive', label:'Decks and Drive', tab:'docs', title:'Decks and Drive', sub:() => 'Decks, rules, plans and notes from the team Drive. Click to open in Drive.' },
@@ -1044,15 +1050,15 @@ OPEN.tr = id => { const [kind, k] = id.split('~'), T = TRV[kind], r = Object.ass
 OPEN.trnew = kind => { const T = TRV[kind]; openDrawer('Add to ' + T.label.toLowerCase(), recForm({}, T.fields.map(f => [f, (T.cols.find(c => c[0] === f) || [f, f])[1], f === 'notes' ? 'ta' : 'text'])), '<button class="btn pri" id="trAdd" type="button">Add</button>');
  $('#trAdd').onclick = async () => { const { patch } = readForm({}); if (!patch[T.fields[0]]) { toast('Fill in the first field.'); return; } patch.updated = new Date().toISOString(); if (await save(T.path + '/k' + Date.now(), patch, 'transport', patch[T.fields[0]], T.label + ': added ' + patch[T.fields[0]])) closeDrawer(); }; };
 
-/* ══════════ money lock (same PIN and hash as the classic hub; the PIN is never stored in plain text) ══════════ */
-const unlocked = () => { try { return !S.anon && sessionStorage.getItem('naigBudgetUnlocked') === '1'; } catch(e) { return false; } };
-async function pinCheck(pin){ const h = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('naig2027-budget-v1:' + pin)))].map(b => b.toString(16).padStart(2,'0')).join('');
- return h === String((S.access || {}).budgetPinHash || ''); }
-function pinHTML(msg){ return '<div class="card"><h2>' + esc(msg || 'Amounts are locked') + '</h2><p class="hint">Enter the Budget PIN to show money on this page. It stays unlocked until you close the tab.</p><form class="pin" id="pinF"><input type="password" inputmode="numeric" autocomplete="off" id="pinI" aria-label="Budget PIN"><button class="btn pri" type="submit">Unlock</button><span class="sm" id="pinM"></span></form></div>'; }
-function pinBind(){ const f = $('#pinF'); if (!f) return; f.onsubmit = async e => { e.preventDefault(); const ok = await pinCheck($('#pinI').value); $('#pinI').value = '';
- if (ok) { try { sessionStorage.setItem('naigBudgetUnlocked', '1'); } catch(x) {} route(true); } else $('#pinM').textContent = 'That PIN is not right.'; }; }
-const lockBtn = () => unlocked() ? '<button class="btn sm" id="lockB" type="button">Lock amounts</button>' : '';
-function lockBind(){ const b = $('#lockB'); if (b) b.onclick = () => { try { sessionStorage.removeItem('naigBudgetUnlocked'); } catch(e) {} route(true); }; }
+/* ══════════ money visibility: no PIN any more. Budget access comes from the person's tier (admin/core) or an admin's per-person toggle on the Access page; numbers stay hidden until that person clicks "Show budget numbers", and "Hide numbers" puts them away again (for screensharing). A Budget PIN hash, if still stored under access, is no longer read. ══════════ */
+const budgetAccess = () => !!(S.perms && S.perms.budget);
+const budgetScope = () => (S.perms && S.perms.budgetScope) || '';
+const unlocked = () => { try { return budgetAccess() && !S.anon && sessionStorage.getItem('naigBudgetShown') === '1'; } catch(e) { return false; } };
+function pinHTML(msg){ if (!budgetAccess()) return '<div class="card"><h2>Budget is restricted</h2><p class="hint">Budget numbers are visible to the Core Team and to people Rizwan enables on the Access page. There is no PIN any more.</p></div>';
+ return '<div class="card"><h2>' + esc(msg || 'Budget numbers are hidden') + '</h2><p class="hint">Numbers stay hidden until you show them, and hide again when you close the tab.</p><p><button class="btn pri" type="button" id="pinF">Show budget numbers</button></p></div>'; }
+function pinBind(){ const f = $('#pinF'); if (!f) return; f.onclick = () => { if (!budgetAccess()) return; try { sessionStorage.setItem('naigBudgetShown', '1'); } catch(x) {} route(true); }; }
+const lockBtn = () => unlocked() ? '<button class="btn sm" id="lockB" type="button">Hide numbers</button>' : '';
+function lockBind(){ const b = $('#lockB'); if (b) b.onclick = () => { try { sessionStorage.removeItem('naigBudgetShown'); } catch(e) {} route(true); }; }
 
 /* generic renderer for notes-like objects (policy, assumptions, open items) */
 function anyHTML(o){ if (o == null || o === '') return ''; if (typeof o !== 'object') return '<p style="margin:4px 0">' + esc(noMoney(o)) + '</p>';
@@ -1064,7 +1070,7 @@ const foodGrid = () => { const F = S.food || {}, G = F.grid || {}, fc = foodCalc
  $('#topR').innerHTML = lockBtn();
  let h = '<div class="kpis"><div class="kpi"><span>Servings</span><b>' + nf(fc.servings) + '</b><small>' + fc.on + ' meal slots on</small></div><div class="kpi"><span>Who eats</span><b>' + nf(t.onSite) + '</b><small>' + nf(t.athletes) + ' athletes · ' + nf(t.coaches) + ' coaches · ' + nf(t.chaperones) + ' chaperones · ' + nf(t.volunteers) + ' volunteers · ' + nf(t.staff) + ' staff</small></div>'
   + '<div class="kpi"><span>Goodie bags</span><b>' + nf(fc.bags.count) + '</b><small>hotel guests' + ($on ? ' × ' + money(fc.bags.price) : '') + '</small></div>' + ($on ? '<div class="kpi"><span>Food total</span><b>' + money(fc.total) + '</b><small>meals ' + money(fc.grand) + ' + bags ' + money(fc.bags.cost) + '</small></div>' : '') + '</div>';
- if (!$on) h += pinHTML('Food costs are locked');
+ if (!$on) h += pinHTML('Food costs are hidden');
  h += '<div class="card"><h2>What we serve, day by meal</h2><p class="hint">' + (ed ? 'Click a meal to switch it on or off. A, V and S choose who it covers: athletes (with their coaches and chaperones), volunteers, staff.' : 'Who each meal covers.') + '</p><div class="tw"><table class="fg"><thead><tr><th>Meal</th>' + fc.days.map(d => '<th>' + esc(d.label) + (d.note ? '<br><small style="text-transform:none;letter-spacing:0">' + esc(d.note) + '</small>' : '') + '</th>').join('') + ($on ? '<th class="n">Meal total</th>' : '') + '</tr></thead><tbody>'
   + fc.meals.map(m => '<tr><td><b>' + esc(m.label) + '</b>' + ($on ? '<br><small>' + money(m.price) + ' per person</small>' : '') + '</td>' + fc.days.map(d => { const c = fc.cell(d.key, m.key), n = c.on ? fc.covered(c) : 0;
    return '<td><div class="fgc' + (c.on ? ' on' : '') + '"><label class="chk" style="color:var(--ink)"><input type="checkbox" data-fg="' + d.key + '_' + m.key + '|on"' + (c.on ? ' checked' : '') + (ed ? '' : ' disabled') + '> ' + (c.on ? nf(n) : 'Off') + '</label>' + (c.on ? '<div class="who">' + [['athletes','A'],['volunteers','V'],['staff','S']].map(([k,l]) => '<button type="button" class="' + (c[k] ? 'on' : '') + '" data-fg="' + d.key + '_' + m.key + '|' + k + '"' + (ed ? '' : ' disabled') + ' title="' + k + '">' + l + '</button>').join('') + '</div>' : '') + ($on && c.on ? '<small>' + money(n * m.price) + '</small>' : '') + '</div></td>'; }).join('') + ($on ? '<td class="n">' + money(fc.byMeal[m.key] || 0) + '</td>' : '') + '</tr>').join('')
@@ -1120,9 +1126,13 @@ function lineCost(l, rate){ if (!rate) return null; let tot = 0, any = false;
    tot += d === 'sun' ? H * num(rate.crewB) : Math.max(0, Math.min(e0, cut) - s0) * num(rate.crewA) + Math.max(0, e0 - Math.max(s0, cut)) * num(rate.crewB); } }
   else if (rate.model === 'flatDay') tot += num(rate.rate); });
  if (rate.model === 'package') return num(rate.rate); return (any ? tot : 0) + num(rate.fixed); }
+/* Budget categories by vertical. Rentals has no single vertical — it is a shared line, so anyone with budget access sees it. */
+const CAT_VERT = { food:'Food & Beverage', hotels:'Hotels & Accommodations', signage:'Equipment & Signage', transportation:'Transportation', venues:'Venues' };
 RENDER.budget = () => { $('#topR').innerHTML = lockBtn();
- if (!unlocked()) { $('#view').innerHTML = pinHTML('Budget is locked'); pinBind(); return; }
- const B = S.budget || {}, cats = ents(B.categories).sort((a,b) => num(a[1].order) - num(b[1].order)), fc = foodCalc();
+ if (!unlocked()) { $('#view').innerHTML = pinHTML('Budget numbers are hidden'); pinBind(); return; }
+ const B = S.budget || {}, scope = budgetScope(), inScope = k => scope === 'all' || !CAT_VERT[k] || CAT_VERT[k] === scope,
+  cats = ents(B.categories).sort((a,b) => num(a[1].order) - num(b[1].order)).filter(([k]) => inScope(k)), fc = foodCalc();
+ const showGrid = scope === 'all' || scope === 'Venues', showFood = scope === 'all' || scope === 'Food & Beverage';
  const parseFee = raw => { const s = String(raw || '').trim(); if (!s || /included in/i.test(s) || /\btbc\b|to quote|awaiting quote|not quoted/i.test(s)) return 0; const mm = s.replace(/,/g,'').match(/\$\s*(\d+(?:\.\d+)?)/); if (!mm) return 0; const n = parseFloat(mm[1]), head = s.replace(/\([^)]*\)/g,' '); if (/per\s*(2\s*-?\s*hour|hour|hr|session|court|person)|\/\s*hr/i.test(head) || n < 1000) return 0; return n; };
  const nrm = s => String(s || '').toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
  const liveV = Object.keys(engine().bySV).filter(n => n && n !== 'TBD').map(n => { const sn = nrm(n), hit = Object.values(S.venues).find(v => v && !v.archived && nrm(v.name).indexOf(sn) === 0); return { name:n, amount:hit ? parseFee(hit.rentalFee) : 0 }; });
@@ -1130,16 +1140,16 @@ RENDER.budget = () => { $('#topR').innerHTML = lockBtn();
  const amt = (k, c) => k === 'food' && c.mode === 'auto' ? fc.total : (k === 'venues' && c.mode === 'auto') ? venAuto : num(c.amount);
  const inc = cats.filter(([k,c]) => c.mode !== 'excluded'), total = inc.reduce((a,[k,c]) => a + amt(k, c), 0);
  const lines = CMLines(), rates = scRates(), vrows = lines.map(l => ({ l, r:rates[l._id], cost:lineCost(l, rates[l._id]) })), vtot = vrows.reduce((a,x) => a + num(x.cost), 0);
- let h = scNote() + '<div class="kpis"><div class="kpi"><span>Budget total</span><b>' + money(total) + '</b><small>' + inc.length + ' categories in budget</small></div><div class="kpi"><span>Venue cost grid</span><b>' + money(vtot) + '</b><small>from courts and hours</small></div><div class="kpi"><span>Food</span><b>' + money(fc.total) + '</b><small>' + (fc.plan != null ? 'from the venue food plan' : 'live from the food grid' + (fc.scen && fc.scen.cost ? ' + ' + money(fc.scen.cost) + ' early cricket days' : '')) + '</small></div><div class="kpi"><span>Per athlete</span><b>' + money(total / Math.max(1, engine().total.athletes)) + '</b><small>' + nf(engine().total.athletes) + ' athletes</small></div></div>';
+ let h = scNote() + '<div class="kpis"><div class="kpi"><span>Budget total</span><b>' + money(total) + '</b><small>' + inc.length + ' categories in budget' + (scope === 'all' ? '' : ' · ' + esc(scope) + ' only') + '</small></div>' + (showGrid ? '<div class="kpi"><span>Venue cost grid</span><b>' + money(vtot) + '</b><small>from courts and hours</small></div>' : '') + (showFood ? '<div class="kpi"><span>Food</span><b>' + money(fc.total) + '</b><small>' + (fc.plan != null ? 'from the venue food plan' : 'live from the food grid' + (fc.scen && fc.scen.cost ? ' + ' + money(fc.scen.cost) + ' early cricket days' : '')) + '</small></div>' : '') + '<div class="kpi"><span>Per athlete</span><b>' + money(total / Math.max(1, engine().total.athletes)) + '</b><small>' + nf(engine().total.athletes) + ' athletes</small></div></div>';
  h += '<div class="card"><h2>Categories</h2><div class="tw"><table><thead><tr><th>Category</th><th>How it is set</th><th class="n">Amount</th><th>Basis</th></tr></thead><tbody>' + cats.map(([k,c]) => '<tr' + (canEdit() && c.mode === 'manual' ? ' class="cl" data-open="bcat|' + esc(k) + '"' : '') + '><td><b>' + esc(c.label || k) + '</b>' + (c.placeholder ? ' <span class="pill warn">Placeholder</span>' : '') + '</td><td>' + esc(c.mode || '') + '</td><td class="n">' + (c.mode === 'excluded' ? '<small>not in budget</small>' : money(amt(k, c))) + '</td><td class="sm">' + esc(c.basis || '') + '</td></tr>').join('') + '<tr class="tot"><td colspan="2">Total</td><td class="n">' + money(total) + '</td><td></td></tr></tbody></table></div>' + (B.methodology ? '<p class="hint" style="margin-top:8px">' + esc(B.methodology) + '</p>' : '') + '</div>';
  const sites = {}; vrows.forEach(x => (sites[x.l.site] = sites[x.l.site] || []).push(x));
- h += '<div class="card"><h2>Venue cost grid</h2><p class="hint">Cost per line from the courts and hours set on Courts and hours. Locked lines follow the signed contract.</p><div class="tw"><table><thead><tr><th>Line</th><th>Rate</th><th class="n">Unit-hours</th><th class="n">Cost</th><th class="n">Per athlete</th></tr></thead><tbody>'
+ if (showGrid) h += '<div class="card"><h2>Venue cost grid</h2><p class="hint">Cost per line from the courts and hours set on Courts and hours. Locked lines follow the signed contract.</p><div class="tw"><table><thead><tr><th>Line</th><th>Rate</th><th class="n">Unit-hours</th><th class="n">Cost</th><th class="n">Per athlete</th></tr></thead><tbody>'
   + Object.entries(sites).map(([s, xs]) => { const p = venuePeople(s), st = xs.reduce((a,x) => a + num(x.cost), 0); return '<tr class="tot"><td colspan="3">' + esc(s) + (p ? ' · ' + nf(p.athletes) + ' athletes' : '') + '</td><td class="n">' + money(st) + '</td><td class="n">' + (p && p.athletes ? money(st / p.athletes) : '') + '</td></tr>'
    + xs.map(x => { const uh = DAYS.reduce((a,[d]) => { const v = cmVal(x.l, d); return a + hrs(v.s, v.e) * num(v.c); }, 0); return '<tr><td>' + esc(x.l.label || x.l._id) + '</td><td class="sm">' + (x.r ? esc(x.r.model) + ' ' + money(x.r.rate) + (x.r.fixed ? ' + ' + money(x.r.fixed) + ' ' + esc(x.r.fixedLabel || '') : '') + (x.r.crewA ? ' + crew ' + money(x.r.crewA) + '/' + money(x.r.crewB) + ' per hour' : '') : 'No rate on file') + '</td><td class="n">' + Math.round(uh) + '</td><td class="n">' + (x.cost == null ? 'N/A' : money(x.cost)) + '</td><td></td></tr>'; }).join(''); }).join('')
   + '<tr class="tot"><td colspan="3">All venues</td><td class="n">' + money(vtot) + '</td><td class="n">' + money(vtot / Math.max(1, engine().total.athletes)) + '</td></tr></tbody></table></div></div>';
  const vend = ents(S.vendors);
- if (vend.length) h += '<div class="card"><h2>Vendors</h2><div class="tw"><table><thead><tr><th>Vendor</th><th>Category</th><th>Contract</th><th class="n">Cost</th><th class="n">Invoiced</th><th class="n">Paid</th><th>Terms</th><th>Contact</th></tr></thead><tbody>' + vend.map(([k,v]) => '<tr><td><b>' + esc(v.name) + '</b></td><td>' + esc(v.category || '') + '</td><td>' + esc(v.contractStatus || '') + '</td><td class="n">' + esc(v.cost || '') + '</td><td class="n">' + esc(v.invoiced || '') + '</td><td class="n">' + esc(v.paid || '') + '</td><td class="sm">' + esc(v.paymentTerms || '') + '</td><td class="sm">' + esc([v.pocName, v.pocEmail].filter(Boolean).join(' · ')) + '</td></tr>').join('') + '</tbody></table></div></div>';
- h += pinChangeHTML(); $('#view').innerHTML = h; lockBind(); pinChangeBind(); };
+ if (scope === 'all' && vend.length) h += '<div class="card"><h2>Vendors</h2><div class="tw"><table><thead><tr><th>Vendor</th><th>Category</th><th>Contract</th><th class="n">Cost</th><th class="n">Invoiced</th><th class="n">Paid</th><th>Terms</th><th>Contact</th></tr></thead><tbody>' + vend.map(([k,v]) => '<tr><td><b>' + esc(v.name) + '</b></td><td>' + esc(v.category || '') + '</td><td>' + esc(v.contractStatus || '') + '</td><td class="n">' + esc(v.cost || '') + '</td><td class="n">' + esc(v.invoiced || '') + '</td><td class="n">' + esc(v.paid || '') + '</td><td class="sm">' + esc(v.paymentTerms || '') + '</td><td class="sm">' + esc([v.pocName, v.pocEmail].filter(Boolean).join(' · ')) + '</td></tr>').join('') + '</tbody></table></div></div>';
+ $('#view').innerHTML = h; lockBind(); };
 OPEN.bcat = k => { if (!unlocked()) return; const c = Object.assign({}, (S.budget.categories || {})[k] || {});
  openDrawer(c.label || k, '<label class="l">Amount</label><input type="number" data-f="amount" value="' + esc(c.amount || 0) + '"><label class="l">Basis</label><textarea data-f="basis">' + esc(c.basis || '') + '</textarea><label class="chk"><input type="checkbox" id="bPh"' + (c.placeholder ? ' checked' : '') + '> Placeholder (not a quote)</label>', '<button class="btn pri" id="bSave" type="button">Save</button>');
  $('#bSave').onclick = async () => { const { patch } = readForm(c); patch.placeholder = $('#bPh').checked; if (await save('budget/categories/' + k, patch, 'budget', c.label, 'Budget: ' + (c.label || k) + ' updated')) { update(R('budget'), { updatedAt:Date.now(), updatedBy:me() }); closeDrawer(); } }; };
@@ -1210,10 +1220,12 @@ if (p.vertical) p.vertical = VLABEL(p.vertical);
 /* ══════════ ACCESS (admins) ══════════ */
 RENDER.access = () => { const all = PList().sort((a,b) => String(a.name).localeCompare(b.name)), ov = (S.access || {}).overrides || {}, known = new Set(PList().map(x => String(x.email || '').trim().toLowerCase()).filter(Boolean)), reqs = ents(S.accessRequests).filter(([k,r]) => r.status === 'pending' && !known.has(String(r.email || '').trim().toLowerCase()));
  let h = reqs.length ? '<div class="card"><h2>Waiting for approval</h2><p class="hint">Already handled? Use Clear: it removes the request without changing anyone’s access. <button class="btn sm" type="button" id="rqAll">Clear all ' + reqs.length + '</button></p><div class="tw"><table><thead><tr><th>Who</th><th>Requested</th><th>Match to</th><th></th></tr></thead><tbody>' + reqs.map(([k,r]) => '<tr><td><b>' + esc(r.name || '') + '</b><br><small>' + esc(r.email) + '</small></td><td class="sm">' + fmtTs(r.requestedAt) + '</td><td><select id="rq_' + esc(k) + '"><option value="">Pick who this is</option><option value="__new__">Add as a new person</option>' + all.filter(p => !p.email).map(p => '<option value="' + esc(p._key) + '">' + esc(p.name) + '</option>').join('') + '</select></td><td><button class="btn sm pri" data-rq="ok|' + esc(k) + '" type="button">Approve</button> <button class="btn sm" data-rq="no|' + esc(k) + '" type="button">Deny</button> <button class="btn sm" data-rq="clr|' + esc(k) + '" type="button">Clear</button></td></tr>').join('') + '</tbody></table></div></div>' : '<div class="note">No access requests waiting.</div>';
- h += '<div class="card"><h2>Who sees what</h2><p class="hint">Admin: everything. Core: everything except access. Lead: everything but Budget, can edit. Member: working pages, read-only. Viewer: Today and the org chart.</p><div class="tw"><table><thead><tr><th>Person</th><th>Vertical</th><th>Access</th><th>Can edit</th></tr></thead><tbody>'
-  + all.map(p => { const pm = permsFor(p), o = ov[p.id] || {}; return '<tr><td><b>' + esc(p.name) + '</b><br><small>' + esc(p.email || 'no email yet') + '</small></td><td class="sm">' + esc(p.vertical || '') + '</td><td><select data-tier="' + esc(p.id) + '">' + Object.keys(TIERS).map(t => '<option value="' + t + '"' + (t === pm.tier ? ' selected' : '') + '>' + t + (t === defTier(p) ? ' (default)' : '') + '</option>').join('') + '</select>' + (o.tier ? ' <small>override</small>' : '') + '</td><td>' + (pm.edit ? 'Yes' : 'No') + '</td></tr>'; }).join('') + '</tbody></table></div></div>';
+ h += '<div class="card"><h2>Who sees what</h2><p class="hint">Admin: everything. Core: everything except access. Lead: everything but Budget, can edit. Member: working pages, read-only. Viewer: Today and the org chart. Budget: the Core Team see it automatically. Anyone else sees it only when you tick Budget here — their own vertical only, unless you set Scope to All. Numbers stay hidden until they click Show budget numbers.</p><div class="tw"><table><thead><tr><th>Person</th><th>Vertical</th><th>Access</th><th>Can edit</th><th>Budget</th><th>Scope</th></tr></thead><tbody>'
+  + all.map(p => { const pm = permsFor(p), o = ov[p.id] || {}, tierBudget = pm.tier === 'admin' || pm.tier === 'core'; return '<tr><td><b>' + esc(p.name) + '</b><br><small>' + esc(p.email || 'no email yet') + '</small></td><td class="sm">' + esc(p.vertical || '') + '</td><td><select data-tier="' + esc(p.id) + '">' + Object.keys(TIERS).map(t => '<option value="' + t + '"' + (t === pm.tier ? ' selected' : '') + '>' + t + (t === defTier(p) ? ' (default)' : '') + '</option>').join('') + '</select>' + (o.tier ? ' <small>override</small>' : '') + '</td><td>' + (pm.edit ? 'Yes' : 'No') + '</td><td>' + (tierBudget ? '<span class="sm">On · tier</span>' : '<label class="chk"><input type="checkbox" data-budget="' + esc(p.id) + '"' + (pm.budget ? ' checked' : '') + '> On</label>') + '</td><td>' + (!pm.budget ? '—' : tierBudget ? 'All' : '<select data-bscope="' + esc(p.id) + '"><option value="own"' + (o.budgetScope !== 'all' ? ' selected' : '') + '>Own vertical</option><option value="all"' + (o.budgetScope === 'all' ? ' selected' : '') + '>All</option></select>') + '</td></tr>'; }).join('') + '</tbody></table></div></div>';
  $('#view').innerHTML = h;
  $$('#view [data-tier]').forEach(s => s.onchange = async () => { const p = all.find(x => x.id === s.dataset.tier); await save('access/overrides/' + s.dataset.tier, { tier:s.value }, 'access', p.name, 'Access: ' + p.name + ' set to ' + s.value); });
+ $$('#view [data-budget]').forEach(c => c.onchange = async () => { const p = all.find(x => x.id === c.dataset.budget); await save('access/overrides/' + c.dataset.budget, { budget:c.checked }, 'access', p.name, 'Access: ' + p.name + (c.checked ? ' can now see the Budget' : ' can no longer see the Budget')); });
+ $$('#view [data-bscope]').forEach(s => s.onchange = async () => { const p = all.find(x => x.id === s.dataset.bscope); await save('access/overrides/' + s.dataset.bscope, { budgetScope:s.value }, 'access', p.name, 'Access: ' + p.name + ' budget scope ' + (s.value === 'all' ? 'all verticals' : 'own vertical only')); });
  const ra = $('#rqAll'); if (ra) ra.onclick = async () => { for (const [k, r] of reqs) await save('accessRequests/' + k, { status:'cleared', decidedAt:Date.now() }, 'access', r.email, 'Access request cleared (already handled) for ' + r.email); };
  $$('#view [data-rq]').forEach(b => b.onclick = async () => { const [act, k] = b.dataset.rq.split('|'), r = S.accessRequests[k];
   if (act === 'clr') { await save('accessRequests/' + k, { status:'cleared', decidedAt:Date.now() }, 'access', r.email, 'Access request cleared (already handled) for ' + r.email); return; }
@@ -1274,11 +1286,7 @@ OPEN.rdel = id => { const [v, rk, i] = id.split('~'), list = arr((((S.rnr || {})
  const next = list.filter((x, j) => j !== +i), patch = { [rk]:next }; const dis = arr(((S.rnr || {})[v] || {}).dismissed); if (it.src === 'seed' && it.key) update(R('rnr/' + v), { dismissed:dis.concat([it.key]) });
  save('rnr/' + v + '/roles', patch, 'rnr', rvLabel(v), 'Roles: removed a ' + rk + ' duty in ' + rvLabel(v)); };
 
-/* ══════════ Budget PIN change (admins, while unlocked) ══════════ */
-function pinChangeHTML(){ return (S.perms && S.perms.manage && unlocked()) ? '<details class="al info"><summary><b>Change the Budget PIN</b></summary><div class="pad" style="padding:8px 16px 14px"><div class="pin"><input type="password" inputmode="numeric" id="np1" placeholder="New PIN" autocomplete="new-password"><input type="password" inputmode="numeric" id="np2" placeholder="Repeat" autocomplete="new-password"><button class="btn sm pri" id="npSave" type="button">Change PIN</button></div><p class="hint">Stored only as a hash. Everyone with the old PIN will need the new one.</p></div></details>' : ''; }
-function pinChangeBind(){ const b = $('#npSave'); if (!b) return; b.onclick = async () => { const a = $('#np1').value, c = $('#np2').value; if (a.length < 4 || a !== c) { toast('PINs must match and be 4+ digits.'); return; }
- const h = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('naig2027-budget-v1:' + a)))].map(x => x.toString(16).padStart(2,'0')).join(''); $('#np1').value = $('#np2').value = '';
- await save('access', { budgetPinHash:h }, 'access', 'budget PIN', 'Budget PIN changed'); }; }
+/* Budget PIN removed 2026-11-24: there is no PIN any more — access comes from the tier or the per-person Budget toggle. */
 
 /* ══════════ DECKS AND DRIVE ══════════ */
 const DRV = () => ents((S.driveIndex || {}).files).map(([k, f]) => Object.assign({ _id:k }, f));
@@ -1521,7 +1529,7 @@ RENDER.scen = () => { const defs = ents(SCN().defs).sort((a,b) => num(a[1].order
   + (money2 ? '<tr class="tot"><td>Venue cost grid</td>' + res.map(x => '<td class="n">' + money(x.e.vtot) + (x.id !== base.id ? '<br><small>' + (x.e.vtot - base.e.vtot >= 0 ? '+' : '−') + money(Math.abs(x.e.vtot - base.e.vtot)) + '</small>' : '') + '</td>').join('') + '</tr>'
    + '<tr class="tot"><td>Food</td>' + res.map(x => '<td class="n">' + money(x.e.food) + (x.id !== base.id ? '<br><small>' + (x.e.food - base.e.food >= 0 ? '+' : '−') + money(Math.abs(x.e.food - base.e.food)) + '</small>' : '') + '</td>').join('') + '</tr>'
    + '<tr><td><b>Lines with no rate yet</b></td>' + res.map(x => '<td class="sm">' + esc(x.e.noRate.join(', ') || '—') + '</td>').join('') + '</tr>'
-   : '<tr><td><b>Budget</b></td><td colspan="' + res.length + '">' + '<button class="btn sm" type="button" id="scUnlock">Enter the Budget PIN to see costs</button></td></tr>')
+   : '<tr><td><b>Budget</b></td><td colspan="' + res.length + '">' + '<button class="btn sm" type="button" id="scUnlock">Show budget numbers to see costs</button></td></tr>')
   + '</tbody></table></div></div>';
  const cur = res.find(x => x.id === k) || res[0], c = cur.c;
  h += '<div class="card"><h2>' + esc(cur.s.name || cur.id) + '</h2><p>' + esc(cur.s.note || '') + '</p>'
@@ -1534,7 +1542,7 @@ RENDER.scen = () => { const defs = ents(SCN().defs).sort((a,b) => num(a[1].order
   + '</div><p class="hint">Everyone makes the playoffs (' + (F.playoffsAll ? 'on' : 'off') + ') and every team plays at least once at the stadium (' + (F.stadiumPerTeam ? 'on' : 'off') + '). Stadium time is counted in hours, so women’s and open games can share it.</p></div>';
  $('#view').innerHTML = h; $('#topR').innerHTML = '<a class="btn" href="?tab=scendoc">Venue plan doc</a>';
  $$('[data-sc]').forEach(b => b.onclick = () => scSet(b.dataset.sc));
- const u = $('#scUnlock'); if (u) u.onclick = () => go('budget');
+ const u = $('#scUnlock'); if (u) u.onclick = () => { if (budgetAccess()) { try { sessionStorage.setItem('naigBudgetShown', '1'); } catch(e) {} route(true); } else go('budget'); };
  const m = $('#scMake'); if (m) m.onclick = async () => { if (await save('settings/scenarios', { active:k, activeAt:Date.now(), activeBy:me() }, 'scenarios', cur.s.name, 'Scenario set for everyone: ' + (cur.s.name || k))) { try { localStorage.removeItem('naigScen'); } catch(e) {} } };
  $$('[data-scf]').forEach(i => i.onchange = () => { const v = /^(start|lightsEnd|daylightEnd|fridayEnd)$/.test(i.dataset.scf) ? i.value : num(i.value); save('settings/scenarios/format', { [i.dataset.scf]:v }, 'scenarios', 'Cricket format', 'Cricket format: ' + i.dataset.scf + ' = ' + v); });
 };
@@ -1628,7 +1636,7 @@ function fpSummaryHTML(fp, $on, ed){
  h += '<div class="card"><h2>Menus and vendors by venue</h2><div class="tw"><table><thead><tr><th>Venue</th><th>Main vendor</th>' + fp.meals.map(m => '<th>' + esc(m.label) + '</th>').join('') + '<th>Status</th></tr></thead><tbody>'
   + fp.venues.map(v => { const st = {}; v.rows.filter(r => r.on).forEach(r => st[r.status] = (st[r.status] || 0) + 1);
    return '<tr><td><b>' + esc(v.name) + '</b></td><td>' + esc(fpVname(v.V.vendor)) + '</td>' + fp.meals.map(m => '<td class="sm">' + esc(((v.V.menu || {})[m.key]) || 'N/A') + '</td>').join('') + '<td class="sm">' + esc(Object.entries(st).map(([s,n]) => n + ' ' + s.toLowerCase()).join(' · ')) + '</td></tr>'; }).join('') + '</tbody></table></div></div>';
- if (!$on) return h + pinHTML('Food costs are locked');
+ if (!$on) return h + pinHTML('Food costs are hidden');
  const vks = Object.keys(fp.byVendor).sort((a,b) => fp.byVendor[b] - fp.byVendor[a]), fc = foodCalc();
  h += '<div class="card"><h2>Dollars by venue and vendor</h2><div class="tw"><table><thead><tr><th>Venue</th>' + vks.map(k => '<th class="n">' + esc(fpVname(k)) + '</th>').join('') + '<th class="n">Fees</th><th class="n">Total</th></tr></thead><tbody>'
   + fp.venues.map(v => '<tr><td><b>' + esc(v.name) + '</b></td>' + vks.map(k => { const c = v.rows.filter(r => r.on && (r.vendor || '') === k).reduce((a,r) => a + r.cost, 0); return '<td class="n">' + (c ? money(c) : '') + '</td>'; }).join('') + '<td class="n">' + (v.fees ? money(v.fees) : '') + '</td><td class="n"><b>' + money(v.cost) + '</b></td></tr>').join('')
@@ -1674,7 +1682,7 @@ RENDER.food = () => { if (FPV === 'grid') return foodGrid();
  $('#topR').innerHTML = lockBtn() + '<button class="btn" id="fpCsv" type="button">Download CSV</button><button class="btn pri" id="fpPrt" type="button">Print summary</button>';
  let h = '<div class="fpPrintHead"><b>NAIG 2027 · Food plan</b><span>' + esc(fmtTs(Date.now())) + '</span></div>' + scNote() + fpTabs() + fpKpis(fp, $on);
  h += FPV === 'vendors' ? fpVendorsHTML(fp, $on, ed) : FPV === 'summary' ? fpSummaryHTML(fp, $on, ed) : fpVenueHTML(fp, $on, ed);
- if (!$on && FPV !== 'summary') h += pinHTML('Prices and totals need the Budget PIN');
+ if (!$on && FPV !== 'summary') h += pinHTML('Prices and totals need budget numbers shown');
  $('#view').innerHTML = h; pinBind(); lockBind(); fpBind(fp); $('#fpCsv').onclick = () => fpCSV(foodPlanCalc(), unlocked()); $('#fpPrt').onclick = () => { FPV = 'summary'; route(true); setTimeout(() => { document.body.classList.add('fpPrinting'); window.print(); document.body.classList.remove('fpPrinting'); }, 300); }; };
 
 /* ══════════ LIVE DECK BLOCKS: <div data-live="name"> inside a slide is filled from the hub at view time (no money) ══════════ */
@@ -1726,7 +1734,7 @@ RENDER.scendoc = () => { const defs = ents(SCN().defs).sort((a,b) => num(a[1].or
   + '<p><b>Status:</b> Texoma (OKC) is backup. Two scenarios: <b>Scenario 1</b> keeps Mansfield (Skinner) for soccer and flag football; <b>Scenario 2</b> drops Mansfield and starts cricket early at Railroad Park, with the stadium tied to the same start day (2A Tuesday, 2B Wednesday).</p>'
   + '<p><b>Cricket rules used:</b> ' + F.openTeams + ' open teams, ' + F.womenTeams + ' women’s teams; ' + F.openGames + ' pool games each; open game ' + F.openHours + ' h, women’s ' + F.womenHours + ' h, ' + F.gapMin + '-minute gap; first game ' + t12(F.start) + '; Railroad Park last game by 11:00 PM, stadium lights to ' + t12(F.lightsEnd) + '; Friday ends ' + t12(F.fridayEnd) + '; everyone makes the playoffs; every team plays at least once at the stadium.</p>'
   + '<div class="tw">' + LIVE.scenarios() + '</div></div>';
- if (!$on) h += pinHTML('Scenario budgets need the Budget PIN');
+ if (!$on) h += pinHTML('Scenario budgets need budget numbers shown');
  else { const rows = defs.map(([id, s]) => { const x = scSiteDays(id), prev = SC_FORCE; SC_FORCE = id; ENG.dirty = true; const sf = scFood(foodCalc().meals); SC_FORCE = prev; ENG.dirty = true;
    const L = x.lines.filter(y => /Railroad|Grand Prairie|Skinner|Texoma|Mansfield/i.test(y.l.site || '')), by = n => L.filter(y => new RegExp(n, 'i').test(y.l.site)).reduce((a,y) => a + num(y.cost), 0);
    return { id, s, rr:by('Railroad'), gp:by('Grand Prairie'), sk:by('Skinner|Mansfield'), out:L.reduce((a,y) => a + num(y.cost), 0), food:sf.cost || 0, grid:x.vtot, ftot:x.food.total }; });
