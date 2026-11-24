@@ -600,7 +600,10 @@ function fbarHTML(pk, rows, cfg, shown){ const st = FS[pk];
   const sel = st.f[fc.k] || [];
   return '<div class="fsec" data-fx="' + fc.k + '"><div class="fsh"><b>' + esc(fc.label) + '</b>' + (sel.length ? '<button class="lnk" data-fa="none" type="button">Clear</button>' : '') + '</div><div class="fsl">'
    + vals.map(v => '<label><input type="checkbox" data-fv="' + esc(v) + '"' + (sel.includes(v) ? ' checked' : '') + '><span>' + esc(fc.fmt ? fc.fmt(v) : v) + '</span><em>' + cnt.get(v) + '</em></label>').join('') + '</div></div>'; }).join('');
- const togs = (cfg.toggles || []).map(t => '<label class="chk"><input type="checkbox" data-ftog="' + t.k + '"' + (st.tog[t.k] ? ' checked' : '') + '> ' + esc(t.label) + '</label>').join('');
+ const togHtml = t => '<label class="chk"><input type="checkbox" data-ftog="' + t.k + '"' + (st.tog[t.k] ? ' checked' : '') + '> ' + esc(t.label) + '</label>';
+ /* Toggles flagged top:true sit in the filter bar itself (visible at a glance); the rest stay in the View dropdown. Top toggles need a signed-in user, so guests never see them. */
+ const topTogs = (S.user ? (cfg.toggles || []).filter(t => t.top) : []).map(togHtml).join('');
+ const togs = (cfg.toggles || []).filter(t => !t.top).map(togHtml).join('');
  const nAct = cfg.facets.reduce((a,fc) => a + (st.f[fc.k] || []).length, 0);
  const dd = (id, label, body, cls, act) => '<details class="fx' + (act ? ' act' : '') + '" data-fx="' + id + '"' + (st.open === id ? ' open' : '') + '><summary>' + label + '</summary><div class="fxm ' + (cls || '') + '">' + body + '</div></details>';
  const filt = cfg.facets.length ? dd('__f', 'Filters' + (nAct ? ' · ' + nAct : ''), '<div class="fgrid">' + secs + '</div>', 'wide', nAct) : '';
@@ -614,7 +617,7 @@ function fbarHTML(pk, rows, cfg, shown){ const st = FS[pk];
  const chips = []; if (st.q) chips.push('<span class="chip">“' + esc(st.q) + '”<button data-fclr="q" type="button" aria-label="Remove">×</button></span>');
  cfg.facets.forEach(fc => (st.f[fc.k] || []).forEach(v => chips.push('<span class="chip"><span class="sm">' + esc(fc.label) + '</span> ' + esc(fc.fmt ? fc.fmt(v) : v) + '<button data-fclr="' + fc.k + '|' + esc(v) + '" type="button" aria-label="Remove">×</button></span>')));
  (cfg.toggles || []).forEach(t => { if (st.tog[t.k]) chips.push('<span class="chip">' + esc(t.label) + '<button data-fclr="tog|' + t.k + '" type="button" aria-label="Remove">×</button></span>'); });
- return '<div class="fwrap" data-pk="' + pk + '"><div class="fbar"><input type="search" data-fq placeholder="' + esc(cfg.placeholder || 'Search') + '" value="' + esc(st.q) + '">' + filt + view + views + more + '<span class="fcount">' + shown + (shown !== rows.length ? ' of ' + rows.length : '') + '</span></div>'
+ return '<div class="fwrap" data-pk="' + pk + '"><div class="fbar"><input type="search" data-fq placeholder="' + esc(cfg.placeholder || 'Search') + '" value="' + esc(st.q) + '">' + topTogs + filt + view + views + more + '<span class="fcount">' + shown + (shown !== rows.length ? ' of ' + rows.length : '') + '</span></div>'
   + (chips.length ? '<div class="chips">' + chips.join('') + '<button class="lnk" data-fclr="all" type="button">Clear all</button></div>' : '') + '</div>'; }
 function copyLink(k){ const st = Object.assign({}, FS[k] || {}); delete st.open; delete st.mob; const u = new URL(location.origin + location.pathname); u.searchParams.set('tab', k);
  u.searchParams.set('v', btoa(unescape(encodeURIComponent(JSON.stringify(st)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''));
@@ -776,11 +779,12 @@ RENDER.home = () => {
   + kpi('Athletes', nf(t.athletes), nf(t.onSite) + ' on site in total', '', 'program')
   + (h ? kpi('Hotel rooms', nf(h.blocked) + ' of ' + nf(h.rooms), (h.rooms > h.blocked ? nf(h.rooms - h.blocked) + ' still to source' : 'covered') + ' · blocks proposed, not signed', h.rooms > h.blocked ? 'warn' : 'good', 'hotels') : '') + '</div>';
  const cur2 = seg[HSEG] && seg[HSEG][2].length ? HSEG : (Object.keys(seg).find(k => seg[k][2].length) || 'blocked'), list = seg[cur2][2];
- const mineUrgent = mine.filter(x => ['overdue','blocked','week'].includes(bucket(x))).sort((a,c) => (due(a) || '9').localeCompare(due(c) || '9'));
+ const mineUrg = x => ['overdue','blocked','week'].includes(bucket(x));
+ const mineSorted = mine.slice().sort((a,c) => ((mineUrg(c) ? 1 : 0) - (mineUrg(a) ? 1 : 0)) || (due(a) || '9').localeCompare(due(c) || '9'));
  html += '<div class="row"><div class="card"><div class="ch">Needs attention<span class="sp sm">Whole team, parked items left out</span></div>'
   + '<div class="att">' + Object.entries(seg).map(([k,[l,c,a]]) => '<button type="button" data-seg="' + k + '" class="' + c + (k === cur2 ? ' on' : '') + '"><b>' + a.length + '</b><span>' + l + '</span></button>').join('') + '</div>'
   + (list.length ? '<div class="list">' + list.slice(0, 6).map(taskRow).join('') + '</div>' + (list.length > 6 ? '<a href="#" class="more" data-go="tasks' + (BK[cur2] ? '|due|' + esc(BK[cur2][0]) : '') + '">See all ' + list.length + ' →</a>' : '') : '<div class="empty">Nothing here.</div>') + '</div>'
-  + '<div class="card"><div class="ch">On you<span class="sp sm">' + mine.length + ' open</span></div>' + (mineUrgent.length ? '<div class="list">' + mineUrgent.slice(0, 7).map(taskRow).join('') + '</div>' + (mineUrgent.length > 7 ? '<a href="#" class="more" data-go="tasks|tog|mine">See all your tasks →</a>' : '') : '<div class="empty" style="margin-top:10px">Nothing urgent on you.</div>') + '</div></div>';
+  + '<div class="card"><div class="ch">On you<span class="sp sm">' + mine.length + ' open</span></div>' + (mineSorted.length ? '<div class="list">' + mineSorted.slice(0, 7).map(taskRow).join('') + '</div>' + (mineSorted.length > 7 ? '<a href="#" class="more" data-go="tasks|tog|mine">See all your tasks →</a>' : '') : '<div class="empty" style="margin-top:10px">Nothing on you.</div>') + '</div></div>';
  const areas = {}; all.forEach(x => { const a = area(x), o = areas[a] = areas[a] || { d:0, n:0 }; o.n++; if (x.status === 'done') o.d++; });
  const prog = Object.entries(areas).filter(([a,o]) => o.n >= 3).sort((a,b) => b[1].n - a[1].n).slice(0, 7).map(([a,o]) => '<div class="prog"><a href="#" data-go="tasks|area|' + esc(a) + '">' + esc(a) + '</a><div class="bar"><i style="width:' + Math.round(o.d / o.n * 100) + '%"></i></div><small>' + o.d + '/' + o.n + '</small></div>').join('');
  const wl = {}; act.forEach(x => ownersOf(x).slice(0,1).forEach(o => { const y = wl[o] = wl[o] || { n:0, late:0 }; y.n++; if (['overdue','blocked'].includes(bucket(x))) y.late++; }));
@@ -806,7 +810,7 @@ const TCFG = {
  facets:[ { k:'due', label:'When', get:t => BK[bucket(t)][0], order:BKO }, { k:'status', label:'Status', get:t => (ST[t.status] || [t.status])[0], order:['To do','In progress','Blocked','On hold','Done','Cancelled'] },
   { k:'owner', label:'Owner', get:t => ownersOf(t).length ? ownersOf(t) : '' }, { k:'area', label:'Area', get:area }, { k:'priority', label:'Priority', get:t => String(t.priority || '').toLowerCase() || '', order:['high','medium','low'] },
   { k:'venue', label:'Venue', get:taskVenues }, { k:'tag', label:'Tag', get:tagsOf } ],
- toggles:[ { k:'mine', label:'Mine', test:(t, on) => !on || isMine(t) }, { k:'done', label:'Show done & cancelled', test:(t, on) => on || isOpen(t) || donePicked(t) } ],
+ toggles:[ { k:'mine', label:'My tasks', top:true, test:(t, on) => !on || isMine(t) }, { k:'done', label:'Show done & cancelled', test:(t, on) => on || isOpen(t) || donePicked(t) } ],
  sorts:[ { k:'due', label:'Due date', get:t => due(t) || '9999' }, { k:'updated', label:'Last updated', get:t => String(t.updated || '') }, { k:'priority', label:'Priority', get:t => ({ high:0, medium:1, low:2 })[String(t.priority || '').toLowerCase()] ?? 3 }, { k:'title', label:'Title', get:t => t.title }, { k:'owner', label:'Owner', get:t => ownersOf(t)[0] || 'zz' } ],
  groups:[ { k:'due', label:'When', get:t => BK[bucket(t)][0], order:BKO }, { k:'owner', label:'Owner', get:t => ownersOf(t)[0] || 'No owner' }, { k:'area', label:'Area', get:area }, { k:'status', label:'Status', get:t => (ST[t.status] || [t.status])[0] }, { k:'none', label:'None', get:() => '' } ],
  views:[['list','List'],['table','Table']],
