@@ -581,7 +581,7 @@ function readForm(rec){ const patch = {}, ch = []; $$('#dBody [data-f]').forEach
 
 /* ══════════ FILTER BAR: search, multi-select facets, sort, group, view, chips, counts, CSV ══════════ */
 const FS = {}; // state per page
-function fstate(pk, def){ if (!FS[pk]) { let saved = null; try { saved = JSON.parse(localStorage.getItem('naigF_' + pk) || 'null'); } catch(e) {} FS[pk] = Object.assign({ q:'', f:{}, sort:def.sort || '', dir:def.dir || 1, group:def.group || '', view:def.view || '', tog:{} }, def.init || {}, saved || {}); } return FS[pk]; }
+function fstate(pk, def){ if (!FS[pk]) { let saved = null; try { saved = JSON.parse(localStorage.getItem('naigF_' + pk) || 'null'); } catch(e) {} FS[pk] = Object.assign({ q:'', f:{}, sort:def.sort || '', dir:def.dir || 1, group:def.group || '', view:def.view || '', tog:{} }, def.init || {}, saved || {}); /* A "My tasks" flag saved by a signed-in session must never filter a guest's list: a guest is nobody's tasks, so a stale persisted flag would show an empty list. Drop it (and persist the cleanup) whenever the session is anonymous. */ if (S.anon && FS[pk].tog && FS[pk].tog.mine) { delete FS[pk].tog.mine; fsave(pk); } } return FS[pk]; }
 function fsave(pk){ try { localStorage.setItem('naigF_' + pk, JSON.stringify(FS[pk])); } catch(e) {} }
 function facetVals(r, fc){ const v = fc.get(r); return (Array.isArray(v) ? v : [v]).map(x => (x === '' || x == null) ? '(blank)' : String(x)); }
 function applyF(pk, rows, cfg){ const st = FS[pk], q = st.q.trim().toLowerCase();
@@ -602,7 +602,7 @@ function fbarHTML(pk, rows, cfg, shown){ const st = FS[pk];
    + vals.map(v => '<label><input type="checkbox" data-fv="' + esc(v) + '"' + (sel.includes(v) ? ' checked' : '') + '><span>' + esc(fc.fmt ? fc.fmt(v) : v) + '</span><em>' + cnt.get(v) + '</em></label>').join('') + '</div></div>'; }).join('');
  const togHtml = t => '<label class="chk"><input type="checkbox" data-ftog="' + t.k + '"' + (st.tog[t.k] ? ' checked' : '') + '> ' + esc(t.label) + '</label>';
  /* Toggles flagged top:true sit in the filter bar itself (visible at a glance); the rest stay in the View dropdown. Top toggles need a signed-in user, so guests never see them. */
- const topTogs = (S.user ? (cfg.toggles || []).filter(t => t.top) : []).map(togHtml).join('');
+ const topTogs = (S.user && !S.anon ? (cfg.toggles || []).filter(t => t.top) : []).map(togHtml).join('');
  const togs = (cfg.toggles || []).filter(t => !t.top).map(togHtml).join('');
  const nAct = cfg.facets.reduce((a,fc) => a + (st.f[fc.k] || []).length, 0);
  const dd = (id, label, body, cls, act) => '<details class="fx' + (act ? ' act' : '') + '" data-fx="' + id + '"' + (st.open === id ? ' open' : '') + '><summary>' + label + '</summary><div class="fxm ' + (cls || '') + '">' + body + '</div></details>';
