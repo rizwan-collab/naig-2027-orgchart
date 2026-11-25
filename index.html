@@ -1449,14 +1449,26 @@ function placesAll(){
  AIRPORTS.forEach(a => out.push(Object.assign({ has:true, sub:'Arrivals' }, a)));
  return out;
 }
-let MAPO = 'hub', MAPK = null, LMAP = null, LLAYER = null; const DT = {};
+/* Fix 10 — map default origin: the Command Centre, by name, not by list order.
+   Before, MAPO started as 'hub' — but no place ever has _id 'hub' (venue ids
+   are 'v|<key>', hotel ids 'h|<key>'), so that lookup was dead and the
+   origin silently fell to the first kind-Hub place in list order: the
+   Command Centre record at the old Farmers Branch hotel. Now the default
+   origin is the place for the Command Centre venue record itself (kind Hub,
+   name matching /command centre/i), so it follows the record when it moves
+   — no coordinates are hardcoded here. Only if no Command Centre exists
+   does it fall back to the first Hotel, then the first located place.
+   MAPO is null until the user picks an origin from the dropdown; a stale
+   MAPO that matches no place falls back to the Command Centre too. */
+const mapDefaultOrigin = list => list.find(p => p.kind === 'Hub' && /command centre/i.test(p.name || '')) || list.find(p => p.kind === 'Hub') || list.find(p => p.kind === 'Hotel') || list[0];
+let MAPO = null, MAPK = null, LMAP = null, LLAYER = null; const DT = {};
 function loadLeaflet(){ if (window.L) return Promise.resolve(); if (window.__lf) return window.__lf;
  window.__lf = new Promise((ok, bad) => { const c = document.createElement('link'); c.rel = 'stylesheet'; c.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'; document.head.appendChild(c);
   const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'; s.onload = ok; s.onerror = bad; document.head.appendChild(s); }); return window.__lf; }
 const gmDir = (a, b) => 'https://www.google.com/maps/dir/?api=1&origin=' + encodeURIComponent(a.lat + ',' + a.lng) + '&destination=' + encodeURIComponent(b.lat + ',' + b.lng) + '&travelmode=driving';
 const gmPlace = p => 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(p.has ? p.lat + ',' + p.lng : (p.name + ' ' + p.address));
 const crow = (a, b) => { const R = 3958.8, t = x => x * Math.PI / 180, dLa = t(b.lat - a.lat), dLo = t(b.lng - a.lng), h = Math.sin(dLa/2) ** 2 + Math.cos(t(a.lat)) * Math.cos(t(b.lat)) * Math.sin(dLo/2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
-async function driveTimes(o, list){ const key = o._id; if (DT[key]) return DT[key];
+async function driveTimes(o, list){ const key = o._id + '|' + num(o.lat).toFixed(5) + ',' + num(o.lng).toFixed(5); /* Fix 10: key on coords too, so a moved origin re-fetches instead of serving the cached table */ if (DT[key]) return DT[key];
  try { const pts = [o].concat(list).map(p => num(p.lng).toFixed(5) + ',' + num(p.lat).toFixed(5)).join(';');
   const r = await fetch('https://router.project-osrm.org/table/v1/driving/' + pts + '?sources=0&annotations=duration,distance'); const j = await r.json(); if (j.code !== 'Ok') throw 0;
   const m = {}; list.forEach((p, i) => m[p._id] = { min:Math.round(j.durations[0][i+1] / 60), mi:Math.round(j.distances[0][i+1] / 1609.34), est:false }); DT[key] = m; }
@@ -1465,7 +1477,7 @@ async function driveTimes(o, list){ const key = o._id; if (DT[key]) return DT[ke
 RENDER.map = () => {
  const all = placesAll(), located = all.filter(p => p.has), missing = all.filter(p => !p.has && p.address && !/^(N\/A|TBD)/i.test(p.address));
  fstate('map', {}); const shown = FS.map.kinds || Object.keys(PKIND); const vis = located.filter(p => shown.includes(p.kind));
- const origin = located.find(p => p._id === MAPO) || located.find(p => p.kind === 'Hub') || located.find(p => p.kind === 'Hotel') || located[0];
+ const origin = (MAPO && located.find(p => p._id === MAPO)) || mapDefaultOrigin(located);
  if (canEdit() && missing.length) $('#topR').innerHTML = '<button class="btn" id="geoBtn" type="button">Locate ' + missing.length + ' missing</button>';
  $('#view').innerHTML = '<div class="seg chips" style="margin-bottom:12px">' + Object.keys(PKIND).map(k => '<button type="button" class="' + (shown.includes(k) ? 'on' : '') + '" data-mk="' + k + '"><span class="dot" style="background:' + PKIND[k] + '"></span>' + k + ' · ' + located.filter(p => p.kind === k).length + '</button>').join('') + '</div>'
   + '<div class="card" style="padding:0;overflow:hidden"><div id="lmap" style="height:460px"></div></div>'
