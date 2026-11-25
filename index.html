@@ -329,7 +329,7 @@ const PATHS = { tasks:'tasks', venues:'venues', hotels:'hotels', prospects:'pros
  plan:'plan', sportsPlan:'sportsPlan', slotRegions:'slotRegions', headcount:'headcount', teamModel:'teamModel/sports', supportRules:'headcountModel/supportRules',
  scope:'scope', loops:'loops', flights:'flights', jk:'jamatkhanas', transportation:'transportation', transportModel:'transportModel', drivers:'drivers',
  food:'food', intake:'intake', rnr:'rnr', vendors:'vendors', docs:'docs', driveIndex:'settings/driveIndex', decks:'settings/decks', arrivals:'arrivals', scenarios:'settings/scenarios', publicRef:'public/venueRef/venues' };
-const S = { m2m:{}, loaded:new Set(), user:null, perms:null, gUser:null, anon:false, anonTried:false };
+const S = { m2m:{}, loaded:new Set(), user:null, perms:null, gUser:null, anon:false, anonTried:false, privDob:{}, privFood:{} };
 Object.keys(PATHS).forEach(k => S[k] = {});
 window._tasksData = S.tasks; window._venuesData = S.venues;
 const PREVIEW = /v2\.html$/.test(location.pathname);
@@ -354,8 +354,24 @@ const arr = o => Array.isArray(o) ? o.filter(Boolean) : Object.values(o || {}).f
 const ents = o => Array.isArray(o) ? o.map((v, i) => [String(i), v]).filter(x => x[1]) : Object.entries(o || {}).filter(x => x[1]);
 const toast = m => { const t = $('#toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._x); t._x = setTimeout(() => t.classList.remove('show'), 2800); };
 const canEdit = () => !!(S.perms && S.perms.edit);
-/* Date of birth is shown only to the admin and core tiers. This hides it on screen; it is not a database rule. */
+/* Date of birth is shown only to the admin and core tiers. This hides it on screen; the database read is locked to signed-in users by the rules (see FIREBASE-RULES-UPDATE.md). */
 const canSeeDob = () => !!(S.perms && (S.perms.tier === 'admin' || S.perms.tier === 'core'));
+/* Fix 6 — private data. Dates of birth and food prices live under
+   naig2027/private, denied to anonymous readers by the rules. A read
+   granted at a parent path cannot be taken away deeper down, so these
+   fields cannot stay inside prospects or food. Guests never subscribe
+   (see startPrivate), so every accessor below returns "none" for them;
+   signed-in users get the value. Note the rules grant the private paths
+   to any signed-in Google user — the UI still enforces admin/core for
+   dob and "budget numbers shown" for prices, exactly as today. */
+const dobOf = p => { const d = (S.privDob || {})[(p && (p.id || p._key)) || '']; return d == null ? '' : d; };
+const privFood = () => S.privFood || {};
+const fpMealPrice = mk => { const m = (privFood().meals || {})[mk]; return (m && m.price !== undefined && m.price !== null && m.price !== '') ? num(m.price) : 0; };
+const fpBagPrice = () => { const b = (privFood().goodieBags || {}).price; return (b === undefined || b === null || b === '') ? 3 : num(b); };
+const fpPlanPriv = () => (privFood().plan || {});
+const fpVenuePriv = vk => ((fpPlanPriv().venues || {})[vk]) || {};
+const fpRowPriv = (vk, rk) => (((fpPlanPriv().venues || {})[vk] || {}).rows || {})[rk] || {};
+const fpQuoteOf = k => { const v = ((fpPlanPriv().vendors || {})[k]) || {}; return v.quote; };
 const fmtDob = v => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v || '')); if (!m) return esc(v || ''); const d = new Date(+m[1], +m[2] - 1, +m[3], 12); return isNaN(d) ? esc(v) : d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }); };
 const me = () => (S.user && S.user.name) || '';
 
@@ -398,7 +414,7 @@ function resolve(){
   if (S.loaded.has('accessRequests') && !ex) set(R('accessRequests/' + rk), { email:g.email, name:g.name || '', uid:g.uid, requestedAt:Date.now(), status:'pending' }).catch(() => {});
   $('#gateMsg').textContent = ex && ex.status === 'denied' ? 'Access for ' + g.email + ' was not approved. Contact Rizwan.' : 'Signed in as ' + g.email + '. Your access request is with Rizwan. This page opens by itself once you are approved.';
   return; }
- S.user = p; S.perms = permsFor(p); gate.style.display = 'none';
+ S.user = p; S.perms = permsFor(p); gate.style.display = 'none'; startPrivate();
  document.body.classList.toggle('ro', !S.perms.edit);
  $('#who').textContent = (p.name || g.email) + ' · ' + S.perms.tier;
  $('#outBtn').textContent = 'Sign out';
@@ -423,6 +439,14 @@ const googleSignIn = () => { const pr = new GoogleAuthProvider(); pr.setCustomPa
   gateSay('Sign-in did not work (' + (c || e) + '). Try again, or open the hub in Chrome on a computer.', true); }); };
 $('#gateBtn').onclick = googleSignIn;
 $('#outBtn').onclick = () => { if (S.anon) { $('#gate').style.display = 'grid'; $('#gateMsg').textContent = 'Sign in with the Google account on your Directory record.'; $('#gateBtn').hidden = false; return; } signOut(auth).then(() => location.reload()); };
+
+/* Private data (fix 6): subscribe only for a signed-in Google user.
+   Guests never subscribe, so they never even attempt a read the rules
+   would deny. Idempotent — resolve() runs on every auth/data change. */
+let privStarted = false;
+function startPrivate(){ if (privStarted || !S.gUser || S.anon) return; privStarted = true;
+ onValue(R('private/dob'), s => { S.privDob = s.val() || {}; ENG.dirty = true; rerender('privDob'); }, e => console.warn('[hub] private dob refused', e && e.code));
+ onValue(R('private/foodPrices'), s => { S.privFood = s.val() || {}; ENG.dirty = true; rerender('privFood'); }, e => console.warn('[hub] private food prices refused', e && e.code)); }
 
 /* ══════════ live data ══════════ */
 let started = false;
@@ -508,13 +532,13 @@ function paintHC(){ const E = engine(), t = E.total; if (!E.ready) { $('#hcBox')
 function foodCalc(){
  const G = (S.food || {}).grid || {}, t = engine().total, A = t.athletes;
  const team = a => { const k = A ? a / A : 0; return { volunteers:Math.ceil(a / t.rules.athletesPerVolunteer), staff:Math.ceil(a / t.rules.athletesPerStaff), coaches:Math.round(t.coaches * k), chaperones:Math.ceil(Math.round(t.minors * k) / 7) }; };
- const meals = Object.entries(G.meals || {}).map(([k,m]) => ({ key:k, label:String(m.label || k), price:num(m.price), order:num(m.order) })).sort((a,b) => a.order - b.order);
+ const meals = Object.entries(G.meals || {}).map(([k,m]) => ({ key:k, label:String(m.label || k), price:fpMealPrice(k), order:num(m.order) })).sort((a,b) => a.order - b.order);
  const days = Object.entries(G.days || {}).map(([k,d]) => ({ key:k, label:String(d.label || k), note:String(d.note || ''), order:num(d.order) })).sort((a,b) => a.order - b.order);
  const cell = (dk, mk) => ((G.cells || {})[dk + '_' + mk]) || { day:dk, meal:mk, on:false, athletes:true, volunteers:true, staff:true };
  const covered = c => { const a = (c.athleteCount !== undefined && c.athleteCount !== null && c.athleteCount !== '') ? num(c.athleteCount) : A, tm = (a === A) ? { volunteers:t.volunteers, staff:t.staff, coaches:t.coaches, chaperones:t.chaperones } : team(a); let n = 0; if (c.athletes) n += a + tm.coaches + tm.chaperones; if (c.volunteers) n += tm.volunteers; if (c.staff) n += tm.staff; return n; };
  let grand = 0, servings = 0, on = 0; const byDay = {}, byMeal = {};
  days.forEach(d => { meals.forEach(m => { const c = cell(d.key, m.key); if (!c.on) return; const n = covered(c), v = n * m.price; on++; servings += n; grand += v; byDay[d.key] = (byDay[d.key] || 0) + v; byMeal[m.key] = (byMeal[m.key] || 0) + v; }); });
- const Bg = G.goodieBags || {}, price = (Bg.price === undefined || Bg.price === '' || Bg.price === null) ? 3 : num(Bg.price), h = engine().hotels;
+ const Bg = G.goodieBags || {}, price = fpBagPrice(), h = engine().hotels;
  const bagCount = h ? h.guests : Math.ceil(A * ((Bg.pct === undefined || Bg.pct === '') ? 75 : num(Bg.pct)) / 100);
  const sf = scFood(meals);
  const useP = !!(((S.food || {}).plan || {}).useForBudget), planT = useP ? foodPlanCalc().total : 0;
@@ -550,7 +574,8 @@ async function backgroundJobs(){
   for (const [k,v] of Object.entries(S.venues)) if (v && !v.archived && CLOSED.test(String(v.status || '').trim())) await update(R('venues/' + k), { archived:true, archivedAt:new Date().toISOString(), archivedBy:'auto: status ' + v.status });
   // 5. food total that the Budget reads
   const G = (S.food || {}).grid; if (G && G.meals && E.ready) { const fc = foodCalc(), fs = [Math.round(fc.total), Math.round(fc.grand), fc.servings].join('|');
-   if (fs !== lastFood && (Math.round(num(G.computedTotal)) !== Math.round(fc.total) || Math.round(num(G.computedMealsTotal)) !== Math.round(fc.grand))) await update(R('food/grid'), { computedTotal:fc.total, computedMealsTotal:fc.grand, computedServings:fc.servings, computedGoodieBags:fc.bags, drivesBudget:true }); lastFood = fs; }
+   const PC = (S.privFood || {}).computed || {};
+   if (fs !== lastFood && (Math.round(num(PC.computedTotal)) !== Math.round(fc.total) || Math.round(num(PC.computedMealsTotal)) !== Math.round(fc.grand))) await update(R('private/foodPrices/computed'), { computedTotal:fc.total, computedMealsTotal:fc.grand, computedServings:fc.servings, computedGoodieBags:fc.bags, drivesBudget:true }); lastFood = fs; }
  } catch(e) { console.warn('[hub jobs]', e && e.message); }
  jobBusy = false;
 }
@@ -1191,16 +1216,16 @@ const PCFG2 = { placeholder:'Search people, roles, emails', def:{ sort:'name', g
  facets:[ { k:'vertical', label:'Vertical', get:p => p.vertical || '' }, { k:'roleType', label:'Role type', get:p => p.roleType || '' }, { k:'region', label:'Region', get:p => p.region || '' }, { k:'status', label:'Status', get:p => p.status || '' }, { k:'email', label:'Email on file', get:p => p.email ? 'Yes' : 'No' }, { k:'phone', label:'Phone on file', get:p => p.phone ? 'Yes' : 'No' } ],
  sorts:[ { k:'name', label:'Name', get:p => p.name || '' }, { k:'vertical', label:'Vertical', get:p => p.vertical || '' } ],
  groups:[ { k:'vertical', label:'Vertical', get:p => p.vertical || 'No vertical' }, { k:'roleType', label:'Role type', get:p => p.roleType || '—' }, { k:'none', label:'None', get:() => '' } ],
- views:[['chart','Org chart'],['list','Directory']], csv:() => csv('naig-people', [['Name','name'],['Role',p => p.role || p.title],['Vertical','vertical'],['Role type','roleType'],['Email','email'],['Phone','phone']].concat(canSeeDob() ? [['Date of birth','dob']] : []).concat([['Region','region']]), applyF('people', PList(), PCFG2)) };
-const pDetail = p => { const a = []; if (p.email) a.push(esc(p.email)); if (p.phone) a.push(esc(p.phone)); if (canSeeDob() && p.dob) a.push('Born ' + fmtDob(p.dob)); return a.length ? '<span class="td">' + a.join(' · ') + '</span>' : ''; };
+ views:[['chart','Org chart'],['list','Directory']], csv:() => csv('naig-people', [['Name','name'],['Role',p => p.role || p.title],['Vertical','vertical'],['Role type','roleType'],['Email','email'],['Phone','phone']].concat(canSeeDob() ? [['Date of birth', p => dobOf(p)]] : []).concat([['Region','region']]), applyF('people', PList(), PCFG2)) };
+const pDetail = p => { const a = []; if (p.email) a.push(esc(p.email)); if (p.phone) a.push(esc(p.phone)); if (canSeeDob() && dobOf(p)) a.push('Born ' + fmtDob(dobOf(p))); return a.length ? '<span class="td">' + a.join(' · ') + '</span>' : ''; };
 RENDER.people = () => { const everyone = PList(), why = p => isTbdP(p) ? 'tbd' : outsideLogistics(p) ? 'out' : !isConfP(p) ? 'unconf' : '', all = PEOPLE_ALL ? everyone.filter(p => !isTbdP(p)) : everyone.filter(p => !why(p)), hid = { tbd: everyone.filter(p => why(p) === 'tbd').length, out: everyone.filter(p => why(p) === 'out').length, unconf: everyone.filter(p => why(p) === 'unconf').length }, hiddenTbd = PEOPLE_ALL ? 0 : hid.tbd + hid.out + hid.unconf, { st, out, bar, groups } = filtered('people', all, PCFG2), byId = {}; all.forEach(p => byId[p.id] = p);
  $('#topR').innerHTML = (canEdit() ? '<button class="btn pri" id="newPerson" type="button">Add a person or role</button> ' : '') + '<button class="btn" id="allPeople" type="button" title="Confirmed Logistics people only, or everyone in the Directory (TBD still hidden)">' + (PEOPLE_ALL ? 'Show confirmed Logistics only' : 'Show everyone') + '</button>'; $('#allPeople').onclick = () => { PEOPLE_ALL = !PEOPLE_ALL; RENDER.people(); }; if (canEdit()) $('#newPerson').onclick = () => OPEN.newperson();
  const ownN = p => taskList().filter(t => isOpen(t) && ownersOf(t).some(o => key(o) === key(p.name))).length;
- let h = '<div class="kpis"><div class="kpi"><span>People</span><b>' + all.length + '</b><small>' + (PEOPLE_ALL ? 'everyone (TBD hidden)' : 'confirmed, in Logistics') + (hiddenTbd ? ' · ' + hiddenTbd + ' hidden: ' + [hid.tbd && hid.tbd + ' TBD', hid.out && hid.out + ' outside Logistics', hid.unconf && hid.unconf + ' not confirmed'].filter(Boolean).join(', ') : '') + '</small></div><div class="kpi"><span>Verticals</span><b>' + new Set(all.map(p => p.vertical).filter(Boolean)).size + '</b><small>teams</small></div><button class="kpi warn" data-go="people|email|No" type="button"><span>No email</span><b>' + all.filter(p => !p.email).length + '</b><small>cannot sign in yet</small></button>' + (canSeeDob() ? '<div class="kpi"><span>No date of birth</span><b>' + all.filter(p => !p.dob && !/^TBD/i.test(p.name || '')).length + '</b><small>not entered yet</small></div>' : '') + '</div>' + bar;
+ let h = '<div class="kpis"><div class="kpi"><span>People</span><b>' + all.length + '</b><small>' + (PEOPLE_ALL ? 'everyone (TBD hidden)' : 'confirmed, in Logistics') + (hiddenTbd ? ' · ' + hiddenTbd + ' hidden: ' + [hid.tbd && hid.tbd + ' TBD', hid.out && hid.out + ' outside Logistics', hid.unconf && hid.unconf + ' not confirmed'].filter(Boolean).join(', ') : '') + '</small></div><div class="kpi"><span>Verticals</span><b>' + new Set(all.map(p => p.vertical).filter(Boolean)).size + '</b><small>teams</small></div><button class="kpi warn" data-go="people|email|No" type="button"><span>No email</span><b>' + all.filter(p => !p.email).length + '</b><small>cannot sign in yet</small></button>' + (canSeeDob() ? '<div class="kpi"><span>No date of birth</span><b>' + all.filter(p => !dobOf(p) && !/^TBD/i.test(p.name || '')).length + '</b><small>not entered yet</small></div>' : '') + '</div>' + bar;
  if (st.view === 'chart') { const ids = new Set(out.map(p => p.id)), kids = {}; out.forEach(p => { const r = p.reportsTo && ids.has(p.reportsTo) ? p.reportsTo : ''; (kids[r] = kids[r] || []).push(p); });
   const node = p => '<li><span class="tn" data-open="person|' + esc(p._key) + '"><span class="tl"><b>' + esc(p.name) + '</b><small>' + esc(p.role || p.title || p.roleType || '') + (p.vertical ? ' · ' + esc(p.vertical) : '') + '</small>' + (ownN(p) ? '<span class="pill">' + ownN(p) + ' open</span>' : '') + '</span>' + pDetail(p) + '</span>' + (kids[p.id] ? '<ul>' + kids[p.id].sort((a,b) => String(a.name).localeCompare(b.name)).map(node).join('') + '</ul>' : '') + '</li>';
   h += '<div class="card tree"><ul>' + (kids[''] || []).sort((a,b) => (a.reportsTo ? 1 : 0) - (b.reportsTo ? 1 : 0) || String(a.name).localeCompare(b.name)).map(node).join('') + '</ul></div>'; }
- else h += '<div class="card"><div class="tw"><table><thead><tr><th>Name</th><th>Role</th><th>Vertical</th><th>Reports to</th><th>Email</th><th>Phone</th>' + (canSeeDob() ? '<th>Date of birth</th>' : '') + '<th class="n">Open tasks</th></tr></thead><tbody>' + groups.map(([g, rs]) => (g ? '<tr class="tot"><td colspan="' + (canSeeDob() ? 8 : 7) + '">' + esc(g) + ' · ' + rs.length + '</td></tr>' : '') + rs.map(p => '<tr class="cl" data-open="person|' + esc(p._key) + '"><td><b>' + esc(p.name) + '</b></td><td>' + esc(p.role || p.title || '') + '<br><small>' + esc(p.roleType || '') + '</small></td><td>' + esc(p.vertical || '') + '</td><td>' + esc((byId[p.reportsTo] || {}).name || '') + '</td><td class="sm">' + (p.email ? esc(p.email) : '<span class="pill warn">none</span>') + '</td><td class="sm">' + (p.phone ? esc(p.phone) : '—') + '</td>' + (canSeeDob() ? '<td class="sm">' + (p.dob ? fmtDob(p.dob) : '—') + '</td>' : '') + '<td class="n">' + ownN(p) + '</td></tr>').join('')).join('') + '</tbody></table></div></div>';
+ else h += '<div class="card"><div class="tw"><table><thead><tr><th>Name</th><th>Role</th><th>Vertical</th><th>Reports to</th><th>Email</th><th>Phone</th>' + (canSeeDob() ? '<th>Date of birth</th>' : '') + '<th class="n">Open tasks</th></tr></thead><tbody>' + groups.map(([g, rs]) => (g ? '<tr class="tot"><td colspan="' + (canSeeDob() ? 8 : 7) + '">' + esc(g) + ' · ' + rs.length + '</td></tr>' : '') + rs.map(p => '<tr class="cl" data-open="person|' + esc(p._key) + '"><td><b>' + esc(p.name) + '</b></td><td>' + esc(p.role || p.title || '') + '<br><small>' + esc(p.roleType || '') + '</small></td><td>' + esc(p.vertical || '') + '</td><td>' + esc((byId[p.reportsTo] || {}).name || '') + '</td><td class="sm">' + (p.email ? esc(p.email) : '<span class="pill warn">none</span>') + '</td><td class="sm">' + (p.phone ? esc(p.phone) : '—') + '</td>' + (canSeeDob() ? '<td class="sm">' + (dobOf(p) ? fmtDob(dobOf(p)) : '—') + '</td>' : '') + '<td class="n">' + ownN(p) + '</td></tr>').join('')).join('') + '</tbody></table></div></div>';
  $('#view').innerHTML = h; };
 /* Invite email for a new person. The hub cannot send mail itself, so the
    admin sends it from their own mailbox — this builds the ready-to-send
@@ -1217,16 +1242,22 @@ OPEN.newperson = (pre, onAdded) => { const all = PList().filter(p => !isTbdP(p) 
   if (isTbdP({ name })) { toast('Use a real name. TBD placeholders are hidden.'); return; }
   if (PList().some(x => key(x.name) === key(name))) { toast(name + ' is already in the Directory.'); return; }
   const id = 'p-' + Date.now(), rec = Object.assign({ status:'ready', region:'usa', added:today() }, patch, { id, name, role }); const rep = $('#pRep').value; if (rep) rec.reportsTo = rep;
-  if (await save('prospects/p' + Date.now(), rec, 'access', name, 'Directory: added ' + name + ' (' + role + ')')) { const em = String(rec.email || '').trim(), b = $('#pAdd'); if (b) b.style.display = 'none'; $('#dBody').innerHTML = '<h3>' + esc(name) + ' added</h3><p class="hint">Role: ' + esc(role) + ' · ' + esc(rec.vertical || '') + ' · ' + esc(rec.roleType || '') + '</p>' + (em ? '<p><a class="btn pri" href="' + esc(inviteMailto(rec)) + '">Send invite email</a></p><p class="hint">Opens your mail with the invite ready to send — their R&R and the hub link included.</p>' : '<p class="hint">No email entered — add one on their record to invite them.</p>') + '<p><button class="btn" id="pDone" type="button">Done</button></p>'; $('#pDone').onclick = () => { closeDrawer(); if (onAdded) onAdded(); }; } }; };
-OPEN.person = k => { const p = Object.assign({}, (S.prospects || {})[k] || {}), ed = canEdit(), all = PList(), mine = taskList().filter(t => isOpen(t) && ownersOf(t).some(o => key(o) === key(p.name)));
+  /* Date of birth lives under private/dob, not on the public record. */
+  const dob = rec.dob; delete rec.dob;
+  if (await save('prospects/p' + Date.now(), rec, 'access', name, 'Directory: added ' + name + ' (' + role + ')')) { if (dob) { try { await update(R('private/dob'), { [rec.id]: dob }); } catch(e) { toast('Date of birth not saved: ' + (e.code || e.message || e)); } } const em = String(rec.email || '').trim(), b = $('#pAdd'); if (b) b.style.display = 'none'; $('#dBody').innerHTML = '<h3>' + esc(name) + ' added</h3><p class="hint">Role: ' + esc(role) + ' · ' + esc(rec.vertical || '') + ' · ' + esc(rec.roleType || '') + '</p>' + (em ? '<p><a class="btn pri" href="' + esc(inviteMailto(rec)) + '">Send invite email</a></p><p class="hint">Opens your mail with the invite ready to send — their R&R and the hub link included.</p>' : '<p class="hint">No email entered — add one on their record to invite them.</p>') + '<p><button class="btn" id="pDone" type="button">Done</button></p>'; $('#pDone').onclick = () => { closeDrawer(); if (onAdded) onAdded(); }; } }; };
+OPEN.person = k => { const p = Object.assign({}, (S.prospects || {})[k] || {}, { dob: dobOf((S.prospects || {})[k] || {}) }), ed = canEdit(), all = PList(), mine = taskList().filter(t => isOpen(t) && ownersOf(t).some(o => key(o) === key(p.name)));
 if (p.vertical) p.vertical = VLABEL(p.vertical);
  const verts = [...new Set(all.map(x => x.vertical).filter(Boolean))].sort(), rts = [...new Set(['lead','deputy','pmo','member'].concat(all.map(x => x.roleType).filter(Boolean)))];
  openDrawer(p.name || 'Person', recForm(p, [['name','Name'],['role','Role'],['resp','Responsibilities (R&R)','ta'],['vertical','Vertical','sel',verts],['roleType','Role type','sel',rts],['email','Email (Google sign-in)'],['phone','Phone'],...(canSeeDob() ? [['dob','Date of birth','dob']] : []),['city','City'],['region','Region'],['notes','Notes','ta']], !ed)
   + (ed ? '<label class="l">Reports to</label><select id="pRep"><option value="">— nobody —</option>' + all.filter(x => x.id !== p.id).sort((a,b) => String(a.name).localeCompare(b.name)).map(x => '<option value="' + esc(x.id) + '"' + (x.id === p.reportsTo ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') + '</select>' : '')
   + (mine.length ? '<label class="l">Open tasks (' + mine.length + ')</label><div class="list">' + mine.map(taskRow).join('') + '</div>' : ''), ed ? '<button class="btn pri" id="pSave" type="button">Save</button>' : '');
  $('#dBody').onclick = e => { const t = e.target.closest('[data-task]'); if (t) openTask(t.dataset.task); };
- if (ed) $('#pSave').onclick = async () => { const { patch, ch } = readForm(p); const rep = $('#pRep').value; if (rep !== (p.reportsTo || '')) { patch.reportsTo = rep; ch.push('reports to'); } if (!ch.length) { closeDrawer(); return; }
-  if (await save('prospects/' + k, patch, 'access', p.name, 'Directory: ' + p.name + ' ' + ch.join(', '))) closeDrawer(); }; };
+ if (ed) $('#pSave').onclick = async () => { const { patch, ch } = readForm(p); const rep = $('#pRep').value; if (rep !== (p.reportsTo || '')) { patch.reportsTo = rep; ch.push('reports to'); }
+  /* Date of birth lives under private/dob, not on the public record — a dob saved here would stay guest-readable. Split it out of the patch. */
+  const dobChanged = ('dob' in patch), dob = patch.dob; delete patch.dob; const pubCh = ch.filter(c => c !== 'dob');
+  if (dobChanged) { try { await update(R('private/dob'), { [(p.id || k)]: (dob === '' || dob == null) ? null : dob }); } catch(e) { toast('Date of birth not saved: ' + (e.code || e.message || e)); return; } }
+  if (!pubCh.length && !Object.keys(patch).length) { closeDrawer(); return; }
+  if (await save('prospects/' + k, patch, 'access', p.name, 'Directory: ' + p.name + ' ' + (pubCh.join(', ') || 'updated'))) closeDrawer(); }; };
 
 /* ══════════ ACCESS (admins) ══════════ */
 RENDER.access = () => { const all = PList().sort((a,b) => String(a.name).localeCompare(b.name)), ov = (S.access || {}).overrides || {}, known = new Set(PList().map(x => String(x.email || '').trim().toLowerCase()).filter(Boolean)), reqs = ents(S.accessRequests).filter(([k,r]) => r.status === 'pending' && !known.has(String(r.email || '').trim().toLowerCase()));
@@ -1573,14 +1604,14 @@ function fpVenueDays(name, gridDays){
 }
 function foodPlanCalc(){
  const G = (S.food || {}).grid || {}, P = FPD(), E = engine();
- const meals = Object.entries(G.meals || {}).map(([k,m]) => ({ key:k, label:String(m.label || k), price:num(m.price), order:num(m.order) })).sort((a,b) => a.order - b.order);
+ const meals = Object.entries(G.meals || {}).map(([k,m]) => ({ key:k, label:String(m.label || k), price:fpMealPrice(k), order:num(m.order) })).sort((a,b) => a.order - b.order);
  const gridDays = Object.entries(G.days || {}).map(([k,d]) => ({ key:k, label:String(d.label || k), order:num(d.order) })).sort((a,b) => a.order - b.order);
  const gcell = (dk, mk) => ((G.cells || {})[dk + '_' + mk]) || null;
  const anyOn = mk => gridDays.some(d => (gcell(d.key, mk) || {}).on);
  const vendors = P.vendors || {}, venues = [];
  let servings = 0, total = 0, priced = 0, rowsOn = 0; const byVendor = {}, byVenue = {}, byDay = {};
  Object.entries(E.venue || {}).filter(([n, p]) => n && n !== 'TBD' && p && p.onSite > 0).sort((a,b) => b[1].onSite - a[1].onSite).forEach(([name, p]) => {
-  const vk = key(name), V = (P.venues || {})[vk] || {}, days = fpVenueDays(name, gridDays), rows = [];
+  const vk = key(name), V = (P.venues || {})[vk] || {}, PV = fpVenuePriv(vk), PR = PV.rows || {}, days = fpVenueDays(name, gridDays), rows = [];
   days.forEach(d => meals.forEach(m => { const rk = d.key + '_' + m.key, R0 = (V.rows || {})[rk] || {}, gc = gcell(d.key, m.key);
    const dflOn = d.extra ? anyOn(m.key) : !!(gc && gc.on), on = fpBlank(R0.on) ? dflOn : !!R0.on;
    const who = k => fpBlank(R0[k]) ? (gc ? gc[k] !== false : true) : !!R0[k];
@@ -1588,15 +1619,23 @@ function foodPlanCalc(){
    const auto = (A ? p.athletes + p.coaches + p.chaperones : 0) + (Vo ? p.volunteers : 0) + (St ? p.staff : 0);
    const count = fpBlank(R0.count) ? auto : num(R0.count);
    const vendor = R0.vendor || V.vendor || '', menu = fpBlank(R0.menu) ? ((V.menu || {})[m.key] || '') : R0.menu;
-   const pSrc = !fpBlank(R0.price) ? 'row' : !fpBlank(V.price) ? 'venue' : 'grid', price = pSrc === 'row' ? num(R0.price) : pSrc === 'venue' ? num(V.price) : m.price;
-   const cost = on ? count * price + num(R0.extra) : 0;
+   const RP = PR[rk] || {}, pSrc = !fpBlank(RP.price) ? 'row' : !fpBlank(PV.price) ? 'venue' : 'grid', price = pSrc === 'row' ? num(RP.price) : pSrc === 'venue' ? num(PV.price) : m.price;
+   const cost = on ? count * price + num(RP.extra) : 0;
    if (on) { rowsOn++; servings += count; total += cost; if (pSrc !== 'grid') priced++; byVendor[vendor || ''] = (byVendor[vendor || ''] || 0) + cost; byDay[d.key] = (byDay[d.key] || 0) + count; }
-   rows.push({ rk, d, m, on, A, V:Vo, S:St, auto, count, over:!fpBlank(R0.count), vendor, menu, menuOwn:!fpBlank(R0.menu), price, pSrc, extra:num(R0.extra), cost, status:R0.status || 'Not started', notes:R0.notes || '' }); }));
-  const fees = num(V.fees); total += fees; byVenue[name] = rows.reduce((a,r) => a + r.cost, 0) + fees;
-  venues.push({ name, vk, p, V, days, rows, fees, cost:byVenue[name], servings:rows.reduce((a,r) => a + (r.on ? r.count : 0), 0) }); });
+   rows.push({ rk, d, m, on, A, V:Vo, S:St, auto, count, over:!fpBlank(R0.count), vendor, menu, menuOwn:!fpBlank(R0.menu), price, pSrc, extra:num(RP.extra), cost, status:R0.status || 'Not started', notes:R0.notes || '' }); }));
+  const fees = num(PV.fees); total += fees; byVenue[name] = rows.reduce((a,r) => a + r.cost, 0) + fees;
+  venues.push({ name, vk, p, V, PV, days, rows, fees, cost:byVenue[name], servings:rows.reduce((a,r) => a + (r.on ? r.count : 0), 0) }); });
  return { meals, gridDays, vendors, venues, servings, total, priced, rowsOn, byVendor, byVenue, byDay, use:!!P.useForBudget };
 }
-function fpSave(path, patch, text){ return save('food/plan' + (path ? '/' + path : ''), patch, 'food', 'Food plan', text); }
+/* Food prices live under private/foodPrices/plan, mirroring the public
+   plan paths — a price stored under food/plan would stay guest-readable
+   (a parent read cannot be taken away deeper down). fpSave splits price
+   fields out, so every existing caller is routed without changing. */
+function fpSave(path, patch, text){ const PRIV = { price:1, extra:1, fees:1, quote:1 }, pub = {}, priv = {};
+ Object.keys(patch).forEach(k => (PRIV[k] ? priv : pub)[k] = patch[k]);
+ const jobs = []; if (Object.keys(pub).length) jobs.push(save('food/plan' + (path ? '/' + path : ''), pub, 'food', 'Food plan', text));
+ if (Object.keys(priv).length) jobs.push((async () => { try { await update(R('private/foodPrices/plan' + (path ? '/' + path : '')), priv); logAct('food', 'private/foodPrices/plan' + (path ? '/' + path : ''), 'Food plan', text); toast('Saved'); return true; } catch(e) { toast('Prices not saved: ' + (e.code || e.message || e)); return false; } })());
+ return Promise.all(jobs).then(rs => rs.length ? rs.every(Boolean) : true); }
 function fpVendorSel(cur, attrs, blankLabel){ const V = FPD().vendors || {};
  return '<select class="sel" ' + attrs + '><option value="">' + esc(blankLabel || 'No vendor yet') + '</option>' + ents(V).sort((a,b) => String(a[1].name).localeCompare(String(b[1].name))).map(([k,v]) => '<option value="' + esc(k) + '"' + (k === cur ? ' selected' : '') + '>' + esc(v.name || k) + '</option>').join('') + '</select>'; }
 const fpVname = k => { const v = (FPD().vendors || {})[k]; return v ? (v.name || k) : (k ? k : 'No vendor yet'); };
@@ -1614,7 +1653,7 @@ function fpVenueHTML(fp, $on, ed){
  + fp.venues.map((v, vi) => { const V = v.V;
   const menuBox = fp.meals.map(m => '<div><label class="l">' + esc(m.label) + ' menu at this venue</label><textarea rows="2" data-fpvm="' + v.vk + '|' + m.key + '"' + dis + ' placeholder="e.g. halal chicken wrap, fruit, water">' + esc((V.menu || {})[m.key] || '') + '</textarea></div>').join('');
   const head = '<div class="fpHead"><div><label class="l">Main vendor</label>' + fpVendorSel(V.vendor || '', 'data-fpvf="' + v.vk + '|vendor"' + dis) + '</div>'
-   + ($on ? '<div><label class="l">Price per person</label><input type="number" step="0.01" data-fpvf="' + v.vk + '|price" value="' + esc(fpBlank(V.price) ? '' : V.price) + '" placeholder="grid price"' + dis + '></div><div><label class="l">Venue fees (delivery, setup)</label><input type="number" step="0.01" data-fpvf="' + v.vk + '|fees" value="' + esc(fpBlank(V.fees) ? '' : V.fees) + '"' + dis + '></div>' : '')
+   + ($on ? '<div><label class="l">Price per person</label><input type="number" step="0.01" data-fpvf="' + v.vk + '|price" value="' + esc(fpBlank(v.PV.price) ? '' : v.PV.price) + '" placeholder="grid price"' + dis + '></div><div><label class="l">Venue fees (delivery, setup)</label><input type="number" step="0.01" data-fpvf="' + v.vk + '|fees" value="' + esc(fpBlank(v.PV.fees) ? '' : v.PV.fees) + '"' + dis + '></div>' : '')
    + '<div style="grid-column:1/-1"><label class="l">Notes</label><input data-fpvf="' + v.vk + '|notes" value="' + esc(V.notes || '') + '"' + dis + ' placeholder="Kitchen access, power, where food is served"></div></div>';
   const rows = '<div class="tw"><table class="fpT"><thead><tr><th>Day</th><th>Meal</th><th>Serve</th><th class="n">Count</th><th>Who</th><th>Vendor</th><th>Menu</th>' + ($on ? '<th class="n">Per person</th><th class="n">Extra</th><th class="n">Total</th>' : '') + '<th>Status</th></tr></thead><tbody>'
    + v.rows.map(r => { const id = v.vk + '|' + r.rk;
@@ -1636,7 +1675,7 @@ function fpVendorsHTML(fp, $on, ed){
  return '<div class="card"><div class="ch">F&amp;B vendors' + (ed ? '<button class="btn pri sm" type="button" id="fpAddV">Add vendor</button>' : '') + '</div>'
   + (L.length ? '<div class="tw"><table><thead><tr><th>Vendor</th><th>Type</th><th>Status</th><th>Contact</th><th>Venues</th><th class="n">Servings</th>' + ($on ? '<th class="n">Planned $</th><th class="n">Quote</th>' : '') + '</tr></thead><tbody>'
    + L.map(([k,v]) => { const u = use[k] || { venues:{}, servings:0, cost:0 };
-    return '<tr' + (ed ? ' class="cl" data-fpe="' + esc(k) + '"' : '') + '><td><b>' + esc(v.name || k) + '</b>' + (v.notes ? '<br><small>' + esc(v.notes) + '</small>' : '') + '</td><td>' + esc(v.kind || '') + '</td><td>' + esc(v.status || '') + '</td><td class="sm">' + esc([v.contactName, v.phone, v.email].filter(Boolean).join(' · ') || 'N/A') + '</td><td class="sm">' + esc(Object.keys(u.venues).join(', ') || 'None yet') + '</td><td class="n">' + nf(u.servings) + '</td>' + ($on ? '<td class="n">' + money(u.cost) + '</td><td class="n">' + (fpBlank(v.quote) ? 'N/A' : money(v.quote)) + '</td>' : '') + '</tr>'; }).join('') + '</tbody></table></div>'
+    return '<tr' + (ed ? ' class="cl" data-fpe="' + esc(k) + '"' : '') + '><td><b>' + esc(v.name || k) + '</b>' + (v.notes ? '<br><small>' + esc(v.notes) + '</small>' : '') + '</td><td>' + esc(v.kind || '') + '</td><td>' + esc(v.status || '') + '</td><td class="sm">' + esc([v.contactName, v.phone, v.email].filter(Boolean).join(' · ') || 'N/A') + '</td><td class="sm">' + esc(Object.keys(u.venues).join(', ') || 'None yet') + '</td><td class="n">' + nf(u.servings) + '</td>' + ($on ? '<td class="n">' + money(u.cost) + '</td><td class="n">' + (fpBlank(fpQuoteOf(k)) ? 'N/A' : money(fpQuoteOf(k))) + '</td>' : '') + '</tr>'; }).join('') + '</tbody></table></div>'
    : '<div class="empty">No F&amp;B vendors yet. Add one, then pick it on each venue.</div>') + '</div>'; }
 
 function fpSummaryHTML(fp, $on, ed){
@@ -1662,7 +1701,7 @@ function fpCSV(fp, $on){ const q = s => '"' + String(s == null ? '' : s).replace
  const L = [head.map(q).join(',')]; fp.venues.forEach(v => v.rows.forEach(r => L.push([v.name, r.d.label, r.m.label, r.on ? 'Yes' : 'No', r.count, r.auto, r.A ? 'Y' : '', r.V ? 'Y' : '', r.S ? 'Y' : '', fpVname(r.vendor), r.menu, r.status].concat($on ? [r.price, r.extra, Math.round(r.cost * 100) / 100] : []).map(q).join(','))));
  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([L.join('\n')], { type:'text/csv' })); a.download = 'naig-food-plan.csv'; a.click(); }
 
-OPEN.fpVendor = k => { const v = Object.assign({}, ((FPD().vendors || {})[k]) || {}), isNew = !k, $on = unlocked();
+OPEN.fpVendor = k => { const v = Object.assign({}, ((FPD().vendors || {})[k]) || {}, { quote: fpQuoteOf(k) }), isNew = !k, $on = unlocked();
  const f = (id, l, t, ph) => '<label class="l">' + l + '</label><input data-f="' + id + '"' + (t ? ' type="' + t + '"' : '') + ' value="' + esc(fpBlank(v[id]) ? '' : v[id]) + '" placeholder="' + esc(ph || '') + '">';
  openDrawer(isNew ? 'Add F&B vendor' : (v.name || 'Vendor'), f('name','Vendor name','','Business name') + '<label class="l">Type</label><select data-f="kind">' + FP_KIND.map(x => '<option' + (x === v.kind ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>'
   + '<label class="l">Status</label><select data-f="status">' + ['Prospect','Contacted','Quote requested','Quoted','Selected','Contracted','Not selected'].map(x => '<option' + (x === v.status ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>'
