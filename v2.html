@@ -257,7 +257,7 @@ const PATHS = { tasks:'tasks', venues:'venues', hotels:'hotels', prospects:'pros
  plan:'plan', sportsPlan:'sportsPlan', slotRegions:'slotRegions', headcount:'headcount', teamModel:'teamModel/sports', supportRules:'headcountModel/supportRules',
  scope:'scope', loops:'loops', flights:'flights', jk:'jamatkhanas', transportation:'transportation', transportModel:'transportModel', drivers:'drivers',
  food:'food', intake:'intake', rnr:'rnr', vendors:'vendors', docs:'docs', publicRef:'public/venueRef/venues' };
-const S = { m2m:{}, loaded:new Set(), user:null, perms:null, gUser:null };
+const S = { m2m:{}, loaded:new Set(), user:null, perms:null, gUser:null, privFood:{} };
 Object.keys(PATHS).forEach(k => S[k] = {});
 window._tasksData = S.tasks; window._venuesData = S.venues;
 const PREVIEW = /v2\.html$/.test(location.pathname);
@@ -318,6 +318,25 @@ $('#gateBtn').onclick = () => { const pr = new GoogleAuthProvider(); pr.setCusto
 $('#outBtn').onclick = () => signOut(auth).then(() => location.reload());
 
 /* ══════════ live data ══════════ */
+/* Fix 6 follow-up — food prices live under naig2027/private/foodPrices,
+   denied to anonymous readers by the rules. A read granted at a parent
+   path cannot be taken away deeper down, so prices cannot stay inside
+   food/grid. Guests never subscribe (see startPrivate), so every
+   accessor below returns "no price" for them; signed-in users get the
+   value. Note the rules grant the private paths to any signed-in Google
+   user — the UI still enforces "budget numbers shown" for prices,
+   exactly as today. */
+const privFood = () => S.privFood || {};
+const fpMealPrice = mk => { const m = (privFood().meals || {})[mk]; return (m && m.price !== undefined && m.price !== null && m.price !== '') ? num(m.price) : 0; };
+const fpBagPrice = () => { const b = (privFood().goodieBags || {}).price; return (b === undefined || b === null || b === '') ? 3 : num(b); };
+/* Private food prices (fix 6 follow-up): subscribe only for a signed-in
+   Google user. startData runs only once S.gUser exists, so this is the
+   signed-in branch; guests never subscribe and never even attempt a
+   read the rules would deny. Idempotent. */
+let privStarted = false;
+function startPrivate(){ if (privStarted || !S.gUser) return; privStarted = true;
+ onValue(R('private/foodPrices'), s => { S.privFood = s.val() || {}; ENG.dirty = true; rerender('privFood'); }, e => console.warn('[hub] private food prices refused', e && e.code)); }
+
 let started = false;
 function startData(){
  if (started) return; started = true;
@@ -327,6 +346,7 @@ function startData(){
   e => { S.loaded.add(k); console.warn('[hub] read refused', p, e && e.code); }));
  ['2027-03-24','2027-03-25','2027-03-26','2027-03-27','2027-03-28','2027-03-29'].forEach(d => onValue(R('m2m/' + d), s => { S.m2m[d] = s.val() || {}; rerender('m2m'); }, () => {}));
  setInterval(backgroundJobs, 5000);
+ startPrivate();
  onValue(ref(db, '.info/connected'), s => { const on = s.val() !== false; S.live = on; const el = $('#liveDot'); if (el) el.innerHTML = on ? '<span style="color:#4cc79a">●</span> Live, synced' : '<span style="color:#ff8a80">●</span> Offline, changes will sync when back'; }, () => {});
 }
 let rt = 0, lastKey = '';
@@ -401,13 +421,13 @@ function paintHC(){ const E = engine(), t = E.total; if (!E.ready) { $('#hcBox')
 function foodCalc(){
  const G = (S.food || {}).grid || {}, t = engine().total, A = t.athletes;
  const team = a => { const k = A ? a / A : 0; return { volunteers:Math.ceil(a / t.rules.athletesPerVolunteer), staff:Math.ceil(a / t.rules.athletesPerStaff), coaches:Math.round(t.coaches * k), chaperones:Math.ceil(Math.round(t.minors * k) / 7) }; };
- const meals = Object.entries(G.meals || {}).map(([k,m]) => ({ key:k, label:String(m.label || k), price:num(m.price), order:num(m.order) })).sort((a,b) => a.order - b.order);
+ const meals = Object.entries(G.meals || {}).map(([k,m]) => ({ key:k, label:String(m.label || k), price:fpMealPrice(k), order:num(m.order) })).sort((a,b) => a.order - b.order);
  const days = Object.entries(G.days || {}).map(([k,d]) => ({ key:k, label:String(d.label || k), note:String(d.note || ''), order:num(d.order) })).sort((a,b) => a.order - b.order);
  const cell = (dk, mk) => ((G.cells || {})[dk + '_' + mk]) || { day:dk, meal:mk, on:false, athletes:true, volunteers:true, staff:true };
  const covered = c => { const a = (c.athleteCount !== undefined && c.athleteCount !== null && c.athleteCount !== '') ? num(c.athleteCount) : A, tm = (a === A) ? { volunteers:t.volunteers, staff:t.staff, coaches:t.coaches, chaperones:t.chaperones } : team(a); let n = 0; if (c.athletes) n += a + tm.coaches + tm.chaperones; if (c.volunteers) n += tm.volunteers; if (c.staff) n += tm.staff; return n; };
  let grand = 0, servings = 0, on = 0; const byDay = {}, byMeal = {};
  days.forEach(d => { meals.forEach(m => { const c = cell(d.key, m.key); if (!c.on) return; const n = covered(c), v = n * m.price; on++; servings += n; grand += v; byDay[d.key] = (byDay[d.key] || 0) + v; byMeal[m.key] = (byMeal[m.key] || 0) + v; }); });
- const Bg = G.goodieBags || {}, price = (Bg.price === undefined || Bg.price === '' || Bg.price === null) ? 3 : num(Bg.price), h = engine().hotels;
+ const Bg = G.goodieBags || {}, price = fpBagPrice(), h = engine().hotels;
  const bagCount = h ? h.guests : Math.ceil(A * ((Bg.pct === undefined || Bg.pct === '') ? 75 : num(Bg.pct)) / 100);
  return { meals, days, cell, covered, grand, servings, on, byDay, byMeal, bags:{ count:bagCount, price, cost:bagCount * price }, total:grand + bagCount * price };
 }
@@ -441,7 +461,8 @@ async function backgroundJobs(){
   for (const [k,v] of Object.entries(S.venues)) if (v && !v.archived && CLOSED.test(String(v.status || '').trim())) await update(R('venues/' + k), { archived:true, archivedAt:new Date().toISOString(), archivedBy:'auto: status ' + v.status });
   // 5. food total that the Budget reads
   const G = (S.food || {}).grid; if (G && G.meals && E.ready) { const fc = foodCalc(), fs = [Math.round(fc.total), Math.round(fc.grand), fc.servings].join('|');
-   if (fs !== lastFood && (Math.round(num(G.computedTotal)) !== Math.round(fc.total) || Math.round(num(G.computedMealsTotal)) !== Math.round(fc.grand))) await update(R('food/grid'), { computedTotal:fc.total, computedMealsTotal:fc.grand, computedServings:fc.servings, computedGoodieBags:fc.bags, drivesBudget:true }); lastFood = fs; }
+   const PC = (S.privFood || {}).computed || {};
+   if (fs !== lastFood && (Math.round(num(PC.computedTotal)) !== Math.round(fc.total) || Math.round(num(PC.computedMealsTotal)) !== Math.round(fc.grand))) await update(R('private/foodPrices/computed'), { computedTotal:fc.total, computedMealsTotal:fc.grand, computedServings:fc.servings, computedGoodieBags:fc.bags, drivesBudget:true }); lastFood = fs; }
  } catch(e) { console.warn('[hub jobs]', e && e.message); }
  jobBusy = false;
 }
