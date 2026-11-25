@@ -794,6 +794,31 @@ RENDER.home = () => {
  const seg = { blocked:['Blocked','bad', by('blocked')], overdue:['Overdue','bad', by('overdue')], week:['Next 7 days','warn', by('week')], nodate:['No date','', by('nodate')], stale:['No update in 14 days','warn', act.filter(t => (Date.now() - (Date.parse(t.updated || t.created || '') || 0)) > 14 * 864e5).sort((a,c) => String(a.updated || '').localeCompare(String(c.updated || '')))] };
  const V = arr(S.venues).filter(v => v.name && !v.archived), conf = V.filter(v => /confirmed|committed|signed/i.test((v.status||'') + ' ' + (v.pipelineStatus||'')));
  const E = engine(), h = E.hotels, t = E.total;
+ /* Fix 7 — Overview tiles: the headline number from every section, reusing
+    each page's own computation verbatim, so Today always matches the page
+    the tile links to. Count tiles show for everyone who can see Today;
+    money tiles render only when unlocked() (see bCalc) and the Access
+    tile only for manage-tier users. No date-of-birth data anywhere here. */
+ const msAll = MS(), msDone = msAll.filter(m => /done|complete/i.test(msStatus(m))).length;
+ const fc7 = foodCalc();
+ const pEveryone = PList(), pWhy = p => isTbdP(p) ? 'tbd' : outsideLogistics(p) ? 'out' : !isConfP(p) ? 'unconf' : '', pAll = PEOPLE_ALL ? pEveryone.filter(p => !isTbdP(p)) : pEveryone.filter(p => !pWhy(p)), pHid = { tbd: pEveryone.filter(p => pWhy(p) === 'tbd').length, out: pEveryone.filter(p => pWhy(p) === 'out').length, unconf: pEveryone.filter(p => pWhy(p) === 'unconf').length }, pHidden = PEOPLE_ALL ? 0 : pHid.tbd + pHid.out + pHid.unconf;
+ const dAll = DList(), dEx = dAll.filter(d => /executed|signed/i.test(d.status || '')).length;
+ const fAll = AList(), fLive = fAll.filter(a => a.status !== 'Cancelled'), fPpl = fLive.reduce((s, a) => s + (num(a.people) || 1), 0), fNeed = fLive.filter(a => a.pickup === 'Yes' && !a.assigned), fNeedPpl = fNeed.reduce((s, a) => s + (num(a.people) || 1), 0);
+ const aKnown = new Set(PList().map(x => String(x.email || '').trim().toLowerCase()).filter(Boolean)), aReqs = ents(S.accessRequests).filter(([k,r]) => r.status === 'pending' && !aKnown.has(String(r.email || '').trim().toLowerCase()));
+ const rAll = raidItems(), rTd = today(), rOpenR = rAll.filter(x => x.type === 'Risk' && rdOpen(x)), rHiR = rOpenR.filter(x => rdScore(x) >= 6), rOpenI = rAll.filter(x => x.type === 'Issue' && rdOpen(x)), rOdA = rAll.filter(x => x.type === 'Action' && rdOpen(x) && x.due && x.due < rTd);
+ /* Budget total, verbatim from RENDER.budget (kept here, not hoisted, so
+    the Budget page itself is untouched). It only runs when unlocked(), so
+    guests and hidden-number states never touch the money paths. */
+ const bCalc = (() => { if (!unlocked()) return null;
+  const B = S.budget || {}, scope = budgetScope(), inScope = k => scope === 'all' || !CAT_VERT[k] || CAT_VERT[k] === scope,
+   cats = ents(B.categories).sort((a,b) => num(a[1].order) - num(b[1].order)).filter(([k]) => inScope(k));
+  const parseFee = raw => { const s = String(raw || '').trim(); if (!s || /included in/i.test(s) || /\btbc\b|to quote|awaiting quote|not quoted/i.test(s)) return 0; const mm = s.replace(/,/g,'').match(/\$\s*(\d+(?:\.\d+)?)/); if (!mm) return 0; const n = parseFloat(mm[1]), head = s.replace(/\([^)]*\)/g,' '); if (/per\s*(2\s*-?\s*hour|hour|hr|session|court|person)|\/\s*hr/i.test(head) || n < 1000) return 0; return n; };
+  const nrm = s => String(s || '').toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
+  const liveV = Object.keys(E.bySV).filter(n => n && n !== 'TBD').map(n => { const sn = nrm(n), hit = Object.values(S.venues).find(v => v && !v.archived && nrm(v.name).indexOf(sn) === 0); return { name:n, amount:hit ? parseFee(hit.rentalFee) : 0 }; });
+  const venAuto = liveV.reduce((a,x) => a + x.amount, 0);
+  const amt = (k, c) => k === 'food' && c.mode === 'auto' ? fc7.total : (k === 'venues' && c.mode === 'auto') ? venAuto : num(c.amount);
+  const inc = cats.filter(([k,c]) => c.mode !== 'excluded'), total = inc.reduce((a,[k,c]) => a + amt(k, c), 0);
+  return { total, inc, scope }; })();
  const wk = []; for (let i = 7; i >= 0; i--) { const end = Date.now() - i * 7 * 864e5, start = end - 7 * 864e5; wk.push(all.filter(x => x.status === 'done' && Date.parse(x.updated || '') > start && Date.parse(x.updated || '') <= end).length); }
  const smax = Math.max(1, ...wk), spark = '<svg viewBox="0 0 100 24" width="100%" height="26" preserveAspectRatio="none" aria-hidden="true"><polyline fill="none" stroke="var(--gold)" stroke-width="2" vector-effect="non-scaling-stroke" points="' + wk.map((v,i) => (i * 100 / 7).toFixed(1) + ',' + (22 - v / smax * 20).toFixed(1)).join(' ') + '"/></svg>';
  const kpi = (l, n, s, cls, go, extra) => '<button class="kpi ' + (cls || '') + '" data-go="' + go + '" type="button"><span>' + l + '</span><b>' + n + '</b><small>' + s + '</small>' + (extra || '') + '</button>';
@@ -802,7 +827,23 @@ RENDER.home = () => {
   + kpi('Closed this week', wk[7], 'last 8 weeks', '', 'tasks|tog|done', spark)
   + kpi('Venues confirmed', conf.length + ' of ' + V.length, 'active venues', '', 'venues')
   + kpi('Athletes', nf(t.athletes), nf(t.onSite) + ' on site in total', '', 'program')
-  + (h ? kpi('Hotel rooms', nf(h.blocked) + ' of ' + nf(h.rooms), (h.rooms > h.blocked ? nf(h.rooms - h.blocked) + ' still to source' : 'covered') + ' · blocks proposed, not signed', h.rooms > h.blocked ? 'warn' : 'good', 'hotels') : '') + '</div>';
+  + (h ? kpi('Hotel rooms', nf(h.blocked) + ' of ' + nf(h.rooms), (h.rooms > h.blocked ? nf(h.rooms - h.blocked) + ' still to source' : 'covered') + ' · blocks proposed, not signed', h.rooms > h.blocked ? 'warn' : 'good', 'hotels') : '')
+  + kpi('Milestones', msDone + ' / ' + msAll.length, Math.round(msDone / Math.max(1, msAll.length) * 100) + '% done', '', 'plan')
+  + (bCalc ? kpi('Budget total', money(bCalc.total), money(bCalc.total / Math.max(1, t.athletes)) + ' per athlete · ' + bCalc.inc.length + ' categories' + (bCalc.scope === 'all' ? '' : ' · ' + esc(bCalc.scope) + ' only'), '', 'budget') : '')
+  + kpi('Servings', nf(fc7.servings), fc7.on + ' meal slots on', '', 'food')
+  + (unlocked() ? kpi('Food total', money(fc7.total), 'meals ' + money(fc7.grand) + ' + bags ' + money(fc7.bags.cost), '', 'food') : '')
+  + kpi('People', pAll.length, (PEOPLE_ALL ? 'everyone (TBD hidden)' : 'confirmed, in Logistics') + (pHidden ? ' · ' + pHidden + ' hidden: ' + [pHid.tbd && pHid.tbd + ' TBD', pHid.out && pHid.out + ' outside Logistics', pHid.unconf && pHid.unconf + ' not confirmed'].filter(Boolean).join(', ') : ''), '', 'people')
+  + kpi('Verticals', new Set(pAll.map(p => p.vertical).filter(Boolean)).size, 'teams', '', 'people')
+  + kpi('No email', pAll.filter(p => !p.email).length, 'cannot sign in yet', 'warn', 'people|email|No')
+  + kpi('Documents', dAll.length, 'on file', '', 'docs')
+  + kpi('Executed', dEx, 'signed', 'good', 'docs|status|Executed')
+  + kpi('People arriving', nf(fPpl), fLive.length + ' flights logged', '', 'flights')
+  + kpi('Pickups to assign', fNeed.length, nf(fNeedPpl) + (fNeedPpl === 1 ? ' person' : ' people'), fNeed.length ? 'warn' : 'good', 'flights|pickup|Needs a pickup')
+  + ((S.perms && S.perms.manage) ? kpi('Access requests', aReqs.length, 'waiting for approval', aReqs.length ? 'bad' : 'good', 'access') : '')
+  + kpi('Open risks', rOpenR.length, rHiR.length + ' high', rHiR.length ? 'bad' : '', 'raid')
+  + kpi('Open issues', rOpenI.length, 'happening now', rOpenI.length ? 'bad' : 'good', 'raid')
+  + kpi('Overdue actions', rOdA.length, 'past due date', rOdA.length ? 'warn' : 'good', 'raid')
+  + '</div>';
  const cur2 = seg[HSEG] && seg[HSEG][2].length ? HSEG : (Object.keys(seg).find(k => seg[k][2].length) || 'blocked'), list = seg[cur2][2];
  const mineUrg = x => ['overdue','blocked','week'].includes(bucket(x));
  const mineSorted = mine.slice().sort((a,c) => ((mineUrg(c) ? 1 : 0) - (mineUrg(a) ? 1 : 0)) || (due(a) || '9').localeCompare(due(c) || '9'));
@@ -2205,10 +2246,37 @@ function raidOpen(id){ const x = id ? Object.assign({}, ((S.plan.raid || {}).ite
 /* weekly area status on Today */
 const wkKey = d => { const x = new Date((d || today()) + 'T12:00:00'); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x.toISOString().slice(0,10); };
 const RAG = { Green:'good', Amber:'warn', Red:'bad' };
+/* Fix 7 — weekly area status, auto-derived: plan/weekly is empty (no lead
+   has ever set a status), so the card was blank for every area. When no
+   manual entry exists for this week (or last week, shown "(last week)"),
+   derive the status from hub data at render time — no writes, no new
+   data paths. A lead's manual update still overrides the auto status. */
+function weeklyAuto(a){
+ const open = taskList().filter(t => isOpen(t) && area(t) === a);
+ const odN = open.filter(t => bucket(t) === 'overdue').length;
+ const blN = open.filter(t => bucket(t) === 'blocked').length;
+ const wkN = open.filter(t => bucket(t) === 'week').length;
+ const rd = raidItems().filter(x => rdOpen(x) && (x.area || '') === a);
+ const iss = rd.filter(x => x.type === 'Issue').length;
+ const hiR = rd.filter(x => x.type === 'Risk' && rdScore(x) >= 6).length;
+ const odA = rd.filter(x => x.type === 'Action' && x.due && x.due < today()).length;
+ const rag = (odN || blN || iss) ? 'Red' : (wkN || hiR || odA) ? 'Amber' : 'Green';
+ const parts = [];
+ if (odN) parts.push(odN + ' overdue');
+ if (blN) parts.push(blN + ' blocked');
+ if (iss) parts.push(iss + (iss === 1 ? ' open issue' : ' open issues'));
+ if (wkN) parts.push(wkN + ' due this week');
+ if (hiR) parts.push(hiR + (hiR === 1 ? ' high risk' : ' high risks'));
+ if (odA) parts.push(odA + (odA === 1 ? ' overdue action' : ' overdue actions'));
+ if (!parts.length) parts.push(open.length || rd.length ? (open.length + rd.length) + ' open · nothing urgent' : 'Nothing open');
+ return { rag, note: parts.join(' · ') };
+}
 function weeklyCard(){ const wk = wkKey(), prev = addDays(wk, -7), W = (S.plan.weekly || {}), cur = W[wk] || {}, last = W[prev] || {}, areas = rdAreas();
- const rows = areas.map(a => { const c = cur[a.replace(/[.#$\/\[\]]/g, '_')], l = last[a.replace(/[.#$\/\[\]]/g, '_')], x = c || l; return '<div class="wkR"><div><b>' + esc(a) + '</b><div class="sm">' + (x ? esc(x.note || '') + (c ? '' : ' <i>(last week)</i>') + (x.by ? ' · ' + esc(x.by) : '') : 'No update yet this week') + '</div></div>' + (x ? '<span class="pill ' + (RAG[x.rag] || '') + (c ? '' : ' wkOld') + '">' + esc(x.rag) + '</span>' : '<span class="pill">—</span>') + '</div>'; }).join('');
+ const rows = areas.map(a => { const k = a.replace(/[.#$\/\[\]]/g, '_'), c = cur[k], l = last[k], x = c || l;
+  if (x) return '<div class="wkR"><div><b>' + esc(a) + '</b><div class="sm">' + esc(x.note || '') + (c ? '' : ' <i>(last week)</i>') + (x.by ? ' · ' + esc(x.by) : '') + '</div></div><span class="pill ' + (RAG[x.rag] || '') + (c ? '' : ' wkOld') + '">' + esc(x.rag) + '</span></div>';
+  const au = weeklyAuto(a); return '<div class="wkR"><div><b>' + esc(a) + '</b><div class="sm">' + esc(au.note) + ' <i>(auto)</i></div></div><span class="pill ' + (RAG[au.rag] || '') + '">' + esc(au.rag) + '</span></div>'; }).join('');
  const done = areas.filter(a => cur[a.replace(/[.#$\/\[\]]/g, '_')]).length;
- return '<div class="card" id="wkCard"><div class="vdHead"><h2>Weekly area status · week of ' + fmtD(wk) + '</h2><span class="pill ' + (done === areas.length ? 'good' : 'warn') + '">' + done + ' of ' + areas.length + ' areas updated</span></div><p class="hint">Each lead sets green, amber or red with one line by Thursday.</p><div class="wkG">' + rows + '</div>' + (canEdit() ? '<div class="vdAct"><button class="btn pri" id="wkUpd" type="button">Update an area</button> <a class="btn" href="?tab=raid">RAID log</a></div>' : '') + '</div>'; }
+ return '<div class="card" id="wkCard"><div class="vdHead"><h2>Weekly area status · week of ' + fmtD(wk) + '</h2><span class="pill ' + (done === areas.length ? 'good' : 'warn') + '">' + done + ' of ' + areas.length + ' areas updated</span></div><p class="hint">Each lead sets green, amber or red with one line by Thursday. Areas without an update show a status derived from open tasks and RAID, marked (auto); a manual update overrides it.</p><div class="wkG">' + rows + '</div>' + (canEdit() ? '<div class="vdAct"><button class="btn pri" id="wkUpd" type="button">Update an area</button> <a class="btn" href="?tab=raid">RAID log</a></div>' : '') + '</div>'; }
 function weeklyOpen(){ const wk = wkKey(), areas = rdAreas(), W = (S.plan.weekly || {})[wk] || {};
  openDrawer('Weekly status · week of ' + fmtD(wk), '<label class="l">Area</label><select id="wkA">' + areas.map(a => '<option>' + esc(a) + '</option>').join('') + '</select><label class="l">Status</label><div class="seg" id="wkRag">' + Object.keys(RAG).map(r => '<button type="button" data-rag="' + r + '">' + r + '</button>').join('') + '</div><label class="l">One line: what changed, what is stuck</label><input id="wkN" maxlength="200">',
   '<button class="btn pri" id="wkSave" type="button">Save</button>');
