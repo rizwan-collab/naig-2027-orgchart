@@ -18259,6 +18259,12 @@ function money(n){ return '$' + Math.round(n).toLocaleString('en-US'); }
 function rg(a,b){ a=Math.round(a); b=Math.round(b); return a===b ? nf(a) : nf(a)+'\u2013'+nf(b); }
 function rm(a,b){ a=Math.round(a); b=Math.round(b); return a===b ? money(a) : money(a)+'\u2013'+money(b); }
 
+/* Fix 6 follow-up — the computed food totals live under
+   private/foodPrices/computed (signed-in only). Guests never fetch
+   them, so __privComp stays empty for them and apply() falls through
+   to the flat-rate estimate branch below. */
+var __privComp = {};
+
 function apply(food){
   var tile = document.getElementById('naigHeadFood');
   if(!tile) return false;
@@ -18305,7 +18311,7 @@ function apply(food){
   setCell(cells[0], rg(lo,hi), String(sc.label || basis).slice(0, 48));
   setCell(cells[1], rg(lo+vol+staff,hi+vol+staff), nf(lo) + ' athletes + ' + nf(vol) + ' volunteers + ' + nf(staff) + ' staff');
   setCell(cells[2], rg(lo+vol+staff,hi+vol+staff), 'everyone on site, per meal · veg ' + rg((lo+vol+staff)*vegF,(hi+vol+staff)*vegF));
-  var __fg = food.grid || {};
+  var __fg = Object.assign({}, food.grid || {}, __privComp);
 var __gt = Number(__fg.computedTotal) || 0;
 if (__fg.drivesBudget && __gt > 0) {
   var __fed = (lo + vol + staff) * days;
@@ -18355,6 +18361,22 @@ function load(){
       var food = s.val() || {};
       window.__naigFood = food;
       apply(food);
+      /* Fix 6 follow-up — fetch the private computed totals once auth
+         has settled (window._authReady); guests never fetch them.
+         apply() re-runs with the private figure when it lands. */
+      (function(){
+        var n = 0;
+        var iv = setInterval(function(){
+          n++;
+          if (window._authReady || n > 25) {
+            clearInterval(iv);
+            if (!window._gUser) return;
+            import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js').then(function(m2){
+              return m2.get(_dbRef('naig2027/private/foodPrices/computed'));
+            }).then(function(x){ __privComp = x.val() || {}; apply(food); }).catch(function(){});
+          }
+        }, 200);
+      })();
       var done = false;
       if(!done){
         var n = 0;
@@ -18746,6 +18768,11 @@ var FB = null;
 var G = { venues:{}, food:{}, team:{}, trans:{}, hotels:{} };
 var B = null;
 var saveTimer = null;
+/* Fix 6 follow-up — the computed food totals live under
+   private/foodPrices/computed (signed-in only). Guests never subscribe,
+   so this stays empty for them and the flat-rate fallback below is
+   what they see. */
+var privComp = {};
 var showVenues = false;
 
 var ORDER = ['food','transportation','hotels','venues','rentals','signage'];
@@ -18820,7 +18847,7 @@ function headcount(){
   return { ath:ath, vol:vol, staff:staff, fed:ath+vol+staff, rate:Number(a.ratePerPersonPerDay)||0, days:4, label:String(sc.label||basis) };
 }
 function foodComputed(){
-  var g = (G.food && G.food.grid) || {};
+  var g = privComp;
   if(g.drivesBudget && Number(g.computedTotal) > 0) return Number(g.computedTotal);
   var h = headcount();
   return h.fed * h.rate * h.days;
@@ -18868,11 +18895,11 @@ function onRecord(key){
   if(key === 'food'){
     var h = headcount();
     var gg = (G.food && G.food.grid) || {};
-    if(gg.drivesBudget && Number(gg.computedTotal) > 0){
+    if(privComp.drivesBudget && Number(privComp.computedTotal) > 0){
       var onN = 0, totN = 0;
       Object.keys(gg.cells||{}).forEach(function(ck){ totN++; if(gg.cells[ck].on) onN++; });
-      var gb = gg.computedGoodieBags || null; var mt = Number(gg.computedMealsTotal) || Number(gg.computedTotal) || 0;
-      return 'Food tab: meals $' + nf(mt) + (gb && Number(gb.cost) > 0 ? ' + goodie bags $' + nf(gb.cost) + ' (' + nf(gb.count) + ' bags)' : '') + ' · ' + onN + ' of ' + totN + ' meal slots on · ' + nf(gg.computedServings||0) + ' servings';
+      var gb = privComp.computedGoodieBags || null; var mt = Number(privComp.computedMealsTotal) || Number(privComp.computedTotal) || 0;
+      return 'Food tab: meals $' + nf(mt) + (gb && Number(gb.cost) > 0 ? ' + goodie bags $' + nf(gb.cost) + ' (' + nf(gb.count) + ' bags)' : '') + ' · ' + onN + ' of ' + totN + ' meal slots on · ' + nf(privComp.computedServings||0) + ' servings';
     }
     return nf(h.ath) + ' athletes + ' + nf(h.vol) + ' volunteers + ' + nf(h.staff) + ' staff · $' + h.rate + '/day flat-rate cross-check';
   }
@@ -19161,6 +19188,20 @@ function load(section){
         FB.onValue(_dbRef('naig2027/headcount'), function(hs){ G.headcount = hs.val() || {}; render(); });
         FB.onValue(_dbRef('naig2027/venues'),    function(vs){ G.venues    = vs.val() || {}; render(); if(window._publishVenueMirror) window._publishVenueMirror(G.venues); });
         FB.onValue(_dbRef('naig2027/food'),      function(fs){ G.food      = fs.val() || {}; render(); });
+        /* Fix 6 follow-up — the computed food totals live under
+           private/foodPrices/computed (signed-in only). Subscribe once
+           auth has settled; guests never subscribe, so they never even
+           attempt a read the rules would deny. */
+        (function(){
+          var n = 0;
+          var iv = setInterval(function(){
+            n++;
+            if (window._authReady || n > 25) {
+              clearInterval(iv);
+              if (window._gUser) { try { FB.onValue(_dbRef('naig2027/private/foodPrices/computed'), function(s){ privComp = s.val() || {}; render(); }, function(){}); } catch(e){} }
+            }
+          }, 200);
+        })();
       } catch(e){}
       window.__naigBudgetReload = function(){
         return FB.get(_dbRef('naig2027/food')).then(function(f){
@@ -19212,12 +19253,24 @@ if (window.__naigFoodGridBooted) { return; }
 window.__naigFoodGridBooted = true;
 // Re-render when the single-source headcount changes.
 var __fgHc = '';
-setInterval(function(){ var H = window._headcount || {}; var hh = (window.NAIG && NAIG.hotels) ? NAIG.hotels() : null; var s = String(H.athletes || '') + '|' + (hh ? hh.guests : ''); if (s !== __fgHc) { __fgHc = s; if (G && document.getElementById('fgBody')) { try { render(); } catch(e) { console.warn('[foodGrid] rerender', e); } try { var _t = totals(); if (FB && window._gUser && Math.round(_t.all) !== Math.round(Number(G.computedTotal) || 0)) { G.computedTotal = _t.all; queueSave(); } } catch(e) {} } } }, 3000);
+setInterval(function(){ var H = window._headcount || {}; var hh = (window.NAIG && NAIG.hotels) ? NAIG.hotels() : null; var s = String(H.athletes || '') + '|' + (hh ? hh.guests : ''); if (s !== __fgHc) { __fgHc = s; if (G && document.getElementById('fgBody')) { try { render(); } catch(e) { console.warn('[foodGrid] rerender', e); } try { var _t = totals(); if (FB && window._gUser && Math.round(_t.all) !== Math.round(Number((FP.computed || {}).computedTotal) || 0)) { if(!FP.computed) FP.computed = {}; FP.computed.computedTotal = _t.all; queueSave(); } } catch(e) {} } } }, 3000);
 
 var FB = null;
 var G = null;
 var A = {};
 var saveTimer = null;
+/* Fix 6 follow-up — food prices live under naig2027/private/foodPrices,
+   denied to anonymous readers by the rules (a read granted at a parent
+   path cannot be taken away deeper down, so prices cannot stay inside
+   food/grid). FP holds the private mirror; guests never fetch it, so
+   every accessor below returns "no price" for them. privLoaded is set
+   once the private data has arrived — persist() skips the private write
+   until then, so an edit made before prices arrive can never overwrite
+   them with zeros. */
+var FP = { meals:{}, goodieBags:{}, computed:{} };
+var privLoaded = false;
+function fpMealPrice(k){ var m = (FP.meals || {})[k]; return (m && m.price !== undefined && m.price !== null && m.price !== '') ? (Number(m.price) || 0) : 0; }
+function fpBagPrice(){ var b = (FP.goodieBags || {}).price; return (b === undefined || b === null || b === '') ? 3 : (Number(b) || 0); }
 
 function nf(n){ return Math.round(n).toLocaleString('en-US'); }
 function money(n){ return '$' + Math.round(n).toLocaleString('en-US'); }
@@ -19244,7 +19297,7 @@ function bags(){
   // Goodie bags for hotel guests. Hotel count is not known yet, so 75% of athletes at $3 (Rizwan, 19 Oct 2026).
   var Bg = (G && G.goodieBags) || {};
   var pct = (Bg.pct === undefined || Bg.pct === null || Bg.pct === '') ? 75 : (Number(Bg.pct) || 0);
-  var price = (Bg.price === undefined || Bg.price === null || Bg.price === '') ? 3 : (Number(Bg.price) || 0);
+  var price = fpBagPrice();
   var hh = (window.NAIG && NAIG.hotels) ? NAIG.hotels() : null;
   // 19 Oct 2026: bags go to hotel guests (travelling athletes + travelling team). 75% stays only as a fallback.
   var count = hh ? hh.guests : Math.ceil(heads().athletes * pct / 100);
@@ -19262,7 +19315,7 @@ function bagTile(b){
 function mealList(){
   var m = G.meals || {};
   return Object.keys(m).map(function(k){
-    return { key:k, label:String(m[k].label||k), price:Number(m[k].price)||0, order:Number(m[k].order)||0 };
+    return { key:k, label:String(m[k].label||k), price:fpMealPrice(k), order:Number(m[k].order)||0 };
   }).sort(function(a,b){ return a.order - b.order; });
 }
 function dayList(){
@@ -19322,8 +19375,8 @@ function flash(msg, color){
 function persist(){
   if(!FB) return;
   var t = totals();
-  var meals = {};
-  mealList().forEach(function(m){ meals[m.key] = { label:m.label, price:m.price, order:m.order }; });
+  var mealsPub = {}, mealsPriv = {};
+  mealList().forEach(function(m){ mealsPub[m.key] = { label:m.label, order:m.order }; mealsPriv[m.key] = { price:m.price }; });
   var cells = {};
   Object.keys(G.cells || {}).forEach(function(k){
     var c = G.cells[k];
@@ -19332,19 +19385,25 @@ function persist(){
     if (c.note) cells[k].note = c.note;
   });
   flash('saving…', '#94a3b8');
-  FB.update(_dbRef('naig2027/food/grid'), {
-    meals: meals,
+  /* Fix 6 follow-up — prices live under private/foodPrices (signed-in
+     only). The public grid keeps labels, order, cells, the goodie-bag
+     pct and the team rule; meal prices, the goodie-bag price and the
+     computed totals go to the private mirror. The private half is
+     skipped until the private data has loaded (privLoaded). */
+  var jobs = [FB.update(_dbRef('naig2027/food/grid'), {
+    meals: mealsPub,
     cells: cells,
-    computedTotal: t.all,
-    computedMealsTotal: t.grand,
-    goodieBags: { pct: t.bags.pct, price: t.bags.price },
-    computedGoodieBags: { count: t.bags.count, cost: t.bags.cost },
+    goodieBags: { pct: t.bags.pct },
     teamRule: '1 volunteer per 3 athletes, 1 staff per 100 athletes, rounded up (19 Oct 2026)',
-    computedServings: t.servings,
-    drivesBudget: true,
     updatedAt: new Date().toISOString(),
     updatedBy: 'hub-food-grid'
-  }).then(function(){
+  })];
+  if (privLoaded) jobs.push(FB.update(_dbRef('naig2027/private/foodPrices'), {
+    meals: mealsPriv,
+    goodieBags: { price: t.bags.price },
+    computed: { computedTotal: t.all, computedMealsTotal: t.grand, computedGoodieBags: { count: t.bags.count, cost: t.bags.cost }, computedServings: t.servings, drivesBudget: true }
+  }));
+  Promise.all(jobs).then(function(){
     flash('saved ✓', '#22c55e');
     try { if(typeof window.__naigBudgetReload === 'function') window.__naigBudgetReload(); } catch(e){}
     try { if(typeof window.__naigHeadcountReload === 'function') window.__naigHeadcountReload(); } catch(e){}
@@ -19476,7 +19535,8 @@ function wire(panel){
     if(k){
       var v = parseFloat(String(t.value||'').replace(/[^0-9.]/g,''));
       if(isNaN(v) || v < 0) v = 0;
-      G.meals[k].price = v;
+      /* Meal prices live under private/foodPrices/meals (fix 6 follow-up) — never on the public record. */
+      if(!FP.meals) FP.meals = {}; FP.meals[k] = Object.assign({}, FP.meals[k], { price: v });
       var tt = totals();
       var kv = panel.querySelector('.fg-big .fg-kv');
       if(kv) kv.textContent = money(tt.all);
@@ -19500,8 +19560,9 @@ function wire(panel){
     if(bk){
       var v = parseFloat(String(t.value || '').replace(/[^0-9.]/g, ''));
       if(isNaN(v) || v < 0) v = 0;
-      if(!G.goodieBags) G.goodieBags = {};
-      G.goodieBags[bk] = v;
+      /* The goodie-bag price lives under private/foodPrices/goodieBags (fix 6 follow-up); pct stays public. */
+      if (bk === 'price') { if(!FP.goodieBags) FP.goodieBags = {}; FP.goodieBags.price = v; }
+      else { if(!G.goodieBags) G.goodieBags = {}; G.goodieBags[bk] = v; }
       render();
       queueSave();
     }
@@ -19545,6 +19606,16 @@ function mount(){
 }
 
 function load(){
+  /* Fix 6 follow-up — wait for auth to settle (window._authReady, set by
+     the main auth module) before deciding whether to fetch the private
+     food prices. Guests never fetch them, so they never even attempt a
+     read the rules would deny. */
+  var waited = 0;
+  var wiv = setInterval(function(){
+    waited++;
+    if (window._authReady || waited > 25) { clearInterval(wiv); doLoad(); }
+  }, 200);
+  function doLoad(){
   return import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js')
     .then(function(mod){
       FB = mod;
@@ -19559,8 +19630,13 @@ function load(){
       A = s[1].val() || {};
       window.__naigFoodScenarios = s[2].val() || {};
       if(!G.cells) G.cells = {};
-      styles();
-      if(mount()) render();
+      /* Private food prices (fix 6 follow-up): fetch before the first
+         render, so an edit can never save before prices are known —
+         persist() skips the private write until privLoaded is set. */
+      var firstRender = function(){ styles(); if(mount()) render(); };
+      if (window._gUser) {
+        FB.get(_dbRef('naig2027/private/foodPrices')).then(function(x){ FP = x.val() || {}; privLoaded = true; firstRender(); }).catch(function(){ firstRender(); });
+      } else firstRender();
       window.__naigFoodGridReload = function(){
         return FB.get(_dbRef('naig2027/food/headcountScenarios')).then(function(x){
           window.__naigFoodScenarios = x.val() || {};
@@ -19572,6 +19648,7 @@ function load(){
     .catch(function(e){
       try { console.log('[naigFoodGrid] ' + (e && e.message ? e.message : e)); } catch(x){}
     });
+  }
 }
 
 var tries = 0;
@@ -19611,6 +19688,23 @@ function nf(n){ return Math.round(n).toLocaleString('en-US'); }
 function money(n){ return '$' + Math.round(n).toLocaleString('en-US'); }
 function esc(s){ if(s===null||s===undefined) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+/* Fix 6 follow-up — the computed food total lives under
+   private/foodPrices/computed (signed-in only). Guests never fetch it,
+   so __privComp stays empty for them and the grid comparison shows
+   N/A, as it does when no grid total exists. */
+var __privComp = {};
+function loadPrivComp(){
+  var n = 0;
+  var iv = setInterval(function(){
+    n++;
+    if (window._authReady || n > 25) {
+      clearInterval(iv);
+      if (window._gUser && FB) {
+        FB.get(_dbRef('naig2027/private/foodPrices/computed')).then(function(x){ __privComp = x.val() || {}; render(); }).catch(function(){});
+      }
+    }
+  }, 200);
+}
 function grid(){ return (window.__naigFoodGridData) || {}; }
 function dayOpts(){
   var d = grid().days || {};
@@ -19619,7 +19713,7 @@ function dayOpts(){
 }
 function mealOpts(){
   var m = grid().meals || {};
-  return Object.keys(m).map(function(k){ return { key:k, label:String(m[k].label||k), price:Number(m[k].price)||0, order:Number(m[k].order)||0 }; })
+  return Object.keys(m).map(function(k){ return { key:k, label:String(m[k].label||k), order:Number(m[k].order)||0 }; })
     .sort(function(a,b){ return a.order - b.order; });
 }
 function slotHeads(dk, mk){
@@ -19743,7 +19837,7 @@ function render(){
   var list = filterDay === 'all' ? all : all.filter(function(r){ return r.day === filterDay || r.day === ''; });
   var t = totals(all);
   var g = grid();
-  var gridCost = Number(g.computedTotal) || 0;
+  var gridCost = Number(__privComp.computedTotal) || 0;
   var diff = t.cost - gridCost;
 
   var ds = dayOpts(), ms = mealOpts();
@@ -19893,10 +19987,12 @@ function load(){
       };
       styles();
       if(mount()) render();
+      loadPrivComp();
       window.__naigFoodMenuReload = function(){
         return FB.get(_dbRef('naig2027/food/grid')).then(function(x){
           window.__naigFoodGridData = x.val() || {};
           render();
+          loadPrivComp();
         });
       };
     })
