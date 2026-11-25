@@ -233,7 +233,7 @@ a.it{text-decoration:none;color:inherit;display:block}
 #scBar{padding:10px 14px 4px;display:flex;flex-direction:column;gap:4px}#scBar label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.7}#scBar select{width:100%;color:#111;background:#fff}#scBar small{font-size:11px;opacity:.75}
 .fpHead{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:12px 0}
 .fpMenu{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;padding:8px 16px 14px}
-.fpT{min-width:1180px}.fpT td{vertical-align:middle;white-space:nowrap}.fpT .who{flex-wrap:nowrap}.fpT .sel{min-width:150px}.fpT tr.off td{opacity:.5}.fpT input.fpN{width:84px;text-align:right}.fpT input.fpM{min-width:200px}.fpT .sel{max-width:180px}
+.fpT{min-width:1180px}.fpT td{vertical-align:middle;white-space:nowrap}.fpT .who{flex-wrap:nowrap}.fpT .sel{min-width:150px}.fpT tr.off td{opacity:.5}.fpT input.fpN{width:84px;text-align:right}.fg input.fpN{width:72px;text-align:right}.fpT input.fpM{min-width:200px}.fpT .sel{max-width:180px}
 .fpT .who button.on{background:var(--navy);color:#fff;border-color:var(--navy)}.fpT tr.fsum td{font-weight:700;background:var(--panel2)}
 details.fpV>summary{cursor:pointer;font-size:16px;padding:2px 0 8px}
 .dkLive table{font-size:26px}.dkLive{font-size:28px}
@@ -1139,10 +1139,10 @@ function anyHTML(o){ if (o == null || o === '') return ''; if (typeof o !== 'obj
 const foodGrid = () => { const F = S.food || {}, G = F.grid || {}, fc = foodCalc(), $on = unlocked(), ed = canEdit(), t = engine().total;
  $('#topR').innerHTML = lockBtn();
  let h = '<div class="kpis"><div class="kpi"><span>Servings</span><b>' + nf(fc.servings) + '</b><small>' + fc.on + ' meal slots on</small></div><div class="kpi"><span>Who eats</span><b>' + nf(t.onSite) + '</b><small>' + nf(t.athletes) + ' athletes · ' + nf(t.coaches) + ' coaches · ' + nf(t.chaperones) + ' chaperones · ' + nf(t.volunteers) + ' volunteers · ' + nf(t.staff) + ' staff</small></div>'
-  + '<div class="kpi"><span>Goodie bags</span><b>' + nf(fc.bags.count) + '</b><small>hotel guests' + ($on ? ' × ' + money(fc.bags.price) : '') + '</small></div>' + ($on ? '<div class="kpi"><span>Food total</span><b>' + money(fc.total) + '</b><small>meals ' + money(fc.grand) + ' + bags ' + money(fc.bags.cost) + '</small></div>' : '') + '</div>';
+  + '<div class="kpi"><span>Goodie bags</span><b>' + nf(fc.bags.count) + '</b><small>hotel guests' + ($on ? (ed ? ' × $ <input class="fpN" type="number" step="0.01" min="0" data-fgbagp value="' + esc(fc.bags.price) + '" style="width:60px;text-align:right">' : ' × ' + money(fc.bags.price)) : '') + '</small></div>' + ($on ? '<div class="kpi"><span>Food total</span><b>' + money(fc.total) + '</b><small>meals ' + money(fc.grand) + ' + bags ' + money(fc.bags.cost) + '</small></div>' : '') + '</div>';
  if (!$on) h += pinHTML('Food costs are hidden');
- h += '<div class="card"><h2>What we serve, day by meal</h2><p class="hint">' + (ed ? 'Click a meal to switch it on or off. A, V and S choose who it covers: athletes (with their coaches and chaperones), volunteers, staff.' : 'Who each meal covers.') + '</p><div class="tw"><table class="fg"><thead><tr><th>Meal</th>' + fc.days.map(d => '<th>' + esc(d.label) + (d.note ? '<br><small style="text-transform:none;letter-spacing:0">' + esc(d.note) + '</small>' : '') + '</th>').join('') + ($on ? '<th class="n">Meal total</th>' : '') + '</tr></thead><tbody>'
-  + fc.meals.map(m => '<tr><td><b>' + esc(m.label) + '</b>' + ($on ? '<br><small>' + money(m.price) + ' per person</small>' : '') + '</td>' + fc.days.map(d => { const c = fc.cell(d.key, m.key), n = c.on ? fc.covered(c) : 0;
+ h += '<div class="card"><h2>What we serve, day by meal</h2><p class="hint">' + (ed ? 'Click a meal to switch it on or off. A, V and S choose who it covers: athletes (with their coaches and chaperones), volunteers, staff.' + ($on ? ' Type a price per person under a meal, or by the goodie bags, to change it.' : '') : 'Who each meal covers.') + '</p><div class="tw"><table class="fg"><thead><tr><th>Meal</th>' + fc.days.map(d => '<th>' + esc(d.label) + (d.note ? '<br><small style="text-transform:none;letter-spacing:0">' + esc(d.note) + '</small>' : '') + '</th>').join('') + ($on ? '<th class="n">Meal total</th>' : '') + '</tr></thead><tbody>'
+  + fc.meals.map(m => '<tr><td><b>' + esc(m.label) + '</b>' + ($on ? (ed ? '<br><small>$ <input class="fpN" type="number" step="0.01" min="0" data-fgp="' + m.key + '" value="' + esc(m.price) + '"> per person</small>' : '<br><small>' + money(m.price) + ' per person</small>') : '') + '</td>' + fc.days.map(d => { const c = fc.cell(d.key, m.key), n = c.on ? fc.covered(c) : 0;
    return '<td><div class="fgc' + (c.on ? ' on' : '') + '"><label class="chk" style="color:var(--ink)"><input type="checkbox" data-fg="' + d.key + '_' + m.key + '|on"' + (c.on ? ' checked' : '') + (ed ? '' : ' disabled') + '> ' + (c.on ? nf(n) : 'Off') + '</label>' + (c.on ? '<div class="who">' + [['athletes','A'],['volunteers','V'],['staff','S']].map(([k,l]) => '<button type="button" class="' + (c[k] ? 'on' : '') + '" data-fg="' + d.key + '_' + m.key + '|' + k + '"' + (ed ? '' : ' disabled') + ' title="' + k + '">' + l + '</button>').join('') + '</div>' : '') + ($on && c.on ? '<small>' + money(n * m.price) + '</small>' : '') + '</div></td>'; }).join('') + ($on ? '<td class="n">' + money(fc.byMeal[m.key] || 0) + '</td>' : '') + '</tr>').join('')
   + ($on ? '<tr class="tot"><td>Day total</td>' + fc.days.map(d => '<td>' + money(fc.byDay[d.key] || 0) + '</td>').join('') + '<td class="n">' + money(fc.grand) + '</td></tr>' : '') + '</tbody></table></div></div>';
  const sec = (k, title) => F[k] ? '<details class="al info"><summary><b>' + title + '</b></summary><div class="pad" style="padding:8px 16px 14px">' + anyHTML(F[k]) + '</div></details>' : '';
@@ -1677,6 +1677,14 @@ function fpSave(path, patch, text){ const PRIV = { price:1, extra:1, fees:1, quo
  const jobs = []; if (Object.keys(pub).length) jobs.push(save('food/plan' + (path ? '/' + path : ''), pub, 'food', 'Food plan', text));
  if (Object.keys(priv).length) jobs.push((async () => { try { await update(R('private/foodPrices/plan' + (path ? '/' + path : '')), priv); logAct('food', 'private/foodPrices/plan' + (path ? '/' + path : ''), 'Food plan', text); toast('Saved'); return true; } catch(e) { toast('Prices not saved: ' + (e.code || e.message || e)); return false; } })());
  return Promise.all(jobs).then(rs => rs.length ? rs.every(Boolean) : true); }
+/* Grid meal and goodie-bag prices live under private/foodPrices/meals and
+   private/foodPrices/goodieBags — never under food/grid (guest-readable).
+   fpSave only maps plan paths, so grid prices get their own private-only save.
+   An empty price clears the key (update with null deletes it in RTDB), so
+   fpMealPrice falls back to 0 and fpBagPrice to $3. */
+async function fpGridSave(kind, key, price, text){ const path = kind === 'bag' ? 'private/foodPrices/goodieBags' : 'private/foodPrices/meals/' + key;
+ try { await update(R(path), { price }); logAct('food', path, 'Food grid', text); toast('Saved'); return true; }
+ catch(e){ toast('Price not saved: ' + (e.code || e.message || e)); return false; } }
 function fpVendorSel(cur, attrs, blankLabel){ const V = FPD().vendors || {};
  return '<select class="sel" ' + attrs + '><option value="">' + esc(blankLabel || 'No vendor yet') + '</option>' + ents(V).sort((a,b) => String(a[1].name).localeCompare(String(b[1].name))).map(([k,v]) => '<option value="' + esc(k) + '"' + (k === cur ? ' selected' : '') + '>' + esc(v.name || k) + '</option>').join('') + '</select>'; }
 const fpVname = k => { const v = (FPD().vendors || {})[k]; return v ? (v.name || k) : (k ? k : 'No vendor yet'); };
@@ -1756,6 +1764,12 @@ function fpBind(fp){
  const val = el => el.type === 'checkbox' ? el.checked : el.type === 'number' ? (el.value === '' ? null : Number(el.value)) : el.value;
  $$('#view [data-fpv]').forEach(b => b.onclick = () => { FPV = b.dataset.fpv; try { localStorage.setItem('naigFPV', FPV); } catch(e) {} route(true); });
  if (!canEdit()) return;
+ $$('#view [data-fgp]').forEach(el => el.addEventListener('change', async () => { const mk = el.dataset.fgp, v = val(el);
+  if (v !== null && !(v >= 0)) { toast('Enter a price of $0 or more.'); el.value = fpMealPrice(mk); return; }
+  if (await fpGridSave('meal', mk, v, 'Food grid: ' + mk + ' price ' + (v === null ? 'cleared' : money(v)))) route(true); }));
+ $$('#view [data-fgbagp]').forEach(el => el.addEventListener('change', async () => { const v = val(el);
+  if (v !== null && !(v >= 0)) { toast('Enter a price of $0 or more.'); el.value = fpBagPrice(); return; }
+  if (await fpGridSave('bag', '', v, 'Food grid: goodie-bag price ' + (v === null ? 'cleared' : money(v)))) route(true); }));
  $$('#view [data-fpr]').forEach(el => el.addEventListener('change', () => { const [vk, rk, f] = el.dataset.fpr.split('|'); let x = val(el);
   if (f === 'vendor' && x === '') x = null; if (f === 'menu' && x === '') x = null;
   fpSave('venues/' + vk + '/rows/' + rk, { [f]:x }, 'Food plan: ' + vk + ' ' + rk + ' ' + f + ' changed'); }));
