@@ -2285,6 +2285,25 @@ function weeklyAuto(a){
  if (!parts.length) parts.push(open.length || rd.length ? (open.length + rd.length) + ' open · nothing urgent' : 'Nothing open');
  return { rag, note: parts.join(' · ') };
 }
+/* Fix 9 — Venues at a glance: the per-venue athlete breakdown on Today.
+   Athlete counts come from venuePeople() — the Venues page's own accessor
+   over engine() (the sports plan slot sheet) — verbatim, so Today always
+   matches the Venues page. Active venues only (archived excluded, e.g.
+   Grand Prairie once archived). A venue with no slot-sheet rows has no
+   count and shows "—", never 0 or a guess. Counts only — no money, no dob,
+   no prices — so guests see this card too. */
+function venuesGlance(){
+ const V = arr(S.venues).filter(v => v.name && !v.archived), conf = V.filter(v => /confirmed|committed|signed/i.test((v.status||'') + ' ' + (v.pipelineStatus||'')));
+ const t = engine().total;
+ const rows = V.map(v => ({ v, p: venuePeople(v.name) })).sort((a,b) => ((b.p ? b.p.athletes : -1) - (a.p ? a.p.athletes : -1)) || String(a.v.name).localeCompare(String(b.v.name)));
+ const withCount = rows.filter(r => r.p && r.p.athletes > 0);
+ const avg = withCount.length ? Math.round(t.athletes / withCount.length) : 0;
+ return '<div class="card" id="vnCard"><div class="vdHead"><h2>Venues at a glance</h2><span class="pill">' + conf.length + ' of ' + V.length + ' confirmed</span></div><p class="hint">Athletes per venue, from the sports plan slot sheet — the same numbers as the Venues page. Venues with no slot rows yet show —.</p><div class="tw"><table><thead><tr><th>Venue</th><th>Status</th><th class="n">Athletes</th></tr></thead><tbody>'
+  + rows.map(r => '<tr><td><b>' + esc(r.v.name) + '</b></td><td><span class="pill ' + vCls(vStage(r.v)) + '">' + esc(r.v.status || '—') + '</span></td><td class="n">' + (r.p ? nf(r.p.athletes) : '—') + '</td></tr>').join('')
+  + '<tr><td><b>Total</b></td><td>' + V.length + ' active venues</td><td class="n"><b>' + nf(t.athletes) + '</b></td></tr></tbody></table></div>'
+  + (withCount.length ? '<p class="hint">Average ' + nf(avg) + ' athletes per venue with athletes (' + withCount.length + ' of ' + V.length + ' venues have counts).</p>' : '')
+  + '<div class="vdAct"><a class="btn" href="?tab=venues">See all venues →</a></div></div>';
+}
 function weeklyCard(){ const wk = wkKey(), prev = addDays(wk, -7), W = (S.plan.weekly || {}), cur = W[wk] || {}, last = W[prev] || {}, areas = rdAreas();
  const rows = areas.map(a => { const k = a.replace(/[.#$\/\[\]]/g, '_'), c = cur[k], l = last[k], x = c || l;
   if (x) return '<div class="wkR"><div><b>' + esc(a) + '</b><div class="sm">' + esc(x.note || '') + (c ? '' : ' <i>(last week)</i>') + (x.by ? ' · ' + esc(x.by) : '') + '</div></div><span class="pill ' + (RAG[x.rag] || '') + (c ? '' : ' wkOld') + '">' + esc(x.rag) + '</span></div>';
@@ -2298,7 +2317,7 @@ function weeklyOpen(){ const wk = wkKey(), areas = rdAreas(), W = (S.plan.weekly
  $('#wkA').onchange = fill; fill(); $$('#wkRag button').forEach(b => b.onclick = () => { rag = b.dataset.rag; $$('#wkRag button').forEach(x => x.classList.toggle('on', x === b)); });
  $('#wkSave').onclick = async () => { if (!rag) { toast('Pick green, amber or red.'); return; } const a = $('#wkA').value; if (await save('plan/weekly/' + wk + '/' + a.replace(/[.#$\/\[\]]/g, '_'), { area:a, rag, note:$('#wkN').value.trim(), by:me(), at:Date.now() }, 'status', a, 'Weekly status: ' + rag)) closeDrawer(); };
 }
-{ const _home = RENDER.home; RENDER.home = (...a) => { const r = _home(...a); try { const v = $('#view'); if (v && !$('#wkCard')) { const d = document.createElement('div'); d.innerHTML = weeklyCard(); const kp = v.querySelector('.kpis'); if (kp && kp.nextSibling) v.insertBefore(d.firstChild, kp.nextSibling); else v.appendChild(d.firstChild); $('#wkUpd') && ($('#wkUpd').onclick = weeklyOpen); } } catch(e) { console.warn('[hub] weekly card', e); } return r; }; }
+{ const _home = RENDER.home; RENDER.home = (...a) => { const r = _home(...a); try { const v = $('#view'); if (v && !$('#wkCard')) { const d = document.createElement('div'); d.innerHTML = weeklyCard(); const kp = v.querySelector('.kpis'); if (kp && kp.nextSibling) v.insertBefore(d.firstChild, kp.nextSibling); else v.appendChild(d.firstChild); $('#wkUpd') && ($('#wkUpd').onclick = weeklyOpen); } } catch(e) { console.warn('[hub] weekly card', e); } try { const v = $('#view'); if (v && !$('#vnCard')) { const d2 = document.createElement('div'); d2.innerHTML = venuesGlance(); const wkEl = v.querySelector('#wkCard'); if (wkEl) { if (wkEl.nextSibling) v.insertBefore(d2.firstChild, wkEl.nextSibling); else v.appendChild(d2.firstChild); } else { const kp2 = v.querySelector('.kpis'); if (kp2 && kp2.nextSibling) v.insertBefore(d2.firstChild, kp2.nextSibling); else v.appendChild(d2.firstChild); } } } catch(e) { console.warn('[hub] venues card', e); } return r; }; }
 
 /* ══════════ theme, boot ══════════ */
 const root = document.documentElement;
