@@ -282,6 +282,20 @@ body.fpPrinting .fpPrintHead{display:flex;justify-content:space-between;font-siz
 @media print{.vdCard{break-inside:avoid;page-break-after:always;box-shadow:none}.vdAct,.gtBar,.kpis{display:none!important}}
 .rdMap td,.rdMap th{text-align:center;width:22%}.rdHeat{font-weight:700;height:38px}.rdHeat.sh{background:var(--badbg)}.rdHeat.sm{background:var(--warnbg)}.rdHeat.sl{background:var(--goodbg)}
 .wkG{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px 18px}.wkR{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line)}.wkOld{opacity:.55}
+.vnV{font-size:15px;margin:18px 0 6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+table.vnIn input,table.vnIn select{font:inherit;font-size:13px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--text)}
+table.vnIn input.vnN{width:58px}table.vnIn input[type=time]{width:104px}table.vnIn input.vnNote{width:170px}table.vnIn th.vnDh{text-align:center;border-left:2px solid var(--line)}table.vnIn td.vnD{border-left:2px solid var(--line)}
+table.vnIn td,table.vnIn th{padding:5px 6px}.vnX{border:0;background:none;color:var(--mute);cursor:pointer;font-size:15px}
+.vnBase{color:var(--mute)!important;font-style:italic}tr.vnBk td{background:var(--panel2);font-size:12.5px}
+table.vnOut td:nth-child(3),table.vnOut td:nth-child(4),table.vnOut td:nth-child(5),table.vnOut td:nth-child(7){white-space:nowrap}table.vnOut td:nth-child(6){min-width:190px}
+details.vnMore>summary{cursor:pointer;padding:4px 0;font-size:15px}details.vnMore>summary small{color:var(--mute)}
+table.vnIn td:first-child,table.vnIn th:first-child{min-width:150px}
+.mtH{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px}
+.mtI{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.mtQ b{font-weight:600}.mtM{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.mtA textarea{width:100%;font:inherit;font-size:13.5px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text);resize:vertical}
+.mtC{display:flex;gap:6px;margin-top:6px;align-items:center}.mtC select,.mtC input{font:inherit;font-size:13px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--text)}.mtC select{flex:0 0 120px}.mtC input{flex:1;min-width:80px}
+@media(max-width:700px){.mtI{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -462,7 +476,7 @@ function startData(){
 }
 let rt = 0, lastKey = '';
 function rerender(k){ clearTimeout(rt); rt = setTimeout(() => { if (!S.user) return; paintHC(); buildNav(); if (!busyTyping()) route(true); }, 150); }
-const busyTyping = () => { const a = document.activeElement; return a && /INPUT|TEXTAREA|SELECT/.test(a.tagName) && a.closest('#drawer'); };
+const busyTyping = () => { const a = document.activeElement; return a && /INPUT|TEXTAREA|SELECT/.test(a.tagName) && (a.closest('#drawer') || a.closest('.vnIn') || a.closest('.mtIn')); };
 
 /* ══════════ ENGINE: headcount, venue people split, hotels, food — same formulas as the classic hub ══════════
    athletes = round(registrations x (1 - overlap)); volunteers = ceil(athletes/3); staff = ceil(athletes/100);
@@ -700,6 +714,7 @@ const PAGES = [
  { id:'pmo', label:'PMO weekly sync', tab:'tasks', tiers:['admin','core','lead'], href:'pmo.html' },   // link-only entry: no k, so the router never tries to render it
  { k:'plan', label:'Milestones', tab:'plan', title:'Milestones', sub:() => 'Project plan milestones by phase and department.' },
  { k:'gantt', label:'Gantt', tab:'plan', title:'Gantt', sub:() => 'Every task and milestone on one timeline, with owners, progress and dependencies.' },
+ { k:'meeting', label:'Weekly meeting', tab:'plan', title:'Weekly team meeting', sub:() => 'Sites, hotels, timeline, food and open questions. Answers save live for everyone.' },
  { k:'raid', label:'RAID log', tab:'plan', title:'RAID log', sub:() => 'Risks, actions, issues and decisions, each with an owner and a date.' },
  { k:'raci', label:'RACI', tab:'plan', title:'RACI', sub:() => 'Who is Responsible, Accountable, Consulted and Informed for each workstream.' },
  { g:'Games' },
@@ -707,6 +722,7 @@ const PAGES = [
  { k:'program', label:'Sports and slots', tab:'sports', title:'Sports and slots', sub:() => 'The slot sheet: every event, its venue and slots. Headcount comes from here.' },
  { k:'scope', label:'Sports scope', tab:'scope', title:'Sports scope', sub:() => 'What each sport needs: space, setting, sessions and leads.' },
  { k:'courts', label:'Courts and hours', tab:'sports', title:'Courts and hours', sub:() => 'Play hours and courts or fields per day. Costs are on Budget.' },
+ { k:'vneeds', label:'Courts and times sheet', tab:'sports', title:'Courts and times sheet', sub:() => 'Sports team: courts and start and end times per venue and day. Setup, food, volunteers and the booking check work themselves out.' },
  { k:'days', label:'Game days', tab:'sports', title:'Game days', sub:() => 'Minute by minute plan for each day.' },
  { g:'Logistics' },
  { k:'hotels', label:'Hotels', tab:'hotels', title:'Hotels', sub:() => 'Room blocks against what we need. Rates are on Budget.' },
@@ -2330,6 +2346,146 @@ function weeklyOpen(){ const wk = wkKey(), areas = rdAreas(), W = (S.plan.weekly
  $('#wkSave').onclick = async () => { if (!rag) { toast('Pick green, amber or red.'); return; } const a = $('#wkA').value; if (await save('plan/weekly/' + wk + '/' + a.replace(/[.#$\/\[\]]/g, '_'), { area:a, rag, note:$('#wkN').value.trim(), by:me(), at:Date.now() }, 'status', a, 'Weekly status: ' + rag)) closeDrawer(); };
 }
 { const _home = RENDER.home; RENDER.home = (...a) => { const r = _home(...a); try { const v = $('#view'); if (v && !$('#wkCard')) { const d = document.createElement('div'); d.innerHTML = weeklyCard(); const kp = v.querySelector('.kpis'); if (kp && kp.nextSibling) v.insertBefore(d.firstChild, kp.nextSibling); else v.appendChild(d.firstChild); $('#wkUpd') && ($('#wkUpd').onclick = weeklyOpen); } } catch(e) { console.warn('[hub] weekly card', e); } try { const v = $('#view'); if (v && !$('#vnCard')) { const d2 = document.createElement('div'); d2.innerHTML = venuesGlance(); const wkEl = v.querySelector('#wkCard'); if (wkEl) { if (wkEl.nextSibling) v.insertBefore(d2.firstChild, wkEl.nextSibling); else v.appendChild(d2.firstChild); } else { const kp2 = v.querySelector('.kpis'); if (kp2 && kp2.nextSibling) v.insertBefore(d2.firstChild, kp2.nextSibling); else v.appendChild(d2.firstChild); } } } catch(e) { console.warn('[hub] venues card', e); } return r; }; }
+
+/* ══════════ VENUE NEEDS: sports team enters courts/fields and hours; the hub works out setup, food, doors, volunteers and the booking check ══════════ */
+const VN = () => (S.plan && S.plan.venueNeeds) || {};
+const VN_UNITS = ['court','field','pitch','ground','room','area','lane'];
+const vnSet = () => Object.assign({ setupMin:60, doorsMin:30, breakfastMin:60, teardownMin:60, sunEnd:'15:00' }, VN().settings || {});
+const vnM = hm => { if (!hm || !/^\d/.test(hm)) return null; const [h, m] = String(hm).split(':').map(Number); return h * 60 + (m || 0); };
+const vnT = m => m == null ? '' : String(Math.floor(((m % 1440) + 1440) % 1440 / 60)).padStart(2,'0') + ':' + String(((m % 60) + 60) % 60).padStart(2,'0');
+const vnSport = s => String(s || '').replace(/^Track - .*/, 'Track').trim();
+const vnSame = (a, b) => { const x = key(a), y = key(b); return !!x && !!y && (x === y || x.indexOf(y) >= 0 || y.indexOf(x) >= 0); };
+const vnSportHit = (lineSport, sport) => String(lineSport || '').split(/\s*,\s*/).some(s => vnSame(vnSport(s), sport) || vnSame(s.replace(/\s*\(.*$/, ''), sport.replace(/\s*\(.*$/, '')));
+function vnRows(){ const st = VN().rows || {}, out = {};
+ const add = (venue, sport, unit) => { sport = vnSport(sport); if (!sport) return; venue = venue || 'TBD';
+  const bs = t => key(String(t).replace(/\s*\(.*$/, '')), hit = Object.values(out).find(r => vnSame(r.venue, venue) && (key(r.sport) === key(sport) || (bs(r.sport) === bs(sport) && (!/\(/.test(r.sport) || !/\(/.test(sport))))); if (hit) { if (!hit.unit && unit) hit.unit = unit; return; }
+  const id = (key(venue) || 'tbd').slice(0, 40) + '__' + key(sport).slice(0, 40); out[id] = { _id:id, venue, sport, unit:unit || '', days:{} }; };
+ CMLines().forEach(l => { if (DAYS.some(([d]) => num(cmVal(l, d).c) > 0)) String(l.sport || '').split(/\s*,\s*/).filter(s => !/^all\b/i.test(s)).forEach(s => add(l.site, s, l.unit)); });
+ scRows(arr((S.sportsPlan || {}).rows)).forEach(r => { if (num(r.slots) >= 1) add(r.venue, r.sport); });
+ Object.entries(st).forEach(([id, r]) => { if (!r) return; const o = out[id] = Object.assign(out[id] || { _id:id, days:{} }, r, { _id:id }); o.days = Object.assign({}, (out[id] || {}).days, r.days || {}); });
+ return Object.values(out).filter(r => !r.removed && r.sport).sort((a,b) => (a.venue === 'TBD') - (b.venue === 'TBD') || String(a.venue).localeCompare(b.venue) || String(a.sport).localeCompare(b.sport)); }
+function vnBooked(venue, d){ const ls = CMLines().filter(l => vnSame(l.site, venue)).map(l => ({ l, x:cmVal(l, d) })).filter(o => num(o.x.c) > 0);
+ if (!ls.length) return null; const s = Math.min(...ls.map(o => vnM(o.x.s) ?? 1e9)), e = Math.max(...ls.map(o => vnM(o.x.e) ?? -1));
+ return { lines:ls, c:ls.reduce((a,o) => a + num(o.x.c), 0), s:s < 1e9 ? s : null, e:e >= 0 ? e : null, ch:ls.reduce((a,o) => a + num(o.x.c) * hrs(o.x.s, o.x.e), 0) }; }
+const vnCap = d => d === 'fri' ? vnM(scFmt().fridayEnd || '17:00') : d === 'sun' ? vnM(vnSet().sunEnd) : null;
+const vnPlayEnd = (d, e) => { const c = vnCap(d), x = e - num(vnSet().teardownMin); return c != null ? Math.min(x, c) : x; };
+function vnBase(r, rs, d){ const ls = CMLines().filter(l => vnSame(l.site, r.venue) && vnSportHit(l.sport, r.sport)).map(l => ({ l, x:cmVal(l, d) })).filter(o => num(o.x.c) > 0); if (!ls.length) return null; const P = vnSet();
+ let c = 0; ls.forEach(o => { const sh = rs.filter(q => vnSportHit(o.l.sport, q.sport)), i = sh.findIndex(q => q._id === r._id), n = Math.max(1, sh.length), tot = num(o.x.c); c += Math.floor(tot / n) + (i >= 0 && i < tot % n ? 1 : 0); });
+ const s = Math.min(...ls.map(o => vnM(o.x.s) ?? 1e9)), e = Math.max(...ls.map(o => vnM(o.x.e) ?? -1)); if (!c || s >= 1e9 || e < 0) return null;
+ return { c, s:vnT(s + num(P.setupMin)), e:vnT(vnPlayEnd(d, e)), base:true }; }
+function vnVal(r, rs, d){ const x = (r.days || {})[d]; if (x && x.none) return null; const b = r.venue === 'TBD' ? null : vnBase(r, rs, d);
+ if (x && (num(x.c) > 0 || x.s || x.e)) { const o = Object.assign({ base:false }, x); if (!(num(o.c) > 0) && b) { o.c = b.c; o.cBase = true; } return o; } return b; }
+function vnDay(venue, rs, d){ const P = vnSet(), F = scFmt(), on = rs.map(r => ({ r, x:vnVal(r, rs, d) || {} })).filter(o => num(o.x.c) > 0); if (!on.length) return null;
+ const ss = on.map(o => vnM(o.x.s)).filter(v => v != null), es = on.map(o => vnM(o.x.e)).filter(v => v != null);
+ const first = ss.length ? Math.min(...ss) : null, last = es.length ? Math.max(...es) : null, need = on.reduce((a,o) => a + num(o.x.c), 0);
+ const needCH = on.reduce((a,o) => a + num(o.x.c) * hrs(o.x.s, o.x.e), 0), perC = on.filter(o => (o.r.perCourt ?? '') !== '');
+ const ops = perC.length ? perC.reduce((a,o) => a + num(o.x.c) * num(o.r.perCourt), 0) : null;
+ const crew = first != null ? first - num(P.setupMin) : null, doors = first != null ? first - num(P.doorsMin) : null, bfast = first != null ? first - num(P.breakfastMin) : null, down = last != null ? last + num(P.teardownMin) : null;
+ const meals = []; if (bfast != null && bfast <= 9 * 60) meals.push('Breakfast ' + t12(vnT(bfast))); if (first != null && last != null && first <= 13 * 60 && last >= 12 * 60) meals.push('Lunch'); if (last != null && last >= 18 * 60) meals.push('Dinner'); meals.push('Snacks and water');
+ const B = vnBooked(venue, d), flags = [];
+ if (on.some(o => vnM(o.x.s) == null || vnM(o.x.e) == null)) flags.push(['warn', 'Add start and end times']);
+ if (!B) flags.push(['bad', 'Not booked for this day']);
+ else { if (need > B.c) flags.push(['bad', 'Needs ' + need + ', booked ' + B.c + ' (' + (need - B.c) + ' short)']);
+  if (crew != null && B.s != null && crew < B.s) flags.push(['warn', 'Crew needs access from ' + t12(vnT(crew)) + '; booking starts ' + t12(vnT(B.s))]);
+  if (down != null && B.e != null && down > B.e) flags.push(['warn', 'Runs to ' + t12(vnT(down)) + ' with teardown; booking ends ' + t12(vnT(B.e))]); }
+ const fe = vnM(F.fridayEnd || '17:00'), se = vnM(P.sunEnd); if (d === 'fri' && last != null && fe != null && last > fe) flags.push(['bad', 'Friday play must end by ' + t12(vnT(fe))]);
+ if (d === 'sun' && last != null && se != null && last > se) flags.push(['bad', 'Sunday play must end by ' + t12(vnT(se))]);
+ if (!flags.length) flags.push(['good', 'Fits the booking']);
+ if (on.some(o => o.x.base)) flags.push(['info', 'Baseline: sports team to confirm']);
+ let cost = null; if (B && unlocked()) { const rates = scRates(), hr = B.lines.filter(o => (rates[o.l._id] || {}).model === 'courtHour');
+  if (hr.length === B.lines.length) { const ch = hr.reduce((a,o) => a + num(o.x.c) * hrs(o.x.s, o.x.e), 0), $ = hr.reduce((a,o) => a + num(o.x.c) * hrs(o.x.s, o.x.e) * num(rates[o.l._id].rate), 0), avg = ch ? $ / ch : 0; cost = { booked:$, need:needCH * avg }; }
+  else cost = { na:true }; }
+ return { d, on, need, first, last, crew, doors, bfast, down, meals, B, flags, needCH, ops, cost }; }
+function vnSave(r, patch, text){ const p = Object.assign({ venue:r.venue, sport:r.sport, updatedAt:Date.now(), updatedBy:me() }, patch); return save('plan/venueNeeds/rows/' + r._id, p, 'sports', r.sport + ' at ' + r.venue, text); }
+RENDER.vneeds = () => { const rs = vnRows(), ed = canEdit(), P = vnSet(), $on = unlocked();
+ const byV = {}; rs.forEach(r => (byV[r.venue] = byV[r.venue] || []).push(r));
+ const last = rs.reduce((a,r) => Math.max(a, num(r.updatedAt)), 0), lastBy = (rs.find(r => num(r.updatedAt) === last) || {}).updatedBy;
+ $('#topR').innerHTML = lockBtn() + '<button class="btn" id="vnCsv" type="button">Download CSV</button>' + (ed ? ' <button class="btn pri" id="vnAdd" type="button">Add a sport or venue</button>' : '');
+ let entered = 0, flagged = 0; const calc = {}; Object.keys(byV).forEach(v => { calc[v] = DAYS.map(([d]) => vnDay(v, byV[v], d)).filter(Boolean); calc[v].forEach(c => { entered++; if (c.flags.some(f => f[0] === 'bad' || f[0] === 'warn')) flagged++; }); });
+ const fill = rs.filter(r => r.confirmed).length;
+ let h = '<div class="kpis"><div class="kpi ' + (fill === rs.length ? 'good' : 'warn') + '"><span>Sports confirmed</span><b>' + fill + ' of ' + rs.length + '</b><small>rows the sports team has checked</small></div>'
+  + '<div class="kpi ' + (flagged ? 'bad' : entered ? 'good' : '') + '"><span>Venue days to fix</span><b>' + flagged + '</b><small>of ' + entered + ' venue days entered</small></div>'
+  + '<div class="kpi"><span>Last update</span><b style="font-size:16px">' + (last ? esc(fmtTs(last)) : 'None yet') + '</b><small>' + esc(lastBy || 'Sports team') + '</small></div></div>';
+ h += '<div class="note"><b>Sports team:</b> enter the courts (or fields) and the start and end time for each day. Grey numbers are a starting point from what the venue allows (booked hours, less 1 hour setup and 1 hour buffer at closing). Change them to what you need, press × on a day a sport does not play, then tick <b>Confirmed</b>.</div>';
+ h += '<div class="card"><h2>Courts and times sheet (sports team fills this in)</h2><p class="hint">For each sport and day: the number of courts or fields, the start time of the first game and the end time of the last game. The two grey lines at the top of each venue show what is booked and the play window inside it.</p>';
+ Object.keys(byV).forEach(v => { h += '<h3 class="vnV">' + esc(v === 'TBD' ? 'No venue yet' : v)  + '</h3><div class="tw"><table class="vnIn"><thead><tr><th rowspan="2">Sport</th>' + DAYS.map(([, l]) => '<th colspan="3" class="vnDh">' + esc(l) + '</th>').join('') + '<th rowspan="2">Notes</th><th rowspan="2">Confirmed</th></tr><tr>' + DAYS.map(() => '<th class="sm">Courts</th><th class="sm">Start</th><th class="sm">End</th>').join('') + '</tr></thead><tbody>' + (v === 'TBD' ? '' : (() => { const P2 = vnSet(), bk = DAYS.map(([d]) => vnBooked(v, d)), T = m => m == null ? '—' : t12(vnT(m));
+    return '<tr class="vnBk"><td><b>Booked</b></td>' + bk.map(B => '<td colspan="3" class="vnD">' + (B ? B.c + ' × ' + T(B.s) + ' – ' + T(B.e) : '<span class="pill bad">Not booked</span>') + '</td>').join('') + '<td colspan="2"></td></tr>'
+     + '<tr class="vnBk"><td><b>Play window</b><br><small>' + num(P2.setupMin) + ' min after open, ' + num(P2.teardownMin) + ' min before close</small></td>' + bk.map((B, i) => '<td colspan="3" class="vnD">' + (B && B.s != null ? '<b>' + T(B.s + num(P2.setupMin)) + ' – ' + T(vnPlayEnd(DAYS[i][0], B.e)) + '</b>' : '—') + '</td>').join('') + '<td colspan="2"></td></tr>'; })())
+   + byV[v].map(r => { const dis = ed ? '' : ' disabled'; return '<tr><td><b>' + esc(r.sport) + '</b>' + (ed ? ' <button class="vnX" type="button" title="Remove row" data-vnrm="' + esc(r._id) + '">×</button>' : '') + '</td>'
+    + DAYS.map(([d]) => { const x = vnVal(r, byV[v], d) || {}, b = x.base ? ' vnBase' : '', id = esc(r._id); return '<td class="vnD"><input type="number" min="0" class="vnN' + (b || (x.cBase ? ' vnBase' : '')) + '" data-vn="' + id + '|days/' + d + '/c" value="' + esc(num(x.c) ? x.c : '') + '"' + dis + '>' + (ed && (num(x.c) > 0) ? '<button class="vnX" type="button" title="Not playing this day" data-vnoff="' + id + '|' + d + '">×</button>' : '') + '</td><td><input type="time" class="' + b + '" data-vn="' + id + '|days/' + d + '/s" value="' + esc(x.s || '') + '"' + dis + '></td><td><input type="time" class="' + b + '" data-vn="' + id + '|days/' + d + '/e" value="' + esc(x.e || '') + '"' + dis + '></td>'; }).join('')
+    + '<td><input type="text" class="vnNote" data-vn="' + esc(r._id) + '|notes" value="' + esc(r.notes || '') + '"' + dis + '></td><td style="text-align:center"><input type="checkbox" data-vnok="' + esc(r._id) + '"' + (r.confirmed ? ' checked' : '') + dis + '>' + (r.confirmed && r.confirmedBy ? '<br><small>' + esc(r.confirmedBy) + '</small>' : '') + '</td></tr>'; }).join('') + '</tbody></table></div>'; });
+ h += '</div>';
+ h += '<details class="card vnMore"><summary><b>Setup, food, volunteers and booking check</b> <small>(worked out from the sheet)</small></summary><div><h2 style="margin-top:10px">What the sheet means for each venue</h2><p class="hint">Worked out from part 1 and the bookings in Courts and hours. Crew and food vendors arrive ' + num(P.setupMin) + ' min before the first game, doors open ' + num(P.doorsMin) + ' min before, breakfast starts ' + num(P.breakfastMin) + ' min before, and ' + num(P.teardownMin) + ' min of buffer is kept after the last game for teardown. Courts are added across sports, so the total assumes they play at the same time.' + ($on ? '' : ' Costs show after the Budget PIN.') + '</p>';
+ const vk = Object.keys(calc).filter(v => calc[v].length);
+ if (!vk.length) h += '<div class="empty">Nothing entered yet. Fill in part 1 and this fills itself.</div>';
+ vk.forEach(v => { const vp = v !== 'TBD' ? venuePeople(v) : null;
+  h += '<h3 class="vnV">' + esc(v === 'TBD' ? 'No venue yet' : v) + '</h3><div class="tw"><table class="vnOut"><thead><tr><th>Day</th><th>Courts or fields</th><th>Play</th><th>Crew and food setup</th><th>Doors</th><th>Food</th><th>Buffer ends</th><th>Booked</th><th>Unit-hours</th><th>Game-day volunteers</th>' + ($on ? '<th class="n">Cost check</th>' : '') + '<th>Check</th></tr></thead><tbody>'
+   + calc[v].map(c => { const dl = DAYS.find(x => x[0] === c.d)[1], T = m => m == null ? '—' : t12(vnT(m));
+    const bk = c.B ? c.B.c + ' × ' + T(c.B.s) + ' – ' + T(c.B.e) : 'Not booked';
+    const uh = (Math.round(c.needCH * 10) / 10) + ' needed' + (c.B ? '<br><small>' + (Math.round(c.B.ch * 10) / 10) + ' booked' + (c.B.ch > c.needCH + 0.5 ? ' · ' + (Math.round((c.B.ch - c.needCH) * 10) / 10) + ' spare' : c.needCH > c.B.ch + 0.5 ? ' · ' + (Math.round((c.needCH - c.B.ch) * 10) / 10) + ' over' : '') + '</small>' : '');
+    const cs = !$on ? '' : '<td class="n">' + (!c.cost ? 'N/A' : c.cost.na ? '<small>Day or package rate: no hourly change</small>' : money(c.cost.need) + '<br><small>booked ' + money(c.cost.booked) + (Math.abs(c.cost.need - c.cost.booked) >= 1 ? ' · ' + (c.cost.need > c.cost.booked ? '+' : '−') + money(Math.abs(c.cost.need - c.cost.booked)) : '') + '</small>') + '</td>';
+    return '<tr><td><b>' + esc(dl) + '</b></td><td><b>' + c.need + '</b><br><small>' + c.on.map(o => esc(o.r.sport) + ' ' + num(o.x.c)).join(' · ') + '</small></td><td>' + T(c.first) + ' – ' + T(c.last) + '</td><td>' + T(c.crew) + '</td><td>' + T(c.doors) + '</td><td class="sm">' + esc(c.meals.join(' · ')) + '<br><small>Vendor ' + T(c.crew) + ' – ' + T(c.last) + '</small></td><td>' + T(c.down) + '</td><td class="sm">' + bk + '</td><td class="sm">' + uh + '</td>'
+     + '<td class="sm">' + (c.ops != null ? '<b>' + nf(c.ops) + '</b> on courts' : 'N/A on courts') + (vp ? '<br><small>' + nf(vp.volunteers) + ' support (whole Games, headcount rule)</small>' : '') + '<br><small>Shift ' + T(c.crew) + ' – ' + T(c.down) + '</small></td>' + cs
+     + '<td>' + c.flags.map(f => '<span class="pill ' + f[0] + '">' + esc(f[1]) + '</span>').join(' ') + '</td></tr>'; }).join('') + '</tbody></table></div>'; });
+ h += '<h2 style="margin-top:18px">Timing rules</h2><p class="hint">Default: 1 hour of setup after the venue opens, 1 hour of buffer before it closes. Change them here if a venue runs differently.</p><div class="g2">'
+  + [['setupMin','Setup, minutes before first game'],['doorsMin','Doors open, minutes before first game'],['breakfastMin','Breakfast starts, minutes before first game'],['teardownMin','Closing buffer, minutes after last game']].map(([k, l]) => '<div><label class="l">' + l + '</label><input type="number" min="0" step="15" data-vns="' + k + '" value="' + esc(P[k]) + '"' + (ed ? '' : ' disabled') + '></div>').join('')
+  + '<div><label class="l">Sunday play must end by</label><input type="time" data-vns="sunEnd" value="' + esc(P.sunEnd) + '"' + (ed ? '' : ' disabled') + '></div><div><label class="l">Friday play must end by</label><input type="time" value="' + esc(scFmt().fridayEnd || '17:00') + '" disabled><small class="hint">Set in the cricket format rules</small></div></div></div></details>';
+ $('#view').innerHTML = h; lockBind();
+ $('#vnCsv').onclick = () => { const out = []; rs.forEach(r => DAYS.forEach(([d, l]) => { const x = vnVal(r, byV[r.venue] || [], d) || {}; if (!num(x.c)) return; const c = (calc[r.venue] || []).find(z => z.d === d) || {};
+   out.push({ venue:r.venue, sport:r.sport, day:l, units:x.c, unit:r.unit || '', start:t12(x.s), end:t12(x.e), perCourt:r.perCourt ?? '', crew:t12(vnT(c.crew)), doors:t12(vnT(c.doors)), food:(c.meals || []).join('; '), teardown:t12(vnT(c.down)), check:(c.flags || []).map(f => f[1]).join('; '), basis:x.base ? 'Baseline' : 'Entered', confirmed:r.confirmed ? 'Yes' : 'No', notes:r.notes || '' }); }));
+  csv('naig-venue-needs', [['Venue','venue'],['Sport','sport'],['Day','day'],['How many','units'],['Unit','unit'],['First game','start'],['Last game ends','end'],['Vols per unit','perCourt'],['Crew and food setup','crew'],['Doors','doors'],['Food','food'],['Buffer ends','teardown'],['Check (whole venue)','check'],['Numbers','basis'],['Confirmed','confirmed'],['Notes','notes']], out); };
+ if (!ed) return;
+ $$('#view [data-vn]').forEach(el => el.addEventListener('change', () => { const [id, f] = el.dataset.vn.split('|'), r = rs.find(x => x._id === id); if (!r) return;
+  let v = el.value; if (el.type === 'number') v = v === '' ? (f === 'perCourt' ? null : 0) : num(v);
+  const m = f.match(/^days\/(\w+)\/(c|s|e)$/); if (m) { const cur = Object.assign({ c:0, s:'', e:'' }, vnVal(r, byV[r.venue] || [], m[1]) || {}); delete cur.base; delete cur.none; cur[m[2]] = v; return vnSave(r, { ['days/' + m[1]]:cur }, 'Venue needs: ' + r.sport + ' at ' + r.venue + ' ' + m[1] + ' set to ' + cur.c + ' × ' + t12(cur.s) + ' – ' + t12(cur.e)); }
+  vnSave(r, { [f]:v }, 'Venue needs: ' + r.sport + ' at ' + r.venue + ' ' + f.replace(/^days\//, '').replace('/', ' ') + ' set to ' + (v == null || v === '' ? 'blank' : /\/(s|e)$/.test(f) ? t12(v) : v)); }));
+ $$('#view [data-vns]').forEach(el => el.addEventListener('change', () => { const k = el.dataset.vns, v = el.type === 'number' ? num(el.value) : el.value; save('plan/venueNeeds/settings', { [k]:v }, 'sports', 'Venue needs', 'Venue needs timing: ' + k + ' set to ' + v); }));
+ $$('#view [data-vnrm]').forEach(b => b.onclick = () => { const r = rs.find(x => x._id === b.dataset.vnrm); if (r && confirm('Hide ' + r.sport + ' at ' + r.venue + '? You can add it back with “Add a sport or venue”.')) vnSave(r, { removed:true }, 'Venue needs: ' + r.sport + ' at ' + r.venue + ' hidden'); });
+ $$('#view [data-vnoff]').forEach(b => b.onclick = () => { const [id, d] = b.dataset.vnoff.split('|'), r = rs.find(x => x._id === id); if (r) vnSave(r, { ['days/' + d]:{ c:0, s:'', e:'', none:true } }, 'Venue needs: ' + r.sport + ' at ' + r.venue + ' not playing ' + d); });
+ $$('#view [data-vnok]').forEach(b => b.onchange = () => { const r = rs.find(x => x._id === b.dataset.vnok); if (!r) return; const on = b.checked, patch = { confirmed:on, confirmedBy:on ? me() : null, confirmedAt:on ? Date.now() : null };
+  if (on) DAYS.forEach(([d]) => { const x = vnVal(r, byV[r.venue] || [], d); if (x && x.base) patch['days/' + d] = { c:x.c, s:x.s, e:x.e }; else if (!x && !((r.days || {})[d] || {}).none) patch['days/' + d] = { c:0, s:'', e:'', none:true }; });
+  vnSave(r, patch, 'Venue needs: ' + r.sport + ' at ' + r.venue + (on ? ' confirmed' : ' unconfirmed')); });
+ $('#vnAdd').onclick = () => { openDrawer('Add a sport or venue', '<label class="l">Venue</label><select id="vnAV"><option value="TBD">No venue yet</option>' + [...new Set(venueNames().concat(CMLines().map(l => l.site)))].sort().map(n => '<option>' + esc(n) + '</option>').join('') + '</select><label class="l">Sport</label><input id="vnAS" placeholder="e.g. Football (Soccer)"><label class="l">Unit</label><select id="vnAU">' + VN_UNITS.map(u => '<option>' + u + '</option>').join('') + '</select>', '<button class="btn pri" id="vnAOk" type="button">Add</button>');
+  $('#vnAOk').onclick = async () => { const venue = $('#vnAV').value, sport = $('#vnAS').value.trim(); if (!sport) { toast('Add a sport.'); return; } const id = (key(venue) || 'tbd').slice(0, 40) + '__' + key(sport).slice(0, 40);
+   if (await vnSave({ _id:id, venue, sport }, { unit:$('#vnAU').value, removed:null }, 'Venue needs: added ' + sport + ' at ' + venue)) closeDrawer(); }; };
+};
+
+/* ══════════ WEEKLY MEETING: topics, live questions and answers ══════════ */
+const MT_TOPICS = ['Sites','Hotels','High-level timeline','Food','Open questions'];
+const MT_ST = ['Open','Answered','Action'];
+const MT = () => (S.plan && S.plan.meeting) || {};
+const mtItems = () => ents(MT().items).map(([k, x]) => Object.assign({ _id:k }, x)).sort((a,b) => MT_TOPICS.indexOf(a.topic) - MT_TOPICS.indexOf(b.topic) || num(a.order) - num(b.order) || num(a.at) - num(b.at));
+function mtSave(id, patch, text){ return save('plan/meeting/items/' + id, Object.assign({ updatedAt:Date.now(), updatedBy:me() }, patch), 'meeting', 'Weekly meeting', text); }
+RENDER.meeting = () => { const ed = canEdit(), all = mtItems(), m = MT();
+ const st = (() => { try { return localStorage.getItem('naigMtShow') || 'open'; } catch(e) { return 'open'; } })();
+ const items = st === 'all' ? all : all.filter(x => (x.status || 'Open') !== 'Answered');
+ const open = all.filter(x => (x.status || 'Open') === 'Open').length, ans = all.filter(x => x.status === 'Answered').length, act = all.filter(x => x.status === 'Action').length;
+ $('#topR').innerHTML = '<button class="btn" id="mtShow" type="button">' + (st === 'all' ? 'Hide answered' : 'Show answered') + '</button> <button class="btn" id="mtCsv" type="button">Download CSV</button>' + (ed ? ' <button class="btn pri" id="mtAdd" type="button">Add a question</button>' : '');
+ let h = '<div class="kpis"><div class="kpi ' + (open ? 'warn' : 'good') + '"><span>Open</span><b>' + open + '</b><small>waiting on an answer</small></div><div class="kpi"><span>Actions</span><b>' + act + '</b><small>answered, follow-up needed</small></div><div class="kpi good"><span>Answered</span><b>' + ans + '</b><small>closed out</small></div><div class="kpi"><span>Meeting</span><b style="font-size:16px">' + esc(m.when || 'Weekly · 1 hour') + '</b><small>' + esc(m.next ? 'Next: ' + m.next : 'Sites, hotels, timeline, food, open questions') + '</small></div></div>';
+ h += '<div class="note">Live during the meeting: type an answer under any question and it saves for everyone. Set the status to <b>Answered</b> to close it, or <b>Action</b> when a follow-up is needed. Most teams are waiting on sites, so we start there.</div>';
+ MT_TOPICS.forEach(t => { const xs = items.filter(x => (x.topic || 'Open questions') === t);
+  h += '<div class="card"><div class="mtH"><h2>' + esc(t) + '</h2>' + (ed ? '<button class="btn sm" type="button" data-mtadd="' + esc(t) + '">Add</button>' : '') + '</div>';
+  if (!xs.length) h += '<p class="hint">' + (st === 'all' ? 'Nothing yet.' : 'No open questions.') + '</p>';
+  h += xs.map(x => { const s = x.status || 'Open', cls = s === 'Answered' ? 'good' : s === 'Action' ? 'info' : 'warn', dis = ed ? '' : ' disabled';
+   return '<div class="mtI mtIn"><div class="mtQ"><b>' + esc(x.text) + '</b><div class="mtM">' + (x.owner ? '<span class="pill">' + esc(x.owner) + '</span> ' : '') + '<span class="pill ' + cls + '">' + esc(s) + '</span>' + (x.answeredBy ? ' <small>' + esc(x.answeredBy) + (x.answeredAt ? ' · ' + esc(fmtTs(x.answeredAt)) : '') + '</small>' : '') + '</div></div>'
+    + '<div class="mtA"><textarea rows="2" placeholder="Answer or update" data-mta="' + esc(x._id) + '"' + dis + '>' + esc(x.answer || '') + '</textarea><div class="mtC"><select data-mts="' + esc(x._id) + '"' + dis + '>' + MT_ST.map(o => '<option' + (o === s ? ' selected' : '') + '>' + o + '</option>').join('') + '</select><input type="text" placeholder="Owner" value="' + esc(x.owner || '') + '" data-mto="' + esc(x._id) + '"' + dis + '>' + (ed ? '<button class="vnX" type="button" title="Remove" data-mtrm="' + esc(x._id) + '">×</button>' : '') + '</div></div></div>'; }).join('');
+  h += '</div>'; });
+ $('#view').innerHTML = h;
+ $('#mtShow').onclick = () => { try { localStorage.setItem('naigMtShow', st === 'all' ? 'open' : 'all'); } catch(e) {} route(true); };
+ $('#mtCsv').onclick = () => csv('naig-weekly-meeting', [['Topic','topic'],['Question','text'],['Owner','owner'],['Status',x => x.status || 'Open'],['Answer','answer'],['Answered by','answeredBy'],['Answered',x => x.answeredAt ? fmtTs(x.answeredAt) : '']], all);
+ if (!ed) return;
+ const add = topic => { openDrawer('Add a question', '<label class="l">Topic</label><select id="mtT">' + MT_TOPICS.map(t => '<option' + (t === topic ? ' selected' : '') + '>' + t + '</option>').join('') + '</select><label class="l">Question or item</label><textarea id="mtX" rows="3"></textarea><label class="l">Owner</label><input id="mtO" placeholder="Who answers it">', '<button class="btn pri" id="mtOk" type="button">Add</button>');
+  $('#mtOk').onclick = async () => { const text = $('#mtX').value.trim(); if (!text) { toast('Add the question.'); return; }
+   if (await mtSave('q' + Date.now().toString(36), { topic:$('#mtT').value, text, owner:$('#mtO').value.trim(), status:'Open', at:Date.now(), by:me(), order:Date.now() }, 'Weekly meeting: added "' + text.slice(0, 60) + '"')) closeDrawer(); }; };
+ $('#mtAdd').onclick = () => add('Open questions');
+ $$('#view [data-mtadd]').forEach(b => b.onclick = () => add(b.dataset.mtadd));
+ $$('#view [data-mta]').forEach(el => el.addEventListener('change', () => { const x = all.find(y => y._id === el.dataset.mta); if (!x) return;
+  mtSave(x._id, { answer:el.value, answeredBy:me(), answeredAt:Date.now() }, 'Weekly meeting: answer on "' + String(x.text).slice(0, 60) + '"'); }));
+ $$('#view [data-mts]').forEach(el => el.addEventListener('change', () => { const x = all.find(y => y._id === el.dataset.mts); if (!x) return;
+  mtSave(x._id, Object.assign({ status:el.value }, el.value === 'Answered' ? { answeredBy:me(), answeredAt:Date.now() } : {}), 'Weekly meeting: "' + String(x.text).slice(0, 60) + '" set to ' + el.value); }));
+ $$('#view [data-mto]').forEach(el => el.addEventListener('change', () => { const x = all.find(y => y._id === el.dataset.mto); if (x) mtSave(x._id, { owner:el.value.trim() }, 'Weekly meeting: owner of "' + String(x.text).slice(0, 60) + '" set to ' + el.value.trim()); }));
+ $$('#view [data-mtrm]').forEach(b => b.onclick = () => { const x = all.find(y => y._id === b.dataset.mtrm); if (x && confirm('Remove this question?')) save('plan/meeting/items/' + x._id, { removed:true, topic:'_removed' }, 'meeting', 'Weekly meeting', 'Weekly meeting: removed "' + String(x.text).slice(0, 60) + '"'); });
+};
 
 /* ══════════ theme, boot ══════════ */
 const root = document.documentElement;
